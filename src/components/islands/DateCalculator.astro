@@ -1,0 +1,94 @@
+---
+/**
+ * Date calculator island — two tools: duration between dates, and add/subtract
+ * days. SSR defaults render real results; client recomputes via
+ * src/lib/calculators/date-duration.ts + age date parsing.
+ */
+import { diffDates, addDays, toISODateUTC } from '@lib/calculators/date-duration';
+import { parseISODateUTC } from '@lib/calculators/age';
+
+const from = parseISODateUTC('2020-01-01')!;
+const to = parseISODateUTC('2025-01-01')!;
+const d = diffDates(from, to);
+const start = parseISODateUTC('2024-01-01')!;
+const added = addDays(start, 90);
+const nf = new Intl.NumberFormat('en-US');
+const longDate = (iso: string) =>
+  new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
+  });
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-datecalc>
+  <!-- Duration -->
+  <div class="card p-5 sm:p-6" data-dc-diff>
+    <h3 class="text-lg font-bold">Days between two dates</h3>
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <div><label class="field-label" for="dc-from">From</label><input class="field" id="dc-from" type="date" value="2020-01-01" /></div>
+      <div><label class="field-label" for="dc-to">To</label><input class="field" id="dc-to" type="date" value="2025-01-01" /></div>
+    </div>
+    <div class="mt-5 rounded-lg p-4 text-center" style="background: var(--subtle)">
+      <p class="text-3xl font-extrabold" style="color: var(--heading)"><span data-dc-total>{nf.format(d.totalDays)}</span> days</p>
+      <p class="mt-1 text-sm" style="color: var(--muted)" data-dc-break>{d.breakdown.years}y {d.breakdown.months}m {d.breakdown.days}d · {nf.format(d.weeks)} weeks</p>
+    </div>
+  </div>
+
+  <!-- Add / subtract -->
+  <div class="card p-5 sm:p-6" data-dc-add>
+    <h3 class="text-lg font-bold">Add or subtract days</h3>
+    <div class="mt-4 space-y-3">
+      <div><label class="field-label" for="dc-start">Start date</label><input class="field" id="dc-start" type="date" value="2024-01-01" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="field-label" for="dc-op">Operation</label>
+          <select class="field" id="dc-op"><option value="add">Add</option><option value="sub">Subtract</option></select>
+        </div>
+        <div><label class="field-label" for="dc-days">Days</label><input class="field" id="dc-days" type="number" min="0" step="1" value="90" inputmode="decimal" /></div>
+      </div>
+    </div>
+    <div class="mt-5 rounded-lg p-4 text-center" style="background: var(--subtle)">
+      <p class="text-sm" style="color: var(--muted)">Result date</p>
+      <p class="mt-1 text-xl font-bold" style="color: var(--heading)" data-dc-result>{longDate(toISODateUTC(added))}</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { diffDates, addDays, toISODateUTC } from '@lib/calculators/date-duration';
+  import { parseISODateUTC } from '@lib/calculators/age';
+
+  const nf = new Intl.NumberFormat('en-US');
+  const longDate = (iso: string) =>
+    new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
+    });
+
+  document.querySelectorAll<HTMLElement>('[data-datecalc]').forEach((root) => {
+    const q = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
+    const fromEl = q<HTMLInputElement>('#dc-from');
+    const toEl = q<HTMLInputElement>('#dc-to');
+    const startEl = q<HTMLInputElement>('#dc-start');
+    const opEl = q<HTMLSelectElement>('#dc-op');
+    const daysEl = q<HTMLInputElement>('#dc-days');
+
+    function recomputeDiff() {
+      const a = parseISODateUTC(fromEl.value);
+      const b = parseISODateUTC(toEl.value);
+      if (!a || !b) return;
+      const d = diffDates(a, b);
+      q('[data-dc-total]').textContent = nf.format(d.totalDays);
+      q('[data-dc-break]').textContent = `${d.breakdown.years}y ${d.breakdown.months}m ${d.breakdown.days}d · ${nf.format(d.weeks)} weeks`;
+    }
+    function recomputeAdd() {
+      const s = parseISODateUTC(startEl.value);
+      if (!s) return;
+      const days = Number(daysEl.value) || 0;
+      const signed = opEl.value === 'sub' ? -days : days;
+      q('[data-dc-result]').textContent = longDate(toISODateUTC(addDays(s, signed)));
+    }
+    q('[data-dc-diff]').addEventListener('input', recomputeDiff);
+    q('[data-dc-add]').addEventListener('input', recomputeAdd);
+    recomputeDiff();
+    recomputeAdd();
+  });
+</script>

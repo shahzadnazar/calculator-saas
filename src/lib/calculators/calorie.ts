@@ -1,14 +1,11 @@
 /**
- * Daily calorie needs via the Mifflin-St Jeor equation (BMR) × activity level,
- * with common goal adjustments. Pure and unit-tested.
- *
- * BMR (Mifflin-St Jeor):
- *   men:   10·kg + 6.25·cm − 5·age + 5
- *   women: 10·kg + 6.25·cm − 5·age − 161
+ * Daily calorie needs = BMR (Mifflin-St Jeor) × activity level, with common
+ * goal adjustments. Pure and unit-tested. The BMR formula + unit handling are
+ * shared with the BMR calculator via src/lib/calculators/bmr.ts.
  */
+import { mifflinStJeorBMR, toMetricBody, type Sex, type UnitSystem } from '@lib/calculators/bmr';
 
-export type Sex = 'male' | 'female';
-export type UnitSystem = 'metric' | 'imperial';
+export type { Sex, UnitSystem };
 
 export interface CalorieInput {
   sex: Sex;
@@ -39,27 +36,15 @@ export const ACTIVITY_LEVELS = [
   { value: 1.9, label: 'Very active (hard exercise / physical job)' },
 ] as const;
 
-const LB_PER_KG = 2.2046226218;
-const CM_PER_IN = 2.54;
-
 export function calculateCalories(input: CalorieInput): CalorieResult {
-  let kg: number;
-  let cm: number;
-  if (input.system === 'imperial') {
-    kg = (input.weightLb || 0) / LB_PER_KG;
-    cm = ((input.heightFt || 0) * 12 + (input.heightIn || 0)) * CM_PER_IN;
-  } else {
-    kg = input.weightKg || 0;
-    cm = input.heightCm || 0;
-  }
+  const { kg, cm } = toMetricBody(input);
   const age = input.age || 0;
 
   if (kg <= 0 || cm <= 0 || age <= 0) {
     return { bmr: NaN, maintenance: NaN, mildLoss: NaN, loss: NaN, mildGain: NaN, gain: NaN };
   }
 
-  const base = 10 * kg + 6.25 * cm - 5 * age;
-  const bmr = input.sex === 'male' ? base + 5 : base - 161;
+  const bmr = mifflinStJeorBMR(input.sex, kg, cm, age);
   const maintenance = bmr * (input.activity || 1.2);
 
   const round = (v: number) => Math.round(v);

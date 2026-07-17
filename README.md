@@ -3,8 +3,9 @@
 Free, fast, accurate online calculators for finance, health, math and everyday
 life — built as a long-term SEO authority site.
 
-**Live tools:** Scientific Calculator, Mortgage Calculator, BMI Calculator
-(with ~50 more on the registry roadmap).
+**Live tools:** 12 and growing — across finance (mortgage, loan, compound &
+simple interest, sales tax), health (BMI, BMR, calorie/TDEE), math (scientific,
+percentage) and everyday (age, date). See the registry for the full roadmap.
 
 ---
 

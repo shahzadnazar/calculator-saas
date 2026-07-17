@@ -1,0 +1,61 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import BmrCalculator from '@components/islands/BmrCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('health', 'bmr-calculator')!;
+
+const faqs = [
+  {
+    question: 'What is BMR?',
+    answer:
+      'Basal Metabolic Rate is the number of calories your body burns at complete rest to maintain vital functions like breathing, circulation and cell production. It typically accounts for 60–70% of the calories you burn each day.',
+  },
+  {
+    question: 'How is BMR calculated here?',
+    answer:
+      'This calculator uses the Mifflin-St Jeor equation, widely regarded as one of the most accurate for healthy adults: 10 × weight(kg) + 6.25 × height(cm) − 5 × age, plus 5 for men or minus 161 for women.',
+  },
+  {
+    question: 'What is the difference between BMR and TDEE?',
+    answer:
+      'BMR is your at-rest calorie burn. Total Daily Energy Expenditure (TDEE) multiplies BMR by an activity factor to include movement and exercise. Use the calorie calculator to get your TDEE.',
+  },
+  {
+    question: 'Why does BMR decrease with age?',
+    answer:
+      'BMR tends to fall with age as muscle mass declines, since muscle burns more energy at rest than fat. Staying active and maintaining muscle helps keep your metabolic rate higher.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Estimate your Basal Metabolic Rate — the calories your body burns at rest — using the Mifflin-St Jeor equation, in metric or imperial units."
+  faqs={faqs}
+>
+  <BmrCalculator />
+
+  <Fragment slot="content">
+    <h2>What your BMR tells you</h2>
+    <p>
+      Your BMR is the baseline number of calories you would burn if you did nothing but
+      rest all day. It is the foundation for planning nutrition: your real daily needs are
+      your BMR scaled up by how active you are.
+    </p>
+
+    <h2>From BMR to daily calories</h2>
+    <p>
+      To find the calories you actually need, multiply BMR by an activity factor ranging
+      from about 1.2 (sedentary) to 1.9 (very active). The
+      <a href="/health/calorie-calculator">calorie calculator</a> does this for you and
+      adds weight-loss and weight-gain targets.
+    </p>
+
+    <p>
+      This is general educational information, not medical advice. Individual metabolism
+      varies; consult a healthcare professional for personalised guidance.
+    </p>
+  </Fragment>
+</CalculatorLayout>

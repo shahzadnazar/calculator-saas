@@ -1,0 +1,108 @@
+---
+/**
+ * BMR calculator island (Mifflin-St Jeor). SSR default + live recompute via
+ * src/lib/calculators/bmr.ts.
+ */
+import { calculateBmr } from '@lib/calculators/bmr';
+
+const r = calculateBmr({ sex: 'male', age: 30, system: 'metric', heightCm: 180, weightKg: 80 });
+const nf = new Intl.NumberFormat('en-US');
+const show = (v: number) => (Number.isNaN(v) ? '—' : nf.format(v));
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-bmr>
+  <form class="card p-5 sm:p-6" data-bmr-form novalidate>
+    <div class="flex flex-wrap gap-3">
+      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Sex" style="border-color: var(--line)">
+        <button type="button" class="seg-btn is-active" data-sex="male" role="radio" aria-checked="true">Male</button>
+        <button type="button" class="seg-btn" data-sex="female" role="radio" aria-checked="false">Female</button>
+      </div>
+      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Units" style="border-color: var(--line)">
+        <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
+        <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial</button>
+      </div>
+    </div>
+    <div class="mt-5 space-y-4">
+      <div>
+        <label class="field-label" for="bmr-age">Age</label>
+        <input class="field" id="bmr-age" name="age" type="number" min="1" max="120" value="30" inputmode="decimal" />
+      </div>
+      <div class="space-y-4" data-group="metric">
+        <div>
+          <label class="field-label" for="bmr-h-cm">Height</label>
+          <div class="flex"><input class="field rounded-r-none" id="bmr-h-cm" name="heightCm" type="number" min="0" value="180" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">cm</span></div>
+        </div>
+        <div>
+          <label class="field-label" for="bmr-w-kg">Weight</label>
+          <div class="flex"><input class="field rounded-r-none" id="bmr-w-kg" name="weightKg" type="number" min="0" value="80" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">kg</span></div>
+        </div>
+      </div>
+      <div class="space-y-4" data-group="imperial" hidden>
+        <div>
+          <label class="field-label">Height</label>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="flex"><input class="field rounded-r-none" name="heightFt" type="number" min="0" value="5" inputmode="decimal" aria-label="feet" /><span class="field-affix rounded-r-lg border-l-0">ft</span></div>
+            <div class="flex"><input class="field rounded-r-none" name="heightIn" type="number" min="0" value="11" inputmode="decimal" aria-label="inches" /><span class="field-affix rounded-r-lg border-l-0">in</span></div>
+          </div>
+        </div>
+        <div>
+          <label class="field-label" for="bmr-w-lb">Weight</label>
+          <div class="flex"><input class="field rounded-r-none" id="bmr-w-lb" name="weightLb" type="number" min="0" value="176" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">lb</span></div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card flex flex-col justify-center p-6 text-center">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Your Basal Metabolic Rate</p>
+    <p class="mt-2 text-5xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-bmr-value>{show(r.bmr)}</span></p>
+    <p class="mt-1 text-lg font-semibold" style="color: var(--muted)">calories/day at rest</p>
+    <p class="mt-4 text-sm" style="color: var(--fg)">This is the energy your body uses to keep functioning at complete rest. Multiply by your activity level to get daily needs — see the <a href="/health/calorie-calculator" style="color: var(--color-brand-600)">calorie calculator</a>.</p>
+  </div>
+</div>
+
+<style>
+  .seg-btn, .unit-btn { padding: 0.35rem 0.9rem; border-radius: 0.45rem; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .seg-btn.is-active, .unit-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { calculateBmr, type Sex, type UnitSystem } from '@lib/calculators/bmr';
+  const nf = new Intl.NumberFormat('en-US');
+  const show = (v: number) => (Number.isNaN(v) ? '—' : nf.format(v));
+
+  document.querySelectorAll<HTMLElement>('[data-bmr]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-bmr-form]')!;
+    let sex: Sex = 'male';
+    let system: UnitSystem = 'metric';
+    const groups = {
+      metric: root.querySelector<HTMLElement>('[data-group="metric"]')!,
+      imperial: root.querySelector<HTMLElement>('[data-group="imperial"]')!,
+    };
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+
+    function recompute() {
+      const r = calculateBmr({
+        sex, age: num('age'), system,
+        heightCm: num('heightCm'), weightKg: num('weightKg'),
+        heightFt: num('heightFt'), heightIn: num('heightIn'), weightLb: num('weightLb'),
+      });
+      const el = root.querySelector<HTMLElement>('[data-bmr-value]')!;
+      el.textContent = show(r.bmr);
+    }
+    root.querySelectorAll<HTMLButtonElement>('.seg-btn').forEach((b) => b.addEventListener('click', () => {
+      sex = (b.dataset.sex as Sex) ?? 'male';
+      root.querySelectorAll('.seg-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      recompute();
+    }));
+    root.querySelectorAll<HTMLButtonElement>('.unit-btn').forEach((b) => b.addEventListener('click', () => {
+      system = (b.dataset.unit as UnitSystem) ?? 'metric';
+      root.querySelectorAll('.unit-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      groups.metric.hidden = system !== 'metric';
+      groups.imperial.hidden = system !== 'imperial';
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

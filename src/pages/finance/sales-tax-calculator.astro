@@ -1,0 +1,55 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import SalesTaxCalculator from '@components/islands/SalesTaxCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('finance', 'sales-tax-calculator')!;
+
+const faqs = [
+  {
+    question: 'How do I calculate sales tax?',
+    answer:
+      'Multiply the pre-tax price by the tax rate (as a decimal) to get the tax amount, then add it to the price for the total. For example, $100 at 7.25% is $7.25 tax and $107.25 total.',
+  },
+  {
+    question: 'How do I find the price before tax from a total?',
+    answer:
+      'Divide the tax-inclusive total by (1 + rate). For a $107.25 total at 7.25%, the pre-tax price is 107.25 ÷ 1.0725 = $100. Use the “Remove tax” mode above to do this automatically.',
+  },
+  {
+    question: 'What sales tax rate should I use?',
+    answer:
+      'Sales tax rates vary by country, state and even city, and some goods are exempt. Enter the combined rate that applies where the purchase is made to get an accurate figure.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Add sales tax to a price, or work backwards to find the pre-tax amount and tax included in a total. Enter any tax rate."
+  faqs={faqs}
+>
+  <SalesTaxCalculator />
+
+  <Fragment slot="content">
+    <h2>Adding vs. removing tax</h2>
+    <p>
+      Use <strong>Add tax</strong> when you know the pre-tax price and want the total.
+      Use <strong>Remove tax</strong> when you have a receipt total and want to know how
+      much of it was tax — handy for expense reports and bookkeeping.
+    </p>
+
+    <h2>The formulas</h2>
+    <ul>
+      <li><strong>Tax:</strong> price × (rate ÷ 100)</li>
+      <li><strong>Total:</strong> price + tax</li>
+      <li><strong>Pre-tax from total:</strong> total ÷ (1 + rate ÷ 100)</li>
+    </ul>
+
+    <p>
+      Rates and exemptions differ by jurisdiction; confirm the correct combined rate for
+      your location. This tool is for estimation only.
+    </p>
+  </Fragment>
+</CalculatorLayout>

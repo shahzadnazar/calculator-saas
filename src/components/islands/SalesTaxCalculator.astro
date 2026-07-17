@@ -1,0 +1,76 @@
+---
+import { addSalesTax } from '@lib/calculators/sales-tax';
+import { formatCurrency } from '@lib/format';
+
+const defaults = { amount: 100, rate: 7.25 };
+const r = addSalesTax(defaults.amount, defaults.rate);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-tax>
+  <form class="card p-5 sm:p-6" data-tax-form novalidate>
+    <div class="mb-4 inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Mode" style="border-color: var(--line)">
+      <button type="button" class="mode-btn is-active" data-mode="add" role="radio" aria-checked="true">Add tax</button>
+      <button type="button" class="mode-btn" data-mode="remove" role="radio" aria-checked="false">Remove tax</button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="tax-amount" data-tax-amount-label>Amount before tax</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="tax-amount" name="amount" type="number" min="0" step="0.01" value={defaults.amount} inputmode="decimal" /></div>
+      </div>
+      <div>
+        <label class="field-label" for="tax-rate">Sales tax rate</label>
+        <div class="flex"><input class="field rounded-r-none" id="tax-rate" name="rate" type="number" min="0" step="0.01" value={defaults.rate} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <dl class="space-y-3">
+      <div class="flex items-center justify-between">
+        <dt style="color: var(--muted)">Net (before tax)</dt>
+        <dd class="font-semibold" data-tax-net>{formatCurrency(r.net)}</dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt style="color: var(--muted)">Tax</dt>
+        <dd class="font-semibold" style="color: var(--color-accent-600)" data-tax-tax>{formatCurrency(r.tax)}</dd>
+      </div>
+      <div class="flex items-center justify-between border-t pt-3" style="border-color: var(--line)">
+        <dt class="font-semibold">Total (with tax)</dt>
+        <dd class="text-xl font-bold" data-tax-gross>{formatCurrency(r.gross)}</dd>
+      </div>
+    </dl>
+  </div>
+</div>
+
+<style>
+  .mode-btn { padding: 0.35rem 0.9rem; border-radius: 0.45rem; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .mode-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { addSalesTax, removeSalesTax } from '@lib/calculators/sales-tax';
+  import { formatCurrency } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-tax]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-tax-form]')!;
+    let mode: 'add' | 'remove' = 'add';
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const amount = num('amount');
+      const rate = num('rate');
+      const r = mode === 'add' ? addSalesTax(amount, rate) : removeSalesTax(amount, rate);
+      set('[data-tax-net]', formatCurrency(r.net));
+      set('[data-tax-tax]', formatCurrency(r.tax));
+      set('[data-tax-gross]', formatCurrency(r.gross));
+      const label = root.querySelector<HTMLElement>('[data-tax-amount-label]')!;
+      label.textContent = mode === 'add' ? 'Amount before tax' : 'Total amount (with tax)';
+    }
+    root.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach((b) => b.addEventListener('click', () => {
+      mode = (b.dataset.mode as 'add' | 'remove') ?? 'add';
+      root.querySelectorAll('.mode-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

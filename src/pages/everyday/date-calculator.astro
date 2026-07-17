@@ -1,0 +1,56 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import DateCalculator from '@components/islands/DateCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('everyday', 'date-calculator')!;
+
+const faqs = [
+  {
+    question: 'How do I calculate the number of days between two dates?',
+    answer:
+      'Enter a start date and an end date in the “Days between two dates” tool. It counts every calendar day between them, including leap days, and also shows the span in years, months, days and weeks.',
+  },
+  {
+    question: 'How do I add or subtract days from a date?',
+    answer:
+      'Use the “Add or subtract days” tool: pick a start date, choose add or subtract, and enter the number of days. The resulting calendar date is shown instantly.',
+  },
+  {
+    question: 'Are leap years and month lengths handled correctly?',
+    answer:
+      'Yes. All date math is done on the calendar, so February 29th in leap years and the different lengths of each month are accounted for automatically.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Find the number of days between two dates, or add and subtract days from any date. Leap years and month lengths are handled automatically."
+  faqs={faqs}
+>
+  <DateCalculator />
+
+  <Fragment slot="content">
+    <h2>Two date tools in one</h2>
+    <p>
+      The first tool measures the <strong>duration between two dates</strong> — useful for
+      counting down to an event, tracking project timelines or working out someone's age
+      on a specific day. The second <strong>adds or subtracts days</strong> from a date,
+      handy for deadlines, due dates and return-by dates.
+    </p>
+
+    <h2>Accurate calendar math</h2>
+    <p>
+      Because months vary in length and leap years add a day, counting dates by hand is
+      error-prone. This calculator works directly on the calendar so every result is
+      exact, no matter which dates you choose.
+    </p>
+
+    <p>
+      Looking for an exact age instead? Try the
+      <a href="/everyday/age-calculator">age calculator</a>.
+    </p>
+  </Fragment>
+</CalculatorLayout>
