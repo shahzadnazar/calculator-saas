@@ -14,9 +14,13 @@ import {
 
 const featured = getLiveCalculators();
 
-// Featured guides to surface the content library on the home page.
-const featuredGuides = (await getCollection('guides', ({ data }) => !data.draft && data.featured))
-  .sort((a, b) => b.data.publishDate.getTime() - a.data.publishDate.getTime())
+// Surface the flagship pillar guides on the home page (fall back to featured).
+const allGuides = await getCollection('guides', ({ data }) => !data.draft);
+const featuredGuides = [
+  ...allGuides.filter((g) => g.data.pillar),
+  ...allGuides.filter((g) => !g.data.pillar && g.data.featured),
+]
+  .sort((a, b) => Number(b.data.pillar) - Number(a.data.pillar))
   .slice(0, 3);
 
 const valueProps = [

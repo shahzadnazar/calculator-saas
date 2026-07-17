@@ -5,10 +5,13 @@ import Breadcrumbs from '@components/Breadcrumbs.astro';
 import { getCategory } from '@data/calculators';
 import { SITE } from '@config/site';
 
-const guides = (await getCollection('guides', ({ data }) => !data.draft)).sort((a, b) => {
+const all = await getCollection('guides', ({ data }) => !data.draft);
+const byFeaturedThenDate = (a: typeof all[number], b: typeof all[number]) => {
   if (a.data.featured !== b.data.featured) return a.data.featured ? -1 : 1;
   return b.data.publishDate.getTime() - a.data.publishDate.getTime();
-});
+};
+const pillars = all.filter((g) => g.data.pillar).sort(byFeaturedThenDate);
+const guides = all.filter((g) => !g.data.pillar).sort(byFeaturedThenDate);
 
 const fmtDate = (d: Date) =>
   d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -36,26 +39,56 @@ const crumbs = [
     </header>
 
     {
-      guides.length === 0 ? (
+      pillars.length > 0 && (
+        <section class="mt-10" aria-labelledby="pillars-heading">
+          <h2 id="pillars-heading" class="text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">Start here — in-depth guides</h2>
+          <ul class="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2">
+            {pillars.map((g) => {
+              const cat = getCategory(g.data.category);
+              return (
+                <li>
+                  <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg" style="border-color: var(--color-brand-200)">
+                    <span class="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold" style="background: var(--color-brand-50); color: var(--color-brand-700)">
+                      {cat?.icon} {cat?.shortName} · Guide
+                    </span>
+                    <span class="text-xl font-bold" style="color: var(--heading)">{g.data.title}</span>
+                    <span class="text-sm" style="color: var(--muted)">{g.data.description}</span>
+                    <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Read guide →</span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )
+    }
+
+    {
+      guides.length === 0 && pillars.length === 0 ? (
         <p class="mt-10" style="color: var(--muted)">New guides are on the way.</p>
       ) : (
-        <ul class="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {guides.map((g) => {
-            const cat = getCategory(g.data.category);
-            return (
-              <li>
-                <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
-                  <span class="text-sm font-semibold" style="color: var(--color-brand-600)">
-                    {cat?.icon} {cat?.shortName}
-                  </span>
-                  <span class="text-lg font-bold" style="color: var(--heading)">{g.data.title}</span>
-                  <span class="text-sm" style="color: var(--muted)">{g.data.description}</span>
-                  <span class="mt-auto pt-2 text-xs" style="color: var(--muted)">{fmtDate(g.data.updatedDate ?? g.data.publishDate)}</span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+        <section class="mt-12" aria-labelledby="all-guides-heading">
+          {pillars.length > 0 && (
+            <h2 id="all-guides-heading" class="text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">More guides</h2>
+          )}
+          <ul class="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {guides.map((g) => {
+              const cat = getCategory(g.data.category);
+              return (
+                <li>
+                  <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
+                    <span class="text-sm font-semibold" style="color: var(--color-brand-600)">
+                      {cat?.icon} {cat?.shortName}
+                    </span>
+                    <span class="text-lg font-bold" style="color: var(--heading)">{g.data.title}</span>
+                    <span class="text-sm" style="color: var(--muted)">{g.data.description}</span>
+                    <span class="mt-auto pt-2 text-xs" style="color: var(--muted)">{fmtDate(g.data.updatedDate ?? g.data.publishDate)}</span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )
     }
   </div>

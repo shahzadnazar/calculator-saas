@@ -19,6 +19,8 @@ const guides = defineCollection({
     /** Registry references as "category/slug", used for interlinking. */
     relatedCalculators: z.array(z.string()).default([]),
     featured: z.boolean().default(false),
+    /** Comprehensive, cluster-spanning decision guide — surfaced prominently. */
+    pillar: z.boolean().default(false),
     draft: z.boolean().default(false),
   }),
 });

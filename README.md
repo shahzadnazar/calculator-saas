@@ -104,6 +104,8 @@ interlinked with them both ways.
 3. The guide gets Article structured data, author/EEAT attribution, a "Calculators
    used" panel, and a reciprocal "Read more" link on each referenced calculator —
    all automatically. Authors live in `src/config/authors.ts`.
+4. Set `pillar: true` for comprehensive, cluster-spanning decision guides — they
+   surface in a "Start here" section on `/guides` and on the home page.
 
 ## Rebranding / domain change
 

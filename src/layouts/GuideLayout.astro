@@ -111,12 +111,10 @@ const jsonLd = [
   .guide-prose {
     max-width: none;
   }
-  /* Give embedded interactive calculators breathing room from the text. */
-  .guide-prose :global([data-scientific-calculator]),
-  .guide-prose :global([data-mortgage]),
-  .guide-prose :global([data-compound]),
-  .guide-prose :global([data-bmi]),
-  .guide-prose :global([data-calorie]) {
-    margin-block: 1.5rem;
+  /* Give embedded interactive calculators breathing room from the text.
+     Calculator islands render as a direct <div> child of the prose column, so
+     this targets every embed — current and future — without a hard-coded list. */
+  .guide-prose > :global(div) {
+    margin-block: 1.75rem;
   }
 </style>
