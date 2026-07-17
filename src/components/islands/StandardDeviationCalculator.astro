@@ -1,0 +1,52 @@
+---
+import { calculateStats, parseNumberList } from '@lib/calculators/standard-deviation';
+import { formatNumber } from '@lib/format';
+
+const sample = '2, 4, 4, 4, 5, 5, 7, 9';
+const r = calculateStats(parseNumberList(sample));
+const show = (v: number) => (Number.isNaN(v) ? '—' : formatNumber(v, 4));
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-stats>
+  <form class="card p-5 sm:p-6" data-sd-form novalidate>
+    <label class="field-label" for="sd-input">Enter numbers (comma, space or line separated)</label>
+    <textarea class="field min-h-40 font-mono" id="sd-input" name="values" rows="8" spellcheck="false">{sample}</textarea>
+    <p class="mt-2 text-xs" style="color: var(--muted)">Count: <span data-sd-count>{r.count}</span> values</p>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <dl class="space-y-2 text-sm">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Mean (average)</dt><dd class="font-semibold" data-sd-mean>{show(r.mean)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Sum</dt><dd class="font-semibold" data-sd-sum>{show(r.sum)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Minimum</dt><dd class="font-semibold" data-sd-min>{show(r.min)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Maximum</dt><dd class="font-semibold" data-sd-max>{show(r.max)}</dd></div>
+      <div class="mt-2 flex justify-between border-t pt-3" style="border-color: var(--line)"><dt class="font-semibold">Sample SD (s)</dt><dd class="font-bold" style="color: var(--color-brand-700)" data-sd-sample>{show(r.sampleSD)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Sample variance (s²)</dt><dd class="font-semibold" data-sd-samplevar>{show(r.sampleVariance)}</dd></div>
+      <div class="flex justify-between"><dt class="font-semibold">Population SD (σ)</dt><dd class="font-bold" style="color: var(--color-brand-700)" data-sd-pop>{show(r.populationSD)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Population variance (σ²)</dt><dd class="font-semibold" data-sd-popvar>{show(r.populationVariance)}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<script>
+  import { calculateStats, parseNumberList } from '@lib/calculators/standard-deviation';
+  const show = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(v));
+  document.querySelectorAll<HTMLElement>('[data-stats]').forEach((root) => {
+    const input = root.querySelector<HTMLTextAreaElement>('#sd-input')!;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = calculateStats(parseNumberList(input.value));
+      set('[data-sd-count]', String(r.count));
+      set('[data-sd-mean]', show(r.mean));
+      set('[data-sd-sum]', show(r.sum));
+      set('[data-sd-min]', show(r.min));
+      set('[data-sd-max]', show(r.max));
+      set('[data-sd-sample]', show(r.sampleSD));
+      set('[data-sd-samplevar]', show(r.sampleVariance));
+      set('[data-sd-pop]', show(r.populationSD));
+      set('[data-sd-popvar]', show(r.populationVariance));
+    }
+    input.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

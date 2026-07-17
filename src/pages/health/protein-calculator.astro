@@ -1,0 +1,56 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import ProteinCalculator from '@components/islands/ProteinCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('health', 'protein-calculator')!;
+
+const faqs = [
+  {
+    question: 'How much protein do I need per day?',
+    answer:
+      'It depends on your weight and goals. The general baseline is about 0.8 g per kg of body weight, rising to 1.2–1.6 g/kg for active people and athletes, and up to about 2.2 g/kg when building muscle or dieting to preserve it.',
+  },
+  {
+    question: 'Should I use body weight or lean mass?',
+    answer:
+      'This calculator uses total body weight, which is the most common approach. People with very high body fat may prefer to base intake on lean or goal weight — treat the result as a practical estimate.',
+  },
+  {
+    question: 'Can I get enough protein from food?',
+    answer:
+      'Yes. Common sources include chicken, fish, eggs, dairy, legumes, tofu and whole grains. Spreading protein across meals helps your body use it effectively.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Estimate your recommended daily protein intake based on your body weight and activity or goal, with a comparison across common targets."
+  faqs={faqs}
+>
+  <ProteinCalculator />
+
+  <Fragment slot="content">
+    <h2>How much protein is right for you</h2>
+    <p>
+      Protein needs scale with body weight and activity. Sedentary adults need less;
+      endurance athletes, strength trainers and people dieting to preserve muscle need
+      more. The table shows the estimate for each goal so you can compare.
+    </p>
+
+    <h2>Grams per kilogram, explained</h2>
+    <ul>
+      <li><strong>0.8 g/kg</strong> — general baseline for sedentary adults.</li>
+      <li><strong>1.2–1.4 g/kg</strong> — active people and endurance athletes.</li>
+      <li><strong>1.8 g/kg</strong> — strength training and muscle gain.</li>
+      <li><strong>2.2 g/kg</strong> — preserving muscle while in a calorie deficit.</li>
+    </ul>
+
+    <p>
+      These are general guidelines, not medical or dietary advice. People with kidney
+      conditions or specific medical needs should consult a healthcare professional.
+    </p>
+  </Fragment>
+</CalculatorLayout>

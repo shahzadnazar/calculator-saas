@@ -1,0 +1,86 @@
+---
+import { calculateRetirement } from '@lib/calculators/retirement';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+const defaults = {
+  currentAge: 30, retirementAge: 65, currentSavings: 25000,
+  monthlyContribution: 500, annualReturnPct: 6, withdrawalRatePct: 4,
+};
+const r = calculateRetirement(defaults);
+---
+
+<div class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-retirement>
+  <form class="card p-5 sm:p-6" data-ret-form novalidate>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="field-label" for="ret-age">Current age</label>
+        <input class="field" id="ret-age" name="currentAge" type="number" min="0" max="100" value={defaults.currentAge} inputmode="decimal" />
+      </div>
+      <div>
+        <label class="field-label" for="ret-rage">Retirement age</label>
+        <input class="field" id="ret-rage" name="retirementAge" type="number" min="0" max="100" value={defaults.retirementAge} inputmode="decimal" />
+      </div>
+    </div>
+    <div class="mt-4 space-y-4">
+      <div>
+        <label class="field-label" for="ret-savings">Current savings</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="ret-savings" name="currentSavings" type="number" min="0" step="1000" value={defaults.currentSavings} inputmode="decimal" /></div>
+      </div>
+      <div>
+        <label class="field-label" for="ret-monthly">Monthly contribution</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="ret-monthly" name="monthlyContribution" type="number" min="0" step="50" value={defaults.monthlyContribution} inputmode="decimal" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="ret-return">Annual return</label>
+          <div class="flex"><input class="field rounded-r-none" id="ret-return" name="annualReturnPct" type="number" min="0" step="0.1" value={defaults.annualReturnPct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        </div>
+        <div>
+          <label class="field-label" for="ret-wd">Withdrawal rate</label>
+          <div class="flex"><input class="field rounded-r-none" id="ret-wd" name="withdrawalRatePct" type="number" min="0" step="0.1" value={defaults.withdrawalRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Projected savings at retirement</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-ret-nest>{formatCurrency(r.nestEgg)}</p>
+    <p class="mt-1 text-sm" style="color: var(--muted)">in <span data-ret-years>{r.yearsToRetirement}</span> years</p>
+
+    <div class="mt-5 rounded-lg p-4" style="background: var(--subtle)">
+      <p class="text-sm" style="color: var(--muted)">Estimated retirement income</p>
+      <p class="mt-1 text-2xl font-bold" style="color: var(--color-accent-600)"><span data-ret-monthly-income>{formatCurrency(r.estimatedMonthlyIncome)}</span> <span class="text-base font-semibold" style="color: var(--muted)">/month</span></p>
+      <p class="text-sm" style="color: var(--muted)"><span data-ret-annual-income>{formatCurrencyRounded(r.estimatedAnnualIncome)}</span> per year</p>
+    </div>
+
+    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Total contributions</dt><dd class="font-semibold" data-ret-contrib>{formatCurrencyRounded(r.totalContributions)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Investment growth</dt><dd class="font-semibold" data-ret-earn>{formatCurrencyRounded(r.totalEarnings)}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<script>
+  import { calculateRetirement } from '@lib/calculators/retirement';
+  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-retirement]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-ret-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = calculateRetirement({
+        currentAge: num('currentAge'), retirementAge: num('retirementAge'), currentSavings: num('currentSavings'),
+        monthlyContribution: num('monthlyContribution'), annualReturnPct: num('annualReturnPct'), withdrawalRatePct: num('withdrawalRatePct'),
+      });
+      set('[data-ret-nest]', formatCurrency(r.nestEgg));
+      set('[data-ret-years]', String(r.yearsToRetirement));
+      set('[data-ret-monthly-income]', formatCurrency(r.estimatedMonthlyIncome));
+      set('[data-ret-annual-income]', formatCurrencyRounded(r.estimatedAnnualIncome));
+      set('[data-ret-contrib]', formatCurrencyRounded(r.totalContributions));
+      set('[data-ret-earn]', formatCurrencyRounded(r.totalEarnings));
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

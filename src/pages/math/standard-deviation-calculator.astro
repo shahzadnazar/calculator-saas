@@ -1,0 +1,58 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import StandardDeviationCalculator from '@components/islands/StandardDeviationCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('math', 'standard-deviation-calculator')!;
+
+const faqs = [
+  {
+    question: 'What is standard deviation?',
+    answer:
+      'Standard deviation measures how spread out a set of numbers is around the mean. A low value means the data points are close to the average; a high value means they are more dispersed.',
+  },
+  {
+    question: 'What is the difference between sample and population standard deviation?',
+    answer:
+      'Population standard deviation (σ) divides by N and is used when your data includes the entire group. Sample standard deviation (s) divides by N−1 and is used when your data is a sample from a larger population — it gives a less biased estimate.',
+  },
+  {
+    question: 'How do I enter my data?',
+    answer:
+      'Type or paste your numbers separated by commas, spaces or new lines. The calculator ignores blanks and non-numeric text, and updates the results as you type.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Calculate the mean, variance and standard deviation (both sample and population) of any data set, along with the sum, minimum and maximum."
+  faqs={faqs}
+>
+  <StandardDeviationCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use the standard deviation calculator</h2>
+    <p>
+      Paste or type your numbers into the box — separated by commas, spaces or new lines.
+      The calculator instantly reports the count, mean, sum, range, and both sample and
+      population standard deviation and variance.
+    </p>
+
+    <h2>Which one should I use?</h2>
+    <p>
+      Use the <strong>population</strong> standard deviation (σ) when your data is the
+      whole group you care about. Use the <strong>sample</strong> standard deviation (s)
+      when your data is a sample used to estimate a larger population — this is the more
+      common case in statistics and research.
+    </p>
+
+    <h2>How it is calculated</h2>
+    <p>
+      The calculator finds the mean, then the squared difference of each value from the
+      mean. The average of those squared differences is the variance (dividing by N for
+      population, N−1 for sample), and its square root is the standard deviation.
+    </p>
+  </Fragment>
+</CalculatorLayout>

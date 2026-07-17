@@ -1,0 +1,62 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import RetirementCalculator from '@components/islands/RetirementCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('finance', 'retirement-calculator')!;
+
+const faqs = [
+  {
+    question: 'How much will I have saved by retirement?',
+    answer:
+      'The calculator grows your current savings plus monthly contributions at your expected return until your retirement age, compounding monthly, to project your nest egg.',
+  },
+  {
+    question: 'What is the 4% rule?',
+    answer:
+      'The 4% rule is a rule of thumb suggesting you can withdraw about 4% of your retirement savings in the first year (adjusting for inflation thereafter) with a good chance the money lasts 30 years. This calculator uses your chosen withdrawal rate to estimate income.',
+  },
+  {
+    question: 'Does this account for inflation?',
+    answer:
+      'The projection uses a nominal return. To think in today’s dollars, use a lower "real" return (your expected return minus inflation, often around 4–5%).',
+  },
+  {
+    question: 'How much should I contribute?',
+    answer:
+      'A common guideline is to save 10–15% of income for retirement, including any employer match. Adjust the monthly contribution to see how it changes your projected nest egg and income.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Project your retirement savings from your current age and contributions, and estimate the yearly and monthly income it could provide using a safe withdrawal rate."
+  faqs={faqs}
+>
+  <RetirementCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use the retirement calculator</h2>
+    <p>
+      Enter your <strong>current age</strong> and target <strong>retirement age</strong>,
+      your <strong>current savings</strong>, your <strong>monthly contribution</strong>,
+      an expected <strong>annual return</strong>, and a <strong>withdrawal rate</strong>.
+      The calculator projects your nest egg and the income it could support.
+    </p>
+
+    <h2>From nest egg to income</h2>
+    <p>
+      The estimated income applies your withdrawal rate to the projected balance. A 4%
+      rate on a $1,000,000 nest egg is $40,000 per year. Lower rates are more
+      conservative and more likely to last through a long retirement.
+    </p>
+
+    <p>
+      This is a simplified projection for planning and education, not financial advice.
+      It does not model taxes, Social Security, market volatility or inflation in detail —
+      consider speaking with a qualified financial planner.
+    </p>
+  </Fragment>
+</CalculatorLayout>

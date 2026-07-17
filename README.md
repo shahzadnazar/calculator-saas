@@ -3,10 +3,11 @@
 Free, fast, accurate online calculators for finance, health, math and everyday
 life — built as a long-term SEO authority site.
 
-**Live tools:** 17 and growing — finance (mortgage, loan, auto loan, compound &
-simple interest, sales tax), health (BMI, BMR, body fat, calorie/TDEE, ideal
-weight), math (scientific, percentage, fraction) and everyday (age, date,
-hours). See the registry for the full roadmap.
+**Live tools:** 22 and growing — finance (mortgage, loan, auto loan, compound &
+simple interest, sales tax, investment, retirement), health (BMI, BMR, body fat,
+calorie/TDEE, ideal weight, protein), math (scientific, percentage, fraction,
+standard deviation) and everyday (age, date, hours, password generator). See the
+registry for the full roadmap.
 
 ---
 

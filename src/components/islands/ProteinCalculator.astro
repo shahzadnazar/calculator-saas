@@ -1,0 +1,75 @@
+---
+import { calculateProtein, PROTEIN_GOALS } from '@lib/calculators/protein';
+
+const defaults = { goalKey: 'active' };
+const r = calculateProtein({ system: 'metric', weightKg: 75, goalKey: defaults.goalKey });
+const show = (v: number) => (Number.isNaN(v) ? '—' : `${v} g`);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-protein>
+  <form class="card p-5 sm:p-6" data-pr-form novalidate>
+    <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Units" style="border-color: var(--line)">
+      <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
+      <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial</button>
+    </div>
+    <div class="mt-5 space-y-4">
+      <div>
+        <label class="field-label" for="pr-weight">Body weight</label>
+        <div class="flex"><input class="field rounded-r-none" id="pr-weight" name="weight" type="number" min="0" value="75" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0" data-pr-unit>kg</span></div>
+      </div>
+      <div>
+        <label class="field-label" for="pr-goal">Goal / activity</label>
+        <select class="field" id="pr-goal" name="goalKey">
+          {PROTEIN_GOALS.map((g) => (<option value={g.key} selected={g.key === defaults.goalKey}>{g.label}</option>))}
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Recommended daily protein</p>
+    <p class="mt-1 text-5xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-pr-grams>{r.grams}</span> <span class="text-2xl" style="color: var(--muted)">g</span></p>
+    <table class="mt-5 w-full text-sm">
+      <tbody data-pr-table>
+        {r.perGoal.map((g) => (
+          <tr class="border-t" style="border-color: var(--line)">
+            <td class="py-2" style="color: var(--muted)">{g.label}</td>
+            <td class="py-2 text-right font-semibold">{show(g.grams)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .unit-btn { padding: 0.35rem 0.9rem; border-radius: 0.45rem; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .unit-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { calculateProtein, type UnitSystem } from '@lib/calculators/protein';
+  const show = (v: number) => (Number.isNaN(v) ? '—' : `${v} g`);
+  document.querySelectorAll<HTMLElement>('[data-protein]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-pr-form]')!;
+    let system: UnitSystem = 'metric';
+    const weight = () => Number((form.elements.namedItem('weight') as HTMLInputElement).value) || 0;
+    const goalKey = () => (form.elements.namedItem('goalKey') as HTMLSelectElement).value;
+    function recompute() {
+      const r = calculateProtein(system === 'metric' ? { system, weightKg: weight(), goalKey: goalKey() } : { system, weightLb: weight(), goalKey: goalKey() });
+      const g = root.querySelector<HTMLElement>('[data-pr-grams]')!;
+      g.textContent = Number.isNaN(r.grams) ? '—' : String(r.grams);
+      root.querySelector<HTMLElement>('[data-pr-table]')!.innerHTML = r.perGoal
+        .map((x) => `<tr class="border-t" style="border-color: var(--line)"><td class="py-2" style="color: var(--muted)">${x.label}</td><td class="py-2 text-right font-semibold">${show(x.grams)}</td></tr>`)
+        .join('');
+    }
+    root.querySelectorAll<HTMLButtonElement>('.unit-btn').forEach((b) => b.addEventListener('click', () => {
+      system = (b.dataset.unit as UnitSystem) ?? 'metric';
+      root.querySelectorAll('.unit-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      root.querySelector<HTMLElement>('[data-pr-unit]')!.textContent = system === 'metric' ? 'kg' : 'lb';
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>
