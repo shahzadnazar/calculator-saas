@@ -1,0 +1,50 @@
+---
+import ContentLayout from '@layouts/ContentLayout.astro';
+import { SITE } from '@config/site';
+import { STATS } from '@data/calculators';
+---
+
+<ContentLayout
+  title="About AllCalculators"
+  description="Learn about AllCalculators — our mission to build the fastest, most accurate and most trustworthy free online calculators."
+  path="/about"
+  heading="About AllCalculators"
+>
+  <p>
+    {SITE.name} exists to answer everyday number questions quickly, accurately and
+    without friction. Whether you are working out a mortgage payment, checking your
+    BMI or solving a maths problem, you should be able to get a reliable answer in
+    seconds — free, private, and with no sign-up.
+  </p>
+
+  <h2>Our mission</h2>
+  <p>
+    We are building one of the web's most trustworthy calculator libraries: currently
+    {STATS.live} live tools across {STATS.categories} categories, with new ones added
+    regularly. Every tool is designed to be genuinely useful, not just to rank — fast
+    to load, easy to use, and correct.
+  </p>
+
+  <h2>What makes us different</h2>
+  <ul>
+    <li><strong>Accuracy first.</strong> The maths behind each calculator is unit-tested and reviewed against authoritative sources.</li>
+    <li><strong>Privacy by default.</strong> Calculations run in your browser; we do not collect the values you enter.</li>
+    <li><strong>Speed.</strong> Our pages are static and lightweight, so they load fast on any connection or device.</li>
+    <li><strong>Clarity.</strong> Each tool explains how it works, so you can understand the result — not just copy it.</li>
+  </ul>
+
+  <h2>How we're funded</h2>
+  <p>
+    To keep {SITE.name} free, we may display advertising in the future. When we do, it
+    will be limited and unobtrusive — we will never let ads compromise the speed,
+    accuracy or usability of the tools. Advertising never influences the results a
+    calculator produces.
+  </p>
+
+  <h2>Get in touch</h2>
+  <p>
+    Have a correction, a feature request or a calculator you'd like us to build? We
+    read everything — visit our <a href="/contact">contact page</a>. To understand our
+    quality process, see <a href="/methodology">how we build calculators</a>.
+  </p>
+</ContentLayout>

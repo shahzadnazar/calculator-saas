@@ -1,0 +1,89 @@
+---
+/**
+ * Site header: brand, category navigation (derived from the registry) and a
+ * theme toggle. The nav is a horizontally-scrollable row on small screens —
+ * robust, no hamburger JS, and works with JavaScript disabled.
+ */
+import Logo from '@components/Logo.astro';
+import { CATEGORIES_ORDERED, categoryPath } from '@data/calculators';
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isActive = (path: string) => currentPath === path || currentPath.startsWith(path + '/');
+---
+
+<header
+  class="sticky top-0 z-50 border-b"
+  style="background: color-mix(in srgb, var(--card) 88%, transparent); border-color: var(--line); backdrop-filter: saturate(180%) blur(8px);"
+>
+  <div class="wrap flex h-16 items-center justify-between gap-4">
+    <a href="/" class="flex items-center" aria-label="AllCalculators home">
+      <Logo />
+    </a>
+
+    <nav aria-label="Calculator categories" class="min-w-0 flex-1">
+      <ul class="flex items-center gap-1 overflow-x-auto md:justify-center [scrollbar-width:none] [-ms-overflow-style:none]">
+        {
+          CATEGORIES_ORDERED.map((cat) => (
+            <li class="shrink-0">
+              <a
+                href={categoryPath(cat)}
+                class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
+                style={
+                  isActive(categoryPath(cat))
+                    ? 'color: var(--color-brand-700); background: var(--color-brand-50)'
+                    : 'color: var(--fg)'
+                }
+                aria-current={isActive(categoryPath(cat)) ? 'page' : undefined}
+              >
+                <span aria-hidden="true">{cat.icon}</span>
+                <span>{cat.shortName}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="flex shrink-0 items-center gap-1">
+      <a
+        href="/calculators"
+        class="hidden rounded-lg px-3 py-2 text-sm font-semibold sm:inline-flex"
+        style="color: var(--fg)">All calculators</a
+      >
+      <button
+        type="button"
+        id="theme-toggle"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-lg border"
+        style="border-color: var(--line); color: var(--fg)"
+        aria-label="Toggle color theme"
+      >
+        <svg class="h-5 w-5" data-theme-icon="light" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path stroke-linecap="round" d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path>
+        </svg>
+        <svg class="h-5 w-5" data-theme-icon="dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<script>
+  // Theme toggle: cycles light/dark and persists the choice. The initial theme
+  // is applied pre-paint by an inline script in the layout to avoid any flash.
+  const btn = document.getElementById('theme-toggle');
+  btn?.addEventListener('click', () => {
+    const root = document.documentElement;
+    const current =
+      root.getAttribute('data-theme') ||
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const next = current === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try {
+      localStorage.setItem('theme', next);
+    } catch {
+      /* storage may be unavailable; ignore */
+    }
+  });
+</script>

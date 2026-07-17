@@ -1,0 +1,62 @@
+---
+import ContentLayout from '@layouts/ContentLayout.astro';
+import { SITE } from '@config/site';
+---
+
+<ContentLayout
+  title="Terms of Use"
+  description="The terms governing your use of AllCalculators."
+  path="/terms"
+  heading="Terms of Use"
+  updated="2026-07-17"
+>
+  <p>
+    By accessing and using {SITE.name} (the "site"), you agree to these Terms of Use.
+    If you do not agree, please do not use the site.
+  </p>
+
+  <h2>Use of the site</h2>
+  <p>
+    You may use our calculators and content for personal, non-commercial purposes. You
+    agree not to misuse the site, interfere with its operation, or attempt to access it
+    in any way other than through the interface we provide.
+  </p>
+
+  <h2>No professional advice</h2>
+  <p>
+    The tools and information on this site are provided for general educational purposes
+    only and do not constitute financial, medical, legal, tax or other professional
+    advice. See our <a href="/disclaimer">disclaimer</a> for full details.
+  </p>
+
+  <h2>Accuracy and availability</h2>
+  <p>
+    We work hard to keep our calculators accurate and available, but we provide the site
+    "as is" and "as available" without warranties of any kind. We do not guarantee that
+    results are error-free or that the site will be uninterrupted.
+  </p>
+
+  <h2>Limitation of liability</h2>
+  <p>
+    To the fullest extent permitted by law, {SITE.name} shall not be liable for any
+    loss or damage arising from your use of, or reliance on, the site or its results.
+  </p>
+
+  <h2>Intellectual property</h2>
+  <p>
+    The site's design, text and original tools are our property or that of our
+    licensors and are protected by applicable laws. You may not reproduce them
+    substantially without permission.
+  </p>
+
+  <h2>Changes</h2>
+  <p>
+    We may update these terms from time to time. Continued use of the site after changes
+    constitutes acceptance of the updated terms.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about these terms? Email <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+  </p>
+</ContentLayout>

@@ -1,0 +1,251 @@
+---
+/**
+ * Mortgage calculator island.
+ *
+ * The default scenario is computed at build time and rendered server-side, so
+ * the tool shows a meaningful result with zero layout shift and even without
+ * JavaScript. The client script recomputes live on input using the same
+ * unit-tested logic in src/lib/calculators/mortgage.ts.
+ */
+import { calculateMortgage, toYearlySchedule } from '@lib/calculators/mortgage';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+const defaults = {
+  homePrice: 360000,
+  downPayment: 72000,
+  loanTermYears: 30,
+  annualInterestRate: 6.5,
+  propertyTaxAnnual: 3600,
+  homeInsuranceAnnual: 1200,
+  hoaMonthly: 0,
+  pmiAnnualRate: 0.5,
+};
+const r = calculateMortgage(defaults);
+const yearly = toYearlySchedule(r.schedule);
+const pct = (v: number) => (r.monthlyTotal ? (v / r.monthlyTotal) * 100 : 0);
+---
+
+<div
+  class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]"
+  data-mortgage
+  data-defaults={JSON.stringify(defaults)}
+>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-mc-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="mc-home-price">Home price</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="mc-home-price" name="homePrice" type="number" min="0" step="1000" value={defaults.homePrice} inputmode="decimal" />
+        </div>
+      </div>
+
+      <div>
+        <div class="flex items-baseline justify-between">
+          <label class="field-label" for="mc-down-payment">Down payment</label>
+          <span class="text-xs font-semibold" style="color: var(--muted)" data-mc-down-pct></span>
+        </div>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" value={defaults.downPayment} inputmode="decimal" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="mc-term">Loan term</label>
+          <select class="field" id="mc-term" name="loanTermYears">
+            {[30, 20, 15, 10].map((y) => (
+              <option value={y} selected={y === defaults.loanTermYears}>{y} years</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label class="field-label" for="mc-rate">Interest rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="mc-rate" name="annualInterestRate" type="number" min="0" step="0.05" value={defaults.annualInterestRate} inputmode="decimal" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+        </div>
+      </div>
+
+      <details class="pt-1">
+        <summary class="cursor-pointer text-sm font-semibold" style="color: var(--color-brand-600)">
+          Taxes, insurance &amp; fees
+        </summary>
+        <div class="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <label class="field-label" for="mc-tax">Property tax /yr</label>
+            <input class="field" id="mc-tax" name="propertyTaxAnnual" type="number" min="0" step="100" value={defaults.propertyTaxAnnual} inputmode="decimal" />
+          </div>
+          <div>
+            <label class="field-label" for="mc-insurance">Home insurance /yr</label>
+            <input class="field" id="mc-insurance" name="homeInsuranceAnnual" type="number" min="0" step="100" value={defaults.homeInsuranceAnnual} inputmode="decimal" />
+          </div>
+          <div>
+            <label class="field-label" for="mc-hoa">HOA /mo</label>
+            <input class="field" id="mc-hoa" name="hoaMonthly" type="number" min="0" step="10" value={defaults.hoaMonthly} inputmode="decimal" />
+          </div>
+          <div>
+            <label class="field-label" for="mc-pmi">PMI rate /yr</label>
+            <div class="flex">
+              <input class="field rounded-r-none" id="mc-pmi" name="pmiAnnualRate" type="number" min="0" step="0.05" value={defaults.pmiAnnualRate} inputmode="decimal" />
+              <span class="field-affix rounded-r-lg border-l-0">%</span>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </form>
+
+  <!-- Results -->
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Estimated monthly payment</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-mc-monthly-total>
+      {formatCurrency(r.monthlyTotal)}
+    </p>
+
+    <!-- Breakdown bar -->
+    <div class="mt-5 flex h-3 w-full overflow-hidden rounded-full" style="background: var(--subtle)" data-mc-bar aria-hidden="true">
+      <span style={`width:${pct(r.monthlyPrincipalInterest)}%; background: var(--color-brand-600)`} data-seg="pi"></span>
+      <span style={`width:${pct(r.monthlyPropertyTax)}%; background: var(--color-accent-500)`} data-seg="tax"></span>
+      <span style={`width:${pct(r.monthlyInsurance)}%; background: #f59e0b`} data-seg="ins"></span>
+      <span style={`width:${pct(r.monthlyPmi)}%; background: #a855f7`} data-seg="pmi"></span>
+      <span style={`width:${pct(r.monthlyHoa)}%; background: #64748b`} data-seg="hoa"></span>
+    </div>
+
+    <dl class="mt-5 space-y-2 text-sm">
+      <div class="flex items-center justify-between">
+        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: var(--color-brand-600)"></span>Principal &amp; interest</dt>
+        <dd class="font-semibold" data-mc-pi>{formatCurrency(r.monthlyPrincipalInterest)}</dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: var(--color-accent-500)"></span>Property tax</dt>
+        <dd class="font-semibold" data-mc-tax>{formatCurrency(r.monthlyPropertyTax)}</dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: #f59e0b"></span>Home insurance</dt>
+        <dd class="font-semibold" data-mc-ins>{formatCurrency(r.monthlyInsurance)}</dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: #a855f7"></span>PMI</dt>
+        <dd class="font-semibold" data-mc-pmi>{formatCurrency(r.monthlyPmi)}</dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: #64748b"></span>HOA</dt>
+        <dd class="font-semibold" data-mc-hoa>{formatCurrency(r.monthlyHoa)}</dd>
+      </div>
+    </dl>
+
+    <div class="mt-5 grid grid-cols-3 gap-3 border-t pt-5 text-center" style="border-color: var(--line)">
+      <div>
+        <p class="text-xs" style="color: var(--muted)">Loan amount</p>
+        <p class="mt-1 font-bold" data-mc-loan>{formatCurrencyRounded(r.loanAmount)}</p>
+      </div>
+      <div>
+        <p class="text-xs" style="color: var(--muted)">Total interest</p>
+        <p class="mt-1 font-bold" data-mc-total-interest>{formatCurrencyRounded(r.totalInterest)}</p>
+      </div>
+      <div>
+        <p class="text-xs" style="color: var(--muted)">Total of payments</p>
+        <p class="mt-1 font-bold" data-mc-total-paid>{formatCurrencyRounded(r.totalOfPayments)}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Amortization -->
+  <div class="card p-5 sm:p-6 lg:col-span-2">
+    <h3 class="text-lg font-bold">Amortization schedule (yearly)</h3>
+    <div class="mt-4 max-h-80 overflow-auto rounded-lg border" style="border-color: var(--line)">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0" style="background: var(--subtle)">
+          <tr>
+            <th class="px-3 py-2 text-left font-semibold">Year</th>
+            <th class="px-3 py-2 text-right font-semibold">Principal</th>
+            <th class="px-3 py-2 text-right font-semibold">Interest</th>
+            <th class="px-3 py-2 text-right font-semibold">Balance</th>
+          </tr>
+        </thead>
+        <tbody data-mc-schedule>
+          {
+            yearly.map((row) => (
+              <tr class="border-t" style="border-color: var(--line)">
+                <td class="px-3 py-2">{row.period}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.principal)}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.interest)}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.balance)}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { calculateMortgage, toYearlySchedule } from '@lib/calculators/mortgage';
+  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+  document.querySelectorAll<HTMLElement>('[data-mortgage]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-mc-form]')!;
+    const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+
+    const num = (name: string) => {
+      const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+      return el ? Number(el.value) || 0 : 0;
+    };
+
+    function recompute() {
+      const input = {
+        homePrice: num('homePrice'),
+        downPayment: num('downPayment'),
+        loanTermYears: num('loanTermYears'),
+        annualInterestRate: num('annualInterestRate'),
+        propertyTaxAnnual: num('propertyTaxAnnual'),
+        homeInsuranceAnnual: num('homeInsuranceAnnual'),
+        hoaMonthly: num('hoaMonthly'),
+        pmiAnnualRate: num('pmiAnnualRate'),
+      };
+      const r = calculateMortgage(input);
+      const pct = (v: number) => (r.monthlyTotal ? (v / r.monthlyTotal) * 100 : 0);
+
+      $('[data-mc-monthly-total]').textContent = formatCurrency(r.monthlyTotal);
+      $('[data-mc-pi]').textContent = formatCurrency(r.monthlyPrincipalInterest);
+      $('[data-mc-tax]').textContent = formatCurrency(r.monthlyPropertyTax);
+      $('[data-mc-ins]').textContent = formatCurrency(r.monthlyInsurance);
+      $('[data-mc-pmi]').textContent = formatCurrency(r.monthlyPmi);
+      $('[data-mc-hoa]').textContent = formatCurrency(r.monthlyHoa);
+      $('[data-mc-loan]').textContent = formatCurrencyRounded(r.loanAmount);
+      $('[data-mc-total-interest]').textContent = formatCurrencyRounded(r.totalInterest);
+      $('[data-mc-total-paid]').textContent = formatCurrencyRounded(r.totalOfPayments);
+
+      const segs: Record<string, number> = {
+        pi: r.monthlyPrincipalInterest,
+        tax: r.monthlyPropertyTax,
+        ins: r.monthlyInsurance,
+        pmi: r.monthlyPmi,
+        hoa: r.monthlyHoa,
+      };
+      root.querySelectorAll<HTMLElement>('[data-seg]').forEach((el) => {
+        el.style.width = `${pct(segs[el.dataset.seg!] ?? 0)}%`;
+      });
+
+      const price = input.homePrice || 1;
+      $('[data-mc-down-pct]').textContent =
+        `${((input.downPayment / price) * 100).toFixed(0)}% down`;
+
+      const rows = toYearlySchedule(r.schedule)
+        .map(
+          (row) =>
+            `<tr class="border-t" style="border-color: var(--line)"><td class="px-3 py-2">${row.period}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.principal)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.interest)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.balance)}</td></tr>`,
+        )
+        .join('');
+      $('[data-mc-schedule]').innerHTML = rows;
+    }
+
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

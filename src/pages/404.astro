@@ -1,0 +1,39 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import { CATEGORIES_ORDERED, categoryPath } from '@data/calculators';
+---
+
+<BaseLayout
+  title="Page not found (404)"
+  description="The page you're looking for doesn't exist. Browse our calculators instead."
+  path="/404"
+  noindex={true}
+>
+  <div class="wrap py-24 text-center">
+    <p class="text-6xl font-extrabold" style="color: var(--color-brand-600)">404</p>
+    <h1 class="mt-4 text-3xl font-bold">We couldn't find that page</h1>
+    <p class="mx-auto mt-3 max-w-md text-lg" style="color: var(--muted)">
+      The page may have moved or never existed. Try searching, or pick a category below.
+    </p>
+    <div class="mt-6 flex flex-wrap justify-center gap-3">
+      <a href="/" class="btn btn-primary">Go home</a>
+      <a href="/calculators" class="btn btn-secondary">All calculators</a>
+    </div>
+    <ul class="mt-8 flex flex-wrap justify-center gap-2">
+      {
+        CATEGORIES_ORDERED.map((cat) => (
+          <li>
+            <a
+              href={categoryPath(cat)}
+              class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold"
+              style="border-color: var(--line); color: var(--fg)"
+            >
+              <span aria-hidden="true">{cat.icon}</span>
+              {cat.shortName}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</BaseLayout>

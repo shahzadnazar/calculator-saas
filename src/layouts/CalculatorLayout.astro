@@ -1,0 +1,151 @@
+---
+/**
+ * CalculatorLayout — the shared skeleton for every calculator page.
+ *
+ * A page supplies its registry entry, FAQs and review date; this layout derives
+ * SEO metadata, breadcrumbs, calculator + breadcrumb + FAQ structured data, and
+ * lays out the tool, explainer content, FAQ and related calculators. New
+ * calculators get all of this for free.
+ *
+ * Slots: default = the interactive tool; "content" = long-form explainer prose.
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import AdSlot from '@components/AdSlot.astro';
+import {
+  type Calculator,
+  getCategory,
+  getRelatedCalculators,
+  calculatorPath,
+  categoryPath,
+} from '@data/calculators';
+import { calculatorSchema, breadcrumbSchema, faqSchema } from '@lib/schema';
+
+interface FAQ {
+  question: string;
+  answer: string;
+}
+
+interface Props {
+  calculator: Calculator;
+  /** Optional lead paragraph overriding the registry description. */
+  intro?: string;
+  faqs?: FAQ[];
+  /** ISO date this calculator's method was last reviewed (EEAT signal). */
+  reviewedOn?: string;
+}
+
+const { calculator, intro, faqs = [], reviewedOn } = Astro.props;
+const category = getCategory(calculator.category)!;
+const path = calculatorPath(calculator);
+const related = getRelatedCalculators(calculator);
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: category.shortName, path: categoryPath(category) },
+  { name: calculator.title, path },
+];
+
+const jsonLd = [
+  calculatorSchema({ name: calculator.title, description: calculator.description, path }),
+  breadcrumbSchema(crumbs),
+  ...(faqs.length ? [faqSchema(faqs)] : []),
+];
+
+const reviewedDisplay = reviewedOn
+  ? new Date(reviewedOn + 'T00:00:00Z').toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'UTC',
+    })
+  : null;
+---
+
+<BaseLayout
+  title={calculator.title}
+  description={calculator.description}
+  path={path}
+  jsonLd={jsonLd}
+>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+
+    <header class="mt-5 max-w-3xl">
+      <div class="flex items-center gap-2 text-sm font-semibold" style="color: var(--color-brand-600)">
+        <span aria-hidden="true">{category.icon}</span>
+        <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
+      </div>
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
+        {calculator.title}
+      </h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">
+        {intro ?? calculator.description}
+      </p>
+      {
+        reviewedDisplay && (
+          <p class="mt-3 inline-flex items-center gap-1.5 text-xs" style="color: var(--muted)">
+            <svg class="h-4 w-4" style="color: var(--color-accent-600)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Method reviewed for accuracy on {reviewedDisplay}
+          </p>
+        )
+      }
+    </header>
+
+    <!-- Interactive tool -->
+    <section class="mt-8" aria-label={`${calculator.title} tool`}>
+      <slot />
+    </section>
+
+    <AdSlot placement="below-tool" class="mt-10 max-w-3xl" />
+
+    <!-- Explainer content -->
+    <div class="prose mt-12">
+      <slot name="content" />
+    </div>
+
+    <!-- FAQ -->
+    {
+      faqs.length > 0 && (
+        <section class="mt-14 max-w-3xl" aria-labelledby="faq-heading">
+          <h2 id="faq-heading" class="text-2xl font-bold">Frequently asked questions</h2>
+          <div class="mt-5 space-y-3">
+            {faqs.map((f) => (
+              <details class="card group px-5 py-4">
+                <summary class="flex cursor-pointer items-center justify-between gap-4 font-semibold" style="color: var(--heading)">
+                  {f.question}
+                  <span class="shrink-0 transition-transform group-open:rotate-45" style="color: var(--color-brand-600)" aria-hidden="true">+</span>
+                </summary>
+                <p class="mt-3" style="color: var(--fg)">{f.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <!-- Related -->
+    {
+      related.length > 0 && (
+        <section class="mt-16" aria-labelledby="related-heading">
+          <h2 id="related-heading" class="text-2xl font-bold">Related calculators</h2>
+          <ul class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {related.map((c) => (
+              <li>
+                <a
+                  href={calculatorPath(c)}
+                  class="card flex h-full flex-col gap-1 p-4 transition-shadow hover:shadow-lg"
+                >
+                  <span class="font-semibold" style="color: var(--heading)">{c.title}</span>
+                  <span class="text-sm" style="color: var(--muted)">{c.description}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+  </div>
+</BaseLayout>

@@ -1,0 +1,77 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import BmiCalculator from '@components/islands/BmiCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('health', 'bmi-calculator')!;
+
+const faqs = [
+  {
+    question: 'How is BMI calculated?',
+    answer:
+      'Body Mass Index is your weight in kilograms divided by the square of your height in metres (BMI = kg ÷ m²). In imperial units the formula is 703 × pounds ÷ inches². This calculator handles the conversion for you in both systems.',
+  },
+  {
+    question: 'What is a healthy BMI range?',
+    answer:
+      'The World Health Organization classifies a BMI of 18.5–24.9 as a healthy weight, below 18.5 as underweight, 25–29.9 as overweight and 30 or above as obese. This calculator also shows the weight range that would put you in the healthy category for your height.',
+  },
+  {
+    question: 'Is BMI accurate for everyone?',
+    answer:
+      'BMI is a useful population-level screening tool but it does not measure body fat directly. It can overestimate risk for muscular athletes and underestimate it for older adults with less muscle. Treat it as a starting point and consult a healthcare professional for a full assessment.',
+  },
+  {
+    question: 'Does BMI work for children?',
+    answer:
+      'This calculator is intended for adults aged 20 and over. Children and teenagers should use age- and sex-specific BMI-for-age percentiles from a pediatric growth chart instead.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Calculate your Body Mass Index in metric or imperial units, see your WHO weight category on a color-coded scale, and find the healthy weight range for your height."
+  faqs={faqs}
+>
+  <BmiCalculator />
+
+  <Fragment slot="content">
+    <h2>What is Body Mass Index?</h2>
+    <p>
+      Body Mass Index (BMI) is a simple ratio of weight to height used to screen for
+      underweight, healthy weight, overweight and obesity in adults. It is quick,
+      free and requires only two measurements, which is why doctors and public-health
+      bodies use it as a first-pass indicator.
+    </p>
+
+    <h2>BMI categories (WHO)</h2>
+    <ul>
+      <li><strong>Under 18.5</strong> — Underweight</li>
+      <li><strong>18.5 – 24.9</strong> — Normal (healthy) weight</li>
+      <li><strong>25.0 – 29.9</strong> — Overweight</li>
+      <li><strong>30.0 and above</strong> — Obesity</li>
+    </ul>
+
+    <h2>How to use this BMI calculator</h2>
+    <p>
+      Choose <strong>Metric</strong> or <strong>Imperial</strong>, enter your height and
+      weight, and read your BMI, category and healthy weight range instantly. The marker
+      on the colored scale shows where you fall between the categories.
+    </p>
+
+    <h2>The limits of BMI</h2>
+    <p>
+      BMI does not distinguish muscle from fat or account for where fat is stored. A
+      very muscular person may register as “overweight” despite low body fat, while
+      someone with little muscle may have a “normal” BMI yet elevated health risk.
+      Waist circumference, body-fat percentage and blood markers give a fuller picture.
+    </p>
+
+    <p>
+      This information is for general education only and is not medical advice. Speak
+      with a qualified healthcare provider about your individual health.
+    </p>
+  </Fragment>
+</CalculatorLayout>

@@ -1,0 +1,81 @@
+---
+/**
+ * Site footer: brand, category directory, legal/company links and a trust
+ * statement. Legal links (privacy, terms, disclaimer, contact) are required
+ * for EEAT credibility and ad-network approval, and are wired to real pages.
+ */
+import Logo from '@components/Logo.astro';
+import { SITE } from '@config/site';
+import { CATEGORIES_ORDERED, categoryPath } from '@data/calculators';
+
+const year = new Date().getFullYear();
+
+const company = [
+  { label: 'About', href: '/about' },
+  { label: 'Contact', href: '/contact' },
+  { label: 'How we build calculators', href: '/methodology' },
+];
+const legal = [
+  { label: 'Privacy Policy', href: '/privacy' },
+  { label: 'Terms of Use', href: '/terms' },
+  { label: 'Disclaimer', href: '/disclaimer' },
+];
+---
+
+<footer class="mt-20 border-t" style="border-color: var(--line); background: var(--card)">
+  <div class="wrap py-14">
+    <div class="grid grid-cols-2 gap-8 md:grid-cols-6">
+      <div class="col-span-2">
+        <a href="/" class="flex items-center" aria-label="AllCalculators home">
+          <Logo />
+        </a>
+        <p class="mt-3 max-w-xs text-sm" style="color: var(--muted)">
+          {SITE.tagline} Free, fast and accurate — no sign-up, no clutter.
+        </p>
+      </div>
+
+      {
+        CATEGORIES_ORDERED.map((cat) => (
+          <div>
+            <h2 class="text-xs font-bold uppercase tracking-wide" style="color: var(--heading)">
+              {cat.shortName}
+            </h2>
+            <ul class="mt-3 space-y-2 text-sm">
+              <li>
+                <a href={categoryPath(cat)} class="hover:underline" style="color: var(--muted)">
+                  All {cat.shortName.toLowerCase()}
+                </a>
+              </li>
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+
+    <div
+      class="mt-10 flex flex-col gap-6 border-t pt-8 sm:flex-row sm:items-center sm:justify-between"
+      style="border-color: var(--line)"
+    >
+      <nav aria-label="Company and legal" class="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        {
+          [...company, ...legal].map((l) => (
+            <a href={l.href} class="hover:underline" style="color: var(--muted)">
+              {l.label}
+            </a>
+          ))
+        }
+      </nav>
+      <p class="text-sm" style="color: var(--muted)">
+        © {year} {SITE.name}. All rights reserved.
+      </p>
+    </div>
+
+    <p class="mt-8 text-xs leading-relaxed" style="color: var(--muted)">
+      The calculators and information on {SITE.name} are provided for general
+      educational purposes only and do not constitute financial, medical, legal
+      or professional advice. Results depend on the accuracy of the values you
+      enter. Always consult a qualified professional before making important
+      decisions.
+    </p>
+  </div>
+</footer>

@@ -1,0 +1,94 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import ScientificCalculator from '@components/islands/ScientificCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('math', 'scientific-calculator')!;
+
+const faqs = [
+  {
+    question: 'Is this scientific calculator free to use?',
+    answer:
+      'Yes. Every calculator on AllCalculators is completely free, works in your browser with no sign-up, and runs entirely on your device — nothing you type is sent to a server.',
+  },
+  {
+    question: 'What is the difference between degree and radian mode?',
+    answer:
+      'Degrees divide a circle into 360 parts; radians measure angles by arc length, where a full circle is 2π. Trigonometric functions such as sin, cos and tan give different results depending on the mode, so set Deg or Rad to match your problem before calculating.',
+  },
+  {
+    question: 'How do I calculate powers and roots?',
+    answer:
+      'Use x² or x³ for common powers, xʸ for any power (for example 2 xʸ 10 = 1024), √ for square roots and ∛ for cube roots. You can also type the caret ^ directly, e.g. 3^4.',
+  },
+  {
+    question: 'Does it follow the correct order of operations?',
+    answer:
+      'Yes. The calculator evaluates full expressions using standard order of operations (PEMDAS/BODMAS): parentheses first, then exponents, then multiplication and division, then addition and subtraction.',
+  },
+  {
+    question: 'Can I use my keyboard?',
+    answer:
+      'Absolutely. Type numbers and operators directly, press Enter or = to evaluate, Backspace to delete, and Escape to clear. The on-screen keypad and your keyboard stay in sync.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="A full-featured online scientific calculator with trigonometry, logarithms, exponents, roots, factorials and constants. Works on desktop and mobile — type directly or tap the keypad."
+  faqs={faqs}
+>
+  <ScientificCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use the scientific calculator</h2>
+    <p>
+      Enter a complete expression — for example <strong>sin(45) + √2 × 3</strong> —
+      and press <strong>=</strong>. Unlike a basic calculator that computes each
+      step as you go, this calculator reads your whole expression and applies the
+      correct order of operations, so you can build complex formulas naturally and
+      review them before evaluating.
+    </p>
+
+    <h2>Order of operations (PEMDAS)</h2>
+    <p>
+      The calculator follows the universal order of operations: <strong>P</strong>arentheses,
+      <strong>E</strong>xponents, <strong>M</strong>ultiplication and
+      <strong>D</strong>ivision (left to right), then <strong>A</strong>ddition and
+      <strong>S</strong>ubtraction (left to right). For instance,
+      <strong>2 + 3 × 4</strong> equals <strong>14</strong>, not 20, because
+      multiplication is applied before addition.
+    </p>
+
+    <h2>Functions and constants explained</h2>
+    <ul>
+      <li><strong>Trigonometry:</strong> sin, cos, tan and their inverses (sin⁻¹, cos⁻¹, tan⁻¹). Respects the Deg/Rad toggle.</li>
+      <li><strong>Logarithms:</strong> <strong>ln</strong> is the natural log (base e) and <strong>log</strong> is base 10.</li>
+      <li><strong>Powers &amp; roots:</strong> x², x³, xʸ, eˣ, 10ˣ, √ (square root) and ∛ (cube root).</li>
+      <li><strong>Factorial:</strong> <strong>n!</strong> multiplies all whole numbers up to n (5! = 120).</li>
+      <li><strong>Constants:</strong> <strong>π</strong> ≈ 3.14159 and <strong>e</strong> ≈ 2.71828.</li>
+      <li><strong>Ans:</strong> reuses your previous result in a new calculation.</li>
+    </ul>
+
+    <h2>Degrees vs. radians</h2>
+    <p>
+      Switch between <strong>Deg</strong> and <strong>Rad</strong> at the top of the
+      keypad. Use degrees for everyday geometry and navigation; use radians for
+      calculus and most physics. In radian mode, <strong>sin(π / 2)</strong> equals 1.
+    </p>
+
+    <h2>Worked examples</h2>
+    <ul>
+      <li><strong>Compound growth:</strong> 1000 × (1 + 0.05)^10 estimates a balance after 10 years at 5%.</li>
+      <li><strong>Right-triangle side:</strong> √(3² + 4²) = 5.</li>
+      <li><strong>Probability:</strong> combinations use factorials, e.g. 10! / (3! × 7!).</li>
+    </ul>
+
+    <p>
+      Your privacy is respected: this tool runs entirely in your browser, so your
+      calculations never leave your device.
+    </p>
+  </Fragment>
+</CalculatorLayout>

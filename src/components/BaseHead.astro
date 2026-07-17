@@ -1,0 +1,85 @@
+---
+/**
+ * BaseHead — every <head> concern in one auditable place.
+ *
+ * Guarantees each page ships a correct title, meta description, canonical URL,
+ * Open Graph + Twitter cards, theme-color, favicons and (optionally) JSON-LD
+ * structured data. Pages pass only what is specific to them; defaults come
+ * from the site config so nothing is ever missing.
+ */
+import { SITE, absoluteUrl } from '@config/site';
+
+interface Props {
+  /** Page title (brand suffix appended automatically). */
+  title: string;
+  /** Meta description; falls back to the site default. */
+  description?: string;
+  /** Root-relative canonical path, e.g. '/finance/mortgage-calculator'. */
+  path: string;
+  /** Social share image (absolute URL or root-relative path). */
+  ogImage?: string;
+  ogType?: 'website' | 'article';
+  /** Set true to keep a page out of the index (e.g. thin/utility pages). */
+  noindex?: boolean;
+  /** JSON-LD schema objects to embed. */
+  jsonLd?: Record<string, unknown>[];
+}
+
+const {
+  title,
+  description = SITE.description,
+  path,
+  ogImage = SITE.defaultOgImage,
+  ogType = 'website',
+  noindex = false,
+  jsonLd = [],
+} = Astro.props;
+
+const canonical = absoluteUrl(path);
+const ogImageUrl = ogImage.startsWith('http') ? ogImage : absoluteUrl(ogImage);
+const fullTitle = title.includes(SITE.name) ? title : `${title} | ${SITE.name}`;
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="generator" content={Astro.generator} />
+
+<title>{fullTitle}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+{!noindex && <meta name="robots" content="index, follow, max-image-preview:large" />}
+
+<meta name="theme-color" content={SITE.themeColor} />
+<meta name="color-scheme" content="light dark" />
+
+<!-- Icons -->
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+
+<!-- Open Graph -->
+<meta property="og:site_name" content={SITE.name} />
+<meta property="og:type" content={ogType} />
+<meta property="og:title" content={fullTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={ogImageUrl} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:locale" content={SITE.locale} />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={fullTitle} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={ogImageUrl} />
+{SITE.social.twitter && <meta name="twitter:site" content={`@${SITE.social.twitter}`} />}
+
+<!-- Structured data -->
+{
+  jsonLd.map((schema) => (
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
+  ))
+}

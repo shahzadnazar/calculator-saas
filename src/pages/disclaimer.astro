@@ -1,0 +1,47 @@
+---
+import ContentLayout from '@layouts/ContentLayout.astro';
+import { SITE } from '@config/site';
+---
+
+<ContentLayout
+  title="Disclaimer"
+  description="Important information about the limitations of the calculators and content on AllCalculators."
+  path="/disclaimer"
+  heading="Disclaimer"
+  updated="2026-07-17"
+>
+  <p>
+    The calculators and information provided on {SITE.name} are for general educational
+    and informational purposes only. While we strive for accuracy and test our formulas
+    carefully, we make no warranty as to the completeness, reliability or accuracy of
+    any result.
+  </p>
+
+  <h2>Not professional advice</h2>
+  <p>
+    Nothing on this site constitutes financial, investment, medical, health, legal, tax
+    or other professional advice. Our calculators cannot account for your full personal
+    circumstances. Before making any decision based on a result, consult a qualified
+    professional who can advise on your specific situation.
+  </p>
+
+  <h2>Results are estimates</h2>
+  <p>
+    Calculator outputs are estimates based solely on the values you enter and the
+    assumptions built into each tool. Real-world figures — such as loan offers, tax
+    liabilities or health assessments — may differ due to factors outside the tool's
+    scope, including rates, fees, regulations and individual variation.
+  </p>
+
+  <h2>External links</h2>
+  <p>
+    Our site may link to third-party websites for reference. We are not responsible for
+    the content or accuracy of any external site.
+  </p>
+
+  <h2>Your responsibility</h2>
+  <p>
+    Any reliance you place on a calculator's result is strictly at your own risk.
+    {SITE.name} accepts no liability for loss or damage arising from use of the site.
+  </p>
+</ContentLayout>

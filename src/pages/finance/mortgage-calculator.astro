@@ -1,0 +1,89 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import MortgageCalculator from '@components/islands/MortgageCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('finance', 'mortgage-calculator')!;
+
+const faqs = [
+  {
+    question: 'How is my monthly mortgage payment calculated?',
+    answer:
+      'The principal-and-interest portion uses the standard amortization formula: M = P · r · (1 + r)ⁿ / ((1 + r)ⁿ − 1), where P is the loan amount, r is the monthly interest rate (annual rate ÷ 12) and n is the number of monthly payments. This calculator then adds property tax, home insurance, PMI and HOA to show your full monthly cost.',
+  },
+  {
+    question: 'What is PMI and when do I pay it?',
+    answer:
+      'Private Mortgage Insurance (PMI) is usually required when your down payment is less than 20% of the home price. This calculator applies PMI while your loan balance is above 80% of the home value and automatically removes it once you cross that threshold.',
+  },
+  {
+    question: 'How much should my down payment be?',
+    answer:
+      'A 20% down payment lets you avoid PMI and lowers your monthly payment, but many loans allow far less. Use the down payment field to compare scenarios — the percentage updates automatically so you can see the trade-off between upfront cash and monthly cost.',
+  },
+  {
+    question: 'What is an amortization schedule?',
+    answer:
+      'It shows how each payment is split between interest and principal over time. Early payments are mostly interest; later payments are mostly principal. The yearly table on this page shows your remaining balance at the end of each year.',
+  },
+  {
+    question: 'Does this include property taxes and insurance?',
+    answer:
+      'Yes. Open “Taxes, insurance & fees” to enter annual property tax, annual home insurance, monthly HOA dues and a PMI rate. These are added to principal and interest to estimate your true monthly housing cost (often called PITI).',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Estimate your full monthly mortgage payment — principal, interest, property tax, insurance, PMI and HOA — and see a complete amortization schedule. Adjust any value to compare scenarios instantly."
+  faqs={faqs}
+>
+  <MortgageCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use this mortgage calculator</h2>
+    <p>
+      Enter the <strong>home price</strong>, your <strong>down payment</strong>, the
+      <strong>loan term</strong> and the <strong>interest rate</strong>. The estimated
+      monthly payment and breakdown update instantly. Expand
+      <strong>Taxes, insurance &amp; fees</strong> to include property tax, home
+      insurance, HOA dues and PMI for a complete picture of your monthly housing cost.
+    </p>
+
+    <h2>Understanding your payment breakdown</h2>
+    <p>
+      A mortgage payment is more than principal and interest. The colored bar splits
+      your total into five parts:
+    </p>
+    <ul>
+      <li><strong>Principal &amp; interest</strong> — repaying the loan plus the cost of borrowing.</li>
+      <li><strong>Property tax</strong> — set by your local government, usually escrowed monthly.</li>
+      <li><strong>Home insurance</strong> — protects the property; typically required by lenders.</li>
+      <li><strong>PMI</strong> — applies when you put down less than 20%, and drops off automatically.</li>
+      <li><strong>HOA</strong> — dues for condos or planned communities, if any.</li>
+    </ul>
+
+    <h2>The amortization formula</h2>
+    <p>
+      The core calculation uses the fixed-rate amortization formula. At a 6.5% annual
+      rate, a $288,000 loan over 30 years has a monthly rate of about 0.0054 and 360
+      payments. Early on, most of each payment covers interest; over time the balance
+      falls and more goes to principal — which is exactly what the yearly schedule shows.
+    </p>
+
+    <h2>Tips to lower your mortgage cost</h2>
+    <ul>
+      <li>Increase your down payment to 20% to eliminate PMI.</li>
+      <li>Compare a 15-year term: a higher monthly payment but far less total interest.</li>
+      <li>Even a 0.25% lower rate can save thousands over the life of the loan — shop lenders.</li>
+    </ul>
+
+    <p>
+      This tool provides estimates for planning and does not constitute a loan offer or
+      financial advice. Your actual rate, taxes and insurance will depend on your lender,
+      location and credit profile.
+    </p>
+  </Fragment>
+</CalculatorLayout>

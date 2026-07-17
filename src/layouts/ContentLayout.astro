@@ -1,0 +1,50 @@
+---
+/**
+ * ContentLayout — shared shell for static content pages (about, legal, guides).
+ * Provides breadcrumbs, a page header and prose-styled body via the slot.
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import { breadcrumbSchema } from '@lib/schema';
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  heading?: string;
+  updated?: string; // ISO date
+  noindex?: boolean;
+}
+const { title, description, path, heading, updated, noindex } = Astro.props;
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: heading ?? title, path },
+];
+const updatedDisplay = updated
+  ? new Date(updated + 'T00:00:00Z').toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'UTC',
+    })
+  : null;
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  path={path}
+  noindex={noindex}
+  jsonLd={noindex ? [] : [breadcrumbSchema(crumbs)]}
+>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+    <header class="mt-5">
+      <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">{heading ?? title}</h1>
+      {updatedDisplay && <p class="mt-2 text-sm" style="color: var(--muted)">Last updated {updatedDisplay}</p>}
+    </header>
+    <article class="prose mt-8">
+      <slot />
+    </article>
+  </div>
+</BaseLayout>

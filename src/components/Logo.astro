@@ -1,0 +1,44 @@
+---
+/**
+ * Brand mark + wordmark. Inline SVG so it is crisp at any size, themeable via
+ * currentColor, and adds zero network requests.
+ */
+import { SITE } from '@config/site';
+
+interface Props {
+  /** Render only the glyph (no wordmark), e.g. for compact contexts. */
+  markOnly?: boolean;
+  class?: string;
+}
+const { markOnly = false, class: className = '' } = Astro.props;
+---
+
+<span class={`inline-flex items-center gap-2 ${className}`}>
+  <svg
+    width="32"
+    height="32"
+    viewBox="0 0 32 32"
+    fill="none"
+    aria-hidden="true"
+    class="shrink-0"
+  >
+    <rect width="32" height="32" rx="8" fill="var(--color-brand-600)" />
+    <rect x="6" y="5" width="20" height="8" rx="2" fill="#fff" fill-opacity="0.92" />
+    <g fill="#fff">
+      <rect x="6" y="16" width="5.5" height="5.5" rx="1.4" />
+      <rect x="13.25" y="16" width="5.5" height="5.5" rx="1.4" />
+      <rect x="20.5" y="16" width="5.5" height="5.5" rx="1.4" fill="var(--color-accent-400)" />
+      <rect x="6" y="23.25" width="5.5" height="3.75" rx="1.4" />
+      <rect x="13.25" y="23.25" width="5.5" height="3.75" rx="1.4" />
+      <rect x="20.5" y="23.25" width="5.5" height="3.75" rx="1.4" fill="var(--color-accent-400)" />
+    </g>
+  </svg>
+  {
+    !markOnly && (
+      <span class="text-lg font-extrabold tracking-tight" style="color: var(--heading)">
+        All<span style="color: var(--color-brand-600)">Calculators</span>
+      </span>
+    )
+  }
+  <span class="sr-only">{SITE.name}</span>
+</span>

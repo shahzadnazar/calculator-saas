@@ -1,0 +1,61 @@
+---
+import ContentLayout from '@layouts/ContentLayout.astro';
+---
+
+<ContentLayout
+  title="How We Build Our Calculators"
+  description="Our editorial and engineering process: how AllCalculators researches formulas, tests for accuracy, and reviews every tool before it goes live."
+  path="/methodology"
+  heading="How we build our calculators"
+  updated="2026-07-17"
+>
+  <p>
+    A calculator is only worth using if you can trust its answer. This page explains
+    the process behind every tool on AllCalculators so you can judge our work for
+    yourself.
+  </p>
+
+  <h2>1. Research the formula</h2>
+  <p>
+    We start from authoritative, primary sources — for example, the World Health
+    Organization's classifications for health metrics, and standard financial
+    mathematics for loans and interest. We document the exact formula each calculator
+    uses in its on-page explainer.
+  </p>
+
+  <h2>2. Implement it transparently</h2>
+  <p>
+    The calculation logic is written as small, pure functions kept separate from the
+    interface. This makes the maths easy to audit and reuse, and keeps the tools fast
+    because the heavy lifting happens instantly in your browser.
+  </p>
+
+  <h2>3. Test for correctness</h2>
+  <p>
+    Each formula is covered by an automated test suite that checks it against known
+    values and edge cases — zero-interest loans, boundary BMI categories, order of
+    operations, and more. A calculator does not ship until its tests pass.
+  </p>
+
+  <h2>4. Review before launch</h2>
+  <p>
+    Before a tool goes live it is reviewed for accuracy, clarity and accessibility.
+    Calculator pages display the date their method was last reviewed so you know how
+    current the information is.
+  </p>
+
+  <h2>5. Maintain and correct</h2>
+  <p>
+    Rules and rates change. When they do — or when a reader flags an issue — we update
+    the tool and its explainer. If you spot something that looks wrong, please
+    <a href="/contact">tell us</a>; corrections are a priority.
+  </p>
+
+  <h2>Important limitations</h2>
+  <p>
+    Our calculators are educational tools, not professional advice. Financial, health
+    and legal decisions depend on individual circumstances that a general calculator
+    cannot capture. Always consult a qualified professional before making important
+    decisions. See our <a href="/disclaimer">disclaimer</a> for details.
+  </p>
+</ContentLayout>

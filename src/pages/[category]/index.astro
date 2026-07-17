@@ -1,0 +1,90 @@
+---
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import {
+  CATEGORIES,
+  type Category,
+  getCalculatorsByCategory,
+  calculatorPath,
+  categoryPath,
+} from '@data/calculators';
+import { breadcrumbSchema } from '@lib/schema';
+
+export const getStaticPaths = (() => {
+  return CATEGORIES.map((category) => ({
+    params: { category: category.slug },
+    props: { category },
+  }));
+}) satisfies GetStaticPaths;
+
+interface Props {
+  category: Category;
+}
+const { category } = Astro.props;
+const all = getCalculatorsByCategory(category.slug);
+const live = all.filter((c) => c.status === 'live');
+const planned = all.filter((c) => c.status === 'planned');
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: category.shortName, path: categoryPath(category) },
+];
+---
+
+<BaseLayout
+  title={`${category.name} — Free Online Tools`}
+  description={category.description}
+  path={categoryPath(category)}
+  jsonLd={[breadcrumbSchema(crumbs)]}
+>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+
+    <header class="mt-5 max-w-3xl">
+      <div class="text-4xl" aria-hidden="true">{category.icon}</div>
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{category.name}</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">{category.description}</p>
+    </header>
+
+    {
+      live.length > 0 && (
+        <section class="mt-10">
+          <h2 class="sr-only">Available {category.shortName} calculators</h2>
+          <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {live.map((c) => (
+              <li>
+                <a href={calculatorPath(c)} class="card flex h-full flex-col gap-2 p-5 transition-shadow hover:shadow-lg">
+                  <span class="text-lg font-bold" style="color: var(--heading)">{c.title}</span>
+                  <span class="text-sm" style="color: var(--muted)">{c.description}</span>
+                  <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Open calculator →</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    {
+      planned.length > 0 && (
+        <section class="mt-12">
+          <h2 class="text-xl font-bold">Coming soon</h2>
+          <p class="mt-1 text-sm" style="color: var(--muted)">
+            On our roadmap — building each to the same quality bar as the tools above.
+          </p>
+          <ul class="mt-4 flex flex-wrap gap-2">
+            {planned.map((c) => (
+              <li
+                class="rounded-full border px-3 py-1.5 text-sm"
+                style="border-color: var(--line); color: var(--muted); background: var(--card)"
+              >
+                {c.title}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+  </div>
+</BaseLayout>

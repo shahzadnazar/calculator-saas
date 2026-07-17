@@ -1,0 +1,35 @@
+---
+import ContentLayout from '@layouts/ContentLayout.astro';
+import { SITE } from '@config/site';
+---
+
+<ContentLayout
+  title="Contact AllCalculators"
+  description="Get in touch with the AllCalculators team — report a correction, request a calculator, or ask a question."
+  path="/contact"
+  heading="Contact us"
+>
+  <p>
+    We'd love to hear from you. Whether you've spotted an error, want a new calculator
+    built, or have feedback on an existing tool, your message helps us improve.
+  </p>
+
+  <h2>Email</h2>
+  <p>
+    Reach us at <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>. We aim
+    to reply within a few business days.
+  </p>
+
+  <h2>Report a correction</h2>
+  <p>
+    Accuracy matters to us. If a calculator returns a result you believe is wrong,
+    please email us with the tool name, the values you entered, the result you got and
+    the result you expected. Corrections are treated as a priority.
+  </p>
+
+  <h2>Request a calculator</h2>
+  <p>
+    Is there a calculator you wish existed? Tell us what you need and how you'd use it.
+    Reader requests directly shape our roadmap.
+  </p>
+</ContentLayout>

@@ -1,0 +1,71 @@
+---
+import ContentLayout from '@layouts/ContentLayout.astro';
+import { SITE } from '@config/site';
+---
+
+<ContentLayout
+  title="Privacy Policy"
+  description="How AllCalculators handles data. Our calculators run in your browser, so the values you enter stay on your device."
+  path="/privacy"
+  heading="Privacy Policy"
+  updated="2026-07-17"
+>
+  <p>
+    This Privacy Policy explains how {SITE.name} ("we", "us") handles information when
+    you use our website. We designed the site to collect as little as possible.
+  </p>
+
+  <h2>Calculations stay on your device</h2>
+  <p>
+    Our calculators run entirely in your web browser. The numbers and values you enter
+    into any calculator are processed locally and are <strong>not</strong> transmitted
+    to or stored on our servers.
+  </p>
+
+  <h2>Information we collect</h2>
+  <p>
+    We may collect limited, non-identifying analytics data — such as pages viewed,
+    approximate region, browser type and referring site — to understand how the site
+    is used and to improve it. We do not use this data to identify individuals.
+  </p>
+
+  <h2>Cookies and advertising</h2>
+  <p>
+    We may use cookies for basic functionality and analytics. If we introduce
+    advertising, third-party ad providers (such as Google) may use cookies to serve
+    ads based on your prior visits to this or other websites. You can opt out of
+    personalized advertising through Google's Ads Settings and via
+    <a href="https://www.aboutads.info" rel="nofollow noopener" target="_blank">aboutads.info</a>.
+  </p>
+
+  <h2>Third-party services</h2>
+  <p>
+    Some third-party services we use (for example, analytics or advertising providers)
+    may collect information in accordance with their own privacy policies. We encourage
+    you to review those policies.
+  </p>
+
+  <h2>Children's privacy</h2>
+  <p>
+    Our site is not directed to children under 13, and we do not knowingly collect
+    personal information from them.
+  </p>
+
+  <h2>Your choices</h2>
+  <p>
+    You can block or delete cookies through your browser settings, and use browser
+    privacy features at any time. Doing so will not affect the core functionality of
+    our calculators.
+  </p>
+
+  <h2>Changes to this policy</h2>
+  <p>
+    We may update this policy from time to time. Material changes will be reflected by
+    the "last updated" date above.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about privacy? Email <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+  </p>
+</ContentLayout>

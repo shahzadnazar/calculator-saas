@@ -1,0 +1,186 @@
+---
+/**
+ * BMI calculator island. Metric/imperial toggle, WHO classification, healthy
+ * weight range and a visual scale. Default scenario rendered server-side; the
+ * client recomputes live via src/lib/calculators/bmi.ts.
+ */
+import { calculateBmi, type BmiSeverity } from '@lib/calculators/bmi';
+import { formatNumber } from '@lib/format';
+
+const initial = calculateBmi({ system: 'metric', heightCm: 175, weightKg: 70 });
+const severityColor: Record<BmiSeverity, string> = {
+  low: '#3b82f6',
+  normal: '#059669',
+  high: '#f59e0b',
+  danger: '#e11d48',
+};
+const markerPos = (bmi: number) => Math.max(0, Math.min(100, ((bmi - 15) / (40 - 15)) * 100));
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-bmi>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-bmi-form novalidate>
+    <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Unit system" style="border-color: var(--line)">
+      <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
+      <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial (US)</button>
+    </div>
+
+    <!-- Metric -->
+    <div class="mt-5 space-y-4" data-group="metric">
+      <div>
+        <label class="field-label" for="bmi-height-cm">Height</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="bmi-height-cm" name="heightCm" type="number" min="0" step="0.5" value="175" inputmode="decimal" />
+          <span class="field-affix rounded-r-lg border-l-0">cm</span>
+        </div>
+      </div>
+      <div>
+        <label class="field-label" for="bmi-weight-kg">Weight</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="bmi-weight-kg" name="weightKg" type="number" min="0" step="0.1" value="70" inputmode="decimal" />
+          <span class="field-affix rounded-r-lg border-l-0">kg</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Imperial -->
+    <div class="mt-5 space-y-4" data-group="imperial" hidden>
+      <div>
+        <label class="field-label">Height</label>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex">
+            <input class="field rounded-r-none" name="heightFt" type="number" min="0" step="1" value="5" inputmode="decimal" aria-label="Height feet" />
+            <span class="field-affix rounded-r-lg border-l-0">ft</span>
+          </div>
+          <div class="flex">
+            <input class="field rounded-r-none" name="heightIn" type="number" min="0" step="1" value="9" inputmode="decimal" aria-label="Height inches" />
+            <span class="field-affix rounded-r-lg border-l-0">in</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label class="field-label" for="bmi-weight-lb">Weight</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="bmi-weight-lb" name="weightLb" type="number" min="0" step="0.1" value="154" inputmode="decimal" />
+          <span class="field-affix rounded-r-lg border-l-0">lb</span>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <!-- Result -->
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Your BMI</p>
+    <div class="mt-1 flex items-baseline gap-3">
+      <span class="text-5xl font-extrabold tracking-tight" style="color: var(--heading)" data-bmi-value>{formatNumber(initial.bmi, 1)}</span>
+      <span class="rounded-full px-3 py-1 text-sm font-bold text-white" style={`background:${severityColor[initial.severity]}`} data-bmi-category>
+        {initial.category}
+      </span>
+    </div>
+
+    <!-- Scale -->
+    <div class="mt-6">
+      <div class="relative h-3 w-full rounded-full" style="background: linear-gradient(90deg,#3b82f6 0 14%,#059669 14% 40%,#f59e0b 40% 60%,#e11d48 60% 100%)">
+        <span class="absolute -top-1.5 h-6 w-1.5 -translate-x-1/2 rounded-full ring-2 ring-white" style={`left:${markerPos(initial.bmi)}%; background: var(--heading)`} data-bmi-marker aria-hidden="true"></span>
+      </div>
+      <div class="mt-2 flex justify-between text-[0.7rem]" style="color: var(--muted)">
+        <span>Under</span><span>Normal</span><span>Over</span><span>Obese</span>
+      </div>
+    </div>
+
+    <p class="mt-6 text-sm" style="color: var(--fg)">
+      A healthy weight for your height is
+      <strong data-bmi-range>{formatNumber(initial.healthyMin, 1)}–{formatNumber(initial.healthyMax, 1)} {initial.unitLabel}</strong>.
+    </p>
+  </div>
+</div>
+
+<style>
+  .unit-btn {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .unit-btn.is-active {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+</style>
+
+<script>
+  import { calculateBmi, type UnitSystem, type BmiSeverity } from '@lib/calculators/bmi';
+  import { formatNumber } from '@lib/format';
+
+  const severityColor: Record<BmiSeverity, string> = {
+    low: '#3b82f6',
+    normal: '#059669',
+    high: '#f59e0b',
+    danger: '#e11d48',
+  };
+  const markerPos = (bmi: number) => Math.max(0, Math.min(100, ((bmi - 15) / (40 - 15)) * 100));
+
+  document.querySelectorAll<HTMLElement>('[data-bmi]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-bmi-form]')!;
+    const unitButtons = root.querySelectorAll<HTMLButtonElement>('.unit-btn');
+    const groups = {
+      metric: root.querySelector<HTMLElement>('[data-group="metric"]')!,
+      imperial: root.querySelector<HTMLElement>('[data-group="imperial"]')!,
+    };
+    let system: UnitSystem = 'metric';
+
+    const val = (name: string) => {
+      const el = form.elements.namedItem(name) as HTMLInputElement | null;
+      return el ? Number(el.value) || 0 : 0;
+    };
+
+    function recompute() {
+      const r =
+        system === 'metric'
+          ? calculateBmi({ system, heightCm: val('heightCm'), weightKg: val('weightKg') })
+          : calculateBmi({
+              system,
+              heightFt: val('heightFt'),
+              heightIn: val('heightIn'),
+              weightLb: val('weightLb'),
+            });
+
+      const valueEl = root.querySelector<HTMLElement>('[data-bmi-value]')!;
+      const catEl = root.querySelector<HTMLElement>('[data-bmi-category]')!;
+      const rangeEl = root.querySelector<HTMLElement>('[data-bmi-range]')!;
+      const marker = root.querySelector<HTMLElement>('[data-bmi-marker]')!;
+
+      if (Number.isNaN(r.bmi)) {
+        valueEl.textContent = '—';
+        catEl.textContent = 'Enter values';
+        catEl.style.background = 'var(--muted)';
+        rangeEl.textContent = '—';
+        return;
+      }
+      valueEl.textContent = formatNumber(r.bmi, 1);
+      catEl.textContent = r.category;
+      catEl.style.background = severityColor[r.severity];
+      rangeEl.textContent = `${formatNumber(r.healthyMin, 1)}–${formatNumber(r.healthyMax, 1)} ${r.unitLabel}`;
+      marker.style.left = `${markerPos(r.bmi)}%`;
+    }
+
+    unitButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        system = (btn.dataset.unit as UnitSystem) ?? 'metric';
+        unitButtons.forEach((b) => {
+          const active = b === btn;
+          b.classList.toggle('is-active', active);
+          b.setAttribute('aria-checked', String(active));
+        });
+        groups.metric.hidden = system !== 'metric';
+        groups.imperial.hidden = system !== 'imperial';
+        recompute();
+      });
+    });
+
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

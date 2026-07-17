@@ -1,0 +1,121 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import {
+  CATEGORIES_ORDERED,
+  getCalculatorsByCategory,
+  calculatorPath,
+  categoryPath,
+  STATS,
+} from '@data/calculators';
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: 'All calculators', path: '/calculators' },
+];
+---
+
+<BaseLayout
+  title="All Calculators — Full Directory"
+  description={`Browse every calculator on AllCalculators — ${STATS.live} live tools across ${STATS.categories} categories, with more added regularly. Search to find the one you need.`}
+  path="/calculators"
+>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+
+    <header class="mt-5 max-w-3xl">
+      <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">All calculators</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">
+        Every tool in one place. Search by name or browse by category.
+      </p>
+      <div class="mt-5">
+        <label class="sr-only" for="calc-search">Search calculators</label>
+        <input
+          id="calc-search"
+          type="search"
+          class="field"
+          placeholder="Search calculators, e.g. “mortgage”, “BMI”, “scientific”…"
+          data-calc-search
+          autocomplete="off"
+        />
+        <p class="mt-2 text-sm" style="color: var(--muted)" data-calc-search-empty hidden>
+          No calculators match your search yet — try a different term.
+        </p>
+      </div>
+    </header>
+
+    <div class="mt-10 space-y-12" data-calc-list>
+      {
+        CATEGORIES_ORDERED.map((cat) => {
+          const items = getCalculatorsByCategory(cat.slug);
+          return (
+            <section data-cat-section aria-labelledby={`cat-${cat.slug}`}>
+              <div class="flex items-center gap-2">
+                <span class="text-2xl" aria-hidden="true">{cat.icon}</span>
+                <h2 id={`cat-${cat.slug}`} class="text-2xl font-bold">
+                  <a href={categoryPath(cat)} class="hover:underline">{cat.name}</a>
+                </h2>
+              </div>
+              <ul class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {items.map((c) => {
+                  const isLive = c.status === 'live';
+                  return (
+                    <li data-calc-item data-title={c.title.toLowerCase()} data-keywords={c.keywords.join(' ').toLowerCase()}>
+                      {isLive ? (
+                        <a href={calculatorPath(c)} class="card flex h-full items-start justify-between gap-2 p-4 transition-shadow hover:shadow-lg">
+                          <span>
+                            <span class="font-semibold" style="color: var(--heading)">{c.title}</span>
+                            <span class="mt-0.5 block text-sm" style="color: var(--muted)">{c.description}</span>
+                          </span>
+                          <span aria-hidden="true" style="color: var(--color-brand-600)">→</span>
+                        </a>
+                      ) : (
+                        <div class="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed p-4" style="border-color: var(--line)">
+                          <span class="font-medium" style="color: var(--muted)">{c.title}</span>
+                          <span class="rounded-full px-2 py-0.5 text-xs" style="background: var(--subtle); color: var(--muted)">Soon</span>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })
+      }
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // Client-side directory filter. Reads ?q= (so the sitelinks search box works)
+  // and filters live as the user types — no network requests.
+  const input = document.querySelector<HTMLInputElement>('[data-calc-search]');
+  const items = Array.from(document.querySelectorAll<HTMLElement>('[data-calc-item]'));
+  const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-cat-section]'));
+  const empty = document.querySelector<HTMLElement>('[data-calc-search-empty]');
+
+  function apply(query: string) {
+    const q = query.trim().toLowerCase();
+    let visible = 0;
+    items.forEach((el) => {
+      const hay = `${el.dataset.title} ${el.dataset.keywords}`;
+      const show = q === '' || hay.includes(q);
+      el.hidden = !show;
+      if (show) visible++;
+    });
+    sections.forEach((sec) => {
+      const anyVisible = sec.querySelectorAll('[data-calc-item]:not([hidden])').length > 0;
+      sec.hidden = !anyVisible;
+    });
+    if (empty) empty.hidden = visible !== 0;
+  }
+
+  if (input) {
+    const params = new URLSearchParams(window.location.search);
+    const initial = params.get('q') ?? '';
+    if (initial) input.value = initial;
+    apply(initial);
+    input.addEventListener('input', () => apply(input.value));
+  }
+</script>

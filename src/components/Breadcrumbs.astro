@@ -1,0 +1,39 @@
+---
+/**
+ * Visible breadcrumb trail. Pair with breadcrumbSchema() in the page's JSON-LD
+ * so the visible trail and the structured data always agree.
+ */
+interface Crumb {
+  name: string;
+  path: string;
+}
+interface Props {
+  crumbs: Crumb[];
+}
+const { crumbs } = Astro.props;
+---
+
+<nav aria-label="Breadcrumb" class="text-sm">
+  <ol class="flex flex-wrap items-center gap-1.5" style="color: var(--muted)">
+    {
+      crumbs.map((c, i) => (
+        <li class="flex items-center gap-1.5">
+          {i > 0 && (
+            <span aria-hidden="true" style="color: var(--line)">
+              /
+            </span>
+          )}
+          {i < crumbs.length - 1 ? (
+            <a href={c.path} class="hover:underline" style="color: var(--muted)">
+              {c.name}
+            </a>
+          ) : (
+            <span aria-current="page" style="color: var(--fg); font-weight: 600">
+              {c.name}
+            </span>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+</nav>

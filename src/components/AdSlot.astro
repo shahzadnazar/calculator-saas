@@ -1,0 +1,35 @@
+---
+/**
+ * AdSlot — a single, centrally-controlled advertising placement.
+ *
+ * Renders nothing while ADS.enabled is false, so the site stays clean and fast
+ * until monetization is switched on. When enabled, this is the one place to
+ * wire in the network's ad unit markup, keeping ad logic out of every page.
+ */
+import { ADS, type AdPlacement } from '@config/monetization';
+
+interface Props {
+  placement: AdPlacement;
+  class?: string;
+}
+const { placement, class: className = '' } = Astro.props;
+const show = ADS.enabled || ADS.reserveSpaceWhenDisabled;
+---
+
+{
+  show && (
+    <aside
+      class={`ad-slot ${className}`}
+      data-ad-placement={placement}
+      aria-label="Advertisement"
+      style="min-height: 90px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 0.75rem; color: var(--muted); font-size: 0.75rem;"
+    >
+      {ADS.enabled ? (
+        /* Live network markup goes here (e.g. <ins class="adsbygoogle" ...>). */
+        <span class="sr-only">Advertisement</span>
+      ) : (
+        <span>Ad placement · {placement}</span>
+      )}
+    </aside>
+  )
+}

@@ -1,0 +1,337 @@
+---
+/**
+ * Scientific calculator island.
+ *
+ * Progressive enhancement: renders as static markup; a client script wires up
+ * the buttons and keyboard. All evaluation goes through the safe expression
+ * parser in src/lib/calculators/scientific.ts (no eval, unit-tested).
+ */
+
+type Kind = 'num' | 'op' | 'fn' | 'primary' | 'danger' | 'accent';
+interface Key {
+  label: string; // may contain limited HTML (superscripts)
+  value?: string; // string appended to the expression
+  action?: 'equals' | 'clear' | 'back' | 'ans';
+  kind: Kind;
+  aria: string;
+}
+
+const keys: Key[] = [
+  { label: 'sin', value: 'sin(', kind: 'fn', aria: 'sine' },
+  { label: 'cos', value: 'cos(', kind: 'fn', aria: 'cosine' },
+  { label: 'tan', value: 'tan(', kind: 'fn', aria: 'tangent' },
+  { label: 'ln', value: 'ln(', kind: 'fn', aria: 'natural log' },
+  { label: 'log', value: 'log(', kind: 'fn', aria: 'log base 10' },
+
+  { label: 'sin⁻¹', value: 'asin(', kind: 'fn', aria: 'inverse sine' },
+  { label: 'cos⁻¹', value: 'acos(', kind: 'fn', aria: 'inverse cosine' },
+  { label: 'tan⁻¹', value: 'atan(', kind: 'fn', aria: 'inverse tangent' },
+  { label: 'eˣ', value: 'exp(', kind: 'fn', aria: 'e to the power x' },
+  { label: '10ˣ', value: '10^', kind: 'fn', aria: '10 to the power x' },
+
+  { label: 'x²', value: '^2', kind: 'fn', aria: 'square' },
+  { label: 'x³', value: '^3', kind: 'fn', aria: 'cube' },
+  { label: 'xʸ', value: '^', kind: 'fn', aria: 'power' },
+  { label: '√', value: 'sqrt(', kind: 'fn', aria: 'square root' },
+  { label: '∛', value: 'cbrt(', kind: 'fn', aria: 'cube root' },
+
+  { label: 'π', value: 'π', kind: 'fn', aria: 'pi' },
+  { label: 'e', value: 'e', kind: 'fn', aria: "euler's number" },
+  { label: '(', value: '(', kind: 'fn', aria: 'open parenthesis' },
+  { label: ')', value: ')', kind: 'fn', aria: 'close parenthesis' },
+  { label: 'n!', value: '!', kind: 'fn', aria: 'factorial' },
+
+  { label: '7', value: '7', kind: 'num', aria: 'seven' },
+  { label: '8', value: '8', kind: 'num', aria: 'eight' },
+  { label: '9', value: '9', kind: 'num', aria: 'nine' },
+  { label: '÷', value: '/', kind: 'op', aria: 'divide' },
+  { label: '⌫', action: 'back', kind: 'accent', aria: 'backspace' },
+
+  { label: '4', value: '4', kind: 'num', aria: 'four' },
+  { label: '5', value: '5', kind: 'num', aria: 'five' },
+  { label: '6', value: '6', kind: 'num', aria: 'six' },
+  { label: '×', value: '*', kind: 'op', aria: 'multiply' },
+  { label: 'mod', value: '%', kind: 'op', aria: 'modulo' },
+
+  { label: '1', value: '1', kind: 'num', aria: 'one' },
+  { label: '2', value: '2', kind: 'num', aria: 'two' },
+  { label: '3', value: '3', kind: 'num', aria: 'three' },
+  { label: '−', value: '-', kind: 'op', aria: 'subtract' },
+  { label: 'Ans', action: 'ans', kind: 'op', aria: 'answer' },
+
+  { label: '0', value: '0', kind: 'num', aria: 'zero' },
+  { label: '.', value: '.', kind: 'num', aria: 'decimal point' },
+  { label: '+', value: '+', kind: 'op', aria: 'add' },
+  { label: 'AC', action: 'clear', kind: 'danger', aria: 'all clear' },
+  { label: '=', action: 'equals', kind: 'primary', aria: 'equals' },
+];
+---
+
+<div class="calc card mx-auto w-full max-w-3xl p-4 sm:p-5" data-scientific-calculator>
+  <!-- Angle mode -->
+  <div class="mb-3 flex items-center justify-between gap-3">
+    <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Angle mode" style="border-color: var(--line)">
+      <button type="button" class="mode-btn is-active" data-mode="deg" role="radio" aria-checked="true">Deg</button>
+      <button type="button" class="mode-btn" data-mode="rad" role="radio" aria-checked="false">Rad</button>
+    </div>
+    <span class="text-xs" style="color: var(--muted)">Type directly or use the keypad</span>
+  </div>
+
+  <!-- Display -->
+  <div class="calc-display" aria-live="polite">
+    <div class="calc-sub" data-calc-sub>&nbsp;</div>
+    <input
+      type="text"
+      class="calc-main"
+      data-calc-input
+      inputmode="none"
+      autocomplete="off"
+      spellcheck="false"
+      aria-label="Expression"
+      value="0"
+    />
+  </div>
+
+  <!-- Keypad -->
+  <div class="calc-grid mt-4">
+    {
+      keys.map((k) => (
+        <button
+          type="button"
+          class={`calc-key kind-${k.kind}`}
+          data-value={k.value}
+          data-action={k.action}
+          aria-label={k.aria}
+          set:html={k.label}
+        />
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  .calc-display {
+    background: var(--subtle);
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    overflow: hidden;
+  }
+  .calc-sub {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--muted);
+    min-height: 1.2em;
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+  .calc-main {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: clamp(1.5rem, 6vw, 2.25rem);
+    font-weight: 600;
+    color: var(--heading);
+    padding: 0.15rem 0;
+  }
+  .calc-main:focus {
+    outline: none;
+  }
+  .calc-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.4rem;
+  }
+  .calc-key {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.9rem;
+    border-radius: 0.6rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--heading);
+    transition: transform 0.08s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+    user-select: none;
+  }
+  .calc-key:hover {
+    background: var(--subtle);
+  }
+  .calc-key:active {
+    transform: translateY(1px);
+  }
+  .kind-num {
+    font-size: 1.1rem;
+  }
+  .kind-fn {
+    background: var(--subtle);
+    color: var(--color-brand-700);
+    font-size: 0.85rem;
+  }
+  .kind-op {
+    color: var(--color-brand-700);
+    font-weight: 700;
+  }
+  .kind-accent {
+    color: var(--color-accent-700);
+  }
+  .kind-danger {
+    color: var(--color-danger);
+    font-weight: 700;
+  }
+  .kind-primary {
+    background: var(--color-brand-600);
+    color: #fff;
+    border-color: var(--color-brand-600);
+    font-size: 1.2rem;
+  }
+  .kind-primary:hover {
+    background: var(--color-brand-700);
+  }
+  .mode-btn {
+    padding: 0.3rem 0.85rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .mode-btn.is-active {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+  @media (max-width: 380px) {
+    .calc-key {
+      min-height: 2.6rem;
+      font-size: 0.85rem;
+    }
+  }
+</style>
+
+<script>
+  import { evaluate, CalculatorError, type AngleMode } from '@lib/calculators/scientific';
+
+  const roots = document.querySelectorAll<HTMLElement>('[data-scientific-calculator]');
+  roots.forEach((root) => {
+    const input = root.querySelector<HTMLInputElement>('[data-calc-input]')!;
+    const sub = root.querySelector<HTMLElement>('[data-calc-sub]')!;
+    const grid = root.querySelector<HTMLElement>('.calc-grid')!;
+    const modeButtons = root.querySelectorAll<HTMLButtonElement>('.mode-btn');
+
+    let mode: AngleMode = 'deg';
+    let justEvaluated = false;
+    let ans = 0;
+
+    const OPERATORS = new Set(['+', '-', '*', '/', '^', '%']);
+
+    function render(expr: string) {
+      input.value = expr === '' ? '0' : expr;
+    }
+
+    function currentExpr(): string {
+      return input.value === '0' ? '' : input.value;
+    }
+
+    function append(value: string) {
+      let expr = currentExpr();
+      if (justEvaluated) {
+        // Continue from the result if an operator is pressed, else start fresh.
+        if (OPERATORS.has(value)) {
+          expr = String(ans);
+        } else {
+          expr = '';
+          sub.textContent = ' ';
+        }
+        justEvaluated = false;
+      }
+      render(expr + value);
+    }
+
+    function backspace() {
+      if (justEvaluated) {
+        justEvaluated = false;
+      }
+      const expr = currentExpr();
+      render(expr.slice(0, -1));
+    }
+
+    function clearAll() {
+      justEvaluated = false;
+      sub.textContent = ' ';
+      render('');
+    }
+
+    function recallAns() {
+      append(String(ans));
+    }
+
+    function equals() {
+      const expr = currentExpr();
+      if (!expr) return;
+      try {
+        const result = evaluate(expr, mode);
+        ans = result;
+        sub.textContent = expr + ' =';
+        // Trim floating-point noise for display.
+        const shown = Number.parseFloat(result.toPrecision(12));
+        render(String(shown));
+        justEvaluated = true;
+      } catch (err) {
+        sub.textContent = err instanceof CalculatorError ? err.message : 'Error';
+        input.value = 'Error';
+        justEvaluated = true;
+        ans = 0;
+      }
+    }
+
+    grid.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.calc-key');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const value = btn.dataset.value;
+      if (action === 'equals') equals();
+      else if (action === 'clear') clearAll();
+      else if (action === 'back') backspace();
+      else if (action === 'ans') recallAns();
+      else if (value != null) append(value);
+    });
+
+    modeButtons.forEach((mb) => {
+      mb.addEventListener('click', () => {
+        mode = (mb.dataset.mode as AngleMode) ?? 'deg';
+        modeButtons.forEach((b) => {
+          const active = b === mb;
+          b.classList.toggle('is-active', active);
+          b.setAttribute('aria-checked', String(active));
+        });
+        input.focus();
+      });
+    });
+
+    // Keyboard support
+    input.addEventListener('keydown', (e) => {
+      const k = e.key;
+      if (k === 'Enter' || k === '=') {
+        e.preventDefault();
+        equals();
+      } else if (k === 'Escape') {
+        e.preventDefault();
+        clearAll();
+      } else if (k === 'Backspace') {
+        e.preventDefault();
+        backspace();
+      } else if (/^[0-9]$/.test(k) || ['+', '-', '*', '/', '^', '%', '(', ')', '.'].includes(k)) {
+        e.preventDefault();
+        append(k);
+      }
+    });
+
+    render('');
+  });
+</script>
