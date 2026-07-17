@@ -46,6 +46,11 @@ const isActive = (path: string) => currentPath === path || currentPath.startsWit
 
     <div class="flex shrink-0 items-center gap-1">
       <a
+        href="/guides"
+        class="hidden rounded-lg px-3 py-2 text-sm font-semibold sm:inline-flex"
+        style={isActive('/guides') ? 'color: var(--color-brand-700)' : 'color: var(--fg)'}>Guides</a
+      >
+      <a
         href="/calculators"
         class="hidden rounded-lg px-3 py-2 text-sm font-semibold sm:inline-flex"
         style="color: var(--fg)">All calculators</a

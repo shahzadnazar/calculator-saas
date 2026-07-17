@@ -88,6 +88,30 @@ export function calculatorSchema(opts: {
   };
 }
 
+/** Article schema for long-form guides (EEAT + rich results). */
+export function articleSchema(opts: {
+  title: string;
+  description: string;
+  path: string;
+  authorName: string;
+  datePublished: string; // ISO
+  dateModified?: string; // ISO
+  image?: string;
+}): Schema {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: opts.title,
+    description: opts.description,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': absoluteUrl(opts.path) },
+    author: { '@type': 'Organization', name: opts.authorName, url: SITE.url },
+    publisher: { '@id': `${SITE.url}/#organization` },
+    datePublished: opts.datePublished,
+    dateModified: opts.dateModified ?? opts.datePublished,
+    image: opts.image ? (opts.image.startsWith('http') ? opts.image : absoluteUrl(opts.image)) : absoluteUrl(SITE.defaultOgImage),
+  };
+}
+
 /** FAQPage schema from question/answer pairs (answers are plain text). */
 export function faqSchema(faqs: { question: string; answer: string }[]): Schema {
   return {

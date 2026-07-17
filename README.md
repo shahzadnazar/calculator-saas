@@ -90,6 +90,21 @@ The architecture is data-driven, so a new calculator is a small, well-scoped cha
 Navigation, the sitemap, category pages, related-tool links and structured data
 update automatically from the registry.
 
+## Adding a guide (content engine)
+
+Guides are MDX in `src/content/guides/` (a typed content collection defined in
+`src/content.config.ts`). A guide can **embed live calculators inline** and is
+interlinked with them both ways.
+
+1. Create `src/content/guides/<slug>.mdx` with frontmatter: `title`,
+   `description`, `category`, `publishDate`, `relatedCalculators` (array of
+   `"category/slug"` refs), optional `featured`/`updatedDate`.
+2. To embed a calculator, import its island at the top of the MDX and drop it
+   in the body: `import MortgageCalculator from '@components/islands/MortgageCalculator.astro'`.
+3. The guide gets Article structured data, author/EEAT attribution, a "Calculators
+   used" panel, and a reciprocal "Read more" link on each referenced calculator —
+   all automatically. Authors live in `src/config/authors.ts`.
+
 ## Rebranding / domain change
 
 Change `SITE.url` (and `name`, `contactEmail`) in `src/config/site.ts` and the

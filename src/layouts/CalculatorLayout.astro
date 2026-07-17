@@ -9,6 +9,7 @@
  *
  * Slots: default = the interactive tool; "content" = long-form explainer prose.
  */
+import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import AdSlot from '@components/AdSlot.astro';
@@ -39,6 +40,12 @@ const { calculator, intro, faqs = [], reviewedOn } = Astro.props;
 const category = getCategory(calculator.category)!;
 const path = calculatorPath(calculator);
 const related = getRelatedCalculators(calculator);
+
+// Guides that reference this calculator — bidirectional internal linking.
+const calcRef = `${calculator.category}/${calculator.slug}`;
+const relatedGuides = (await getCollection('guides', ({ data }) => !data.draft)).filter((g) =>
+  g.data.relatedCalculators.includes(calcRef),
+);
 
 const crumbs = [
   { name: 'Home', path: '/' },
@@ -105,6 +112,28 @@ const reviewedDisplay = reviewedOn
     <div class="prose mt-12">
       <slot name="content" />
     </div>
+
+    <!-- Related guides -->
+    {
+      relatedGuides.length > 0 && (
+        <section class="mt-14 max-w-3xl" aria-labelledby="guides-heading">
+          <h2 id="guides-heading" class="text-2xl font-bold">Read more</h2>
+          <ul class="mt-5 space-y-3">
+            {relatedGuides.map((g) => (
+              <li>
+                <a href={`/guides/${g.id}`} class="card flex items-center justify-between gap-4 p-4 transition-shadow hover:shadow-lg">
+                  <span>
+                    <span class="font-semibold" style="color: var(--heading)">{g.data.title}</span>
+                    <span class="mt-0.5 block text-sm" style="color: var(--muted)">{g.data.description}</span>
+                  </span>
+                  <span aria-hidden="true" style="color: var(--color-brand-600)">→</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
 
     <!-- FAQ -->
     {

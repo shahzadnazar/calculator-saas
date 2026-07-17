@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
+import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
 
 // Canonical site URL. Kept in sync with src/config/site.ts (SITE.url).
@@ -22,6 +23,7 @@ export default defineConfig({
     defaultStrategy: 'hover',
   },
   integrations: [
+    mdx(),
     sitemap({
       filter: (page) => !page.includes('/404'),
       changefreq: 'weekly',
