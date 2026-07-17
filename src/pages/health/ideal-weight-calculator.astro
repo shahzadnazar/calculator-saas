@@ -1,0 +1,55 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import IdealWeightCalculator from '@components/islands/IdealWeightCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('health', 'ideal-weight-calculator')!;
+
+const faqs = [
+  {
+    question: 'Which ideal weight formula is best?',
+    answer:
+      'There is no single "correct" formula. The Robinson, Miller, Devine and Hamwi equations were each developed for different purposes and give slightly different results. Treat the spread of values as a healthy range rather than one exact target.',
+  },
+  {
+    question: 'Why do the formulas only use height and sex?',
+    answer:
+      'These classic formulas estimate a reference weight from height and sex alone. They do not account for body frame, muscle mass or age, which is why the healthy-BMI range is also shown for context.',
+  },
+  {
+    question: 'Is ideal weight the same as a healthy weight?',
+    answer:
+      'Not exactly. "Ideal body weight" formulas were originally created for medication dosing and clinical use. A healthy weight is better described as a range — which is why we also show the weights corresponding to a BMI of 18.5–24.9.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Estimate your ideal body weight from height and sex using four established formulas (Robinson, Miller, Devine, Hamwi), plus the healthy weight range for your height."
+  faqs={faqs}
+>
+  <IdealWeightCalculator />
+
+  <Fragment slot="content">
+    <h2>Reading the results</h2>
+    <p>
+      Because the four formulas were derived differently, they produce a range of values
+      rather than one number. A realistic, healthy target usually sits somewhere within
+      that range and within the BMI-based healthy range shown alongside it.
+    </p>
+
+    <h2>Beyond the formulas</h2>
+    <p>
+      Frame size, muscle mass, age and overall health all affect what a healthy weight
+      looks like for you. Athletes in particular may weigh more than these formulas
+      suggest while being very healthy. Use the results as a guide, not a rule.
+    </p>
+
+    <p>
+      This is general educational information, not medical advice. Talk to a healthcare
+      professional about a weight target that is right for you.
+    </p>
+  </Fragment>
+</CalculatorLayout>

@@ -1,0 +1,91 @@
+---
+import { calculateIdealWeight } from '@lib/calculators/ideal-weight';
+import { formatNumber } from '@lib/format';
+
+const r = calculateIdealWeight({ sex: 'male', system: 'metric', heightCm: 175 });
+const show = (v: number) => (Number.isNaN(v) ? '—' : `${formatNumber(v, 1)} ${r.unit}`);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-idealweight>
+  <form class="card p-5 sm:p-6" data-iw-form novalidate>
+    <div class="flex flex-wrap gap-3">
+      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Sex" style="border-color: var(--line)">
+        <button type="button" class="seg-btn is-active" data-sex="male" role="radio" aria-checked="true">Male</button>
+        <button type="button" class="seg-btn" data-sex="female" role="radio" aria-checked="false">Female</button>
+      </div>
+      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Units" style="border-color: var(--line)">
+        <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
+        <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial</button>
+      </div>
+    </div>
+    <div class="mt-5">
+      <div data-group="metric">
+        <label class="field-label" for="iw-cm">Height</label>
+        <div class="flex"><input class="field rounded-r-none" id="iw-cm" name="heightCm" type="number" min="0" value="175" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">cm</span></div>
+      </div>
+      <div data-group="imperial" hidden>
+        <label class="field-label">Height</label>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex"><input class="field rounded-r-none" name="heightFt" type="number" min="0" value="5" inputmode="decimal" aria-label="feet" /><span class="field-affix rounded-r-lg border-l-0">ft</span></div>
+          <div class="flex"><input class="field rounded-r-none" name="heightIn" type="number" min="0" value="9" inputmode="decimal" aria-label="inches" /><span class="field-affix rounded-r-lg border-l-0">in</span></div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Ideal weight estimates</p>
+    <dl class="mt-3 space-y-2 text-sm">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Robinson (1983)</dt><dd class="font-semibold" data-iw-robinson>{show(r.robinson)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Miller (1983)</dt><dd class="font-semibold" data-iw-miller>{show(r.miller)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Devine (1974)</dt><dd class="font-semibold" data-iw-devine>{show(r.devine)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Hamwi (1964)</dt><dd class="font-semibold" data-iw-hamwi>{show(r.hamwi)}</dd></div>
+      <div class="flex justify-between border-t pt-2" style="border-color: var(--line)"><dt class="font-semibold">Healthy BMI range</dt><dd class="font-semibold" style="color: var(--color-accent-600)"><span data-iw-bmimin>{formatNumber(r.bmiMin, 1)}</span>–<span data-iw-bmimax>{formatNumber(r.bmiMax, 1)}</span> <span data-iw-unit>{r.unit}</span></dd></div>
+    </dl>
+    <p class="mt-4 text-xs" style="color: var(--muted)">Different formulas give different estimates; treat them as a range, not a single target.</p>
+  </div>
+</div>
+
+<style>
+  .seg-btn, .unit-btn { padding: 0.35rem 0.9rem; border-radius: 0.45rem; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .seg-btn.is-active, .unit-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { calculateIdealWeight, type Sex, type UnitSystem } from '@lib/calculators/ideal-weight';
+  const fmt = (v: number, u: string) => (Number.isNaN(v) ? '—' : `${v.toFixed(1)} ${u}`);
+
+  document.querySelectorAll<HTMLElement>('[data-idealweight]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-iw-form]')!;
+    let sex: Sex = 'male';
+    let system: UnitSystem = 'metric';
+    const groups = { metric: root.querySelector<HTMLElement>('[data-group="metric"]')!, imperial: root.querySelector<HTMLElement>('[data-group="imperial"]')! };
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+
+    function recompute() {
+      const r = calculateIdealWeight({ sex, system, heightCm: num('heightCm'), heightFt: num('heightFt'), heightIn: num('heightIn') });
+      set('[data-iw-robinson]', fmt(r.robinson, r.unit));
+      set('[data-iw-miller]', fmt(r.miller, r.unit));
+      set('[data-iw-devine]', fmt(r.devine, r.unit));
+      set('[data-iw-hamwi]', fmt(r.hamwi, r.unit));
+      set('[data-iw-bmimin]', Number.isNaN(r.bmiMin) ? '—' : r.bmiMin.toFixed(1));
+      set('[data-iw-bmimax]', Number.isNaN(r.bmiMax) ? '—' : r.bmiMax.toFixed(1));
+      set('[data-iw-unit]', r.unit);
+    }
+    root.querySelectorAll<HTMLButtonElement>('.seg-btn').forEach((b) => b.addEventListener('click', () => {
+      sex = (b.dataset.sex as Sex) ?? 'male';
+      root.querySelectorAll('.seg-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      recompute();
+    }));
+    root.querySelectorAll<HTMLButtonElement>('.unit-btn').forEach((b) => b.addEventListener('click', () => {
+      system = (b.dataset.unit as UnitSystem) ?? 'metric';
+      root.querySelectorAll('.unit-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      groups.metric.hidden = system !== 'metric';
+      groups.imperial.hidden = system !== 'imperial';
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

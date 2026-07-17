@@ -1,0 +1,61 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import AutoLoanCalculator from '@components/islands/AutoLoanCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('finance', 'auto-loan-calculator')!;
+
+const faqs = [
+  {
+    question: 'How is a car payment calculated?',
+    answer:
+      'The amount financed is the vehicle price plus taxes and fees (if financed) minus your down payment and any trade-in equity. That amount is then amortized over the loan term at your interest rate to give the monthly payment.',
+  },
+  {
+    question: 'Should I finance the sales tax and fees?',
+    answer:
+      'Financing tax and fees lowers your upfront cash but increases the loan balance, so you pay interest on them. Paying them upfront costs more today but reduces total interest. Toggle the option to compare both.',
+  },
+  {
+    question: 'How does a trade-in affect my loan?',
+    answer:
+      'Your trade-in equity — its value minus any loan still owed on it — is applied like a down payment, reducing the amount you need to finance. Negative equity (owing more than it is worth) increases the loan.',
+  },
+  {
+    question: 'What loan term should I choose?',
+    answer:
+      'Longer terms (72–84 months) lower the monthly payment but significantly increase total interest and the risk of owing more than the car is worth. Shorter terms cost less overall.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Estimate your monthly car payment including down payment, trade-in, sales tax and fees — and see the total cost of financing."
+  faqs={faqs}
+>
+  <AutoLoanCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use the auto loan calculator</h2>
+    <p>
+      Enter the <strong>vehicle price</strong>, <strong>term</strong>,
+      <strong>interest rate</strong> and <strong>down payment</strong>. Open
+      <strong>Trade-in &amp; fees</strong> to add a trade-in, the amount still owed on it,
+      dealer fees, and to choose whether tax and fees are financed or paid upfront.
+    </p>
+
+    <h2>What "total cost" includes</h2>
+    <p>
+      The total cost combines the vehicle price, sales tax, fees and all the interest you
+      will pay over the life of the loan — the real price of the car once financing is
+      included. Watching this number is the best way to compare deals.
+    </p>
+
+    <p>
+      This is an estimate for planning and not a financing offer. Your actual rate, taxes
+      and fees depend on the lender, dealer and your location and credit.
+    </p>
+  </Fragment>
+</CalculatorLayout>

@@ -1,0 +1,61 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import BodyFatCalculator from '@components/islands/BodyFatCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('health', 'body-fat-calculator')!;
+
+const faqs = [
+  {
+    question: 'How does the U.S. Navy body fat method work?',
+    answer:
+      'It estimates body fat from body-circumference measurements — neck and waist for men, plus hips for women — together with your height. It is quick, needs only a tape measure, and correlates reasonably well with more expensive methods.',
+  },
+  {
+    question: 'Where exactly do I measure?',
+    answer:
+      'Measure your neck just below the larynx, your waist at the navel, and (for women) your hips at the widest point. Keep the tape snug but not compressing the skin, and measure without holding your breath.',
+  },
+  {
+    question: 'What is a healthy body fat percentage?',
+    answer:
+      'General ranges differ by sex. For men, roughly 6–24% spans athletic to average; for women, about 14–31%. Essential fat is around 2–5% for men and 10–13% for women. Above these ranges is generally classed as obese.',
+  },
+  {
+    question: 'How accurate is it?',
+    answer:
+      'The Navy method is an estimate, not a clinical measurement. It can be off by several points for individuals. For precise figures, methods like DEXA scanning are more reliable.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Estimate your body fat percentage using the U.S. Navy circumference method — just a tape measure and your height. Metric or imperial."
+  faqs={faqs}
+>
+  <BodyFatCalculator />
+
+  <Fragment slot="content">
+    <h2>Why body fat matters more than weight</h2>
+    <p>
+      Two people of the same weight can have very different body compositions. Body fat
+      percentage tells you how much of your weight is fat versus lean mass, which is a
+      better health indicator than weight or BMI alone.
+    </p>
+
+    <h2>How to measure accurately</h2>
+    <ul>
+      <li><strong>Neck:</strong> just below the larynx, sloping slightly downward to the front.</li>
+      <li><strong>Waist:</strong> at the navel for men; at the narrowest point for women.</li>
+      <li><strong>Hips (women):</strong> at the widest part of the buttocks.</li>
+    </ul>
+    <p>Take each measurement twice and use the average for best results.</p>
+
+    <p>
+      This is a general estimate, not medical advice. For a clinical assessment of body
+      composition, consult a healthcare professional.
+    </p>
+  </Fragment>
+</CalculatorLayout>

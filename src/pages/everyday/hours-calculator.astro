@@ -1,0 +1,54 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import HoursCalculator from '@components/islands/HoursCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('everyday', 'hours-calculator')!;
+
+const faqs = [
+  {
+    question: 'How do I calculate hours worked?',
+    answer:
+      'Enter your start and end times and any unpaid break. The calculator subtracts the break from the elapsed time and shows the result in hours and minutes, plus decimal hours for payroll.',
+  },
+  {
+    question: 'Does it handle overnight shifts?',
+    answer:
+      'Yes. If the end time is earlier than the start time, the calculator assumes the shift crossed midnight and counts the hours correctly.',
+  },
+  {
+    question: 'What are decimal hours?',
+    answer:
+      'Decimal hours express minutes as a fraction of an hour — for example, 8 hours 30 minutes is 8.5 decimal hours. Payroll systems usually use this format to multiply by an hourly rate.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Calculate the hours between two times, minus breaks — including overnight shifts. Get the result in hours and minutes and as decimal hours for payroll."
+  faqs={faqs}
+>
+  <HoursCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use the hours calculator</h2>
+    <p>
+      Enter a <strong>start time</strong> and <strong>end time</strong>, then add any
+      unpaid <strong>break</strong> in minutes. The result updates instantly in both
+      hours-and-minutes and decimal-hour formats.
+    </p>
+
+    <h2>Turning hours into pay</h2>
+    <p>
+      To estimate pay, multiply the decimal hours by your hourly rate. For example, 8.5
+      decimal hours at $20/hour is $170. A dedicated salary calculator is coming soon.
+    </p>
+
+    <p>
+      This tool is for general timekeeping. Always follow your employer's official
+      timekeeping and rounding rules for payroll.
+    </p>
+  </Fragment>
+</CalculatorLayout>

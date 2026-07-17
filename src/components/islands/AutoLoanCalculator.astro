@@ -1,0 +1,108 @@
+---
+import { calculateAutoLoan } from '@lib/calculators/auto-loan';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+const defaults = {
+  autoPrice: 30000,
+  loanTermMonths: 60,
+  interestRatePct: 5,
+  downPayment: 3000,
+  tradeInValue: 0,
+  amountOwedOnTradeIn: 0,
+  salesTaxRatePct: 7,
+  fees: 300,
+  includeTaxesFeesInLoan: true,
+};
+const r = calculateAutoLoan(defaults);
+---
+
+<div class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-autoloan>
+  <form class="card p-5 sm:p-6" data-al-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="al-price">Vehicle price</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-price" name="autoPrice" type="number" min="0" step="500" value={defaults.autoPrice} inputmode="decimal" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="al-term">Term (months)</label>
+          <select class="field" id="al-term" name="loanTermMonths">
+            {[36, 48, 60, 72, 84].map((m) => (<option value={m} selected={m === defaults.loanTermMonths}>{m}</option>))}
+          </select>
+        </div>
+        <div>
+          <label class="field-label" for="al-rate">Interest rate</label>
+          <div class="flex"><input class="field rounded-r-none" id="al-rate" name="interestRatePct" type="number" min="0" step="0.1" value={defaults.interestRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="al-down">Down payment</label>
+          <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-down" name="downPayment" type="number" min="0" step="500" value={defaults.downPayment} inputmode="decimal" /></div>
+        </div>
+        <div>
+          <label class="field-label" for="al-tax">Sales tax</label>
+          <div class="flex"><input class="field rounded-r-none" id="al-tax" name="salesTaxRatePct" type="number" min="0" step="0.1" value={defaults.salesTaxRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        </div>
+      </div>
+      <details>
+        <summary class="cursor-pointer text-sm font-semibold" style="color: var(--color-brand-600)">Trade-in &amp; fees</summary>
+        <div class="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <label class="field-label" for="al-trade">Trade-in value</label>
+            <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-trade" name="tradeInValue" type="number" min="0" step="500" value={defaults.tradeInValue} inputmode="decimal" /></div>
+          </div>
+          <div>
+            <label class="field-label" for="al-owed">Owed on trade-in</label>
+            <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-owed" name="amountOwedOnTradeIn" type="number" min="0" step="500" value={defaults.amountOwedOnTradeIn} inputmode="decimal" /></div>
+          </div>
+          <div>
+            <label class="field-label" for="al-fees">Fees</label>
+            <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-fees" name="fees" type="number" min="0" step="50" value={defaults.fees} inputmode="decimal" /></div>
+          </div>
+          <label class="flex items-center gap-2 self-end pb-2 text-sm font-medium">
+            <input type="checkbox" name="includeTaxesFeesInLoan" checked={defaults.includeTaxesFeesInLoan} /> Finance tax &amp; fees
+          </label>
+        </div>
+      </details>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Monthly payment</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-al-monthly>{formatCurrency(r.monthlyPayment)}</p>
+    <dl class="mt-5 space-y-2 text-sm">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Loan amount</dt><dd class="font-semibold" data-al-loan>{formatCurrencyRounded(r.loanAmount)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Sales tax</dt><dd class="font-semibold" data-al-tax>{formatCurrency(r.salesTax)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Upfront payment</dt><dd class="font-semibold" data-al-upfront>{formatCurrency(r.upfrontPayment)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Total loan interest</dt><dd class="font-semibold" data-al-interest>{formatCurrencyRounded(r.totalLoanInterest)}</dd></div>
+      <div class="flex justify-between border-t pt-2" style="border-color: var(--line)"><dt class="font-semibold">Total cost</dt><dd class="text-lg font-bold" data-al-total>{formatCurrencyRounded(r.totalCost)}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<script>
+  import { calculateAutoLoan } from '@lib/calculators/auto-loan';
+  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-autoloan]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-al-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement | HTMLSelectElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = calculateAutoLoan({
+        autoPrice: num('autoPrice'), loanTermMonths: num('loanTermMonths'), interestRatePct: num('interestRatePct'),
+        downPayment: num('downPayment'), tradeInValue: num('tradeInValue'), amountOwedOnTradeIn: num('amountOwedOnTradeIn'),
+        salesTaxRatePct: num('salesTaxRatePct'), fees: num('fees'),
+        includeTaxesFeesInLoan: (form.elements.namedItem('includeTaxesFeesInLoan') as HTMLInputElement).checked,
+      });
+      set('[data-al-monthly]', formatCurrency(r.monthlyPayment));
+      set('[data-al-loan]', formatCurrencyRounded(r.loanAmount));
+      set('[data-al-tax]', formatCurrency(r.salesTax));
+      set('[data-al-upfront]', formatCurrency(r.upfrontPayment));
+      set('[data-al-interest]', formatCurrencyRounded(r.totalLoanInterest));
+      set('[data-al-total]', formatCurrencyRounded(r.totalCost));
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

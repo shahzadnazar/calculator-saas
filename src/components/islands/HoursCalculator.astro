@@ -1,0 +1,55 @@
+---
+import { calculateHours, parseTimeToMinutes } from '@lib/calculators/hours';
+
+const start = parseTimeToMinutes('09:00')!;
+const end = parseTimeToMinutes('17:30')!;
+const r = calculateHours(start, end, 30);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-hours>
+  <form class="card p-5 sm:p-6" data-hr-form novalidate>
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="hr-start">Start time</label>
+          <input class="field" id="hr-start" name="start" type="time" value="09:00" />
+        </div>
+        <div>
+          <label class="field-label" for="hr-end">End time</label>
+          <input class="field" id="hr-end" name="end" type="time" value="17:30" />
+        </div>
+      </div>
+      <div>
+        <label class="field-label" for="hr-break">Break (minutes)</label>
+        <input class="field" id="hr-break" name="breakMin" type="number" min="0" step="5" value="30" inputmode="numeric" />
+      </div>
+      <p class="text-xs" style="color: var(--muted)">Overnight shifts are handled automatically — an end time earlier than the start counts as the next day.</p>
+    </div>
+  </form>
+
+  <div class="card flex flex-col justify-center p-6 text-center">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Time worked</p>
+    <p class="mt-2 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-hr-hm>{r.hours}h {r.minutes}m</span></p>
+    <p class="mt-2 text-lg" style="color: var(--muted)"><span class="font-bold" style="color: var(--color-brand-600)" data-hr-decimal>{r.decimalHours}</span> decimal hours</p>
+  </div>
+</div>
+
+<script>
+  import { calculateHours, parseTimeToMinutes } from '@lib/calculators/hours';
+  document.querySelectorAll<HTMLElement>('[data-hours]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-hr-form]')!;
+    const val = (n: string) => (form.elements.namedItem(n) as HTMLInputElement).value;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const s = parseTimeToMinutes(val('start'));
+      const e = parseTimeToMinutes(val('end'));
+      const brk = Number(val('breakMin')) || 0;
+      if (s === null || e === null) { set('[data-hr-hm]', '—'); set('[data-hr-decimal]', '—'); return; }
+      const r = calculateHours(s, e, brk);
+      set('[data-hr-hm]', `${r.hours}h ${r.minutes}m`);
+      set('[data-hr-decimal]', String(r.decimalHours));
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>
