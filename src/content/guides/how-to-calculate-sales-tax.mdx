@@ -1,0 +1,43 @@
+---
+title: "How to Calculate Sales Tax"
+description: "Add sales tax to a price or back it out of a total, understand how rates work, and avoid the rounding mistakes that trip up expense reports."
+category: finance
+author: editorial
+publishDate: 2026-07-17
+updatedDate: 2026-07-17
+relatedCalculators:
+  - finance/sales-tax-calculator
+---
+
+import SalesTaxCalculator from '@components/islands/SalesTaxCalculator.astro';
+
+Sales tax seems simple until you need to work *backwards* from a total, or reconcile a receipt for an expense report. This short guide covers both directions and the small details that catch people out.
+
+<SalesTaxCalculator />
+
+## Adding tax to a price
+
+Multiply the pre-tax price by the tax rate (as a decimal), then add it back:
+
+- Tax = `price × (rate ÷ 100)`
+- Total = `price + tax`
+
+A $100 item at 7.25% has `$7.25` of tax and costs `$107.25`.
+
+## Backing tax out of a total
+
+This is the one people get wrong. To find the pre-tax price hidden inside a tax-inclusive total, **divide** by `1 + rate` — don't just subtract the percentage:
+
+- Pre-tax = `total ÷ (1 + rate ÷ 100)`
+
+For a $107.25 total at 7.25%, the pre-tax price is `107.25 ÷ 1.0725 = $100`, and the tax was `$7.25`. Subtracting 7.25% of $107.25 would give the wrong answer, because the percentage applies to the smaller pre-tax figure. The "Remove tax" mode above does this correctly.
+
+## How rates are set
+
+Sales tax varies by **country, state and even city**, and combined rates stack local taxes on top of state ones. Some goods — often groceries, medicine or clothing — are taxed at a lower rate or exempt entirely. Always use the combined rate that applies where the sale happens.
+
+## A note on rounding
+
+Tax is typically rounded to the cent per transaction, so adding tax to each item can differ slightly from taxing the basket total. For everyday estimates the difference is negligible, but it explains the occasional penny that won't reconcile.
+
+Do it instantly, in either direction, with the [sales tax calculator](/finance/sales-tax-calculator).

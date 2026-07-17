@@ -1,16 +1,23 @@
 ---
+import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import { SITE } from '@config/site';
 import {
   CATEGORIES_ORDERED,
   getLiveCalculators,
   getCalculatorsByCategory,
+  getCategory,
   calculatorPath,
   categoryPath,
   STATS,
 } from '@data/calculators';
 
 const featured = getLiveCalculators();
+
+// Featured guides to surface the content library on the home page.
+const featuredGuides = (await getCollection('guides', ({ data }) => !data.draft && data.featured))
+  .sort((a, b) => b.data.publishDate.getTime() - a.data.publishDate.getTime())
+  .slice(0, 3);
 
 const valueProps = [
   { icon: '⚡', title: 'Instant & accurate', body: 'Results update as you type, using formulas that are unit-tested for correctness.' },
@@ -102,6 +109,35 @@ const valueProps = [
       }
     </ul>
   </section>
+
+  <!-- Guides -->
+  {
+    featuredGuides.length > 0 && (
+      <section class="wrap pb-4">
+        <div class="flex items-end justify-between">
+          <h2 class="text-2xl font-bold">From our guides</h2>
+          <a href="/guides" class="text-sm font-semibold hover:underline" style="color: var(--color-brand-600)">All guides →</a>
+        </div>
+        <ul class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {featuredGuides.map((g) => {
+            const cat = getCategory(g.data.category);
+            return (
+              <li>
+                <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
+                  <span class="text-sm font-semibold" style="color: var(--color-brand-600)">
+                    {cat?.icon} {cat?.shortName}
+                  </span>
+                  <span class="text-lg font-bold" style="color: var(--heading)">{g.data.title}</span>
+                  <span class="text-sm" style="color: var(--muted)">{g.data.description}</span>
+                  <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Read guide →</span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    )
+  }
 
   <!-- Value props -->
   <section class="border-y" style="border-color: var(--line); background: var(--card)">

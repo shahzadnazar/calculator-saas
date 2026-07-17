@@ -1,0 +1,37 @@
+---
+title: "How to Calculate Your Exact Age"
+description: "Working out an exact age in years, months and days is trickier than it looks — here's why leap years and month lengths matter, and how to get it right every time."
+category: everyday
+author: editorial
+publishDate: 2026-07-17
+updatedDate: 2026-07-17
+relatedCalculators:
+  - everyday/age-calculator
+  - everyday/date-calculator
+---
+
+import AgeCalculator from '@components/islands/AgeCalculator.astro';
+
+Your age in years is easy. Your **exact** age — years, months and days — is surprisingly fiddly, because months have different lengths and leap years add a day. This guide explains the pitfalls and how to get an accurate answer for any two dates.
+
+<AgeCalculator />
+
+## Why simple subtraction fails
+
+You might think you can just subtract the birth date from today. But what is "one month" — 28 days? 30? 31? And how many February 29ths fell in between? Doing it by hand, it's easy to be off by a day or two. The reliable method counts complete years first, then remaining whole months, then leftover days — borrowing correctly from the previous month when needed.
+
+## Leap years matter
+
+Between 2000 and 2020 there were **five** leap days (2000, 2004, 2008, 2012, 2016), so that span is 7,305 days, not `20 × 365 = 7,300`. Any accurate age or duration calculation has to count those extra days — which is exactly what the calculator above does.
+
+## When exact age is more than trivia
+
+- **Legal thresholds** — driving, voting, retirement benefits often hinge on an exact date.
+- **Medical dosing and milestones** — especially for infants, measured in weeks and months.
+- **Countdowns** — days until a birthday or anniversary.
+
+## Age at any date
+
+You aren't limited to "today." Set the second date to any point in the past or future to find how old someone was — or will be — on that day. Useful for planning events, checking eligibility, or settling a friendly argument.
+
+Get your exact age, plus totals in months, weeks and days, from the [age calculator](/everyday/age-calculator). To measure the gap between any two dates, use the [date calculator](/everyday/date-calculator).

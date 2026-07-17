@@ -1,0 +1,43 @@
+---
+title: "How to Calculate Hours Worked"
+description: "Turn clock-in and clock-out times into hours and decimal hours for payroll — including breaks and overnight shifts — without the arithmetic headaches."
+category: everyday
+author: editorial
+publishDate: 2026-07-17
+updatedDate: 2026-07-17
+relatedCalculators:
+  - everyday/hours-calculator
+---
+
+import HoursCalculator from '@components/islands/HoursCalculator.astro';
+
+Adding up hours from a timesheet sounds easy until you hit a 30-minute lunch, a shift that crosses midnight, or the need to convert "8 hours 20 minutes" into a number payroll can multiply. This guide clears all three up.
+
+<HoursCalculator />
+
+## The basic calculation
+
+Hours worked is simply end time minus start time, minus any unpaid break. The catch is that time is in base 60, not base 10 — so `5:45 PM − 9:00 AM` isn't "8.45 hours." Convert to minutes, subtract, then convert back. The calculator above does this for you.
+
+## Decimal hours for payroll
+
+Payroll systems multiply hours by an hourly rate, so they need **decimal hours**, not hours-and-minutes. The conversion is minutes ÷ 60:
+
+- 15 minutes = 0.25 hours
+- 30 minutes = 0.5 hours
+- 45 minutes = 0.75 hours
+- 20 minutes = 0.33 hours
+
+So 8 hours 30 minutes is **8.5** decimal hours. At $20/hour, that's `8.5 × 20 = $170`.
+
+## Overnight shifts
+
+If a shift starts at 10:00 PM and ends at 6:00 AM, a naive subtraction gives a negative number. The fix is to recognise the clock crossed midnight and add 24 hours — giving the correct **8 hours**. The calculator handles this automatically when the end time is earlier than the start.
+
+## Don't forget breaks
+
+Unpaid breaks come straight off the total. A 9-to-5 with a 30-minute lunch is 7.5 paid hours, not 8. Enter the break in minutes and it's deducted for you.
+
+## A note on rounding
+
+Employers often round to the nearest quarter-hour, and rules vary by jurisdiction. Use the [hours calculator](/everyday/hours-calculator) for the exact figure, then apply your workplace's official rounding policy.

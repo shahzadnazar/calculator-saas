@@ -1,0 +1,37 @@
+---
+title: "Calculating Days Between Dates"
+description: "How to count the days between two dates and add or subtract days for deadlines and due dates — with the leap-year and month-length details handled for you."
+category: everyday
+author: editorial
+publishDate: 2026-07-17
+updatedDate: 2026-07-17
+relatedCalculators:
+  - everyday/date-calculator
+  - everyday/age-calculator
+---
+
+import DateCalculator from '@components/islands/DateCalculator.astro';
+
+Date math comes up constantly — a project deadline 45 working days out, how long until a trip, the return-by date on a rental. Doing it in your head is error-prone. This guide covers the two most common date calculations and the traps to avoid.
+
+<DateCalculator />
+
+## Counting days between two dates
+
+To find the gap between two dates, you need to account for the different lengths of months and any leap days in between. The calculator above counts every actual calendar day, then also expresses the span in years, months, days and weeks — so you can read it however you need.
+
+A common question: **do you count both endpoints?** For "days between," it's usually the difference (the end date minus the start date). If you're counting *inclusive* days — like nights on a trip plus one — add one to the result.
+
+## Adding and subtracting days
+
+Deadlines are the classic case: "60 days from today." Rather than counting on a calendar, set a start date, choose add or subtract, and enter the number of days. Adding 90 days to January 1, 2024 lands on **March 31, 2024** — and because 2024 is a leap year, February's extra day is already accounted for.
+
+## Watch out for these
+
+- **Leap years** — every four years February has 29 days, which shifts every later calculation.
+- **Business days vs. calendar days** — contracts often mean working days; this tool counts calendar days.
+- **Time zones** — a date can differ by a day across zones; stick to one reference point.
+
+## Related tools
+
+For someone's age specifically, the [age calculator](/everyday/age-calculator) breaks a duration into years, months and days from a birth date. For everything else — durations and deadline math — the [date calculator](/everyday/date-calculator) has you covered.

@@ -1,0 +1,42 @@
+---
+title: "Standard Deviation Explained"
+description: "What standard deviation actually measures, the difference between sample and population, and how to calculate it step by step — with a calculator built in."
+category: math
+author: editorial
+publishDate: 2026-07-17
+updatedDate: 2026-07-17
+relatedCalculators:
+  - math/standard-deviation-calculator
+---
+
+import StandardDeviationCalculator from '@components/islands/StandardDeviationCalculator.astro';
+
+Two datasets can share the same average yet look completely different — one tightly clustered, the other wildly spread out. **Standard deviation** is the number that captures that spread. This guide explains what it means, how to compute it, and which version to use.
+
+## What it measures
+
+Standard deviation tells you, on average, how far the values in a dataset sit from the mean. A **small** standard deviation means the data points huddle close to the average; a **large** one means they are scattered. Test scores of 70, 72, 71 have a tiny standard deviation; scores of 40, 95, 78 have a large one — even if both average around 71.
+
+<StandardDeviationCalculator />
+
+## How it is calculated
+
+1. Find the **mean** (average) of your values.
+2. Subtract the mean from each value and **square** the result.
+3. **Average** those squared differences — this is the **variance**.
+4. Take the **square root** of the variance — that is the standard deviation.
+
+The squaring step is what stops positive and negative differences from cancelling out, and it gives extra weight to values far from the mean.
+
+## Sample vs. population
+
+This is the detail that confuses most people:
+
+- **Population standard deviation (σ)** divides by **N**. Use it when your data is the *entire* group you care about.
+- **Sample standard deviation (s)** divides by **N − 1**. Use it when your data is a *sample* used to estimate a larger population — dividing by N−1 corrects a bias and is the more common choice in research.
+
+For the numbers 2, 4, 6, 8, the population standard deviation is exactly **2**, while the sample standard deviation is about **2.58**.
+
+## Why it matters
+
+Standard deviation underpins a huge amount of statistics: it defines the "spread" in a normal distribution (about 68% of values fall within one standard deviation of the mean), drives quality control, and measures risk in finance. Paste your own numbers into the [standard deviation calculator](/math/standard-deviation-calculator) to get every statistic at once.

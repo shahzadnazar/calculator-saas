@@ -1,0 +1,49 @@
+---
+title: "How to Use a Scientific Calculator"
+description: "A friendly tour of the scientific calculator — trigonometry, logarithms, powers, roots, factorials and constants — with worked examples you can follow along."
+category: math
+author: editorial
+publishDate: 2026-07-17
+updatedDate: 2026-07-17
+relatedCalculators:
+  - math/scientific-calculator
+---
+
+import ScientificCalculator from '@components/islands/ScientificCalculator.astro';
+
+A scientific calculator can look intimidating — rows of buttons labelled with symbols you may not have used since school. But each one solves a specific, useful problem. This guide walks through the main functions with examples, so the next time you need one you will know exactly which key to press.
+
+<ScientificCalculator />
+
+## Build a whole expression, then solve it
+
+The single biggest difference from a basic calculator is that a scientific calculator evaluates a **complete expression** using the correct order of operations. You can type `2 + 3 × 4`, review it, and press `=` to get **14** — because multiplication happens before addition. The universal rule is **PEMDAS**: Parentheses, Exponents, Multiplication/Division, then Addition/Subtraction.
+
+## Trigonometry (and the Deg/Rad trap)
+
+The `sin`, `cos` and `tan` keys — and their inverses `sin⁻¹`, `cos⁻¹`, `tan⁻¹` — depend on whether you are working in **degrees** or **radians**. This trips people up constantly. Set the mode before you calculate: `sin(30)` is **0.5** in degrees, but a very different number in radians. Use degrees for geometry and navigation, radians for calculus and physics.
+
+## Powers and roots
+
+- `x²` and `x³` square and cube a number.
+- `xʸ` (or the `^` key) raises to any power: `2 ^ 10 = 1024`.
+- `√` and `∛` take square and cube roots.
+
+A classic use: the length of a right triangle's hypotenuse is `√(3² + 4²) = 5`.
+
+## Logarithms
+
+`log` is base 10 and `ln` is the natural log (base *e*). They answer "what power do I need?" — `log(1000) = 3` because 10³ = 1000. Logarithms show up in everything from sound levels (decibels) to compound growth.
+
+## Factorials and constants
+
+- `n!` multiplies every whole number up to n: `5! = 120`. Factorials power probability and combinations.
+- `π` (≈ 3.14159) and `e` (≈ 2.71828) are built in for geometry and growth calculations.
+
+## Try a few yourself
+
+- Compound growth: `1000 × (1 + 0.05) ^ 10`
+- A combination (5 choose 2): `5! / (2! × 3!)`
+- Circle area with radius 7: `π × 7²`
+
+Once these become familiar, the scientific calculator stops looking like a wall of symbols and starts feeling like a toolbox. Open the [scientific calculator](/math/scientific-calculator) and experiment — everything runs in your browser, so you can try anything without consequence.
