@@ -1,0 +1,120 @@
+---
+/**
+ * Loan calculator island. Server-renders a default scenario; recomputes live
+ * via src/lib/calculators/loan.ts.
+ */
+import { calculateLoan } from '@lib/calculators/loan';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+const defaults = { amount: 25000, annualInterestRate: 7, termYears: 5 };
+const r = calculateLoan(defaults);
+---
+
+<div
+  class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+  data-loan
+>
+  <form class="card p-5 sm:p-6" data-loan-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="loan-amount">Loan amount</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="loan-amount" name="amount" type="number" min="0" step="500" value={defaults.amount} inputmode="decimal" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="loan-rate">Interest rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="loan-rate" name="annualInterestRate" type="number" min="0" step="0.05" value={defaults.annualInterestRate} inputmode="decimal" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+        </div>
+        <div>
+          <label class="field-label" for="loan-term">Term (years)</label>
+          <input class="field" id="loan-term" name="termYears" type="number" min="1" step="1" value={defaults.termYears} inputmode="decimal" />
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Monthly payment</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-loan-monthly>
+      {formatCurrency(r.monthlyPayment)}
+    </p>
+    <div class="mt-5 grid grid-cols-2 gap-3 border-t pt-5 text-center" style="border-color: var(--line)">
+      <div>
+        <p class="text-xs" style="color: var(--muted)">Total interest</p>
+        <p class="mt-1 font-bold" data-loan-interest>{formatCurrencyRounded(r.totalInterest)}</p>
+      </div>
+      <div>
+        <p class="text-xs" style="color: var(--muted)">Total paid</p>
+        <p class="mt-1 font-bold" data-loan-total>{formatCurrencyRounded(r.totalPaid)}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card p-5 sm:p-6 lg:col-span-2">
+    <h3 class="text-lg font-bold">Amortization (yearly)</h3>
+    <div class="mt-4 max-h-72 overflow-auto rounded-lg border" style="border-color: var(--line)">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0" style="background: var(--subtle)">
+          <tr>
+            <th class="px-3 py-2 text-left font-semibold">Year</th>
+            <th class="px-3 py-2 text-right font-semibold">Principal</th>
+            <th class="px-3 py-2 text-right font-semibold">Interest</th>
+            <th class="px-3 py-2 text-right font-semibold">Balance</th>
+          </tr>
+        </thead>
+        <tbody data-loan-schedule>
+          {
+            r.yearlySchedule.map((row) => (
+              <tr class="border-t" style="border-color: var(--line)">
+                <td class="px-3 py-2">{row.period}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.principal)}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.interest)}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.balance)}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { calculateLoan } from '@lib/calculators/loan';
+  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+  document.querySelectorAll<HTMLElement>('[data-loan]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-loan-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => {
+      const el = root.querySelector<HTMLElement>(sel);
+      if (el) el.textContent = v;
+    };
+
+    function recompute() {
+      const r = calculateLoan({
+        amount: num('amount'),
+        annualInterestRate: num('annualInterestRate'),
+        termYears: num('termYears'),
+      });
+      set('[data-loan-monthly]', formatCurrency(r.monthlyPayment));
+      set('[data-loan-interest]', formatCurrencyRounded(r.totalInterest));
+      set('[data-loan-total]', formatCurrencyRounded(r.totalPaid));
+      const body = root.querySelector<HTMLElement>('[data-loan-schedule]')!;
+      body.innerHTML = r.yearlySchedule
+        .map(
+          (row) =>
+            `<tr class="border-t" style="border-color: var(--line)"><td class="px-3 py-2">${row.period}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.principal)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.interest)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.balance)}</td></tr>`,
+        )
+        .join('');
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

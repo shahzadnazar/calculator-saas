@@ -1,0 +1,77 @@
+---
+/**
+ * Age calculator island. Age depends on "today", so it computes on the client
+ * via src/lib/calculators/age.ts. Logic is unit-tested with fixed dates.
+ */
+---
+
+<div class="mx-auto w-full max-w-3xl" data-age>
+  <form class="card p-5 sm:p-6" data-age-form novalidate>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <label class="field-label" for="age-dob">Date of birth</label>
+        <input class="field" id="age-dob" name="dob" type="date" value="2000-01-01" max="9999-12-31" />
+      </div>
+      <div>
+        <label class="field-label" for="age-at">Age at the date</label>
+        <input class="field" id="age-at" name="at" type="date" max="9999-12-31" />
+      </div>
+    </div>
+  </form>
+
+  <div class="card mt-6 p-6 text-center" data-age-result>
+    <p class="text-sm font-semibold" style="color: var(--muted)">Your age</p>
+    <p class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl" style="color: var(--heading)" data-age-main>—</p>
+    <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div><p class="text-2xl font-bold" data-age-months>—</p><p class="text-xs" style="color: var(--muted)">months</p></div>
+      <div><p class="text-2xl font-bold" data-age-weeks>—</p><p class="text-xs" style="color: var(--muted)">weeks</p></div>
+      <div><p class="text-2xl font-bold" data-age-days>—</p><p class="text-xs" style="color: var(--muted)">days</p></div>
+      <div><p class="text-2xl font-bold" data-age-next>—</p><p class="text-xs" style="color: var(--muted)">days to birthday</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { calculateAge, parseISODateUTC } from '@lib/calculators/age';
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const todayISO = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const nf = new Intl.NumberFormat('en-US');
+
+  document.querySelectorAll<HTMLElement>('[data-age]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-age-form]')!;
+    const dobEl = form.elements.namedItem('dob') as HTMLInputElement;
+    const atEl = form.elements.namedItem('at') as HTMLInputElement;
+    if (!atEl.value) atEl.value = todayISO();
+
+    const set = (sel: string, v: string) => {
+      const el = root.querySelector<HTMLElement>(sel);
+      if (el) el.textContent = v;
+    };
+
+    function recompute() {
+      const dob = parseISODateUTC(dobEl.value);
+      const at = parseISODateUTC(atEl.value);
+      if (!dob || !at) {
+        set('[data-age-main]', '—');
+        return;
+      }
+      const r = calculateAge(dob, at);
+      if (!r.valid) {
+        set('[data-age-main]', 'Birth date is in the future');
+        ['[data-age-months]', '[data-age-weeks]', '[data-age-days]', '[data-age-next]'].forEach((s) => set(s, '—'));
+        return;
+      }
+      set('[data-age-main]', `${r.years} years, ${r.months} months, ${r.days} days`);
+      set('[data-age-months]', nf.format(r.totalMonths));
+      set('[data-age-weeks]', nf.format(r.totalWeeks));
+      set('[data-age-days]', nf.format(r.totalDays));
+      set('[data-age-next]', nf.format(r.nextBirthdayInDays));
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

@@ -1,0 +1,186 @@
+---
+/**
+ * Calorie / TDEE calculator island (Mifflin-St Jeor). SSR default + live
+ * recompute via src/lib/calculators/calorie.ts.
+ */
+import { calculateCalories, ACTIVITY_LEVELS } from '@lib/calculators/calorie';
+
+const defaults = { sex: 'male' as const, age: 30, activity: 1.55 };
+const r = calculateCalories({
+  sex: defaults.sex,
+  age: defaults.age,
+  system: 'metric',
+  heightCm: 180,
+  weightKg: 80,
+  activity: defaults.activity,
+});
+const nf = new Intl.NumberFormat('en-US');
+const goal = (v: number) => (Number.isNaN(v) ? '—' : nf.format(v));
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-calorie>
+  <form class="card p-5 sm:p-6" data-cal-form novalidate>
+    <div class="flex flex-wrap gap-3">
+      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Sex" style="border-color: var(--line)">
+        <button type="button" class="seg-btn is-active" data-sex="male" role="radio" aria-checked="true">Male</button>
+        <button type="button" class="seg-btn" data-sex="female" role="radio" aria-checked="false">Female</button>
+      </div>
+      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Units" style="border-color: var(--line)">
+        <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
+        <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial</button>
+      </div>
+    </div>
+
+    <div class="mt-5 space-y-4">
+      <div>
+        <label class="field-label" for="cal-age">Age</label>
+        <input class="field" id="cal-age" name="age" type="number" min="1" max="120" value={defaults.age} inputmode="decimal" />
+      </div>
+
+      <!-- Metric -->
+      <div class="space-y-4" data-group="metric">
+        <div>
+          <label class="field-label" for="cal-h-cm">Height</label>
+          <div class="flex"><input class="field rounded-r-none" id="cal-h-cm" name="heightCm" type="number" min="0" value="180" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">cm</span></div>
+        </div>
+        <div>
+          <label class="field-label" for="cal-w-kg">Weight</label>
+          <div class="flex"><input class="field rounded-r-none" id="cal-w-kg" name="weightKg" type="number" min="0" value="80" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">kg</span></div>
+        </div>
+      </div>
+
+      <!-- Imperial -->
+      <div class="space-y-4" data-group="imperial" hidden>
+        <div>
+          <label class="field-label">Height</label>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="flex"><input class="field rounded-r-none" name="heightFt" type="number" min="0" value="5" inputmode="decimal" aria-label="feet" /><span class="field-affix rounded-r-lg border-l-0">ft</span></div>
+            <div class="flex"><input class="field rounded-r-none" name="heightIn" type="number" min="0" value="11" inputmode="decimal" aria-label="inches" /><span class="field-affix rounded-r-lg border-l-0">in</span></div>
+          </div>
+        </div>
+        <div>
+          <label class="field-label" for="cal-w-lb">Weight</label>
+          <div class="flex"><input class="field rounded-r-none" id="cal-w-lb" name="weightLb" type="number" min="0" value="176" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">lb</span></div>
+        </div>
+      </div>
+
+      <div>
+        <label class="field-label" for="cal-activity">Activity level</label>
+        <select class="field" id="cal-activity" name="activity">
+          {ACTIVITY_LEVELS.map((a) => (
+            <option value={a.value} selected={a.value === defaults.activity}>{a.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Daily calories to maintain weight</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-cal-maintain>{goal(r.maintenance)}</span> <span class="text-lg font-semibold" style="color: var(--muted)">kcal</span></p>
+    <p class="mt-1 text-sm" style="color: var(--muted)">BMR (at rest): <strong data-cal-bmr style="color: var(--fg)">{goal(r.bmr)}</strong> kcal</p>
+
+    <div class="mt-5 space-y-2 text-sm">
+      <div class="flex items-center justify-between rounded-lg px-3 py-2" style="background: var(--subtle)">
+        <span>Mild weight loss <span style="color: var(--muted)">(~0.25 kg/wk)</span></span>
+        <strong data-cal-mildloss>{goal(r.mildLoss)}</strong>
+      </div>
+      <div class="flex items-center justify-between rounded-lg px-3 py-2" style="background: var(--subtle)">
+        <span>Weight loss <span style="color: var(--muted)">(~0.5 kg/wk)</span></span>
+        <strong data-cal-loss>{goal(r.loss)}</strong>
+      </div>
+      <div class="flex items-center justify-between rounded-lg px-3 py-2" style="background: var(--subtle)">
+        <span>Mild weight gain</span>
+        <strong data-cal-mildgain>{goal(r.mildGain)}</strong>
+      </div>
+      <div class="flex items-center justify-between rounded-lg px-3 py-2" style="background: var(--subtle)">
+        <span>Weight gain</span>
+        <strong data-cal-gain>{goal(r.gain)}</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .seg-btn, .unit-btn {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .seg-btn.is-active, .unit-btn.is-active {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+</style>
+
+<script>
+  import { calculateCalories, type Sex, type UnitSystem } from '@lib/calculators/calorie';
+
+  const nf = new Intl.NumberFormat('en-US');
+  const goal = (v: number) => (Number.isNaN(v) ? '—' : nf.format(v));
+
+  document.querySelectorAll<HTMLElement>('[data-calorie]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-cal-form]')!;
+    let sex: Sex = 'male';
+    let system: UnitSystem = 'metric';
+    const groups = {
+      metric: root.querySelector<HTMLElement>('[data-group="metric"]')!,
+      imperial: root.querySelector<HTMLElement>('[data-group="imperial"]')!,
+    };
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement | HTMLSelectElement)?.value) || 0;
+    const set = (sel: string, v: string) => {
+      const el = root.querySelector<HTMLElement>(sel);
+      if (el) el.textContent = v;
+    };
+
+    function recompute() {
+      const r = calculateCalories({
+        sex,
+        age: num('age'),
+        system,
+        heightCm: num('heightCm'),
+        weightKg: num('weightKg'),
+        heightFt: num('heightFt'),
+        heightIn: num('heightIn'),
+        weightLb: num('weightLb'),
+        activity: num('activity'),
+      });
+      set('[data-cal-maintain]', goal(r.maintenance));
+      set('[data-cal-bmr]', goal(r.bmr));
+      set('[data-cal-mildloss]', goal(r.mildLoss));
+      set('[data-cal-loss]', goal(r.loss));
+      set('[data-cal-mildgain]', goal(r.mildGain));
+      set('[data-cal-gain]', goal(r.gain));
+    }
+
+    root.querySelectorAll<HTMLButtonElement>('.seg-btn').forEach((b) => {
+      b.addEventListener('click', () => {
+        sex = (b.dataset.sex as Sex) ?? 'male';
+        root.querySelectorAll('.seg-btn').forEach((x) => {
+          const active = x === b;
+          x.classList.toggle('is-active', active);
+          x.setAttribute('aria-checked', String(active));
+        });
+        recompute();
+      });
+    });
+    root.querySelectorAll<HTMLButtonElement>('.unit-btn').forEach((b) => {
+      b.addEventListener('click', () => {
+        system = (b.dataset.unit as UnitSystem) ?? 'metric';
+        root.querySelectorAll('.unit-btn').forEach((x) => {
+          const active = x === b;
+          x.classList.toggle('is-active', active);
+          x.setAttribute('aria-checked', String(active));
+        });
+        groups.metric.hidden = system !== 'metric';
+        groups.imperial.hidden = system !== 'imperial';
+        recompute();
+      });
+    });
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

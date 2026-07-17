@@ -1,0 +1,59 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import PercentCalculator from '@components/islands/PercentCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('math', 'percent-calculator')!;
+
+const faqs = [
+  {
+    question: 'How do I calculate a percentage of a number?',
+    answer:
+      'Multiply the number by the percentage and divide by 100. For example, 15% of 200 is 200 × 15 ÷ 100 = 30. The first tool above does this for you.',
+  },
+  {
+    question: 'How do I find what percentage one number is of another?',
+    answer:
+      'Divide the part by the whole and multiply by 100. For example, 30 out of 200 is (30 ÷ 200) × 100 = 15%.',
+  },
+  {
+    question: 'How do I calculate percentage increase or decrease?',
+    answer:
+      'Subtract the old value from the new value, divide by the old value, and multiply by 100. Going from 200 to 250 is ((250 − 200) ÷ 200) × 100 = 25% increase. A negative result means a decrease.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Answer the three most common percentage questions instantly: what is X% of a number, what percent one number is of another, and the percentage increase or decrease between two values."
+  faqs={faqs}
+>
+  <PercentCalculator />
+
+  <Fragment slot="content">
+    <h2>Percentage formulas</h2>
+    <ul>
+      <li><strong>Percentage of a number:</strong> value × (percent ÷ 100).</li>
+      <li><strong>What percent A is of B:</strong> (A ÷ B) × 100.</li>
+      <li><strong>Percentage change:</strong> ((new − old) ÷ old) × 100.</li>
+    </ul>
+
+    <h2>Everyday uses</h2>
+    <p>
+      Percentages show up everywhere: working out a tip or a sales discount, comparing a
+      price rise, calculating a test score, or understanding interest and tax rates.
+      Because the three tools above stay on screen at once, you can pick whichever
+      question matches your situation without switching modes.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      A $80 jacket is marked down by 25%. Using "what is 25% of 80" gives $20 off, so you
+      pay $60. If it later rises from $60 back to $80, the "percentage change" tool shows
+      a 33.3% increase — a reminder that a percentage decrease and the increase that
+      reverses it are not the same size.
+    </p>
+  </Fragment>
+</CalculatorLayout>

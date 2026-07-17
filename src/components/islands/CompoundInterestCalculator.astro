@@ -1,0 +1,168 @@
+---
+/**
+ * Compound interest calculator island. SSR default + live recompute via
+ * src/lib/calculators/compound-interest.ts.
+ */
+import { calculateCompoundInterest } from '@lib/calculators/compound-interest';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+const defaults = {
+  principal: 10000,
+  annualRatePct: 7,
+  years: 20,
+  compoundsPerYear: 12,
+  contribution: 200,
+};
+const r = calculateCompoundInterest(defaults);
+const pct = (v: number) => (r.futureValue ? (v / r.futureValue) * 100 : 0);
+const frequencies = [
+  { value: 1, label: 'Annually' },
+  { value: 2, label: 'Semi-annually' },
+  { value: 4, label: 'Quarterly' },
+  { value: 12, label: 'Monthly' },
+  { value: 365, label: 'Daily' },
+];
+---
+
+<div class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]" data-compound>
+  <form class="card p-5 sm:p-6" data-ci-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="ci-principal">Initial amount</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ci-principal" name="principal" type="number" min="0" step="500" value={defaults.principal} inputmode="decimal" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="ci-rate">Annual rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="ci-rate" name="annualRatePct" type="number" min="0" step="0.1" value={defaults.annualRatePct} inputmode="decimal" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+        </div>
+        <div>
+          <label class="field-label" for="ci-years">Years</label>
+          <input class="field" id="ci-years" name="years" type="number" min="1" step="1" value={defaults.years} inputmode="decimal" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="ci-freq">Compounding</label>
+          <select class="field" id="ci-freq" name="compoundsPerYear">
+            {frequencies.map((f) => (
+              <option value={f.value} selected={f.value === defaults.compoundsPerYear}>{f.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label class="field-label" for="ci-contribution">Added / period</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="ci-contribution" name="contribution" type="number" min="0" step="50" value={defaults.contribution} inputmode="decimal" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Future value</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-ci-fv>
+      {formatCurrency(r.futureValue)}
+    </p>
+    <div class="mt-5 flex h-3 w-full overflow-hidden rounded-full" style="background: var(--subtle)" aria-hidden="true">
+      <span style={`width:${pct(r.totalPrincipal)}%; background: var(--color-brand-600)`} data-ci-seg="principal"></span>
+      <span style={`width:${pct(r.totalContributions)}%; background: #64748b`} data-ci-seg="contrib"></span>
+      <span style={`width:${pct(r.totalInterest)}%; background: var(--color-accent-500)`} data-ci-seg="interest"></span>
+    </div>
+    <dl class="mt-5 space-y-2 text-sm">
+      <div class="flex items-center justify-between">
+        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: var(--color-brand-600)"></span>Initial principal</dt>
+        <dd class="font-semibold" data-ci-principal>{formatCurrencyRounded(r.totalPrincipal)}</dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: #64748b"></span>Total contributions</dt>
+        <dd class="font-semibold" data-ci-contrib>{formatCurrencyRounded(r.totalContributions)}</dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: var(--color-accent-500)"></span>Interest earned</dt>
+        <dd class="font-semibold" data-ci-interest>{formatCurrencyRounded(r.totalInterest)}</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="card p-5 sm:p-6 lg:col-span-2">
+    <h3 class="text-lg font-bold">Balance by year</h3>
+    <div class="mt-4 max-h-72 overflow-auto rounded-lg border" style="border-color: var(--line)">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0" style="background: var(--subtle)">
+          <tr>
+            <th class="px-3 py-2 text-left font-semibold">Year</th>
+            <th class="px-3 py-2 text-right font-semibold">Contributions</th>
+            <th class="px-3 py-2 text-right font-semibold">Interest</th>
+            <th class="px-3 py-2 text-right font-semibold">Balance</th>
+          </tr>
+        </thead>
+        <tbody data-ci-series>
+          {
+            r.series.map((row) => (
+              <tr class="border-t" style="border-color: var(--line)">
+                <td class="px-3 py-2">{row.year}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.contributed)}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.interest)}</td>
+                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.balance)}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { calculateCompoundInterest } from '@lib/calculators/compound-interest';
+  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+  document.querySelectorAll<HTMLElement>('[data-compound]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-ci-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement | HTMLSelectElement)?.value) || 0;
+    const set = (sel: string, v: string) => {
+      const el = root.querySelector<HTMLElement>(sel);
+      if (el) el.textContent = v;
+    };
+
+    function recompute() {
+      const r = calculateCompoundInterest({
+        principal: num('principal'),
+        annualRatePct: num('annualRatePct'),
+        years: num('years'),
+        compoundsPerYear: num('compoundsPerYear'),
+        contribution: num('contribution'),
+      });
+      const pct = (v: number) => (r.futureValue ? (v / r.futureValue) * 100 : 0);
+      set('[data-ci-fv]', formatCurrency(r.futureValue));
+      set('[data-ci-principal]', formatCurrencyRounded(r.totalPrincipal));
+      set('[data-ci-contrib]', formatCurrencyRounded(r.totalContributions));
+      set('[data-ci-interest]', formatCurrencyRounded(r.totalInterest));
+      const segs: Record<string, number> = {
+        principal: r.totalPrincipal,
+        contrib: r.totalContributions,
+        interest: r.totalInterest,
+      };
+      root.querySelectorAll<HTMLElement>('[data-ci-seg]').forEach((el) => {
+        el.style.width = `${pct(segs[el.dataset.ciSeg!] ?? 0)}%`;
+      });
+      root.querySelector<HTMLElement>('[data-ci-series]')!.innerHTML = r.series
+        .map(
+          (row) =>
+            `<tr class="border-t" style="border-color: var(--line)"><td class="px-3 py-2">${row.year}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.contributed)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.interest)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.balance)}</td></tr>`,
+        )
+        .join('');
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

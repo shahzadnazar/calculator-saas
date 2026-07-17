@@ -1,0 +1,69 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import LoanCalculator from '@components/islands/LoanCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('finance', 'loan-calculator')!;
+
+const faqs = [
+  {
+    question: 'How is a loan monthly payment calculated?',
+    answer:
+      'It uses the amortization formula M = P · r · (1 + r)ⁿ / ((1 + r)ⁿ − 1), where P is the amount borrowed, r is the monthly interest rate (annual rate ÷ 12) and n is the total number of monthly payments. Each payment covers that month’s interest first, and the rest reduces the balance.',
+  },
+  {
+    question: 'What is the difference between the interest rate and APR?',
+    answer:
+      'The interest rate is the cost of borrowing the principal. APR (annual percentage rate) also includes certain fees, so it is usually slightly higher and is a better figure for comparing loan offers. This calculator uses the interest rate.',
+  },
+  {
+    question: 'Does a shorter term save money?',
+    answer:
+      'Usually yes. A shorter term means higher monthly payments but far less total interest, because you are borrowing the money for less time. Try changing the term to compare.',
+  },
+  {
+    question: 'Can I use this for any loan type?',
+    answer:
+      'Yes — it works for personal loans, student loans, car loans and any other fixed-rate, fixed-term loan with equal monthly payments.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Calculate the monthly payment, total interest and payoff schedule for any fixed-rate loan. Adjust the amount, rate and term to compare options instantly."
+  faqs={faqs}
+>
+  <LoanCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use the loan calculator</h2>
+    <p>
+      Enter the <strong>loan amount</strong>, the annual <strong>interest rate</strong>
+      and the <strong>term</strong> in years. You will immediately see the monthly
+      payment, the total interest you will pay, and a year-by-year breakdown of how the
+      balance falls over time.
+    </p>
+
+    <h2>Understanding amortization</h2>
+    <p>
+      With an amortizing loan, every monthly payment is the same, but its split changes.
+      Early on, most of the payment is interest because the balance is large. As the
+      balance shrinks, more of each payment goes to principal. The yearly table shows
+      exactly how much principal and interest you pay each year and what you still owe.
+    </p>
+
+    <h2>Tips for borrowing smart</h2>
+    <ul>
+      <li>Compare total interest, not just the monthly payment — a low payment over a long term can cost far more.</li>
+      <li>Even a small rate reduction adds up over the life of the loan; shop multiple lenders.</li>
+      <li>Making extra payments toward principal shortens the term and cuts total interest.</li>
+    </ul>
+
+    <p>
+      This tool provides estimates for planning only and is not a loan offer or financial
+      advice. Your actual rate and terms depend on the lender and your credit profile.
+    </p>
+  </Fragment>
+</CalculatorLayout>

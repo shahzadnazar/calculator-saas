@@ -1,0 +1,62 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import AgeCalculator from '@components/islands/AgeCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('everyday', 'age-calculator')!;
+
+const faqs = [
+  {
+    question: 'How is age calculated?',
+    answer:
+      'Age is the time elapsed from your date of birth to a chosen date, expressed in years, months and days. This calculator counts complete years first, then remaining months, then remaining days, accounting for different month lengths and leap years.',
+  },
+  {
+    question: 'Can I calculate age at a past or future date?',
+    answer:
+      'Yes. Change the "age at the date" field to any date to find how old someone was, or will be, on that day.',
+  },
+  {
+    question: 'How are leap years handled?',
+    answer:
+      'The total-days figure counts every actual day between the two dates, including the extra day in each leap year, so it is always exact.',
+  },
+  {
+    question: 'When is my next birthday?',
+    answer:
+      'The calculator shows how many days remain until the next anniversary of your birth date from the selected date.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="Find your exact age in years, months and days from any birth date — plus your age in total months, weeks and days, and the number of days until your next birthday."
+  faqs={faqs}
+>
+  <AgeCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use the age calculator</h2>
+    <p>
+      Enter a <strong>date of birth</strong>. By default the age is calculated as of
+      today, but you can change the <strong>age at the date</strong> field to any past or
+      future date — useful for working out how old someone will be at an event.
+    </p>
+
+    <h2>What the numbers mean</h2>
+    <ul>
+      <li><strong>Years, months, days</strong> — your exact age broken down.</li>
+      <li><strong>Total months / weeks / days</strong> — the same span expressed in a single unit.</li>
+      <li><strong>Days to birthday</strong> — the countdown to your next birthday from the selected date.</li>
+    </ul>
+
+    <h2>Why month and day counting is tricky</h2>
+    <p>
+      Months have different lengths and leap years add a day, so simple arithmetic can be
+      off by a day or two. This calculator borrows correctly from the previous month when
+      needed and counts leap days, so the result is accurate for any dates you choose.
+    </p>
+  </Fragment>
+</CalculatorLayout>

@@ -1,0 +1,68 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import CompoundInterestCalculator from '@components/islands/CompoundInterestCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('finance', 'compound-interest-calculator')!;
+
+const faqs = [
+  {
+    question: 'What is compound interest?',
+    answer:
+      'Compound interest is interest earned on both your original principal and on the interest already added. Because interest earns interest, savings grow faster over time — an effect that accelerates the longer you stay invested.',
+  },
+  {
+    question: 'How does compounding frequency affect growth?',
+    answer:
+      'The more often interest is compounded — daily versus monthly versus annually — the more you earn, because interest is added to the balance sooner and starts earning itself. The difference is small at low rates and grows at higher rates and longer horizons.',
+  },
+  {
+    question: 'What does adding regular contributions do?',
+    answer:
+      'Adding a fixed amount each period dramatically increases the final balance, because each contribution also begins compounding. The calculator shows how much of your ending balance came from contributions versus interest.',
+  },
+  {
+    question: 'What is the rule of 72?',
+    answer:
+      'A quick estimate: divide 72 by your annual rate to approximate the years it takes to double your money. At 8%, that is about 9 years. Use the calculator for an exact figure.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  reviewedOn="2026-07-17"
+  intro="See how your savings or investments grow with compound interest and regular contributions. Adjust the rate, time and compounding frequency to watch the difference compounding makes."
+  faqs={faqs}
+>
+  <CompoundInterestCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use this compound interest calculator</h2>
+    <p>
+      Enter your <strong>initial amount</strong>, the expected <strong>annual rate</strong>,
+      the number of <strong>years</strong>, how often interest <strong>compounds</strong>,
+      and any amount you <strong>add each period</strong>. The calculator shows your future
+      value and splits it into principal, contributions and interest earned.
+    </p>
+
+    <h2>The power of time</h2>
+    <p>
+      Compounding rewards patience. Because interest earns interest, the balance curve
+      steepens the longer you stay invested — which is why starting early usually beats
+      investing more later. The "balance by year" table makes this visible.
+    </p>
+
+    <h2>Principal vs. contributions vs. interest</h2>
+    <p>
+      Over long horizons, the interest portion often grows to exceed everything you put
+      in. The colored bar shows the three components of your ending balance at a glance,
+      so you can see how much the market (rather than your deposits) is doing the work.
+    </p>
+
+    <p>
+      Results are estimates that assume a constant rate of return. Real investment returns
+      vary and can be negative. This is educational information, not financial advice.
+    </p>
+  </Fragment>
+</CalculatorLayout>
