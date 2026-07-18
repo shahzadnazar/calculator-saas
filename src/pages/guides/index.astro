@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
+import Icon from '@components/Icon.astro';
 import { getCategory } from '@data/calculators';
 import { SITE } from '@config/site';
 
@@ -49,7 +50,8 @@ const crumbs = [
                 <li>
                   <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg" style="border-color: var(--color-brand-200)">
                     <span class="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold" style="background: var(--color-brand-50); color: var(--color-brand-700)">
-                      {cat?.icon} {cat?.shortName} · Guide
+                      {cat && <Icon name={cat.icon} size={14} />}
+                      {cat?.shortName} · Guide
                     </span>
                     <span class="text-xl font-bold" style="color: var(--heading)">{g.data.title}</span>
                     <span class="text-sm" style="color: var(--muted)">{g.data.description}</span>
@@ -77,8 +79,9 @@ const crumbs = [
               return (
                 <li>
                   <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
-                    <span class="text-sm font-semibold" style="color: var(--color-brand-600)">
-                      {cat?.icon} {cat?.shortName}
+                    <span class="inline-flex items-center gap-1.5 text-sm font-semibold" style="color: var(--color-brand-600)">
+                      {cat && <Icon name={cat.icon} size={16} />}
+                      {cat?.shortName}
                     </span>
                     <span class="text-lg font-bold" style="color: var(--heading)">{g.data.title}</span>
                     <span class="text-sm" style="color: var(--muted)">{g.data.description}</span>

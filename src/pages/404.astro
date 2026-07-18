@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
+import Icon from '@components/Icon.astro';
 import { CATEGORIES_ORDERED, categoryPath } from '@data/calculators';
 ---
 
@@ -28,7 +29,7 @@ import { CATEGORIES_ORDERED, categoryPath } from '@data/calculators';
               class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold"
               style="border-color: var(--line); color: var(--fg)"
             >
-              <span aria-hidden="true">{cat.icon}</span>
+              <Icon name={cat.icon} size={16} />
               {cat.shortName}
             </a>
           </li>

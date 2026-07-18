@@ -7,6 +7,7 @@
 import type { CollectionEntry } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
+import Icon from '@components/Icon.astro';
 import Newsletter from '@components/Newsletter.astro';
 import { getAuthor } from '@config/authors';
 import { getCalculator, getCategory, calculatorPath } from '@data/calculators';
@@ -58,8 +59,9 @@ const jsonLd = [
       <header>
         {
           category && (
-            <a href={`/${category.slug}`} class="text-sm font-semibold" style="color: var(--color-brand-600)">
-              {category.icon} {category.name}
+            <a href={`/${category.slug}`} class="inline-flex items-center gap-1.5 text-sm font-semibold" style="color: var(--color-brand-600)">
+              <Icon name={category.icon} size={16} />
+              {category.name}
             </a>
           )
         }
@@ -96,7 +98,7 @@ const jsonLd = [
 
       <!-- Author / EEAT -->
       <aside class="mt-10 flex items-start gap-4 border-t pt-8" style="border-color: var(--line)">
-        <div class="grid h-12 w-12 shrink-0 place-items-center rounded-full text-xl" style="background: var(--color-brand-100); color: var(--color-brand-700)">✍️</div>
+        <div class="grid h-12 w-12 shrink-0 place-items-center rounded-full text-lg font-bold" style="background: var(--color-brand-100); color: var(--color-brand-700)">{author.name.charAt(0)}</div>
         <div>
           <p class="font-bold" style="color: var(--heading)">{author.name}</p>
           <p class="mt-1 text-sm" style="color: var(--muted)">{author.bio}</p>

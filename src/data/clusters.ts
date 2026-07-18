@@ -48,7 +48,7 @@ export const CLUSTERS: readonly Cluster[] = [
     slug: 'loan-calculators',
     title: 'Loan & Mortgage Calculators',
     shortName: 'Loans',
-    icon: '🏦',
+    icon: 'landmark',
     description:
       'Every calculator for borrowing — mortgages, car loans, personal loans, credit cards and home equity — plus how to choose between them.',
     intro:
@@ -74,7 +74,7 @@ export const CLUSTERS: readonly Cluster[] = [
     slug: 'savings-investment-calculators',
     title: 'Savings & Investment Calculators',
     shortName: 'Saving',
-    icon: '📈',
+    icon: 'trending-up',
     description:
       'Grow money over time — compound interest, savings goals, investing and retirement — and see how much of the result is earnings versus deposits.',
     intro:
@@ -99,7 +99,7 @@ export const CLUSTERS: readonly Cluster[] = [
     slug: 'body-and-diet-calculators',
     title: 'Body & Diet Calculators',
     shortName: 'Body',
-    icon: '❤️',
+    icon: 'heart-pulse',
     description:
       'Understand your body and nutrition — BMI, BMR, body fat, ideal weight, calories, protein and fat — built on established formulas.',
     intro:
@@ -124,7 +124,7 @@ export const CLUSTERS: readonly Cluster[] = [
     slug: 'time-and-date-calculators',
     title: 'Time & Date Calculators',
     shortName: 'Time',
-    icon: '📅',
+    icon: 'calendar-days',
     description:
       'Work with dates and durations — exact age, days between dates, adding or subtracting time, and hours worked between two clock times.',
     intro:
@@ -146,7 +146,7 @@ export const CLUSTERS: readonly Cluster[] = [
     slug: 'geometry-calculators',
     title: 'Geometry Calculators',
     shortName: 'Geometry',
-    icon: '📐',
+    icon: 'shapes',
     description:
       'Calculate area, volume and triangles — plus real-world square footage — with the formulas and worked examples for each shape.',
     intro:

@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
+import Icon from '@components/Icon.astro';
 import { EMBEDDABLE } from '@config/monetization';
 import { CATEGORIES_ORDERED, getCalculatorsByCategory, calculatorPath } from '@data/calculators';
 import { REFERENCES_ORDERED, referencePath } from '@data/reference';
@@ -11,12 +12,14 @@ interface GalleryItem extends EmbedTarget {
   description: string;
 }
 interface GalleryGroup {
+  icon: string;
   title: string;
   items: GalleryItem[];
 }
 
 const calcGroups: GalleryGroup[] = CATEGORIES_ORDERED.map((cat) => ({
-  title: `${cat.icon} ${cat.name}`,
+  icon: cat.icon,
+  title: cat.name,
   items: getCalculatorsByCategory(cat.slug)
     .filter((c) => c.status === 'live')
     .map((c) => ({
@@ -29,7 +32,8 @@ const calcGroups: GalleryGroup[] = CATEGORIES_ORDERED.map((cat) => ({
 }));
 
 const refGroup: GalleryGroup = {
-  title: '📊 Reference tables',
+  icon: 'chart-column',
+  title: 'Reference tables',
   items: REFERENCES_ORDERED.map((r) => ({
     title: r.shortName,
     description: r.description,
@@ -90,7 +94,10 @@ const jsonLd = [
     {
       groups.map((group) => (
         <section class="mt-12">
-          <h2 class="text-xl font-bold" style="color: var(--heading)">{group.title}</h2>
+          <h2 class="flex items-center gap-2.5 text-xl font-bold" style="color: var(--heading)">
+            <span class="icon-chip h-8 w-8"><Icon name={group.icon} size={18} /></span>
+            {group.title}
+          </h2>
           <ul class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {group.items.map((item) => (
               <li class="card flex h-full flex-col p-5" data-embed-card>

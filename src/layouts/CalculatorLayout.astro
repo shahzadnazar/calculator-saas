@@ -12,6 +12,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
+import Icon from '@components/Icon.astro';
 import AdSlot from '@components/AdSlot.astro';
 import RelatedOffers from '@components/RelatedOffers.astro';
 import EmbedBox from '@components/EmbedBox.astro';
@@ -86,7 +87,7 @@ const reviewedDisplay = reviewedOn
 
     <header class="mt-5 max-w-3xl">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
-        <span aria-hidden="true">{category.icon}</span>
+        <Icon name={category.icon} size={16} />
         <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
         {
           clusters.map((cl) => (

@@ -36,7 +36,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'Monthly principal-and-interest payment per $100,000 of mortgage, for every interest rate from 3% to 8% across 10, 15, 20 and 30-year terms.',
     category: 'finance',
-    icon: '🏦',
+    icon: 'landmark',
     relatedCalculator: 'finance/mortgage-calculator',
     order: 1,
   },
@@ -47,7 +47,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'Monthly payment per $1,000 borrowed for auto and personal loans, across interest rates from 4% to 15% and terms from 12 to 72 months.',
     category: 'finance',
-    icon: '💵',
+    icon: 'banknote',
     relatedCalculator: 'finance/loan-calculator',
     order: 2,
   },
@@ -58,7 +58,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'How $10,000 grows with compound interest across annual returns of 2% to 10% over 5 to 40 years — a reference for the power of compounding.',
     category: 'finance',
-    icon: '📈',
+    icon: 'trending-up',
     relatedCalculator: 'finance/compound-interest-calculator',
     order: 3,
   },
@@ -69,7 +69,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'The healthy, overweight and obese weight ranges for each height, based on the WHO BMI thresholds (18.5, 25 and 30) — in pounds and kilograms.',
     category: 'health',
-    icon: '⚖️',
+    icon: 'scale',
     relatedCalculator: 'health/bmi-calculator',
     order: 4,
   },
@@ -80,7 +80,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'How a recurring monthly investment grows at a 7% annual return over 10 to 40 years — from $100 to $2,000 a month.',
     category: 'finance',
-    icon: '💹',
+    icon: 'piggy-bank',
     relatedCalculator: 'finance/investment-calculator',
     order: 5,
   },
@@ -91,7 +91,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'Common annual salaries converted to hourly, weekly, biweekly and monthly pay, based on a 40-hour, 52-week year.',
     category: 'finance',
-    icon: '💼',
+    icon: 'briefcase',
     relatedCalculator: 'finance/salary-calculator',
     order: 6,
   },
@@ -102,7 +102,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'What $100 held as cash will be worth in today’s money after 5 to 50 years at annual inflation rates of 2% to 5%.',
     category: 'finance',
-    icon: '📉',
+    icon: 'trending-down',
     relatedCalculator: 'finance/inflation-calculator',
     order: 7,
   },
@@ -113,7 +113,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'Ideal body weight for each height, for men and women, as a range across the Robinson, Miller, Devine and Hamwi formulas.',
     category: 'health',
-    icon: '📊',
+    icon: 'chart-column',
     relatedCalculator: 'health/ideal-weight-calculator',
     order: 8,
   },
@@ -124,7 +124,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'Maximum heart rate and the fat-burn, aerobic and anaerobic training zones (in bpm) for every age from 20 to 70.',
     category: 'health',
-    icon: '❤️',
+    icon: 'heart-pulse',
     relatedCalculator: 'health/target-heart-rate-calculator',
     order: 9,
   },
@@ -135,7 +135,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     description:
       'The tip amount for common bill totals at 15%, 18%, 20% and 25% — a quick gratuity reference for restaurants and services.',
     category: 'everyday',
-    icon: '🧾',
+    icon: 'receipt',
     relatedCalculator: 'finance/tip-calculator',
     order: 10,
   },

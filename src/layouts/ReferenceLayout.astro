@@ -13,6 +13,7 @@
  */
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
+import Icon from '@components/Icon.astro';
 import DataTable from '@components/DataTable.astro';
 import EmbedBox from '@components/EmbedBox.astro';
 import { type ReferenceAsset, referencePath } from '@data/reference';
@@ -51,8 +52,8 @@ const jsonLd = [
     <Breadcrumbs crumbs={crumbs} />
 
     <header class="mt-5 max-w-3xl">
-      <div class="text-4xl" aria-hidden="true">{reference.icon}</div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{reference.title}</h1>
+      <span class="icon-chip h-14 w-14"><Icon name={reference.icon} size={28} /></span>
+      <h1 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{reference.title}</h1>
       <p class="mt-3 text-lg" style="color: var(--muted)"><slot name="intro" /></p>
     </header>
 

@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
+import Icon from '@components/Icon.astro';
 import { SITE } from '@config/site';
 import {
   CATEGORIES_ORDERED,
@@ -41,10 +42,10 @@ const featuredGuides = [
   .slice(0, 3);
 
 const valueProps = [
-  { icon: '⚡', title: 'Instant & accurate', body: 'Results update as you type, using formulas that are unit-tested for correctness.' },
-  { icon: '🔒', title: 'Private by design', body: 'Every calculation runs in your browser. Nothing you enter is sent to a server.' },
-  { icon: '🆓', title: 'Free, no sign-up', body: 'No accounts, no paywalls, no clutter — just the tool you came for.' },
-  { icon: '📱', title: 'Works everywhere', body: 'Fast and responsive on phones, tablets and desktops, online or offline once loaded.' },
+  { icon: 'zap', title: 'Instant & accurate', body: 'Results update as you type, using formulas that are unit-tested for correctness.' },
+  { icon: 'shield-check', title: 'Private by design', body: 'Every calculation runs in your browser. Nothing you enter is sent to a server.' },
+  { icon: 'badge-check', title: 'Free, no sign-up', body: 'No accounts, no paywalls, no clutter — just the tool you came for.' },
+  { icon: 'smartphone', title: 'Works everywhere', body: 'Fast and responsive on phones, tablets and desktops, online or offline once loaded.' },
 ];
 ---
 
@@ -119,8 +120,8 @@ const valueProps = [
           return (
             <li>
               <a href={categoryPath(cat)} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
-                <span class="text-3xl" aria-hidden="true">{cat.icon}</span>
-                <span class="text-lg font-bold" style="color: var(--heading)">{cat.name}</span>
+                <span class="icon-chip h-11 w-11"><Icon name={cat.icon} size={22} /></span>
+                <span class="mt-1 text-lg font-bold" style="color: var(--heading)">{cat.name}</span>
                 <span class="text-sm" style="color: var(--muted)">{cat.description}</span>
                 <span class="mt-auto pt-2 text-xs font-semibold uppercase tracking-wide" style="color: var(--color-brand-600)">{count} tools</span>
               </a>
@@ -145,8 +146,9 @@ const valueProps = [
             return (
               <li>
                 <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
-                  <span class="text-sm font-semibold" style="color: var(--color-brand-600)">
-                    {cat?.icon} {cat?.shortName}
+                  <span class="inline-flex items-center gap-1.5 text-sm font-semibold" style="color: var(--color-brand-600)">
+                    {cat && <Icon name={cat.icon} size={16} />}
+                    {cat?.shortName}
                   </span>
                   <span class="text-lg font-bold" style="color: var(--heading)">{g.data.title}</span>
                   <span class="text-sm" style="color: var(--muted)">{g.data.description}</span>
@@ -168,7 +170,7 @@ const valueProps = [
         {
           valueProps.map((v) => (
             <li class="text-center sm:text-left">
-              <div class="text-3xl" aria-hidden="true">{v.icon}</div>
+              <span class="icon-chip mx-auto h-11 w-11 sm:mx-0"><Icon name={v.icon} size={22} /></span>
               <h3 class="mt-3 font-bold" style="color: var(--heading)">{v.title}</h3>
               <p class="mt-1 text-sm" style="color: var(--muted)">{v.body}</p>
             </li>

@@ -5,6 +5,7 @@
  * robust, no hamburger JS, and works with JavaScript disabled.
  */
 import Logo from '@components/Logo.astro';
+import Icon from '@components/Icon.astro';
 import { CATEGORIES_ORDERED, categoryPath } from '@data/calculators';
 
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
@@ -35,7 +36,7 @@ const isActive = (path: string) => currentPath === path || currentPath.startsWit
                 }
                 aria-current={isActive(categoryPath(cat)) ? 'page' : undefined}
               >
-                <span aria-hidden="true">{cat.icon}</span>
+                <Icon name={cat.icon} size={16} />
                 <span>{cat.shortName}</span>
               </a>
             </li>

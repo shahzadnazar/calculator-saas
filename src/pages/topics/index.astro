@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
+import Icon from '@components/Icon.astro';
 import { CLUSTERS_ORDERED, clusterPath } from '@data/clusters';
 import { breadcrumbSchema, collectionPageSchema } from '@lib/schema';
 
@@ -43,8 +44,8 @@ const jsonLd = [
           CLUSTERS_ORDERED.map((cluster) => (
             <li>
               <a href={clusterPath(cluster)} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
-                <span class="text-3xl" aria-hidden="true">{cluster.icon}</span>
-                <span class="text-lg font-bold" style="color: var(--heading)">{cluster.title}</span>
+                <span class="icon-chip h-11 w-11"><Icon name={cluster.icon} size={22} /></span>
+                <span class="mt-1 text-lg font-bold" style="color: var(--heading)">{cluster.title}</span>
                 <span class="text-sm" style="color: var(--muted)">{cluster.description}</span>
                 <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">
                   {cluster.members.length} calculators →
