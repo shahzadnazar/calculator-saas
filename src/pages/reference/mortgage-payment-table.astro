@@ -1,0 +1,107 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import { loanPayment } from '@lib/calculators/payment';
+import { formatCurrency } from '@lib/format';
+import { getReference, referencePath } from '@data/reference';
+import { breadcrumbSchema, articleSchema } from '@lib/schema';
+import { SITE } from '@config/site';
+
+const ref = getReference('mortgage-payment-table')!;
+const path = referencePath(ref);
+const reviewed = '2026-07-18';
+
+// Rates 3.00%–8.00% in 0.25% steps; standard mortgage terms in years.
+const rates = Array.from({ length: 21 }, (_, i) => 3 + i * 0.25);
+const terms = [10, 15, 20, 30];
+// Each cell: monthly principal-and-interest per $100,000 borrowed (tested fn).
+const rows = rates.map((rate) => ({
+  rate,
+  payments: terms.map((years) => loanPayment(100_000, rate, years * 12)),
+}));
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: 'Reference', path: '/reference' },
+  { name: ref.shortName, path },
+];
+const jsonLd = [
+  breadcrumbSchema(crumbs),
+  articleSchema({
+    title: ref.title,
+    description: ref.description,
+    path,
+    authorName: `${SITE.name} Editorial`,
+    datePublished: `${reviewed}T00:00:00Z`,
+  }),
+];
+---
+
+<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+    <header class="mt-5 max-w-3xl">
+      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">
+        The monthly principal-and-interest payment on <strong>$100,000</strong> of mortgage, at every rate from
+        3% to 8% and the four most common terms. Scale it to any loan size in one step.
+      </p>
+    </header>
+
+    <div class="prose mt-8">
+      <h2>How to use this table</h2>
+      <p>
+        Find your interest rate down the left and read across to your loan term. That figure is the monthly
+        payment per $100,000 borrowed. To get your payment, multiply it by your loan amount ÷ 100,000:
+      </p>
+      <ul>
+        <li>A <strong>$300,000</strong> loan → multiply by <strong>3</strong>.</li>
+        <li>A <strong>$450,000</strong> loan → multiply by <strong>4.5</strong>.</li>
+      </ul>
+      <p>
+        The figures are principal and interest only. Property tax, home insurance, PMI and HOA dues are extra —
+        the <a href={`/${ref.relatedCalculator}`}>mortgage calculator</a> adds those for a full monthly cost.
+      </p>
+    </div>
+
+    <div class="prose mt-4" style="max-width: 62rem">
+      <table>
+        <thead>
+          <tr>
+            <th>Interest rate</th>
+            {terms.map((y) => <th>{y}-year</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map((row) => (
+              <tr>
+                <td>{row.rate.toFixed(2)}%</td>
+                {row.payments.map((p) => (
+                  <td>{formatCurrency(p)}</td>
+                ))}
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="prose mt-8">
+      <h2>Worked example</h2>
+      <p>
+        At <strong>6.00%</strong> over <strong>30 years</strong>, the table shows {formatCurrency(loanPayment(100_000, 6, 360))} per
+        $100,000. On a $300,000 mortgage that is {formatCurrency(loanPayment(100_000, 6, 360))} × 3 ≈
+        <strong>{formatCurrency(loanPayment(300_000, 6, 360))}</strong> a month in principal and interest.
+      </p>
+      <h2>Methodology</h2>
+      <p>
+        Every value is computed with the standard fixed-rate amortization formula — the same unit-tested function
+        that powers this site's calculators — as the payment on a $100,000 loan at the given annual rate over the
+        given term (monthly compounding). Figures are rounded to the cent. For your exact numbers, use the
+        <a href={`/${ref.relatedCalculator}`}>mortgage calculator</a>. This is general information, not a loan offer.
+      </p>
+    </div>
+  </div>
+</BaseLayout>
