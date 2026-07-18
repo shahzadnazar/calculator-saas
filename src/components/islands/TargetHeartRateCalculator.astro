@@ -21,7 +21,7 @@ const r = calculateTargetHeartRate(d.age, d.restingHr);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Maximum heart rate</p>
+    <p class="result-label">Maximum heart rate</p>
     <p class="mt-1 text-3xl font-extrabold" style="color: var(--heading)"><span data-thr-max>{r.maxHr}</span> <span class="text-lg" style="color: var(--muted)">bpm</span></p>
     <table class="mt-4 w-full text-sm">
       <tbody data-thr-table>

@@ -54,8 +54,8 @@ const show = (v: number) => (Number.isNaN(v) ? '—' : nf.format(v));
   </form>
 
   <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Your Basal Metabolic Rate</p>
-    <p class="mt-2 text-5xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-bmr-value>{show(r.bmr)}</span></p>
+    <p class="result-label">Your Basal Metabolic Rate</p>
+    <p class="mt-2 text-5xl result-value"><span data-bmr-value>{show(r.bmr)}</span></p>
     <p class="mt-1 text-lg font-semibold" style="color: var(--muted)">calories/day at rest</p>
     <p class="mt-4 text-sm" style="color: var(--fg)">This is the energy your body uses to keep functioning at complete rest. Multiply by your activity level to get daily needs — see the <a href="/health/calorie-calculator" style="color: var(--color-brand-600)">calorie calculator</a>.</p>
   </div>

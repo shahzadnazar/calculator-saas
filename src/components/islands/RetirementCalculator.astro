@@ -44,8 +44,8 @@ const r = calculateRetirement(defaults);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Projected savings at retirement</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-ret-nest>{formatCurrency(r.nestEgg)}</p>
+    <p class="result-label">Projected savings at retirement</p>
+    <p class="mt-1 text-4xl result-value" data-ret-nest>{formatCurrency(r.nestEgg)}</p>
     <p class="mt-1 text-sm" style="color: var(--muted)">in <span data-ret-years>{r.yearsToRetirement}</span> years</p>
 
     <div class="mt-5 rounded-lg p-4" style="background: var(--subtle)">

@@ -29,8 +29,8 @@ const presets = [10, 15, 18, 20, 25];
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Total per person</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-tp-perperson>{formatCurrency(r.perPersonTotal)}</p>
+    <p class="result-label">Total per person</p>
+    <p class="mt-1 text-4xl result-value" data-tp-perperson>{formatCurrency(r.perPersonTotal)}</p>
     <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
       <div class="flex justify-between"><dt style="color: var(--muted)">Tip amount</dt><dd class="font-semibold" style="color: var(--color-accent-600)" data-tp-tip>{formatCurrency(r.tipAmount)}</dd></div>
       <div class="flex justify-between"><dt style="color: var(--muted)">Total bill</dt><dd class="font-semibold" data-tp-total>{formatCurrency(r.total)}</dd></div>

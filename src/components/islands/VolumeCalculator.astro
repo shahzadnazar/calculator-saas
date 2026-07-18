@@ -34,8 +34,8 @@ const result = calculateVolume(first.key, defaults);
   </form>
 
   <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Volume</p>
-    <p class="mt-2 text-5xl font-extrabold tracking-tight" style="color: var(--heading)" data-vo-result>{formatNumber(result, 3)}</p>
+    <p class="result-label">Volume</p>
+    <p class="mt-2 text-5xl result-value" data-vo-result>{formatNumber(result, 3)}</p>
     <p class="mt-1 text-lg" style="color: var(--muted)"><span data-vo-unit-label>m</span>³</p>
   </div>
 </div>

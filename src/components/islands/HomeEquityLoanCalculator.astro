@@ -41,8 +41,8 @@ const r = calculateHomeEquity(d);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Estimated monthly payment</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-he-payment>{formatCurrency(r.monthlyPayment)}</p>
+    <p class="result-label">Estimated monthly payment</p>
+    <p class="mt-1 text-4xl result-value" data-he-payment>{formatCurrency(r.monthlyPayment)}</p>
     <p class="mt-2 text-sm" style="color: var(--color-danger)" data-he-warn hidden>Requested loan exceeds your available equity.</p>
     <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
       <div class="flex justify-between"><dt style="color: var(--muted)">Your equity</dt><dd class="font-semibold" data-he-equity>{formatCurrencyRounded(r.equity)}</dd></div>

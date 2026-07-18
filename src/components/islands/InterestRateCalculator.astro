@@ -25,8 +25,8 @@ const rate = solveAnnualRate(d.amount, d.payment, d.months);
   </form>
 
   <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Implied interest rate</p>
-    <p class="mt-1 text-5xl font-extrabold tracking-tight" style="color: var(--heading)" data-ir-rate>{formatPercent(rate, 2)}</p>
+    <p class="result-label">Implied interest rate</p>
+    <p class="mt-1 text-5xl result-value" data-ir-rate>{formatPercent(rate, 2)}</p>
     <p class="mt-3 text-sm" style="color: var(--muted)">per year (APR excludes fees)</p>
     <p class="mt-4 text-sm" style="color: var(--fg)">Total repaid: <strong data-ir-total>{formatCurrency(d.payment * d.months)}</strong></p>
   </div>

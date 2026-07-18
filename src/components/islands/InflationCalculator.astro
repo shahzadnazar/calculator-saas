@@ -30,7 +30,7 @@ const r = adjustForInflation(d);
   <div class="card p-5 sm:p-6">
     <div class="rounded-lg p-4" style="background: var(--subtle)">
       <p class="text-sm" style="color: var(--muted)">Future cost of today's <span data-if-amount>{formatCurrency(d.amount)}</span></p>
-      <p class="text-3xl font-extrabold" style="color: var(--heading)" data-if-future>{formatCurrency(r.futureCost)}</p>
+      <p class="text-3xl result-value" data-if-future>{formatCurrency(r.futureCost)}</p>
       <p class="text-sm" style="color: var(--muted)">in <span data-if-years>{d.years}</span> years</p>
     </div>
     <dl class="mt-4 space-y-2 text-sm">

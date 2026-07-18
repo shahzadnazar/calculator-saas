@@ -28,8 +28,8 @@ const r = calculateHours(start, end, 30);
   </form>
 
   <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Time worked</p>
-    <p class="mt-2 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-hr-hm>{r.hours}h {r.minutes}m</span></p>
+    <p class="result-label">Time worked</p>
+    <p class="mt-2 text-4xl result-value"><span data-hr-hm>{r.hours}h {r.minutes}m</span></p>
     <p class="mt-2 text-lg" style="color: var(--muted)"><span class="font-bold" style="color: var(--color-brand-600)" data-hr-decimal>{r.decimalHours}</span> decimal hours</p>
   </div>
 </div>

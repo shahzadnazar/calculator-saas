@@ -39,8 +39,8 @@ const proj = projectSavings({ startingAmount: d.startingAmount, monthlyContribut
   </form>
 
   <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)" data-sv-label>Projected balance</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-sv-main>{formatCurrency(proj.futureValue)}</p>
+    <p class="result-label" data-sv-label>Projected balance</p>
+    <p class="mt-1 text-4xl result-value" data-sv-main>{formatCurrency(proj.futureValue)}</p>
     <dl class="mt-5 space-y-2 border-t pt-4 text-left text-sm" style="border-color: var(--line)" data-sv-detail>
       <div class="flex justify-between"><dt style="color: var(--muted)">Total deposited</dt><dd class="font-semibold" data-sv-contrib>{formatCurrencyRounded(proj.totalContributions)}</dd></div>
       <div class="flex justify-between"><dt style="color: var(--muted)">Interest earned</dt><dd class="font-semibold" style="color: var(--color-accent-600)" data-sv-interest>{formatCurrencyRounded(proj.totalInterest)}</dd></div>

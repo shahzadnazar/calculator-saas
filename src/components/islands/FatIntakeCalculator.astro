@@ -15,8 +15,8 @@ const r = calculateFatIntake(d.calories);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Recommended daily fat</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-fi-min>{r.minGrams}</span>–<span data-fi-max>{r.maxGrams}</span> <span class="text-2xl" style="color: var(--muted)">g</span></p>
+    <p class="result-label">Recommended daily fat</p>
+    <p class="mt-1 text-4xl result-value"><span data-fi-min>{r.minGrams}</span>–<span data-fi-max>{r.maxGrams}</span> <span class="text-2xl" style="color: var(--muted)">g</span></p>
     <p class="mt-1 text-sm" style="color: var(--muted)">based on 20–35% of calories from fat</p>
     <div class="mt-5 space-y-2 text-sm">
       <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><span>Lower (20%)</span><strong data-fi-min2>{r.minGrams} g</strong></div>

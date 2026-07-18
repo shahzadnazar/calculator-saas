@@ -27,8 +27,8 @@ const r = calculateLoan(defaults);
       </div>
     </form>
     <div class="card p-5 sm:p-6">
-      <p class="text-sm font-semibold" style="color: var(--muted)">Monthly payment</p>
-      <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-am-monthly>{formatCurrency(r.monthlyPayment)}</p>
+      <p class="result-label">Monthly payment</p>
+      <p class="mt-1 text-4xl result-value" data-am-monthly>{formatCurrency(r.monthlyPayment)}</p>
       <div class="mt-5 grid grid-cols-2 gap-3 border-t pt-5 text-center" style="border-color: var(--line)">
         <div><p class="text-xs" style="color: var(--muted)">Total interest</p><p class="mt-1 font-bold" data-am-interest>{formatCurrencyRounded(r.totalInterest)}</p></div>
         <div><p class="text-xs" style="color: var(--muted)">Total paid</p><p class="mt-1 font-bold" data-am-total>{formatCurrencyRounded(r.totalPaid)}</p></div>

@@ -34,8 +34,8 @@ const fmtMonths = (m: number) => (!isFinite(m) ? 'Never' : `${Math.floor(m / 12)
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)" data-cc-label>Time to pay off</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-cc-main>{fmtMonths(r.months)}</p>
+    <p class="result-label" data-cc-label>Time to pay off</p>
+    <p class="mt-1 text-4xl result-value" data-cc-main>{fmtMonths(r.months)}</p>
     <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
       <div class="flex justify-between"><dt style="color: var(--muted)">Total interest</dt><dd class="font-semibold" style="color: var(--color-danger)" data-cc-interest>{formatCurrency(r.totalInterest)}</dd></div>
       <div class="flex justify-between"><dt style="color: var(--muted)">Total paid</dt><dd class="font-semibold" data-cc-total>{formatCurrency(r.totalPaid)}</dd></div>

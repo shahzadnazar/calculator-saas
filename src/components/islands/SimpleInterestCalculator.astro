@@ -27,8 +27,8 @@ const r = calculateSimpleInterest(defaults);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Interest earned</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--color-accent-600)" data-si-interest>{formatCurrency(r.interest)}</p>
+    <p class="result-label">Interest earned</p>
+    <p class="mt-1 text-4xl result-value" style="color: var(--color-accent-600)" data-si-interest>{formatCurrency(r.interest)}</p>
     <div class="mt-5 flex items-center justify-between border-t pt-5" style="border-color: var(--line)">
       <span class="font-semibold">Total value</span>
       <span class="text-xl font-bold" data-si-total>{formatCurrency(r.total)}</span>

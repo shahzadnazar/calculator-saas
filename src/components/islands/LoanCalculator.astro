@@ -40,8 +40,8 @@ const r = calculateLoan(defaults);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Monthly payment</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-loan-monthly>
+    <p class="result-label">Monthly payment</p>
+    <p class="mt-1 text-4xl result-value" data-loan-monthly>
       {formatCurrency(r.monthlyPayment)}
     </p>
     <div class="mt-5 grid grid-cols-2 gap-3 border-t pt-5 text-center" style="border-color: var(--line)">

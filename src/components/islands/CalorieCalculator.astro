@@ -76,8 +76,8 @@ const goal = (v: number) => (Number.isNaN(v) ? '—' : nf.format(v));
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Daily calories to maintain weight</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-cal-maintain>{goal(r.maintenance)}</span> <span class="text-lg font-semibold" style="color: var(--muted)">kcal</span></p>
+    <p class="result-label">Daily calories to maintain weight</p>
+    <p class="mt-1 text-4xl result-value"><span data-cal-maintain>{goal(r.maintenance)}</span> <span class="text-lg font-semibold" style="color: var(--muted)">kcal</span></p>
     <p class="mt-1 text-sm" style="color: var(--muted)">BMR (at rest): <strong data-cal-bmr style="color: var(--fg)">{goal(r.bmr)}</strong> kcal</p>
 
     <div class="mt-5 space-y-2 text-sm">

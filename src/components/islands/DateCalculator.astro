@@ -28,7 +28,7 @@ const longDate = (iso: string) =>
       <div><label class="field-label" for="dc-to">To</label><input class="field" id="dc-to" type="date" value="2025-01-01" /></div>
     </div>
     <div class="mt-5 rounded-lg p-4 text-center" style="background: var(--subtle)">
-      <p class="text-3xl font-extrabold" style="color: var(--heading)"><span data-dc-total>{nf.format(d.totalDays)}</span> days</p>
+      <p class="text-3xl result-value"><span data-dc-total>{nf.format(d.totalDays)}</span> days</p>
       <p class="mt-1 text-sm" style="color: var(--muted)" data-dc-break>{d.breakdown.years}y {d.breakdown.months}m {d.breakdown.days}d · {nf.format(d.weeks)} weeks</p>
     </div>
   </div>

@@ -27,8 +27,8 @@ const show = (v: number) => (Number.isNaN(v) ? '—' : `${v} g`);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Recommended daily protein</p>
-    <p class="mt-1 text-5xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-pr-grams>{r.grams}</span> <span class="text-2xl" style="color: var(--muted)">g</span></p>
+    <p class="result-label">Recommended daily protein</p>
+    <p class="mt-1 text-5xl result-value"><span data-pr-grams>{r.grams}</span> <span class="text-2xl" style="color: var(--muted)">g</span></p>
     <table class="mt-5 w-full text-sm">
       <tbody data-pr-table>
         {r.perGoal.map((g) => (

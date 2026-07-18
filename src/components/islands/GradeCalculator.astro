@@ -34,7 +34,7 @@ const needed = finalScoreNeeded(88, 30, 90);
     <button type="button" class="btn btn-secondary mt-3" data-grade-add>+ Add item</button>
     <div class="mt-6 border-t pt-5 text-center" style="border-color: var(--line)">
       <p class="text-sm" style="color: var(--muted)">Current weighted grade</p>
-      <p class="text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-grade-avg>{formatNumber(wg.grade, 2)}</span>%</p>
+      <p class="text-4xl result-value"><span data-grade-avg>{formatNumber(wg.grade, 2)}</span>%</p>
     </div>
   </div>
 
@@ -47,7 +47,7 @@ const needed = finalScoreNeeded(88, 30, 90);
     </div>
     <div class="mt-6 border-t pt-5 text-center" style="border-color: var(--line)">
       <p class="text-sm" style="color: var(--muted)">Score needed on the final</p>
-      <p class="text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-grade-needed>{formatNumber(needed, 1)}</span>%</p>
+      <p class="text-4xl result-value"><span data-grade-needed>{formatNumber(needed, 1)}</span>%</p>
       <p class="mt-2 text-sm" data-grade-note></p>
     </div>
   </div>

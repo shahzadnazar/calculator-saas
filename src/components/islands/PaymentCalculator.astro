@@ -33,8 +33,8 @@ const pay = loanPayment(d.amount, d.annualRatePct, d.termYears * 12);
   </form>
 
   <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)" data-pm-label>Monthly payment</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-pm-main>{formatCurrency(pay)}</p>
+    <p class="result-label" data-pm-label>Monthly payment</p>
+    <p class="mt-1 text-4xl result-value" data-pm-main>{formatCurrency(pay)}</p>
     <p class="mt-2 text-sm" style="color: var(--muted)" data-pm-sub></p>
   </div>
 </div>

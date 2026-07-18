@@ -229,6 +229,28 @@
     color: var(--color-brand-600);
   }
 
+  /* ---- Result readout -----------------------------------------------------
+     The shared "answer" pattern every calculator card shows: a small muted
+     label above a large emphasized figure. Codifying it as tokens (instead of
+     repeating utilities in 48 islands) guarantees one visual language for the
+     result across the whole site, and lets us add tabular figures in ONE place
+     so live-updating numbers never jitter in width. The size utility on the
+     value element (text-4xl, text-5xl…) still sets the emphasis tier, so a
+     hero single-number and a longer composite result can differ intentionally
+     while sharing weight, tracking, color and figure alignment. */
+  .result-label {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .result-value {
+    color: var(--heading);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    font-variant-numeric: tabular-nums;
+  }
+
   /* Buttons */
   .btn {
     display: inline-flex;

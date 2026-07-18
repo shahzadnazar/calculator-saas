@@ -70,9 +70,9 @@ const markerPos = (bmi: number) => Math.max(0, Math.min(100, ((bmi - 15) / (40 -
 
   <!-- Result -->
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Your BMI</p>
+    <p class="result-label">Your BMI</p>
     <div class="mt-1 flex items-baseline gap-3">
-      <span class="text-5xl font-extrabold tracking-tight" style="color: var(--heading)" data-bmi-value>{formatNumber(initial.bmi, 1)}</span>
+      <span class="text-5xl result-value" data-bmi-value>{formatNumber(initial.bmi, 1)}</span>
       <span class="rounded-full px-3 py-1 text-sm font-bold text-white" style={`background:${severityColor[initial.severity]}`} data-bmi-category>
         {initial.category}
       </span>

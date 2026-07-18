@@ -22,8 +22,8 @@ const nf = (v: number) => formatNumber(v, 2);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Concrete needed</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-co-yards>{nf(r.cubicYards)}</span> <span class="text-xl" style="color: var(--muted)">yd³</span></p>
+    <p class="result-label">Concrete needed</p>
+    <p class="mt-1 text-4xl result-value"><span data-co-yards>{nf(r.cubicYards)}</span> <span class="text-xl" style="color: var(--muted)">yd³</span></p>
     <dl class="mt-4 space-y-2 text-sm">
       <div class="flex justify-between"><dt style="color: var(--muted)">Cubic metres</dt><dd class="font-semibold"><span data-co-meters>{nf(r.cubicMeters)}</span> m³</dd></div>
       <div class="flex justify-between"><dt style="color: var(--muted)">Cubic feet</dt><dd class="font-semibold"><span data-co-feet>{nf(r.cubicFeet)}</span> ft³</dd></div>

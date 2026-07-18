@@ -25,8 +25,8 @@ const r = calculateSquareFootage(d);
   </form>
 
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Total square footage</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-sf-total>{formatNumber(r.totalSqFt, 2)}</span> <span class="text-xl" style="color: var(--muted)">ft²</span></p>
+    <p class="result-label">Total square footage</p>
+    <p class="mt-1 text-4xl result-value"><span data-sf-total>{formatNumber(r.totalSqFt, 2)}</span> <span class="text-xl" style="color: var(--muted)">ft²</span></p>
     <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
       <div class="flex justify-between"><dt style="color: var(--muted)">Square metres</dt><dd class="font-semibold"><span data-sf-sqm>{formatNumber(r.totalSqM, 2)}</span> m²</dd></div>
       <div class="flex justify-between"><dt style="color: var(--muted)">Square yards</dt><dd class="font-semibold"><span data-sf-sqyd>{formatNumber(r.totalSqYd, 2)}</span> yd²</dd></div>

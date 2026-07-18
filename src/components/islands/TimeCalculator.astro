@@ -38,8 +38,8 @@ const fields = ['days', 'hours', 'minutes', 'seconds'] as const;
   </form>
 
   <div class="card mt-6 p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Result</p>
-    <p class="mt-1 text-3xl font-extrabold tracking-tight" style="color: var(--heading)" data-tc-result>
+    <p class="result-label">Result</p>
+    <p class="mt-1 text-3xl result-value" data-tc-result>
       {res.days}d {res.hours}h {res.minutes}m {res.seconds}s
     </p>
     <p class="mt-2 text-sm" style="color: var(--muted)">Total: <span data-tc-total>{toSeconds(a) + toSeconds(bVals)}</span> seconds</p>

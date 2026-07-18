@@ -16,8 +16,8 @@ const longDate = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateStrin
   </form>
 
   <div class="card p-5 sm:p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Estimated due date</p>
-    <p class="mt-1 text-2xl font-extrabold tracking-tight" style="color: var(--heading)" data-dd-due>{longDate(toISODateUTC(due))}</p>
+    <p class="result-label">Estimated due date</p>
+    <p class="mt-1 text-2xl result-value" data-dd-due>{longDate(toISODateUTC(due))}</p>
     <div class="mt-5 grid grid-cols-2 gap-4 border-t pt-4 text-center" style="border-color: var(--line)">
       <div><p class="text-2xl font-bold" data-dd-along>—</p><p class="text-xs" style="color: var(--muted)">how far along</p></div>
       <div><p class="text-2xl font-bold" data-dd-trimester>—</p><p class="text-xs" style="color: var(--muted)">trimester</p></div>

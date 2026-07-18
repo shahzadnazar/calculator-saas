@@ -101,8 +101,8 @@ const pct = (v: number) => (r.monthlyTotal ? (v / r.monthlyTotal) * 100 : 0);
 
   <!-- Results -->
   <div class="card p-5 sm:p-6">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Estimated monthly payment</p>
-    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-mc-monthly-total>
+    <p class="result-label">Estimated monthly payment</p>
+    <p class="mt-1 text-4xl result-value" data-mc-monthly-total>
       {formatCurrency(r.monthlyTotal)}
     </p>
 

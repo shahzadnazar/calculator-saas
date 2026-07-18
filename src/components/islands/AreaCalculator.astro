@@ -34,8 +34,8 @@ const result = calculateArea(first.key, defaults);
   </form>
 
   <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="text-sm font-semibold" style="color: var(--muted)">Area</p>
-    <p class="mt-2 text-5xl font-extrabold tracking-tight" style="color: var(--heading)" data-ar-result>{formatNumber(result, 3)}</p>
+    <p class="result-label">Area</p>
+    <p class="mt-2 text-5xl result-value" data-ar-result>{formatNumber(result, 3)}</p>
     <p class="mt-1 text-lg" style="color: var(--muted)"><span data-ar-unit-label>m</span>²</p>
   </div>
 </div>
