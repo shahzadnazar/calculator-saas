@@ -1,0 +1,88 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import { calculateCompoundInterest } from '@lib/calculators/compound-interest';
+import { formatCurrencyRounded } from '@lib/format';
+import { getReference, referencePath } from '@data/reference';
+import { breadcrumbSchema, articleSchema } from '@lib/schema';
+import { SITE } from '@config/site';
+
+const ref = getReference('monthly-investment-table')!;
+const path = referencePath(ref);
+const reviewed = '2026-07-18';
+
+const RATE = 7; // assumed long-run annual return
+const monthly = [100, 200, 300, 500, 1000, 2000];
+const yearsList = [10, 20, 30, 40];
+const fv = (m: number, years: number) =>
+  calculateCompoundInterest({ principal: 0, annualRatePct: RATE, years, compoundsPerYear: 12, contribution: m })
+    .futureValue;
+const rows = monthly.map((m) => ({ m, values: yearsList.map((y) => fv(m, y)) }));
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: 'Reference', path: '/reference' },
+  { name: ref.shortName, path },
+];
+const jsonLd = [
+  breadcrumbSchema(crumbs),
+  articleSchema({ title: ref.title, description: ref.description, path, authorName: `${SITE.name} Editorial`, datePublished: `${reviewed}T00:00:00Z` }),
+];
+---
+
+<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+    <header class="mt-5 max-w-3xl">
+      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">
+        What a steady monthly investment grows into at a <strong>7% annual return</strong>, over 10 to 40 years —
+        a snapshot of why starting early and investing consistently matters so much.
+      </p>
+    </header>
+
+    <div class="prose mt-8">
+      <h2>How to use this table</h2>
+      <p>
+        Find how much you invest each month down the left, then read across to your time horizon. The figure is
+        the projected balance, assuming a 7% average annual return compounded monthly and no starting balance.
+      </p>
+    </div>
+
+    <div class="prose mt-4" style="max-width: 56rem">
+      <table>
+        <thead>
+          <tr>
+            <th>Invested / month</th>
+            {yearsList.map((y) => <th>{y} years</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr>
+              <td>{formatCurrencyRounded(row.m)}</td>
+              {row.values.map((v) => <td>{formatCurrencyRounded(v)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="prose mt-8">
+      <h2>The takeaway</h2>
+      <p>
+        Investing <strong>$500 a month</strong> for 40 years at 7% grows to about
+        {formatCurrencyRounded(fv(500, 40))} — of which only {formatCurrencyRounded(500 * 12 * 40)} is money you
+        put in. The rest is compounding. Doubling the time does far more than doubling the monthly amount.
+      </p>
+      <h2>Methodology</h2>
+      <p>
+        Each value is computed with this site's unit-tested compound-interest function: a recurring monthly
+        contribution invested at a 7% annual return, compounded monthly, starting from zero. Real returns vary
+        year to year and are never guaranteed. To try other rates and starting balances, use the
+        <a href={`/${ref.relatedCalculator}`}>investment calculator</a>. This is general information, not investment advice.
+      </p>
+    </div>
+  </div>
+</BaseLayout>

@@ -1,0 +1,81 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import { calculateTip } from '@lib/calculators/tip';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+import { getReference, referencePath } from '@data/reference';
+import { breadcrumbSchema, articleSchema } from '@lib/schema';
+import { SITE } from '@config/site';
+
+const ref = getReference('tip-table')!;
+const path = referencePath(ref);
+const reviewed = '2026-07-18';
+
+const bills = [10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 150, 200];
+const pcts = [15, 18, 20, 25];
+const rows = bills.map((bill) => ({
+  bill,
+  tips: pcts.map((tipPct) => calculateTip({ bill, tipPct, people: 1 }).tipAmount),
+}));
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: 'Reference', path: '/reference' },
+  { name: ref.shortName, path },
+];
+const jsonLd = [
+  breadcrumbSchema(crumbs),
+  articleSchema({ title: ref.title, description: ref.description, path, authorName: `${SITE.name} Editorial`, datePublished: `${reviewed}T00:00:00Z` }),
+];
+---
+
+<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+    <header class="mt-5 max-w-3xl">
+      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">
+        The tip amount for common bill totals at the four most-used rates. Find your bill, read across, and add it
+        to the total — no mental math at the table.
+      </p>
+    </header>
+
+    <div class="prose mt-8">
+      <h2>How much to tip</h2>
+      <p>
+        In the US, 15–20% of the pre-tax bill is standard for table service, with 18–20% for good service and 25%
+        for excellent. The values below are the tip itself; add it to your bill for the total. To split a bill
+        between people, use the <a href={`/${ref.relatedCalculator}`}>tip calculator</a>.
+      </p>
+    </div>
+
+    <div class="prose mt-4" style="max-width: 48rem">
+      <table>
+        <thead>
+          <tr>
+            <th>Bill</th>
+            {pcts.map((p) => <th>{p}%</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr>
+              <td>{formatCurrencyRounded(row.bill)}</td>
+              {row.tips.map((t) => <td>{formatCurrency(t)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="prose mt-8">
+      <h2>Methodology</h2>
+      <p>
+        Each value is the bill multiplied by the tip rate, computed with this site's unit-tested tip function.
+        Tipping norms vary by country and service — in many places a service charge is already included. This is
+        a convenience reference, not a rule.
+      </p>
+    </div>
+  </div>
+</BaseLayout>

@@ -1,0 +1,93 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import { calculateTargetHeartRate } from '@lib/calculators/target-heart-rate';
+import { getReference, referencePath } from '@data/reference';
+import { breadcrumbSchema, articleSchema } from '@lib/schema';
+import { SITE } from '@config/site';
+
+const ref = getReference('target-heart-rate-table')!;
+const path = referencePath(ref);
+const reviewed = '2026-07-18';
+
+const ages = Array.from({ length: 11 }, (_, i) => 20 + i * 5); // 20..70
+const rows = ages.map((age) => {
+  const r = calculateTargetHeartRate(age);
+  return {
+    age,
+    maxHr: r.maxHr,
+    fatBurn: r.zones[1], // 60–70%
+    aerobic: r.zones[2], // 70–80%
+    anaerobic: r.zones[3], // 80–90%
+  };
+});
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: 'Reference', path: '/reference' },
+  { name: ref.shortName, path },
+];
+const jsonLd = [
+  breadcrumbSchema(crumbs),
+  articleSchema({ title: ref.title, description: ref.description, path, authorName: `${SITE.name} Editorial`, datePublished: `${reviewed}T00:00:00Z` }),
+];
+---
+
+<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+    <header class="mt-5 max-w-3xl">
+      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">
+        Your maximum heart rate and the main training zones by age, in beats per minute — a quick reference for
+        keeping exercise at the right intensity.
+      </p>
+    </header>
+
+    <div class="prose mt-8">
+      <h2>How to use this chart</h2>
+      <p>
+        Find your age and read across. <strong>Max HR</strong> is the estimated ceiling (220 − age).
+        <strong>Fat burn</strong> (60–70%) is easy, sustainable effort; <strong>aerobic</strong> (70–80%) builds
+        cardio fitness; <strong>anaerobic</strong> (80–90%) is hard interval work. Most training mixes the zones.
+      </p>
+    </div>
+
+    <div class="prose mt-4" style="max-width: 56rem">
+      <table>
+        <thead>
+          <tr>
+            <th>Age</th>
+            <th>Max HR</th>
+            <th>Fat burn (60–70%)</th>
+            <th>Aerobic (70–80%)</th>
+            <th>Anaerobic (80–90%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr>
+              <td>{r.age}</td>
+              <td>{r.maxHr} bpm</td>
+              <td>{r.fatBurn.low}–{r.fatBurn.high}</td>
+              <td>{r.aerobic.low}–{r.aerobic.high}</td>
+              <td>{r.anaerobic.low}–{r.anaerobic.high}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="prose mt-8">
+      <h2>Methodology</h2>
+      <p>
+        Maximum heart rate uses the common 220 − age estimate, and each zone is a percentage of that maximum,
+        computed with this site's unit-tested target-heart-rate function. Individual maximums vary by 10–20 bpm.
+        For personalised zones using your resting heart rate (the more accurate Karvonen method), use the
+        <a href={`/${ref.relatedCalculator}`}>target heart rate calculator</a>. Consult a doctor before starting
+        intense exercise. This is general information, not medical advice.
+      </p>
+    </div>
+  </div>
+</BaseLayout>
