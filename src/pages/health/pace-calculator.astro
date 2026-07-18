@@ -4,16 +4,25 @@ import PaceCalculator from '@components/islands/PaceCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('health', 'pace-calculator')!;
 const faqs = [
-  { question: 'How do I calculate running pace?', answer: 'Pace is your time divided by distance. Enter the distance you ran and your time, and the calculator shows your pace per kilometre and per mile, your speed, and predicted times for common race distances.' },
-  { question: 'What is a good running pace?', answer: 'It depends on fitness and distance. Many recreational runners average 6–7 minutes per kilometre (about 10–11 min/mile). Focus on your own trend rather than comparisons.' },
-  { question: 'How are the race predictions calculated?', answer: 'The calculator applies your current pace evenly across each race distance. Real race times vary with endurance and conditions, so treat longer-distance predictions as optimistic estimates.' },
+  { question: 'How do I calculate running pace?', answer: 'Pace is your time divided by distance. Enter the distance you ran and your time, and the calculator shows your pace per kilometre and per mile, your speed, and predicted times for common race distances. For example, 5 km in 25 minutes is a pace of 5:00 per kilometre.' },
+  { question: 'What is a good running pace?', answer: 'It depends on fitness and distance. Many beginners run around 7–8 min/km (11–13 min/mile), and regular recreational runners average 5–6 min/km (8–10 min/mile). The best benchmark is your own trend over time, not someone else\'s number.' },
+  { question: 'How do I pace myself when running?', answer: 'Start slightly slower than your goal pace and aim for even or negative splits — the second half as fast as or faster than the first. Going out too hard is the most common reason runs fall apart; a steady effort almost always yields a better finish time.' },
+  { question: 'What is a pace run?', answer: 'A pace run (or tempo run) is a sustained effort at or near your goal race pace, used to train your body to hold that speed comfortably. It sits between easy running and hard intervals in intensity.' },
+  { question: 'How are the race predictions calculated?', answer: 'The calculator applies your current pace evenly across each race distance. Real race times rise slightly over longer distances as fatigue sets in, so treat marathon predictions from a 5K pace as optimistic.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate your running pace and speed from a distance and time, and see predicted finish times for 5K, 10K, half and full marathon." faqs={faqs}>
   <PaceCalculator />
   <Fragment slot="content">
     <h2>Pace, speed and predictions</h2>
-    <p>Enter how far you ran and how long it took. The calculator shows your pace in minutes per kilometre and per mile, your speed in km/h and mph, and estimated finish times for standard races at that pace.</p>
+    <p>Enter how far you ran and how long it took. The calculator shows your pace in minutes per kilometre and per mile, your speed in km/h and mph, and estimated finish times for standard races at that pace. As a quick example, running <strong>5 km in 25 minutes</strong> is a pace of <strong>5:00 /km</strong> (about 8:03 /mile) — a speed of 12 km/h.</p>
+
+    <h2>What counts as a good pace</h2>
+    <p>There is no universal "good" pace — it depends on distance, terrain and experience. Beginners often run 7–8 min/km, while seasoned recreational runners hold 5–6 min/km over a 5K. Rather than compare, watch your own pace fall as fitness builds; that trend is the real measure of progress.</p>
+
+    <h2>Pacing yourself well</h2>
+    <p>The most common racing mistake is starting too fast. Aim to run the first half slightly conservative and finish as strong as or stronger than you started (a "negative split"). Even effort — not a fast start — produces your best times.</p>
+
     <h2>Using pace in training</h2>
     <p>Knowing your pace helps you run at the right effort — easy days truly easy, hard efforts controlled. Pair it with heart-rate zones from the <a href="/health/target-heart-rate-calculator">target heart rate calculator</a> for a complete picture of intensity.</p>
     <p>Race predictions assume even pacing and ideal conditions; actual times vary. This is general information, not coaching or medical advice.</p>
