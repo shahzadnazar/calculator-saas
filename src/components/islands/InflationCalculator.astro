@@ -1,0 +1,62 @@
+---
+import { adjustForInflation } from '@lib/calculators/inflation';
+import { formatCurrency, formatPercent } from '@lib/format';
+
+const d = { amount: 1000, annualRatePct: 3, years: 20 };
+const r = adjustForInflation(d);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-inflation>
+  <form class="card p-5 sm:p-6" data-if-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="if-amount">Amount</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="if-amount" name="amount" type="number" min="0" step="100" value={d.amount} inputmode="decimal" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="if-rate">Inflation rate</label>
+          <div class="flex"><input class="field rounded-r-none" id="if-rate" name="annualRatePct" type="number" min="0" step="0.1" value={d.annualRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        </div>
+        <div>
+          <label class="field-label" for="if-years">Years</label>
+          <input class="field" id="if-years" name="years" type="number" min="0" step="1" value={d.years} inputmode="decimal" />
+        </div>
+      </div>
+      <p class="text-xs" style="color: var(--muted)">Long-run inflation has averaged roughly 2–3% per year in many developed economies.</p>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <div class="rounded-lg p-4" style="background: var(--subtle)">
+      <p class="text-sm" style="color: var(--muted)">Future cost of today's <span data-if-amount>{formatCurrency(d.amount)}</span></p>
+      <p class="text-3xl font-extrabold" style="color: var(--heading)" data-if-future>{formatCurrency(r.futureCost)}</p>
+      <p class="text-sm" style="color: var(--muted)">in <span data-if-years>{d.years}</span> years</p>
+    </div>
+    <dl class="mt-4 space-y-2 text-sm">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Buying power of that amount then</dt><dd class="font-semibold" data-if-power>{formatCurrency(r.buyingPower)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Total price increase</dt><dd class="font-semibold" style="color: var(--color-danger)" data-if-total>{formatPercent(r.totalInflationPct, 1)}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<script>
+  import { adjustForInflation } from '@lib/calculators/inflation';
+  import { formatCurrency, formatPercent } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-inflation]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-if-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const amount = num('amount'), years = num('years');
+      const r = adjustForInflation({ amount, annualRatePct: num('annualRatePct'), years });
+      set('[data-if-amount]', formatCurrency(amount));
+      set('[data-if-future]', formatCurrency(r.futureCost));
+      set('[data-if-years]', String(years));
+      set('[data-if-power]', formatCurrency(r.buyingPower));
+      set('[data-if-total]', formatPercent(r.totalInflationPct, 1));
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

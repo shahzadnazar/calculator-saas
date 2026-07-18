@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import SavingsCalculator from '@components/islands/SavingsCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'savings-calculator')!;
+const faqs = [
+  { question: 'How much will my savings grow?', answer: 'In "Project savings" mode, enter your starting balance, monthly deposit, expected return and time frame, and the calculator projects your future balance and how much of it is interest.' },
+  { question: 'How much do I need to save each month for a goal?', answer: 'Switch to "Reach a goal" mode, enter your target amount and time frame, and the calculator solves for the monthly deposit required — accounting for your starting balance and expected growth.' },
+  { question: 'What return rate should I use?', answer: 'A high-yield savings account might return 3–5%, while long-term investments have historically returned more with more risk. Use a rate that matches where you will keep the money.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Project how your savings grow with regular deposits, or work backwards to find the monthly amount needed to reach a specific goal." faqs={faqs}>
+  <SavingsCalculator />
+  <Fragment slot="content">
+    <h2>Two ways to plan</h2>
+    <p><strong>Project savings</strong> shows where consistent deposits will take you. <strong>Reach a goal</strong> flips the question: tell it your target and timeline, and it tells you the monthly deposit required. Both account for compound growth on your balance.</p>
+    <h2>Make saving automatic</h2>
+    <p>The single most effective savings habit is automation — a fixed monthly transfer you never have to think about. Small, consistent amounts compound into large balances over time, as the interest figure makes clear. To model longer-term investing, see the <a href="/finance/investment-calculator">investment calculator</a>.</p>
+    <p>This is general educational information, not financial advice.</p>
+  </Fragment>
+</CalculatorLayout>

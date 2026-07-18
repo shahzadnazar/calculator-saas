@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import PaymentCalculator from '@components/islands/PaymentCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'payment-calculator')!;
+const faqs = [
+  { question: 'What can this calculator solve for?', answer: 'Two things. "Fixed term" finds the monthly payment for a loan of a given amount, rate and term. "Fixed payment" finds how long it takes to pay off a loan if you pay a set amount each month.' },
+  { question: 'Why might a loan "never" pay off?', answer: 'If your monthly payment is less than the monthly interest, the balance grows instead of shrinking, so the loan is never repaid. The calculator flags this — the fix is a larger payment.' },
+  { question: 'How do I lower my monthly payment?', answer: 'A longer term or lower interest rate reduces the payment, but a longer term means more total interest. Compare the trade-offs before deciding.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Solve for a loan's monthly payment given a term, or find how long it takes to pay off a balance at a fixed monthly payment." faqs={faqs}>
+  <PaymentCalculator />
+  <Fragment slot="content">
+    <h2>Two questions, one tool</h2>
+    <p>Use <strong>Fixed term</strong> when you know how long you want the loan to run and need the payment. Use <strong>Fixed payment</strong> when you know what you can afford monthly and want to know how long you'll be paying.</p>
+    <h2>The payment–term trade-off</h2>
+    <p>Stretching a loan lowers the monthly payment but increases total interest, because you borrow the money for longer. A higher payment clears the debt faster and cheaper. For a full breakdown of where each payment goes, see the <a href="/finance/amortization-calculator">amortization calculator</a>, or the <a href="/finance/loan-calculator">loan calculator</a> for totals.</p>
+    <p>This is general educational information, not financial advice.</p>
+  </Fragment>
+</CalculatorLayout>

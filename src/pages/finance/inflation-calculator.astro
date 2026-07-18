@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import InflationCalculator from '@components/islands/InflationCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'inflation-calculator')!;
+const faqs = [
+  { question: 'What does the inflation calculator show?', answer: 'It shows how prices grow over time at a constant inflation rate — both what something costing a set amount today will cost in the future, and how much a future amount is worth in today’s money.' },
+  { question: 'Why does inflation matter for savings?', answer: 'Money that does not grow at least as fast as inflation loses buying power. At 3% inflation, cash under the mattress loses roughly a quarter of its value in a decade — which is why investing to outpace inflation matters.' },
+  { question: 'What inflation rate should I use?', answer: 'Long-run inflation has averaged around 2–3% per year in many developed economies, though it varies year to year. Use a rate that reflects your expectations or your central bank’s target.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="See how inflation erodes the value of money over time — what a sum today will cost in the future, and what future money is worth now." faqs={faqs}>
+  <InflationCalculator />
+  <Fragment slot="content">
+    <h2>The silent tax</h2>
+    <p>Inflation is a steady rise in prices, which means each dollar buys a little less each year. Over decades the effect is dramatic: at 3% a year, prices roughly double in about 24 years. That is why "safe" cash can be a slow loss in real terms.</p>
+    <h2>Protecting your buying power</h2>
+    <p>To keep pace with — or beat — inflation, money generally needs to be invested for a return above the inflation rate. Model that growth with the <a href="/finance/investment-calculator">investment calculator</a> and the <a href="/finance/compound-interest-calculator">compound interest calculator</a>.</p>
+    <p>This is a simplified model using a constant rate. Real inflation varies. This is general educational information, not financial advice.</p>
+  </Fragment>
+</CalculatorLayout>

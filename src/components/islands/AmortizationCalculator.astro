@@ -1,0 +1,96 @@
+---
+import { calculateLoan } from '@lib/calculators/loan';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+const defaults = { amount: 250000, annualInterestRate: 6.5, termYears: 30 };
+const r = calculateLoan(defaults);
+---
+
+<div class="mx-auto w-full max-w-4xl" data-amort>
+  <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <form class="card p-5 sm:p-6" data-am-form novalidate>
+      <div class="space-y-4">
+        <div>
+          <label class="field-label" for="am-amount">Loan amount</label>
+          <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="am-amount" name="amount" type="number" min="0" step="1000" value={defaults.amount} inputmode="decimal" /></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="field-label" for="am-rate">Interest rate</label>
+            <div class="flex"><input class="field rounded-r-none" id="am-rate" name="annualInterestRate" type="number" min="0" step="0.05" value={defaults.annualInterestRate} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+          </div>
+          <div>
+            <label class="field-label" for="am-term">Term (years)</label>
+            <input class="field" id="am-term" name="termYears" type="number" min="1" step="1" value={defaults.termYears} inputmode="decimal" />
+          </div>
+        </div>
+      </div>
+    </form>
+    <div class="card p-5 sm:p-6">
+      <p class="text-sm font-semibold" style="color: var(--muted)">Monthly payment</p>
+      <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-am-monthly>{formatCurrency(r.monthlyPayment)}</p>
+      <div class="mt-5 grid grid-cols-2 gap-3 border-t pt-5 text-center" style="border-color: var(--line)">
+        <div><p class="text-xs" style="color: var(--muted)">Total interest</p><p class="mt-1 font-bold" data-am-interest>{formatCurrencyRounded(r.totalInterest)}</p></div>
+        <div><p class="text-xs" style="color: var(--muted)">Total paid</p><p class="mt-1 font-bold" data-am-total>{formatCurrencyRounded(r.totalPaid)}</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-6 p-5 sm:p-6">
+    <div class="flex items-center justify-between">
+      <h3 class="text-lg font-bold">Amortization schedule</h3>
+      <div class="inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="View" style="border-color: var(--line)">
+        <button type="button" class="view-btn is-active" data-view="yearly" role="radio" aria-checked="true">Yearly</button>
+        <button type="button" class="view-btn" data-view="monthly" role="radio" aria-checked="false">Monthly</button>
+      </div>
+    </div>
+    <div class="mt-4 max-h-96 overflow-auto rounded-lg border" style="border-color: var(--line)">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0" style="background: var(--subtle)">
+          <tr>
+            <th class="px-3 py-2 text-left font-semibold" data-am-period-h>Year</th>
+            <th class="px-3 py-2 text-right font-semibold">Principal</th>
+            <th class="px-3 py-2 text-right font-semibold">Interest</th>
+            <th class="px-3 py-2 text-right font-semibold">Balance</th>
+          </tr>
+        </thead>
+        <tbody data-am-schedule></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  .view-btn { padding: 0.25rem 0.75rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .view-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { calculateLoan } from '@lib/calculators/loan';
+  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-amort]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-am-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    let view: 'yearly' | 'monthly' = 'yearly';
+
+    function recompute() {
+      const r = calculateLoan({ amount: num('amount'), annualInterestRate: num('annualInterestRate'), termYears: num('termYears') });
+      set('[data-am-monthly]', formatCurrency(r.monthlyPayment));
+      set('[data-am-interest]', formatCurrencyRounded(r.totalInterest));
+      set('[data-am-total]', formatCurrencyRounded(r.totalPaid));
+      set('[data-am-period-h]', view === 'yearly' ? 'Year' : 'Month');
+      const rows = view === 'yearly' ? r.yearlySchedule : r.schedule;
+      root.querySelector<HTMLElement>('[data-am-schedule]')!.innerHTML = rows
+        .map((row) => `<tr class="border-t" style="border-color: var(--line)"><td class="px-3 py-2">${row.period}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.principal)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.interest)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.balance)}</td></tr>`)
+        .join('');
+    }
+    root.querySelectorAll<HTMLButtonElement>('.view-btn').forEach((b) => b.addEventListener('click', () => {
+      view = (b.dataset.view as 'yearly' | 'monthly') ?? 'yearly';
+      root.querySelectorAll('.view-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

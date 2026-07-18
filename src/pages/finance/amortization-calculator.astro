@@ -1,0 +1,23 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import AmortizationCalculator from '@components/islands/AmortizationCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'amortization-calculator')!;
+const faqs = [
+  { question: 'What is an amortization schedule?', answer: 'It is a table showing every payment on a loan, split into how much goes to interest and how much reduces the principal, along with the remaining balance after each payment.' },
+  { question: 'Why is early interest so high?', answer: 'Interest is charged on the outstanding balance, which is largest at the start. So early payments are mostly interest and only slowly chip away at principal — the balance falls faster as the loan matures.' },
+  { question: 'How can I pay off a loan faster?', answer: 'Extra payments applied to principal shrink the balance ahead of schedule, which reduces the interest charged on every future payment. Even small additional amounts early in the loan save a surprising amount.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="See exactly how each payment on a loan splits between principal and interest, and how the balance falls over the full term — month by month or year by year." faqs={faqs}>
+  <AmortizationCalculator />
+  <Fragment slot="content">
+    <h2>How amortization works</h2>
+    <p>An amortized loan has equal payments, but the makeup of each payment changes over time. Because interest is charged on the remaining balance, early payments are mostly interest and later payments are mostly principal. The schedule above lets you switch between a yearly summary and the full monthly breakdown.</p>
+    <h2>Reading the schedule</h2>
+    <p>Each row shows the principal paid, interest paid and the balance left. Watch how the interest column shrinks and the principal column grows as the loan matures — that crossover is the heart of amortization.</p>
+    <h2>Using it to your advantage</h2>
+    <p>The schedule reveals why extra early payments are so powerful: they attack the balance while interest still dominates, saving interest on every remaining payment. Compare scenarios with the <a href="/finance/loan-calculator">loan calculator</a> and <a href="/finance/mortgage-calculator">mortgage calculator</a>.</p>
+    <p>This tool is for planning and education, not financial advice.</p>
+  </Fragment>
+</CalculatorLayout>

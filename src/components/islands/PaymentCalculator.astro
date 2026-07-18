@@ -1,0 +1,85 @@
+---
+import { loanPayment, solveMonths } from '@lib/calculators/payment';
+import { formatCurrency } from '@lib/format';
+
+const d = { amount: 20000, annualRatePct: 6, termYears: 5, payment: 400 };
+const pay = loanPayment(d.amount, d.annualRatePct, d.termYears * 12);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-payment>
+  <form class="card p-5 sm:p-6" data-pm-form novalidate>
+    <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Mode" style="border-color: var(--line)">
+      <button type="button" class="mode-btn is-active" data-mode="term" role="radio" aria-checked="true">Fixed term</button>
+      <button type="button" class="mode-btn" data-mode="payment" role="radio" aria-checked="false">Fixed payment</button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="pm-amount">Loan amount</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="pm-amount" name="amount" type="number" min="0" step="500" value={d.amount} inputmode="decimal" /></div>
+      </div>
+      <div>
+        <label class="field-label" for="pm-rate">Interest rate</label>
+        <div class="flex"><input class="field rounded-r-none" id="pm-rate" name="annualRatePct" type="number" min="0" step="0.1" value={d.annualRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+      </div>
+      <div data-pm-term>
+        <label class="field-label" for="pm-term">Term (years)</label>
+        <input class="field" id="pm-term" name="termYears" type="number" min="0.5" step="0.5" value={d.termYears} inputmode="decimal" />
+      </div>
+      <div data-pm-payment hidden>
+        <label class="field-label" for="pm-pay">Monthly payment</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="pm-pay" name="payment" type="number" min="0" step="10" value={d.payment} inputmode="decimal" /></div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card flex flex-col justify-center p-6 text-center">
+    <p class="text-sm font-semibold" style="color: var(--muted)" data-pm-label>Monthly payment</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-pm-main>{formatCurrency(pay)}</p>
+    <p class="mt-2 text-sm" style="color: var(--muted)" data-pm-sub></p>
+  </div>
+</div>
+
+<style>
+  .mode-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .mode-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { loanPayment, solveMonths } from '@lib/calculators/payment';
+  import { formatCurrency } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-payment]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-pm-form]')!;
+    let mode: 'term' | 'payment' = 'term';
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const amount = num('amount'), rate = num('annualRatePct');
+      if (mode === 'term') {
+        const pay = loanPayment(amount, rate, num('termYears') * 12);
+        set('[data-pm-label]', 'Monthly payment');
+        set('[data-pm-main]', formatCurrency(pay));
+        set('[data-pm-sub]', `over ${num('termYears')} years`);
+      } else {
+        const months = solveMonths(amount, rate, num('payment'));
+        set('[data-pm-label]', 'Time to pay off');
+        if (!isFinite(months)) {
+          set('[data-pm-main]', 'Never');
+          set('[data-pm-sub]', 'The payment does not cover the monthly interest — increase it.');
+        } else {
+          const y = Math.floor(months / 12), m = Math.round(months % 12);
+          set('[data-pm-main]', `${y}y ${m}m`);
+          set('[data-pm-sub]', `${Math.ceil(months)} monthly payments`);
+        }
+      }
+    }
+    root.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach((b) => b.addEventListener('click', () => {
+      mode = (b.dataset.mode as 'term' | 'payment') ?? 'term';
+      root.querySelectorAll('.mode-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      root.querySelector<HTMLElement>('[data-pm-term]')!.hidden = mode !== 'term';
+      root.querySelector<HTMLElement>('[data-pm-payment]')!.hidden = mode !== 'payment';
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

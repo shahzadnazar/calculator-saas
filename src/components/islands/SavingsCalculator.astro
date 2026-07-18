@@ -1,0 +1,89 @@
+---
+import { projectSavings, requiredMonthlyForGoal } from '@lib/calculators/savings';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+const d = { startingAmount: 1000, monthlyContribution: 300, annualRatePct: 4, years: 10, goal: 50000 };
+const proj = projectSavings({ startingAmount: d.startingAmount, monthlyContribution: d.monthlyContribution, annualRatePct: d.annualRatePct, years: d.years });
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-savings>
+  <form class="card p-5 sm:p-6" data-sv-form novalidate>
+    <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Mode" style="border-color: var(--line)">
+      <button type="button" class="mode-btn is-active" data-mode="project" role="radio" aria-checked="true">Project savings</button>
+      <button type="button" class="mode-btn" data-mode="goal" role="radio" aria-checked="false">Reach a goal</button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="sv-start">Starting amount</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="sv-start" name="startingAmount" type="number" min="0" step="100" value={d.startingAmount} inputmode="decimal" /></div>
+      </div>
+      <div data-sv-project>
+        <label class="field-label" for="sv-monthly">Monthly deposit</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="sv-monthly" name="monthlyContribution" type="number" min="0" step="50" value={d.monthlyContribution} inputmode="decimal" /></div>
+      </div>
+      <div data-sv-goal hidden>
+        <label class="field-label" for="sv-goalamt">Savings goal</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="sv-goalamt" name="goal" type="number" min="0" step="1000" value={d.goal} inputmode="decimal" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="sv-rate">Annual return</label>
+          <div class="flex"><input class="field rounded-r-none" id="sv-rate" name="annualRatePct" type="number" min="0" step="0.1" value={d.annualRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        </div>
+        <div>
+          <label class="field-label" for="sv-years">Years</label>
+          <input class="field" id="sv-years" name="years" type="number" min="1" step="1" value={d.years} inputmode="decimal" />
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card flex flex-col justify-center p-6 text-center">
+    <p class="text-sm font-semibold" style="color: var(--muted)" data-sv-label>Projected balance</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-sv-main>{formatCurrency(proj.futureValue)}</p>
+    <dl class="mt-5 space-y-2 border-t pt-4 text-left text-sm" style="border-color: var(--line)" data-sv-detail>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Total deposited</dt><dd class="font-semibold" data-sv-contrib>{formatCurrencyRounded(proj.totalContributions)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Interest earned</dt><dd class="font-semibold" style="color: var(--color-accent-600)" data-sv-interest>{formatCurrencyRounded(proj.totalInterest)}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<style>
+  .mode-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .mode-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { projectSavings, requiredMonthlyForGoal } from '@lib/calculators/savings';
+  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-savings]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-sv-form]')!;
+    let mode: 'project' | 'goal' = 'project';
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      if (mode === 'project') {
+        const r = projectSavings({ startingAmount: num('startingAmount'), monthlyContribution: num('monthlyContribution'), annualRatePct: num('annualRatePct'), years: num('years') });
+        set('[data-sv-label]', 'Projected balance');
+        set('[data-sv-main]', formatCurrency(r.futureValue));
+        set('[data-sv-contrib]', formatCurrencyRounded(r.totalContributions));
+        set('[data-sv-interest]', formatCurrencyRounded(r.totalInterest));
+        root.querySelector<HTMLElement>('[data-sv-detail]')!.hidden = false;
+      } else {
+        const m = requiredMonthlyForGoal({ goal: num('goal'), startingAmount: num('startingAmount'), annualRatePct: num('annualRatePct'), years: num('years') });
+        set('[data-sv-label]', 'Monthly deposit needed');
+        set('[data-sv-main]', formatCurrency(m));
+        root.querySelector<HTMLElement>('[data-sv-detail]')!.hidden = true;
+      }
+    }
+    root.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach((b) => b.addEventListener('click', () => {
+      mode = (b.dataset.mode as 'project' | 'goal') ?? 'project';
+      root.querySelectorAll('.mode-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      root.querySelector<HTMLElement>('[data-sv-project]')!.hidden = mode !== 'project';
+      root.querySelector<HTMLElement>('[data-sv-goal]')!.hidden = mode !== 'goal';
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>
