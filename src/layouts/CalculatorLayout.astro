@@ -14,6 +14,7 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import AdSlot from '@components/AdSlot.astro';
 import RelatedOffers from '@components/RelatedOffers.astro';
+import EmbedBox from '@components/EmbedBox.astro';
 import {
   type Calculator,
   getCategory,
@@ -190,5 +191,8 @@ const reviewedDisplay = reviewedOn
         </section>
       )
     }
+
+    <!-- Embed this calculator (authority/link program; renders only when enabled) -->
+    <EmbedBox calculator={calculator} />
   </div>
 </BaseLayout>

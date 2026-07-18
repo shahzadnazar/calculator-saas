@@ -25,7 +25,9 @@ export default defineConfig({
   integrations: [
     mdx(),
     sitemap({
-      filter: (page) => !page.includes('/404'),
+      // Exclude 404 and the chrome-less iframe embed pages (/embed/<cat>/<slug>,
+      // which are noindex). The indexable /embed landing page is kept.
+      filter: (page) => !page.includes('/404') && !page.includes('/embed/'),
       changefreq: 'weekly',
       priority: 0.7,
     }),

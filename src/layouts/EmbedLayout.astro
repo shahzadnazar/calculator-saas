@@ -1,0 +1,106 @@
+---
+/**
+ * EmbedLayout — a deliberately minimal, chrome-less shell for calculators shown
+ * inside an <iframe> on other websites (the embeddable-widget / authority play).
+ *
+ * - No header, footer or nav — just the tool and a small attribution line.
+ * - `noindex` + a canonical to the real page, so embed URLs never compete with
+ *   the canonical calculator pages for rankings.
+ * - Posts its height to the parent window so the host iframe auto-resizes.
+ */
+import '@styles/global.css';
+import { SITE, absoluteUrl } from '@config/site';
+
+interface Props {
+  /** Calculator title, e.g. "Mortgage Calculator". */
+  title: string;
+  /** Root-relative path of the canonical calculator page. */
+  canonicalPath: string;
+  /** Calculator slug — namespaces the resize message to this embed. */
+  slug: string;
+}
+const { title, canonicalPath, slug } = Astro.props;
+const canonicalUrl = absoluteUrl(canonicalPath);
+const langAttr = SITE.locale.split('_')[0];
+---
+
+<!doctype html>
+<html lang={langAttr}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} — {SITE.name}</title>
+    <meta name="robots" content="noindex, follow" />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="color-scheme" content="light dark" />
+  </head>
+  <body class="embed-body">
+    <main class="embed-main">
+      <h1 class="embed-title">{title}</h1>
+      <slot />
+    </main>
+    <footer class="embed-attribution">
+      <a href={canonicalUrl} target="_blank" rel="noopener">{title}</a>
+      <span aria-hidden="true"> · </span>
+      <span>Powered by <a href={SITE.url} target="_blank" rel="noopener">{SITE.name}</a></span>
+    </footer>
+
+    <script is:inline define:vars={{ slug }}>
+      // Report our height to the host page so the iframe can size to fit.
+      (function () {
+        var last = 0;
+        function post() {
+          var h = Math.ceil(document.documentElement.scrollHeight);
+          if (h === last) return;
+          last = h;
+          try {
+            parent.postMessage({ type: 'allcalc-resize', slug: slug, height: h }, '*');
+          } catch (e) {}
+        }
+        if ('ResizeObserver' in window) {
+          new ResizeObserver(post).observe(document.body);
+        }
+        window.addEventListener('load', post);
+        window.addEventListener('resize', post);
+        // A couple of delayed posts catch late layout (fonts, island hydration).
+        setTimeout(post, 200);
+        setTimeout(post, 800);
+      })();
+    </script>
+
+    <style>
+      .embed-body {
+        background: var(--bg, var(--card));
+        padding: 1rem;
+        margin: 0;
+      }
+      .embed-main {
+        max-width: 56rem;
+        margin: 0 auto;
+      }
+      .embed-title {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--heading);
+        margin: 0 0 1rem;
+      }
+      .embed-attribution {
+        max-width: 56rem;
+        margin: 1.25rem auto 0;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--line);
+        font-size: 0.8125rem;
+        color: var(--muted);
+        text-align: center;
+      }
+      .embed-attribution a {
+        color: var(--color-brand-600);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .embed-attribution a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </body>
+</html>

@@ -108,4 +108,4 @@ export const DIGITAL_PRODUCTS: StreamFlag = { enabled: false, note: 'Static prod
 /** Public API: the pure, tested calc logic in src/lib/calculators is API-ready. */
 export const PUBLIC_API: StreamFlag = { enabled: false, note: 'Expose src/lib/calculators via serverless functions.' };
 /** Embeddable widgets / white-label (also builds backlinks → authority). */
-export const EMBEDDABLE: StreamFlag = { enabled: false, note: 'iframe/script embed of islands; drives links + brand.' };
+export const EMBEDDABLE: StreamFlag = { enabled: true, note: 'iframe/script embed of islands; each embed carries an attribution backlink → authority + brand.' };

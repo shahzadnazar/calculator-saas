@@ -1,0 +1,122 @@
+---
+/**
+ * Renders the interactive island for a given calculator slug.
+ *
+ * Central slug -> island map so a single dynamic route (the embed pages) can
+ * render any calculator without a page per tool. Kept in one place because the
+ * mapping is not fully derivable from the slug (e.g. `password-generator` ->
+ * `PasswordGeneratorCalculator`, and both `statistics-calculator` and
+ * `standard-deviation-calculator` share `StatisticsCalculator`).
+ */
+import AgeCalculator from '@components/islands/AgeCalculator.astro';
+import AmortizationCalculator from '@components/islands/AmortizationCalculator.astro';
+import AreaCalculator from '@components/islands/AreaCalculator.astro';
+import AutoLoanCalculator from '@components/islands/AutoLoanCalculator.astro';
+import BmiCalculator from '@components/islands/BmiCalculator.astro';
+import BmrCalculator from '@components/islands/BmrCalculator.astro';
+import BodyFatCalculator from '@components/islands/BodyFatCalculator.astro';
+import CalorieCalculator from '@components/islands/CalorieCalculator.astro';
+import CompoundInterestCalculator from '@components/islands/CompoundInterestCalculator.astro';
+import ConcreteCalculator from '@components/islands/ConcreteCalculator.astro';
+import ConversionCalculator from '@components/islands/ConversionCalculator.astro';
+import CreditCardPayoffCalculator from '@components/islands/CreditCardPayoffCalculator.astro';
+import DateCalculator from '@components/islands/DateCalculator.astro';
+import DueDateCalculator from '@components/islands/DueDateCalculator.astro';
+import FatIntakeCalculator from '@components/islands/FatIntakeCalculator.astro';
+import FractionCalculator from '@components/islands/FractionCalculator.astro';
+import GpaCalculator from '@components/islands/GpaCalculator.astro';
+import GradeCalculator from '@components/islands/GradeCalculator.astro';
+import HomeEquityLoanCalculator from '@components/islands/HomeEquityLoanCalculator.astro';
+import HoursCalculator from '@components/islands/HoursCalculator.astro';
+import IdealWeightCalculator from '@components/islands/IdealWeightCalculator.astro';
+import IncomeTaxCalculator from '@components/islands/IncomeTaxCalculator.astro';
+import InflationCalculator from '@components/islands/InflationCalculator.astro';
+import InterestCalculator from '@components/islands/InterestCalculator.astro';
+import InterestRateCalculator from '@components/islands/InterestRateCalculator.astro';
+import InvestmentCalculator from '@components/islands/InvestmentCalculator.astro';
+import LoanCalculator from '@components/islands/LoanCalculator.astro';
+import MortgageCalculator from '@components/islands/MortgageCalculator.astro';
+import PaceCalculator from '@components/islands/PaceCalculator.astro';
+import PasswordGeneratorCalculator from '@components/islands/PasswordGeneratorCalculator.astro';
+import PaymentCalculator from '@components/islands/PaymentCalculator.astro';
+import PercentCalculator from '@components/islands/PercentCalculator.astro';
+import PregnancyCalculator from '@components/islands/PregnancyCalculator.astro';
+import ProteinCalculator from '@components/islands/ProteinCalculator.astro';
+import RandomNumberGenerator from '@components/islands/RandomNumberGenerator.astro';
+import RetirementCalculator from '@components/islands/RetirementCalculator.astro';
+import SalaryCalculator from '@components/islands/SalaryCalculator.astro';
+import SalesTaxCalculator from '@components/islands/SalesTaxCalculator.astro';
+import SavingsCalculator from '@components/islands/SavingsCalculator.astro';
+import ScientificCalculator from '@components/islands/ScientificCalculator.astro';
+import SimpleInterestCalculator from '@components/islands/SimpleInterestCalculator.astro';
+import SquareFootageCalculator from '@components/islands/SquareFootageCalculator.astro';
+import StatisticsCalculator from '@components/islands/StatisticsCalculator.astro';
+import TargetHeartRateCalculator from '@components/islands/TargetHeartRateCalculator.astro';
+import TimeCalculator from '@components/islands/TimeCalculator.astro';
+import TipCalculator from '@components/islands/TipCalculator.astro';
+import TriangleCalculator from '@components/islands/TriangleCalculator.astro';
+import VolumeCalculator from '@components/islands/VolumeCalculator.astro';
+
+// Loosely typed on purpose: a heterogeneous component map rendered dynamically.
+const ISLANDS: Record<string, any> = {
+  'age-calculator': AgeCalculator,
+  'amortization-calculator': AmortizationCalculator,
+  'area-calculator': AreaCalculator,
+  'auto-loan-calculator': AutoLoanCalculator,
+  'bmi-calculator': BmiCalculator,
+  'bmr-calculator': BmrCalculator,
+  'body-fat-calculator': BodyFatCalculator,
+  'calorie-calculator': CalorieCalculator,
+  'compound-interest-calculator': CompoundInterestCalculator,
+  'concrete-calculator': ConcreteCalculator,
+  'conversion-calculator': ConversionCalculator,
+  'credit-card-payoff-calculator': CreditCardPayoffCalculator,
+  'date-calculator': DateCalculator,
+  'due-date-calculator': DueDateCalculator,
+  'fat-intake-calculator': FatIntakeCalculator,
+  'fraction-calculator': FractionCalculator,
+  'gpa-calculator': GpaCalculator,
+  'grade-calculator': GradeCalculator,
+  'home-equity-loan-calculator': HomeEquityLoanCalculator,
+  'hours-calculator': HoursCalculator,
+  'ideal-weight-calculator': IdealWeightCalculator,
+  'income-tax-calculator': IncomeTaxCalculator,
+  'inflation-calculator': InflationCalculator,
+  'interest-calculator': InterestCalculator,
+  'interest-rate-calculator': InterestRateCalculator,
+  'investment-calculator': InvestmentCalculator,
+  'loan-calculator': LoanCalculator,
+  'mortgage-calculator': MortgageCalculator,
+  'pace-calculator': PaceCalculator,
+  'password-generator': PasswordGeneratorCalculator,
+  'payment-calculator': PaymentCalculator,
+  'percent-calculator': PercentCalculator,
+  'pregnancy-calculator': PregnancyCalculator,
+  'protein-calculator': ProteinCalculator,
+  'random-number-generator': RandomNumberGenerator,
+  'retirement-calculator': RetirementCalculator,
+  'salary-calculator': SalaryCalculator,
+  'sales-tax-calculator': SalesTaxCalculator,
+  'savings-calculator': SavingsCalculator,
+  'scientific-calculator': ScientificCalculator,
+  'simple-interest-calculator': SimpleInterestCalculator,
+  'square-footage-calculator': SquareFootageCalculator,
+  'statistics-calculator': StatisticsCalculator,
+  'standard-deviation-calculator': StatisticsCalculator,
+  'triangle-calculator': TriangleCalculator,
+  'target-heart-rate-calculator': TargetHeartRateCalculator,
+  'time-calculator': TimeCalculator,
+  'tip-calculator': TipCalculator,
+  'volume-calculator': VolumeCalculator,
+};
+
+interface Props {
+  slug: string;
+}
+const { slug } = Astro.props;
+const Island = ISLANDS[slug];
+// Standard-deviation reuses the statistics island but features the SD result.
+const islandProps = slug === 'standard-deviation-calculator' ? { primary: 'sd' } : {};
+---
+
+{Island && <Island {...islandProps} />}

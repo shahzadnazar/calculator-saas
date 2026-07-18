@@ -1,0 +1,82 @@
+---
+/**
+ * "Embed this calculator" box — gives site owners a copy-paste snippet to put
+ * the calculator on their own page. This is the authority/link engine: the
+ * snippet includes an attribution link *in the host page's DOM* (outside the
+ * iframe), which is a real backlink — a link inside the iframe would not count.
+ *
+ * Renders only when the embeddable stream is enabled (see monetization config).
+ */
+import { EMBEDDABLE } from '@config/monetization';
+import { SITE, absoluteUrl } from '@config/site';
+import { type Calculator, calculatorPath } from '@data/calculators';
+
+interface Props {
+  calculator: Calculator;
+}
+const { calculator } = Astro.props;
+
+const embedUrl = absoluteUrl(`/embed/${calculator.category}/${calculator.slug}`);
+const canonicalUrl = absoluteUrl(calculatorPath(calculator));
+const iframeId = `allcalc-${calculator.slug}`;
+
+const snippet = [
+  `<iframe src="${embedUrl}" title="${calculator.title} by ${SITE.name}" loading="lazy" style="width:100%;border:0;height:640px" id="${iframeId}"></iframe>`,
+  `<script>window.addEventListener("message",function(e){if(e.data&&e.data.type==="allcalc-resize"&&e.data.slug==="${calculator.slug}"){var f=document.getElementById("${iframeId}");if(f)f.style.height=e.data.height+"px";}});</script>`,
+  `<p style="font:13px/1.5 sans-serif">Free <a href="${canonicalUrl}">${calculator.title}</a> by ${SITE.name}</p>`,
+].join('\n');
+---
+
+{
+  EMBEDDABLE.enabled && (
+    <section class="mt-16 max-w-3xl" aria-labelledby="embed-heading">
+      <details class="card group px-5 py-4">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 font-semibold" style="color: var(--heading)">
+          <span id="embed-heading">Embed this calculator on your site — free</span>
+          <span class="shrink-0 transition-transform group-open:rotate-45" style="color: var(--color-brand-600)" aria-hidden="true">+</span>
+        </summary>
+        <div class="mt-4">
+          <p class="text-sm" style="color: var(--fg)">
+            Add this free, mobile-friendly {calculator.title} to your own website. Paste the code where you
+            want it to appear — the tool stays up to date automatically, and the frame resizes to fit.
+          </p>
+          <label class="sr-only" for={`embed-code-${calculator.slug}`}>Embed code</label>
+          <textarea
+            id={`embed-code-${calculator.slug}`}
+            class="field mt-3 min-h-32 font-mono text-xs"
+            rows="6"
+            readonly
+            spellcheck="false"
+            data-embed-code
+          >{snippet}</textarea>
+          <button type="button" class="btn btn-primary mt-2" data-embed-copy>Copy embed code</button>
+          <p class="mt-2 text-xs" style="color: var(--muted)">
+            Please keep the attribution link — it's what keeps these calculators free to use and embed.
+          </p>
+        </div>
+      </details>
+    </section>
+  )
+}
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-embed-copy]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const box = btn.closest('details');
+      const ta = box?.querySelector<HTMLTextAreaElement>('[data-embed-code]');
+      if (!ta) return;
+      const done = () => {
+        const original = 'Copy embed code';
+        btn.textContent = 'Copied!';
+        setTimeout(() => (btn.textContent = original), 1500);
+      };
+      try {
+        await navigator.clipboard.writeText(ta.value);
+        done();
+      } catch {
+        // Clipboard API unavailable — select the code so it can be copied manually.
+        ta.select();
+      }
+    });
+  });
+</script>

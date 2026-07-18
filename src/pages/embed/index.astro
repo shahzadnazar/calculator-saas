@@ -1,0 +1,126 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import { EMBEDDABLE } from '@config/monetization';
+import { breadcrumbSchema } from '@lib/schema';
+import { getLiveCalculators, calculatorPath } from '@data/calculators';
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: 'Embed calculators', path: '/embed' },
+];
+
+// A few popular calculators to link as starting points.
+const featuredSlugs = [
+  'finance/mortgage-calculator',
+  'finance/tip-calculator',
+  'health/bmi-calculator',
+  'math/percent-calculator',
+  'everyday/age-calculator',
+  'finance/loan-calculator',
+];
+const featured = featuredSlugs
+  .map((ref) => {
+    const [cat, slug] = ref.split('/');
+    return getLiveCalculators().find((c) => c.category === cat && c.slug === slug);
+  })
+  .filter((c): c is NonNullable<typeof c> => Boolean(c));
+
+// Root-relative so the demo loads on whatever origin serves the page (local,
+// staging or production). The copyable snippet on each calculator page uses the
+// absolute URL, since that is pasted onto other people's sites.
+const demoSrc = '/embed/finance/tip-calculator';
+---
+
+<BaseLayout
+  title="Embed Our Calculators on Your Site — Free"
+  description="Add any AllCalculators tool to your own website for free with one line of code. Mobile-friendly, always up to date, and auto-resizing — just keep the attribution link."
+  path="/embed"
+  jsonLd={[breadcrumbSchema(crumbs)]}
+>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+
+    <header class="mt-5 max-w-3xl">
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Embed our calculators — free</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">
+        Put any of our {getLiveCalculators().length} calculators on your own website, blog or intranet with a
+        single snippet. They're fast, mobile-friendly and maintained by us — so they stay accurate without any
+        work on your end.
+      </p>
+    </header>
+
+    {
+      !EMBEDDABLE.enabled && (
+        <p class="mt-8 max-w-3xl rounded-lg border p-4 text-sm" style="border-color: var(--line); color: var(--muted)">
+          Embedding is being finalised and will be available shortly.
+        </p>
+      )
+    }
+
+    <div class="prose mt-8">
+      <h2>How it works</h2>
+      <ol>
+        <li>Open the calculator you want on this site.</li>
+        <li>Scroll to <strong>“Embed this calculator on your site”</strong> and copy the code.</li>
+        <li>Paste it into your page's HTML where you want the tool to appear.</li>
+      </ol>
+      <p>
+        That's it. The calculator loads in a lightweight frame that <strong>resizes itself to fit</strong>, works
+        on every screen size, and always reflects our latest version — no scripts to maintain or update.
+      </p>
+
+      <h2>Why embed ours</h2>
+      <ul>
+        <li><strong>Free</strong> — no account, no fee, no catch. Just keep the small attribution link.</li>
+        <li><strong>Always current</strong> — we maintain the formulas and fix issues; your embed updates automatically.</li>
+        <li><strong>Fast &amp; private</strong> — near-zero JavaScript, and the calculations run in the visitor's browser.</li>
+        <li><strong>Accessible &amp; mobile-friendly</strong> — built to the same quality bar as the rest of the site.</li>
+      </ul>
+    </div>
+
+    <!-- Live demo -->
+    <section class="mt-10 max-w-3xl" aria-labelledby="demo-heading">
+      <h2 id="demo-heading" class="text-2xl font-bold">Live example</h2>
+      <p class="mt-2 text-sm" style="color: var(--muted)">
+        This is the Tip Calculator, embedded exactly as it would appear on your site:
+      </p>
+      <div class="mt-4 overflow-hidden rounded-2xl border" style="border-color: var(--line)">
+        <iframe
+          src={demoSrc}
+          title="Tip Calculator by AllCalculators"
+          loading="lazy"
+          style="width:100%;border:0;height:560px;display:block"
+          id="allcalc-demo"></iframe>
+      </div>
+    </section>
+
+    <!-- Popular starting points -->
+    <section class="mt-12" aria-labelledby="popular-heading">
+      <h2 id="popular-heading" class="text-2xl font-bold">Popular calculators to embed</h2>
+      <ul class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {
+          featured.map((c) => (
+            <li>
+              <a href={calculatorPath(c)} class="card flex h-full flex-col gap-1 p-4 transition-shadow hover:shadow-lg">
+                <span class="font-semibold" style="color: var(--heading)">{c.title}</span>
+                <span class="text-sm" style="color: var(--muted)">{c.description}</span>
+                <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Get the embed code →</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+  </div>
+</BaseLayout>
+
+<script is:inline>
+  // Resize the demo iframe to fit the embedded Tip Calculator.
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.type === 'allcalc-resize' && e.data.slug === 'tip-calculator') {
+      var f = document.getElementById('allcalc-demo');
+      if (f) f.style.height = e.data.height + 'px';
+    }
+  });
+</script>
