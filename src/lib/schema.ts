@@ -118,6 +118,35 @@ export function articleSchema(opts: {
   };
 }
 
+/**
+ * CollectionPage schema for a topic hub — an ItemList of the member calculators.
+ * Helps search engines understand the page as a curated collection.
+ */
+export function collectionPageSchema(opts: {
+  name: string;
+  description: string;
+  path: string;
+  items: { name: string; path: string }[];
+}): Schema {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: opts.name,
+    description: opts.description,
+    url: absoluteUrl(opts.path),
+    isPartOf: { '@id': `${SITE.url}/#website` },
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: opts.items.map((it, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: it.name,
+        url: absoluteUrl(it.path),
+      })),
+    },
+  };
+}
+
 /** FAQPage schema from question/answer pairs (answers are plain text). */
 export function faqSchema(faqs: { question: string; answer: string }[]): Schema {
   return {

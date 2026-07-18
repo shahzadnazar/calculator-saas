@@ -1,0 +1,111 @@
+---
+import type { GetStaticPaths } from 'astro';
+import { getCollection } from 'astro:content';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import { CLUSTERS, type Cluster, clusterPath } from '@data/clusters';
+import { getCalculator, calculatorPath } from '@data/calculators';
+import { breadcrumbSchema, collectionPageSchema } from '@lib/schema';
+
+export const getStaticPaths = (() => {
+  return CLUSTERS.map((cluster) => ({
+    params: { slug: cluster.slug },
+    props: { cluster },
+  }));
+}) satisfies GetStaticPaths;
+
+interface Props {
+  cluster: Cluster;
+}
+const { cluster } = Astro.props;
+const path = clusterPath(cluster);
+
+// Resolve member calculators from the registry (live only), keeping order + note.
+const members = cluster.members
+  .map((m) => {
+    const [cat, slug] = m.ref.split('/');
+    const calc = getCalculator(cat, slug);
+    return calc && calc.status === 'live' ? { calc, use: m.use } : null;
+  })
+  .filter((x): x is { calc: NonNullable<ReturnType<typeof getCalculator>>; use: string } => x !== null);
+
+// Resolve related guides in the order listed.
+const allGuides = await getCollection('guides', ({ data }) => !data.draft);
+const guides = cluster.guides
+  .map((id) => allGuides.find((g) => g.id === id))
+  .filter((g): g is NonNullable<typeof g> => Boolean(g));
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: 'Topics', path: '/topics' },
+  { name: cluster.shortName, path },
+];
+
+const jsonLd = [
+  breadcrumbSchema(crumbs),
+  collectionPageSchema({
+    name: cluster.title,
+    description: cluster.description,
+    path,
+    items: members.map((m) => ({ name: m.calc.title, path: calculatorPath(m.calc) })),
+  }),
+];
+---
+
+<BaseLayout title={cluster.title} description={cluster.description} path={path} jsonLd={jsonLd}>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+
+    <header class="mt-5 max-w-3xl">
+      <div class="text-4xl" aria-hidden="true">{cluster.icon}</div>
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{cluster.title}</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">{cluster.intro}</p>
+    </header>
+
+    <div class="prose mt-8">
+      {cluster.body.map((para) => <p set:html={para} />)}
+    </div>
+
+    <!-- Decision guide: the member calculators with a "use when" note each -->
+    <section class="mt-10" aria-labelledby="tools-heading">
+      <h2 id="tools-heading" class="text-2xl font-bold">Which calculator should I use?</h2>
+      <ul class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {
+          members.map((m) => (
+            <li>
+              <a
+                href={calculatorPath(m.calc)}
+                class="card flex h-full flex-col gap-1 p-5 transition-shadow hover:shadow-lg"
+              >
+                <span class="text-lg font-bold" style="color: var(--heading)">{m.calc.title}</span>
+                <span class="text-sm" style="color: var(--fg)">{m.use}</span>
+                <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Open calculator →</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    {
+      guides.length > 0 && (
+        <section class="mt-14 max-w-3xl" aria-labelledby="guides-heading">
+          <h2 id="guides-heading" class="text-2xl font-bold">Guides on this topic</h2>
+          <ul class="mt-5 space-y-3">
+            {guides.map((g) => (
+              <li>
+                <a href={`/guides/${g.id}`} class="card flex items-center justify-between gap-4 p-4 transition-shadow hover:shadow-lg">
+                  <span>
+                    <span class="font-semibold" style="color: var(--heading)">{g.data.title}</span>
+                    <span class="mt-0.5 block text-sm" style="color: var(--muted)">{g.data.description}</span>
+                  </span>
+                  <span aria-hidden="true" style="color: var(--color-brand-600)">→</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+  </div>
+</BaseLayout>

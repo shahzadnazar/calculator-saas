@@ -21,6 +21,7 @@ import {
   calculatorPath,
   categoryPath,
 } from '@data/calculators';
+import { getClustersForCalculator, clusterPath } from '@data/clusters';
 import { calculatorSchema, breadcrumbSchema, faqSchema } from '@lib/schema';
 
 interface FAQ {
@@ -41,6 +42,7 @@ const { calculator, intro, faqs = [], reviewedOn } = Astro.props;
 const category = getCategory(calculator.category)!;
 const path = calculatorPath(calculator);
 const related = getRelatedCalculators(calculator);
+const clusters = getClustersForCalculator(calculator.category, calculator.slug);
 
 // Guides that reference this calculator — bidirectional internal linking.
 const calcRef = `${calculator.category}/${calculator.slug}`;
@@ -80,9 +82,17 @@ const reviewedDisplay = reviewedOn
     <Breadcrumbs crumbs={crumbs} />
 
     <header class="mt-5 max-w-3xl">
-      <div class="flex items-center gap-2 text-sm font-semibold" style="color: var(--color-brand-600)">
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
         <span aria-hidden="true">{category.icon}</span>
         <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
+        {
+          clusters.map((cl) => (
+            <Fragment>
+              <span aria-hidden="true" style="color: var(--muted)">·</span>
+              <a href={clusterPath(cl)} class="hover:underline">{cl.title}</a>
+            </Fragment>
+          ))
+        }
       </div>
       <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
         {calculator.title}
