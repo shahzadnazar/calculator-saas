@@ -1,0 +1,74 @@
+---
+import { CATEGORIES, convert } from '@lib/calculators/conversion';
+import { formatNumber } from '@lib/format';
+
+const initialCategory = CATEGORIES[0]; // length
+const from = 'km';
+const to = 'mi';
+const value = 1;
+const result = convert(value, from, to, initialCategory.key);
+---
+
+<div class="mx-auto w-full max-w-3xl" data-convert>
+  <div class="card p-5 sm:p-6">
+    <label class="field-label" for="cv-cat">Category</label>
+    <select class="field" id="cv-cat" data-cv-cat>
+      {CATEGORIES.map((c) => (<option value={c.key} selected={c.key === initialCategory.key}>{c.label}</option>))}
+    </select>
+
+    <div class="mt-5 grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+      <div>
+        <label class="field-label" for="cv-value">From</label>
+        <input class="field" id="cv-value" data-cv-value type="number" step="any" value={value} inputmode="decimal" />
+        <select class="field mt-2" data-cv-from aria-label="From unit">
+          {initialCategory.units.map((u) => (<option value={u.key} selected={u.key === from}>{u.label}</option>))}
+        </select>
+      </div>
+      <div class="hidden pb-9 text-center text-xl sm:block" style="color: var(--muted)" aria-hidden="true">→</div>
+      <div>
+        <label class="field-label" for="cv-result">To</label>
+        <input class="field font-bold" id="cv-result" data-cv-result value={formatNumber(result, 6)} readonly aria-label="Result" />
+        <select class="field mt-2" data-cv-to aria-label="To unit">
+          {initialCategory.units.map((u) => (<option value={u.key} selected={u.key === to}>{u.label}</option>))}
+        </select>
+      </div>
+    </div>
+    <p class="mt-4 text-center text-sm" style="color: var(--muted)" data-cv-summary></p>
+  </div>
+</div>
+
+<script>
+  import { CATEGORIES, convert } from '@lib/calculators/conversion';
+  const nf = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(v));
+  const catMap = new Map(CATEGORIES.map((c) => [c.key, c]));
+
+  document.querySelectorAll<HTMLElement>('[data-convert]').forEach((root) => {
+    const catSel = root.querySelector<HTMLSelectElement>('[data-cv-cat]')!;
+    const fromSel = root.querySelector<HTMLSelectElement>('[data-cv-from]')!;
+    const toSel = root.querySelector<HTMLSelectElement>('[data-cv-to]')!;
+    const valueEl = root.querySelector<HTMLInputElement>('[data-cv-value]')!;
+    const resultEl = root.querySelector<HTMLInputElement>('[data-cv-result]')!;
+    const summary = root.querySelector<HTMLElement>('[data-cv-summary]')!;
+
+    function fillUnits() {
+      const cat = catMap.get(catSel.value)!;
+      const opts = cat.units.map((u) => `<option value="${u.key}">${u.label}</option>`).join('');
+      fromSel.innerHTML = opts;
+      toSel.innerHTML = opts;
+      // sensible defaults: first two distinct units
+      fromSel.selectedIndex = 0;
+      toSel.selectedIndex = Math.min(1, cat.units.length - 1);
+    }
+    function recompute() {
+      const value = Number(valueEl.value) || 0;
+      const r = convert(value, fromSel.value, toSel.value, catSel.value);
+      resultEl.value = nf(r);
+      const fromLabel = fromSel.options[fromSel.selectedIndex]?.text ?? '';
+      const toLabel = toSel.options[toSel.selectedIndex]?.text ?? '';
+      summary.textContent = Number.isNaN(r) ? '' : `${nf(value)} ${fromLabel} = ${nf(r)} ${toLabel}`;
+    }
+    catSel.addEventListener('change', () => { fillUnits(); recompute(); });
+    [fromSel, toSel, valueEl].forEach((el) => el.addEventListener('input', recompute));
+    recompute();
+  });
+</script>

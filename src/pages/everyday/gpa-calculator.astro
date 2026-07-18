@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import GpaCalculator from '@components/islands/GpaCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('everyday', 'gpa-calculator')!;
+const faqs = [
+  { question: 'How is GPA calculated?', answer: 'Each letter grade is worth a number of grade points (A = 4.0, B = 3.0, and so on). Multiply each course\'s grade points by its credit hours, add those up, and divide by the total credits. This calculator does it as you add courses.' },
+  { question: 'What is a good GPA?', answer: 'On a 4.0 scale, 3.0 is generally considered good (roughly a B average) and 3.5+ is very strong. Requirements vary by school and program.' },
+  { question: 'How do credit hours affect my GPA?', answer: 'Higher-credit courses count more toward your GPA because the grade is weighted by credits. A top grade in a 4-credit course moves your GPA more than the same grade in a 1-credit course.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate your grade point average on the 4.0 scale. Add each course's grade and credit hours to see your weighted GPA update instantly." faqs={faqs}>
+  <GpaCalculator />
+  <Fragment slot="content">
+    <h2>How to calculate your GPA</h2>
+    <p>Add a row for each course, choose its letter grade, and enter its credit hours. The calculator converts grades to grade points, weights them by credits, and shows your cumulative GPA and total credits.</p>
+    <h2>Weighting by credits</h2>
+    <p>GPA is a <em>weighted</em> average: courses worth more credits pull harder on the result. That is why a strong grade in a heavy course helps more — and a weak one hurts more — than in a light one. To work out an individual course grade from assignments, use the <a href="/everyday/grade-calculator">grade calculator</a>.</p>
+    <p>This uses the standard unweighted 4.0 scale; your institution's scale may differ.</p>
+  </Fragment>
+</CalculatorLayout>

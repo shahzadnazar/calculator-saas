@@ -1,0 +1,114 @@
+---
+import { weightedGrade, finalScoreNeeded } from '@lib/calculators/grade';
+import { formatNumber } from '@lib/format';
+
+const initialItems = [
+  { score: 92, weight: 20 },
+  { score: 85, weight: 30 },
+  { score: 78, weight: 50 },
+];
+const wg = weightedGrade(initialItems);
+const needed = finalScoreNeeded(88, 30, 90);
+---
+
+<div class="mx-auto w-full max-w-3xl" data-grade>
+  <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Mode" style="border-color: var(--line)">
+    <button type="button" class="gmode-btn is-active" data-gmode="average" role="radio" aria-checked="true">Weighted average</button>
+    <button type="button" class="gmode-btn" data-gmode="final" role="radio" aria-checked="false">Final grade needed</button>
+  </div>
+
+  <!-- Weighted average -->
+  <div class="card p-5 sm:p-6" data-grade-average>
+    <div class="grid grid-cols-[1fr_1fr_auto] items-center gap-3 border-b pb-2 text-xs font-semibold" style="border-color: var(--line); color: var(--muted)">
+      <span>Score (%)</span><span>Weight</span><span></span>
+    </div>
+    <div data-grade-rows>
+      {initialItems.map((it) => (
+        <div class="grid grid-cols-[1fr_1fr_auto] items-center gap-3 py-2" data-grade-row>
+          <input class="field" data-grade-score type="number" min="0" step="1" value={it.score} aria-label="Score" inputmode="decimal" />
+          <input class="field" data-grade-weight type="number" min="0" step="1" value={it.weight} aria-label="Weight" inputmode="decimal" />
+          <button type="button" class="grid h-9 w-9 place-items-center rounded-lg border" style="border-color: var(--line); color: var(--color-danger)" data-grade-remove aria-label="Remove">×</button>
+        </div>
+      ))}
+    </div>
+    <button type="button" class="btn btn-secondary mt-3" data-grade-add>+ Add item</button>
+    <div class="mt-6 border-t pt-5 text-center" style="border-color: var(--line)">
+      <p class="text-sm" style="color: var(--muted)">Current weighted grade</p>
+      <p class="text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-grade-avg>{formatNumber(wg.grade, 2)}</span>%</p>
+    </div>
+  </div>
+
+  <!-- Final needed -->
+  <div class="card p-5 sm:p-6" data-grade-final hidden>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <div><label class="field-label" for="gf-current">Current grade (%)</label><input class="field" id="gf-current" name="current" type="number" min="0" value="88" inputmode="decimal" /></div>
+      <div><label class="field-label" for="gf-weight">Final worth (%)</label><input class="field" id="gf-weight" name="finalWeight" type="number" min="0" max="100" value="30" inputmode="decimal" /></div>
+      <div><label class="field-label" for="gf-target">Target grade (%)</label><input class="field" id="gf-target" name="target" type="number" min="0" value="90" inputmode="decimal" /></div>
+    </div>
+    <div class="mt-6 border-t pt-5 text-center" style="border-color: var(--line)">
+      <p class="text-sm" style="color: var(--muted)">Score needed on the final</p>
+      <p class="text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-grade-needed>{formatNumber(needed, 1)}</span>%</p>
+      <p class="mt-2 text-sm" data-grade-note></p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gmode-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .gmode-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { weightedGrade, finalScoreNeeded } from '@lib/calculators/grade';
+  const nf = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(v));
+  document.querySelectorAll<HTMLElement>('[data-grade]').forEach((root) => {
+    const avgPanel = root.querySelector<HTMLElement>('[data-grade-average]')!;
+    const finalPanel = root.querySelector<HTMLElement>('[data-grade-final]')!;
+    const rowsEl = root.querySelector<HTMLElement>('[data-grade-rows]')!;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+
+    function recomputeAvg() {
+      const items = Array.from(rowsEl.querySelectorAll<HTMLElement>('[data-grade-row]')).map((r) => ({
+        score: Number(r.querySelector<HTMLInputElement>('[data-grade-score]')!.value) || 0,
+        weight: Number(r.querySelector<HTMLInputElement>('[data-grade-weight]')!.value) || 0,
+      }));
+      set('[data-grade-avg]', nf(weightedGrade(items).grade));
+    }
+    function recomputeFinal() {
+      const val = (n: string) => Number((finalPanel.querySelector(`[name="${n}"]`) as HTMLInputElement).value) || 0;
+      const need = finalScoreNeeded(val('current'), val('finalWeight'), val('target'));
+      set('[data-grade-needed]', nf(need));
+      const note = root.querySelector<HTMLElement>('[data-grade-note]')!;
+      if (Number.isNaN(need)) { note.textContent = ''; }
+      else if (need > 100) { note.textContent = 'That target is not reachable with this final alone.'; note.style.color = 'var(--color-danger)'; }
+      else if (need <= 0) { note.textContent = 'You have already secured your target.'; note.style.color = 'var(--color-accent-600)'; }
+      else { note.textContent = 'Achievable — aim for this score.'; note.style.color = 'var(--muted)'; }
+    }
+
+    root.querySelector('[data-grade-add]')!.addEventListener('click', () => {
+      const rows = rowsEl.querySelectorAll('[data-grade-row]');
+      const clone = rows[rows.length - 1].cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('input').forEach((i) => (i.value = ''));
+      rowsEl.appendChild(clone);
+      recomputeAvg();
+    });
+    rowsEl.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-grade-remove]');
+      if (!btn) return;
+      if (rowsEl.querySelectorAll('[data-grade-row]').length > 1) btn.closest('[data-grade-row]')!.remove();
+      recomputeAvg();
+    });
+    rowsEl.addEventListener('input', recomputeAvg);
+    finalPanel.addEventListener('input', recomputeFinal);
+
+    root.querySelectorAll<HTMLButtonElement>('.gmode-btn').forEach((b) => b.addEventListener('click', () => {
+      const mode = b.dataset.gmode;
+      root.querySelectorAll('.gmode-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      avgPanel.hidden = mode !== 'average';
+      finalPanel.hidden = mode !== 'final';
+    }));
+
+    recomputeAvg();
+    recomputeFinal();
+  });
+</script>

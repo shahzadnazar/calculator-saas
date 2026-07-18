@@ -1,0 +1,20 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import GradeCalculator from '@components/islands/GradeCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('everyday', 'grade-calculator')!;
+const faqs = [
+  { question: 'How do I calculate my weighted grade?', answer: 'Multiply each assessment\'s score by its weight, add those up, and divide by the total weight. The "Weighted average" mode does this — add a row for each assignment, test or project with its score and weight.' },
+  { question: 'What grade do I need on the final?', answer: 'Switch to "Final grade needed" mode. Enter your current grade, how much the final is worth, and your target grade, and the calculator tells you the score you need on the final.' },
+  { question: 'What if the needed score is over 100%?', answer: 'It means your target is not reachable with the final alone. The calculator flags this so you can set a realistic goal.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Work out your weighted course grade from assignments and tests, or find exactly what you need to score on the final to reach your target." faqs={faqs}>
+  <GradeCalculator />
+  <Fragment slot="content">
+    <h2>Two grade tools in one</h2>
+    <p><strong>Weighted average</strong> combines your scores by their weights to show your current grade. <strong>Final grade needed</strong> works backwards from a target: enter your current grade and the final's weight, and it tells you the score required.</p>
+    <h2>Understanding weights</h2>
+    <p>Assessments rarely count equally — a final exam might be worth 30% while a quiz is 5%. Weighting reflects that, so a high score on a heavily weighted item matters most. To combine grades across whole courses into a GPA, use the <a href="/everyday/gpa-calculator">GPA calculator</a>.</p>
+  </Fragment>
+</CalculatorLayout>

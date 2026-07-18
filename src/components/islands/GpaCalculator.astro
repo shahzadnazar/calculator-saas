@@ -1,0 +1,71 @@
+---
+import { GRADE_POINTS } from '@lib/calculators/gpa';
+
+const initialRows = [
+  { grade: 4.0, credits: 3 },
+  { grade: 3.7, credits: 4 },
+  { grade: 3.0, credits: 3 },
+];
+---
+
+<div class="mx-auto w-full max-w-3xl" data-gpa>
+  <div class="card p-5 sm:p-6">
+    <div class="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b pb-2 text-xs font-semibold" style="border-color: var(--line); color: var(--muted)">
+      <span>Grade</span><span>Credits</span><span></span>
+    </div>
+    <div data-gpa-rows>
+      {initialRows.map((row) => (
+        <div class="grid grid-cols-[1fr_auto_auto] items-center gap-3 py-2" data-gpa-row>
+          <select class="field" data-gpa-grade aria-label="Grade">
+            {GRADE_POINTS.map((g) => (<option value={g.value} selected={g.value === row.grade}>{g.label} ({g.value.toFixed(1)})</option>))}
+          </select>
+          <input class="field w-20 text-center" data-gpa-credits type="number" min="0" step="0.5" value={row.credits} aria-label="Credits" inputmode="decimal" />
+          <button type="button" class="grid h-9 w-9 place-items-center rounded-lg border" style="border-color: var(--line); color: var(--color-danger)" data-gpa-remove aria-label="Remove course">×</button>
+        </div>
+      ))}
+    </div>
+    <button type="button" class="btn btn-secondary mt-3" data-gpa-add>+ Add course</button>
+
+    <div class="mt-6 flex items-center justify-between border-t pt-5" style="border-color: var(--line)">
+      <div>
+        <p class="text-sm" style="color: var(--muted)">Your GPA</p>
+        <p class="text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-gpa-value>—</p>
+      </div>
+      <p class="text-sm" style="color: var(--muted)"><span data-gpa-credits-total>0</span> total credits</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { calculateGPA } from '@lib/calculators/gpa';
+  document.querySelectorAll<HTMLElement>('[data-gpa]').forEach((root) => {
+    const rowsEl = root.querySelector<HTMLElement>('[data-gpa-rows]')!;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+
+    function recompute() {
+      const courses = Array.from(rowsEl.querySelectorAll<HTMLElement>('[data-gpa-row]')).map((r) => ({
+        gradePoints: Number(r.querySelector<HTMLSelectElement>('[data-gpa-grade]')!.value),
+        credits: Number(r.querySelector<HTMLInputElement>('[data-gpa-credits]')!.value) || 0,
+      }));
+      const g = calculateGPA(courses);
+      set('[data-gpa-value]', Number.isNaN(g.gpa) ? '—' : g.gpa.toFixed(2));
+      set('[data-gpa-credits-total]', String(g.totalCredits));
+    }
+
+    root.querySelector('[data-gpa-add]')!.addEventListener('click', () => {
+      const rows = rowsEl.querySelectorAll('[data-gpa-row]');
+      const clone = rows[rows.length - 1].cloneNode(true) as HTMLElement;
+      clone.querySelector<HTMLInputElement>('[data-gpa-credits]')!.value = '3';
+      rowsEl.appendChild(clone);
+      recompute();
+    });
+    rowsEl.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-gpa-remove]');
+      if (!btn) return;
+      if (rowsEl.querySelectorAll('[data-gpa-row]').length > 1) btn.closest('[data-gpa-row]')!.remove();
+      recompute();
+    });
+    rowsEl.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

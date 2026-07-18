@@ -1,0 +1,20 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import ConversionCalculator from '@components/islands/ConversionCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('everyday', 'conversion-calculator')!;
+const faqs = [
+  { question: 'What units can I convert?', answer: 'Length, weight/mass, volume, area, speed, digital storage and temperature. Pick a category, choose your "from" and "to" units, and enter a value — the result updates instantly.' },
+  { question: 'How is temperature converted?', answer: 'Temperature uses formulas rather than simple multipliers. For example, Celsius to Fahrenheit is (°C × 9/5) + 32, and Celsius to Kelvin is °C + 273.15. The calculator applies the correct formula automatically.' },
+  { question: 'What is the difference between KB and KiB?', answer: 'A kilobyte (KB) is 1,000 bytes, while a kibibyte (KiB) is 1,024 bytes. The calculator supports both decimal (KB, MB, GB) and binary (KiB, MiB, GiB) units in the digital storage category.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Convert between units of length, weight, volume, area, speed, digital storage and temperature — instantly and accurately." faqs={faqs}>
+  <ConversionCalculator />
+  <Fragment slot="content">
+    <h2>How to use the converter</h2>
+    <p>Choose a category, then select the unit you're converting <strong>from</strong> and the unit you're converting <strong>to</strong>. Enter a value and read the result. Switching category automatically updates the available units.</p>
+    <h2>Accurate, standard factors</h2>
+    <p>Conversions use internationally standard factors — for example, one mile is exactly 1,609.344 metres and one pound is 0.453592 kilograms. Temperature is handled with the correct formulas rather than multipliers. For currency-style financial conversions, see our <a href="/finance">financial calculators</a>.</p>
+  </Fragment>
+</CalculatorLayout>
