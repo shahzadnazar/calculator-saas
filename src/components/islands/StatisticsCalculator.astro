@@ -1,0 +1,149 @@
+---
+/**
+ * Descriptive-statistics island. Computes central tendency, dispersion and the
+ * five-number summary from a free-form list of numbers, server-rendered from a
+ * sample and progressively enhanced to recompute live as the user types.
+ *
+ * `primary` chooses which result(s) are featured at the top: the standard-
+ * deviation pair (for the standard-deviation page) or the mean/median/mode
+ * summary (for the general statistics page). Both variants show the full grid.
+ */
+import { calculateStats, parseNumberList } from '@lib/calculators/statistics';
+import { formatNumber } from '@lib/format';
+
+interface Props {
+  primary?: 'summary' | 'sd';
+}
+const { primary = 'summary' } = Astro.props;
+
+const sample = '2, 4, 4, 4, 5, 5, 7, 9';
+const r = calculateStats(parseNumberList(sample));
+const S = (v: number) => formatNumber(v, 4);
+const modeText = (m: number[]) => (m.length ? m.map((v) => S(v)).join(', ') : 'No mode');
+
+const featured =
+  primary === 'sd'
+    ? [
+        { key: 'sampleSD', label: 'Sample standard deviation (s)', val: S(r.sampleSD) },
+        { key: 'popSD', label: 'Population standard deviation (σ)', val: S(r.populationSD) },
+      ]
+    : [
+        { key: 'mean', label: 'Mean', val: S(r.mean) },
+        { key: 'median', label: 'Median', val: S(r.median) },
+        { key: 'mode', label: 'Mode', val: modeText(r.mode) },
+      ];
+
+const groups = [
+  {
+    title: 'Central tendency',
+    rows: [
+      { key: 'mean', label: 'Mean (average)', val: S(r.mean) },
+      { key: 'median', label: 'Median', val: S(r.median) },
+      { key: 'mode', label: 'Mode', val: modeText(r.mode) },
+    ],
+  },
+  {
+    title: 'Dispersion',
+    rows: [
+      { key: 'sampleSD', label: 'Sample SD (s)', val: S(r.sampleSD) },
+      { key: 'popSD', label: 'Population SD (σ)', val: S(r.populationSD) },
+      { key: 'sampleVar', label: 'Sample variance (s²)', val: S(r.sampleVariance) },
+      { key: 'popVar', label: 'Population variance (σ²)', val: S(r.populationVariance) },
+      { key: 'range', label: 'Range', val: S(r.range) },
+      { key: 'iqr', label: 'Interquartile range (IQR)', val: S(r.iqr) },
+    ],
+  },
+  {
+    title: 'Five-number summary',
+    rows: [
+      { key: 'min', label: 'Minimum', val: S(r.min) },
+      { key: 'q1', label: 'Q1 (25th percentile)', val: S(r.q1) },
+      { key: 'median', label: 'Median (Q2)', val: S(r.median) },
+      { key: 'q3', label: 'Q3 (75th percentile)', val: S(r.q3) },
+      { key: 'max', label: 'Maximum', val: S(r.max) },
+    ],
+  },
+  {
+    title: 'Totals',
+    rows: [
+      { key: 'count', label: 'Count (n)', val: String(r.count) },
+      { key: 'sum', label: 'Sum', val: S(r.sum) },
+    ],
+  },
+];
+---
+
+<div class="mx-auto w-full max-w-4xl" data-stats>
+  <div class="grid gap-6 lg:grid-cols-5">
+    <form class="card p-5 sm:p-6 lg:col-span-2" novalidate>
+      <label class="field-label" for="stat-input">Enter your numbers</label>
+      <textarea class="field mt-1 min-h-44 font-mono" id="stat-input" name="values" rows="9" spellcheck="false">{sample}</textarea>
+      <p class="mt-2 text-xs" style="color: var(--muted)">
+        Separate with commas, spaces or new lines · <span data-stat="count">{r.count}</span> values
+      </p>
+    </form>
+
+    <div class="lg:col-span-3">
+      <div class={`grid gap-3 ${featured.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+        {featured.map((f) => (
+          <div class="card p-5 text-center">
+            <p class="text-xs font-medium" style="color: var(--muted)">{f.label}</p>
+            <p class="mt-1 text-2xl font-extrabold" style="color: var(--color-brand-700)" data-stat={f.key}>{f.val}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-6 grid gap-4 sm:grid-cols-2">
+    {groups.map((g) => (
+      <div class="card p-5">
+        <h3 class="text-xs font-bold uppercase tracking-wide" style="color: var(--muted)">{g.title}</h3>
+        <dl class="mt-3 space-y-2 text-sm">
+          {g.rows.map((row) => (
+            <div class="flex items-center justify-between gap-4">
+              <dt style="color: var(--muted)">{row.label}</dt>
+              <dd class="font-semibold tabular-nums" style="color: var(--heading)" data-stat={row.key}>{row.val}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    ))}
+  </div>
+</div>
+
+<script>
+  import { calculateStats, parseNumberList } from '@lib/calculators/statistics';
+  const fmt = (v: number) =>
+    Number.isFinite(v) ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(v) : '—';
+  const modeText = (m: number[]) => (m.length ? m.map(fmt).join(', ') : 'No mode');
+
+  document.querySelectorAll<HTMLElement>('[data-stats]').forEach((root) => {
+    const input = root.querySelector<HTMLTextAreaElement>('#stat-input');
+    if (!input) return;
+    const setAll = (key: string, v: string) =>
+      root.querySelectorAll<HTMLElement>(`[data-stat="${key}"]`).forEach((el) => {
+        el.textContent = v;
+      });
+    function recompute() {
+      const r = calculateStats(parseNumberList(input!.value));
+      setAll('count', String(r.count));
+      setAll('sum', fmt(r.sum));
+      setAll('mean', fmt(r.mean));
+      setAll('median', fmt(r.median));
+      setAll('mode', modeText(r.mode));
+      setAll('min', fmt(r.min));
+      setAll('max', fmt(r.max));
+      setAll('range', fmt(r.range));
+      setAll('q1', fmt(r.q1));
+      setAll('q3', fmt(r.q3));
+      setAll('iqr', fmt(r.iqr));
+      setAll('sampleSD', fmt(r.sampleSD));
+      setAll('sampleVar', fmt(r.sampleVariance));
+      setAll('popSD', fmt(r.populationSD));
+      setAll('popVar', fmt(r.populationVariance));
+    }
+    input.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

@@ -1,6 +1,6 @@
 ---
 import CalculatorLayout from '@layouts/CalculatorLayout.astro';
-import StandardDeviationCalculator from '@components/islands/StandardDeviationCalculator.astro';
+import StatisticsCalculator from '@components/islands/StatisticsCalculator.astro';
 import { getCalculator } from '@data/calculators';
 
 const calc = getCalculator('math', 'standard-deviation-calculator')!;
@@ -9,50 +9,68 @@ const faqs = [
   {
     question: 'What is standard deviation?',
     answer:
-      'Standard deviation measures how spread out a set of numbers is around the mean. A low value means the data points are close to the average; a high value means they are more dispersed.',
+      'Standard deviation measures how spread out a set of numbers is around the mean. A low value means the data points cluster close to the average; a high value means they are more dispersed. It is the square root of the variance, expressed in the same units as the data.',
+  },
+  {
+    question: 'How do I calculate standard deviation step by step?',
+    answer:
+      'Find the mean of the data; subtract the mean from each value and square the result; add up those squared differences; divide by N for a population or N−1 for a sample to get the variance; then take the square root. That square root is the standard deviation.',
   },
   {
     question: 'What is the difference between sample and population standard deviation?',
     answer:
-      'Population standard deviation (σ) divides by N and is used when your data includes the entire group. Sample standard deviation (s) divides by N−1 and is used when your data is a sample from a larger population — it gives a less biased estimate.',
+      'Population standard deviation (σ) divides by N and is used when your data is the entire group. Sample standard deviation (s) divides by N−1 (Bessel\'s correction) and is used when your data is a sample estimating a larger population — it gives a less biased estimate and is the more common case.',
   },
   {
-    question: 'How do I enter my data?',
+    question: 'How do I calculate standard deviation in Excel?',
     answer:
-      'Type or paste your numbers separated by commas, spaces or new lines. The calculator ignores blanks and non-numeric text, and updates the results as you type.',
+      'Use =STDEV.S(range) for a sample or =STDEV.P(range) for a population, pointing at the cells that hold your numbers. The matching variance functions are =VAR.S and =VAR.P, and =AVERAGE gives the mean. This calculator shows all of them at once so you can check your spreadsheet.',
+  },
+  {
+    question: 'What is variance?',
+    answer:
+      'Variance is the average of the squared differences from the mean — standard deviation before you take the square root. It is in squared units, which is why standard deviation (the square root) is usually easier to interpret.',
+  },
+  {
+    question: 'What counts as a high or low standard deviation?',
+    answer:
+      'It is relative to the mean and the context. The same standard deviation can be large for small numbers and tiny for large ones, so analysts often compare the coefficient of variation (standard deviation ÷ mean) to judge spread across different data sets.',
   },
 ];
 ---
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
-  intro="Calculate the mean, variance and standard deviation (both sample and population) of any data set, along with the sum, minimum and maximum."
+  reviewedOn="2026-07-18"
+  intro="Calculate the population and sample standard deviation, variance and mean of any data set — with the full working, plus the median, quartiles and five-number summary."
   faqs={faqs}
 >
-  <StandardDeviationCalculator />
+  <StatisticsCalculator primary="sd" />
 
   <Fragment slot="content">
-    <h2>How to use the standard deviation calculator</h2>
-    <p>
-      Paste or type your numbers into the box — separated by commas, spaces or new lines.
-      The calculator instantly reports the count, mean, sum, range, and both sample and
-      population standard deviation and variance.
-    </p>
+    <h2>How to calculate standard deviation, step by step</h2>
+    <p>Standard deviation looks intimidating but it is five plain steps:</p>
+    <ol>
+      <li>Find the <strong>mean</strong> (average) of your numbers.</li>
+      <li>Subtract the mean from each value to get its <strong>deviation</strong>.</li>
+      <li><strong>Square</strong> each deviation.</li>
+      <li>Add the squares and divide — by <strong>N</strong> for a population, or <strong>N−1</strong> for a sample — to get the <strong>variance</strong>.</li>
+      <li>Take the <strong>square root</strong> of the variance. That is the standard deviation.</li>
+    </ol>
 
-    <h2>Which one should I use?</h2>
-    <p>
-      Use the <strong>population</strong> standard deviation (σ) when your data is the
-      whole group you care about. Use the <strong>sample</strong> standard deviation (s)
-      when your data is a sample used to estimate a larger population — this is the more
-      common case in statistics and research.
-    </p>
+    <h2>A worked example</h2>
+    <p>Take the data <strong>2, 4, 6, 8</strong>. The mean is (2 + 4 + 6 + 8) ÷ 4 = 5. The deviations are −3, −1, 1, 3, and their squares are 9, 1, 1, 9, which sum to 20. From there:</p>
+    <ul>
+      <li><strong>Population</strong>: variance = 20 ÷ 4 = 5, so σ = √5 ≈ <strong>2.236</strong>.</li>
+      <li><strong>Sample</strong>: variance = 20 ÷ 3 ≈ 6.667, so s = √6.667 ≈ <strong>2.582</strong>.</li>
+    </ul>
+    <p>The sample figure is a little larger because dividing by N−1 instead of N inflates it slightly to correct for sampling.</p>
 
-    <h2>How it is calculated</h2>
-    <p>
-      The calculator finds the mean, then the squared difference of each value from the
-      mean. The average of those squared differences is the variance (dividing by N for
-      population, N−1 for sample), and its square root is the standard deviation.
-    </p>
+    <h2>Population (σ) vs. sample (s)</h2>
+    <p>Use the <strong>population</strong> standard deviation when your data is the whole group you care about. Use the <strong>sample</strong> standard deviation when your data is a sample used to estimate a larger population — the more common case in research. The only difference is dividing by N versus N−1; the calculator shows both so you never have to choose blind.</p>
+
+    <h2>Standard deviation in Excel or Sheets</h2>
+    <p>To reproduce these in a spreadsheet, point the functions at your data range: <strong>=STDEV.S(A1:A20)</strong> for a sample, <strong>=STDEV.P(A1:A20)</strong> for a population, with <strong>=VAR.S</strong>/<strong>=VAR.P</strong> for variance and <strong>=AVERAGE</strong> for the mean. The results here match those functions, so it doubles as a quick way to check a spreadsheet.</p>
+    <p>For the median, mode, quartiles and the rest of the descriptive picture, use the fuller <a href="/math/statistics-calculator">statistics calculator</a>.</p>
   </Fragment>
 </CalculatorLayout>

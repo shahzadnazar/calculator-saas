@@ -1,0 +1,54 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import StatisticsCalculator from '@components/islands/StatisticsCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('math', 'statistics-calculator')!;
+const faqs = [
+  { question: 'What does the statistics calculator compute?', answer: 'Paste or type a list of numbers and it returns the full set of descriptive statistics: count and sum; the mean, median and mode; the range, variance and standard deviation (both population and sample); and the five-number summary — minimum, first quartile, median, third quartile and maximum — plus the interquartile range.' },
+  { question: 'What is the difference between mean, median and mode?', answer: 'The mean is the arithmetic average (sum ÷ count). The median is the middle value when the data is sorted. The mode is the value that appears most often. On symmetric data they are close; on skewed data they diverge, which is why seeing all three is useful.' },
+  { question: 'When should I use the median instead of the mean?', answer: 'Use the median when the data is skewed or has outliers — incomes, house prices, response times. One extreme value drags the mean but barely moves the median, so the median better represents a "typical" value in those cases.' },
+  { question: 'What is the five-number summary?', answer: 'It is the minimum, first quartile (Q1), median, third quartile (Q3) and maximum. Together they describe the shape and spread of the data and are the basis of a box plot. The gap between Q1 and Q3 — the interquartile range — captures the middle 50% of values.' },
+  { question: 'What is the difference between population and sample statistics?', answer: 'A population is the entire group you care about; a sample is a subset drawn from it. Sample variance and standard deviation divide by n − 1 (Bessel\'s correction) instead of n, which corrects the tendency of a sample to underestimate the true spread. Use the sample figures when your data is a sample, the population figures when it is the whole group.' },
+  { question: 'Can a data set have more than one mode?', answer: 'Yes. If two or more values tie for the highest frequency, the set is multimodal and the calculator lists them all. If every value appears exactly once, there is no mode.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate every descriptive statistic from a data set — mean, median, mode, range, variance, standard deviation and the full five-number summary — with population and sample results." faqs={faqs}>
+  <StatisticsCalculator primary="summary" />
+  <Fragment slot="content">
+    <h2>Everything the calculator gives you</h2>
+    <p>Enter your numbers once and read every descriptive statistic at a glance, grouped into three families:</p>
+    <ul>
+      <li><strong>Central tendency</strong> — mean, median and mode: where the data centres.</li>
+      <li><strong>Dispersion</strong> — range, variance, standard deviation and the interquartile range: how spread out it is.</li>
+      <li><strong>Five-number summary</strong> — minimum, Q1, median, Q3 and maximum: the basis of a box plot.</li>
+    </ul>
+
+    <h2>Mean, median and mode — a worked example</h2>
+    <p>Take the data set <strong>2, 3, 3, 5, 12</strong>:</p>
+    <ul>
+      <li><strong>Mean</strong> = (2 + 3 + 3 + 5 + 12) ÷ 5 = 25 ÷ 5 = <strong>5</strong></li>
+      <li><strong>Median</strong> = the middle value of the sorted list = <strong>3</strong></li>
+      <li><strong>Mode</strong> = the most frequent value = <strong>3</strong> (it appears twice)</li>
+      <li><strong>Range</strong> = 12 − 2 = <strong>10</strong></li>
+    </ul>
+    <p>Notice the mean (5) is higher than the median (3): the single large value, 12, pulls the average up while the median barely moves. That gap is a quick signal that the data is skewed.</p>
+
+    <h2>When to use each measure</h2>
+    <table>
+      <thead>
+        <tr><th>Measure</th><th>Best for</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Mean</td><td>Roughly symmetric data with no extreme outliers</td></tr>
+        <tr><td>Median</td><td>Skewed data or data with outliers (incomes, prices)</td></tr>
+        <tr><td>Mode</td><td>The most common category or most frequent value</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Spread and the five-number summary</h2>
+    <p>The <strong>variance</strong> and <strong>standard deviation</strong> measure how far values sit from the mean on average; the <strong>five-number summary</strong> and the <strong>interquartile range</strong> (Q3 − Q1) describe spread using position rather than distance, which makes them resistant to outliers. For the full standard-deviation method, worked example and the population-vs-sample distinction, see the <a href="/math/standard-deviation-calculator">standard deviation calculator</a>.</p>
+
+    <h2>A note on quartiles</h2>
+    <p>Quartiles here use the median-of-halves method (Tukey's hinges), excluding the overall median from each half when the count is odd. This is the convention taught in most introductory courses; some spreadsheet functions interpolate and can give slightly different Q1/Q3 values on small data sets. For percentages of a whole, the <a href="/math/percent-calculator">percentage calculator</a> helps, and the <a href="/math/scientific-calculator">scientific calculator</a> handles individual formulas.</p>
+  </Fragment>
+</CalculatorLayout>

@@ -371,12 +371,21 @@ export const CALCULATORS: readonly Calculator[] = [
     keywords: ['fraction calculator', 'add fractions'],
   },
   {
+    slug: 'statistics-calculator',
+    title: 'Statistics Calculator',
+    category: 'math',
+    status: 'live',
+    description:
+      'Calculate mean, median, mode, range, variance, standard deviation and quartiles from a data set, with a full five-number summary.',
+    keywords: ['statistics calculator', 'mean median mode calculator', 'descriptive statistics', 'mean median mode range'],
+  },
+  {
     slug: 'standard-deviation-calculator',
     title: 'Standard Deviation Calculator',
     category: 'math',
     status: 'live',
-    description: 'Compute mean, variance and standard deviation from a data set.',
-    keywords: ['standard deviation calculator', 'variance', 'mean'],
+    description: 'Compute the population and sample standard deviation, variance and mean of a data set, step by step.',
+    keywords: ['standard deviation calculator', 'variance calculator', 'population standard deviation', 'sample standard deviation'],
   },
   {
     slug: 'triangle-calculator',

@@ -9,7 +9,7 @@ relatedCalculators:
   - math/standard-deviation-calculator
 ---
 
-import StandardDeviationCalculator from '@components/islands/StandardDeviationCalculator.astro';
+import StatisticsCalculator from '@components/islands/StatisticsCalculator.astro';
 
 Two datasets can share the same average yet look completely different — one tightly clustered, the other wildly spread out. **Standard deviation** is the number that captures that spread. This guide explains what it means, how to compute it, and which version to use.
 
@@ -17,7 +17,7 @@ Two datasets can share the same average yet look completely different — one ti
 
 Standard deviation tells you, on average, how far the values in a dataset sit from the mean. A **small** standard deviation means the data points huddle close to the average; a **large** one means they are scattered. Test scores of 70, 72, 71 have a tiny standard deviation; scores of 40, 95, 78 have a large one — even if both average around 71.
 
-<StandardDeviationCalculator />
+<StatisticsCalculator primary="sd" />
 
 ## How it is calculated
 
@@ -35,7 +35,7 @@ This is the detail that confuses most people:
 - **Population standard deviation (σ)** divides by **N**. Use it when your data is the *entire* group you care about.
 - **Sample standard deviation (s)** divides by **N − 1**. Use it when your data is a *sample* used to estimate a larger population — dividing by N−1 corrects a bias and is the more common choice in research.
 
-For the numbers 2, 4, 6, 8, the population standard deviation is exactly **2**, while the sample standard deviation is about **2.58**.
+For the numbers 2, 4, 6, 8, the population standard deviation is about **2.24**, while the sample standard deviation is about **2.58**.
 
 ## Why it matters
 
