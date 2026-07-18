@@ -1,115 +1,35 @@
 ---
-import BaseLayout from '@layouts/BaseLayout.astro';
-import Breadcrumbs from '@components/Breadcrumbs.astro';
-import { classifyBmi } from '@lib/calculators/bmi';
-import { getReference, referencePath } from '@data/reference';
-import { breadcrumbSchema, articleSchema } from '@lib/schema';
-import { SITE } from '@config/site';
+import ReferenceLayout from '@layouts/ReferenceLayout.astro';
+import { getReference } from '@data/reference';
+import { BMI_THRESHOLDS_CONSISTENT } from '@lib/referenceTables';
 
 const ref = getReference('bmi-chart')!;
-const path = referencePath(ref);
-const reviewed = '2026-07-18';
-
-// Same constants and thresholds as the tested BMI function (bmi.ts / classifyBmi).
-const LB_PER_KG = 2.2046226218;
-const CM_PER_IN = 2.54;
-// Invert BMI = kg / m^2 to get the weight (lb) at a BMI for a given height.
-const weightLbAtBmi = (bmi: number, heightM: number) =>
-  Math.round(bmi * heightM * heightM * LB_PER_KG);
-
-// Heights from 4'10" to 6'6".
-const rows = Array.from({ length: 21 }, (_, i) => {
-  const inches = 58 + i;
-  const heightM = (inches * CM_PER_IN) / 100;
-  return {
-    ft: Math.floor(inches / 12),
-    in: inches % 12,
-    cm: Math.round(inches * CM_PER_IN),
-    healthyLow: weightLbAtBmi(18.5, heightM),
-    healthyHigh: weightLbAtBmi(25, heightM),
-    overweightHigh: weightLbAtBmi(30, heightM),
-  };
-});
-
-// Sanity: the thresholds line up with the site's own BMI classifier.
-const boundariesConsistent =
-  classifyBmi(18.5).category === 'Normal weight' &&
-  classifyBmi(25).category === 'Overweight' &&
-  classifyBmi(30).category === 'Obesity';
-
-const crumbs = [
-  { name: 'Home', path: '/' },
-  { name: 'Reference', path: '/reference' },
-  { name: ref.shortName, path },
-];
-const jsonLd = [
-  breadcrumbSchema(crumbs),
-  articleSchema({
-    title: ref.title,
-    description: ref.description,
-    path,
-    authorName: `${SITE.name} Editorial`,
-    datePublished: `${reviewed}T00:00:00Z`,
-  }),
-];
 ---
 
-<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
-  <div class="wrap py-8">
-    <Breadcrumbs crumbs={crumbs} />
-    <header class="mt-5 max-w-3xl">
-      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">
-        The weight ranges for each height under the WHO's BMI categories. Find your height, then see the healthy,
-        overweight and obese weight bands — in pounds.
-      </p>
-    </header>
+<ReferenceLayout reference={ref}>
+  <Fragment slot="intro">
+    The weight ranges for each height under the WHO's BMI categories. Find your height, then see the healthy,
+    overweight and obese weight bands — in pounds.
+  </Fragment>
 
-    <div class="prose mt-8">
-      <h2>How to read the chart</h2>
-      <p>
-        Find your height, then read across. The <strong>healthy</strong> column is the weight range for a BMI of
-        18.5–24.9; below it is underweight, and the <strong>overweight</strong> (BMI 25–29.9) and
-        <strong>obese</strong> (BMI 30+) columns follow. BMI is a screening tool, not a diagnosis — very muscular
-        people can read high despite low body fat.
-      </p>
-    </div>
+  <Fragment slot="howto">
+    <h2>How to read the chart</h2>
+    <p>
+      Find your height, then read across. The <strong>healthy</strong> column is the weight range for a BMI of
+      18.5–24.9; below it is underweight, and the <strong>overweight</strong> (BMI 25–29.9) and
+      <strong>obese</strong> (BMI 30+) columns follow. BMI is a screening tool, not a diagnosis — very muscular
+      people can read high despite low body fat.
+    </p>
+  </Fragment>
 
-    <div class="prose mt-4" style="max-width: 56rem">
-      <table>
-        <thead>
-          <tr>
-            <th>Height</th>
-            <th>Healthy (18.5–24.9)</th>
-            <th>Overweight (25–29.9)</th>
-            <th>Obese (30+)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {
-            rows.map((r) => (
-              <tr>
-                <td>{r.ft}′{r.in}″ ({r.cm} cm)</td>
-                <td>{r.healthyLow}–{r.healthyHigh} lb</td>
-                <td>{r.healthyHigh}–{r.overweightHigh} lb</td>
-                <td>{r.overweightHigh}+ lb</td>
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <div class="prose mt-8">
-      <h2>Methodology</h2>
-      <p>
-        BMI is weight in kilograms divided by height in metres squared. Each weight boundary here is that formula
-        inverted — the weight at a BMI of 18.5, 25 and 30 for the given height — using the same thresholds this
-        site's <a href={`/${ref.relatedCalculator}`}>BMI calculator</a> classifies by{boundariesConsistent ? '' : ' (thresholds under review)'}.
-        Weights are rounded to the nearest pound; to convert to kilograms, divide by 2.205. This is general
-        information for adults aged 20+, not medical advice.
-      </p>
-    </div>
-  </div>
-</BaseLayout>
+  <Fragment slot="notes">
+    <h2>Methodology</h2>
+    <p>
+      BMI is weight in kilograms divided by height in metres squared. Each weight boundary here is that formula
+      inverted — the weight at a BMI of 18.5, 25 and 30 for the given height — using the same thresholds this
+      site's <a href={`/${ref.relatedCalculator}`}>BMI calculator</a> classifies by{BMI_THRESHOLDS_CONSISTENT ? '' : ' (thresholds under review)'}.
+      Weights are rounded to the nearest pound; to convert to kilograms, divide by 2.205. This is general
+      information for adults aged 20+, not medical advice.
+    </p>
+  </Fragment>
+</ReferenceLayout>

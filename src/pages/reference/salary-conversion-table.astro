@@ -1,87 +1,32 @@
 ---
-import BaseLayout from '@layouts/BaseLayout.astro';
-import Breadcrumbs from '@components/Breadcrumbs.astro';
-import { convertSalary } from '@lib/calculators/salary';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-import { getReference, referencePath } from '@data/reference';
-import { breadcrumbSchema, articleSchema } from '@lib/schema';
-import { SITE } from '@config/site';
+import ReferenceLayout from '@layouts/ReferenceLayout.astro';
+import { getReference } from '@data/reference';
 
 const ref = getReference('salary-conversion-table')!;
-const path = referencePath(ref);
-const reviewed = '2026-07-18';
-
-const salaries = [20_000, 30_000, 40_000, 50_000, 60_000, 75_000, 100_000, 150_000, 200_000];
-const rows = salaries.map((annual) => ({
-  annual,
-  r: convertSalary({ amount: annual, unit: 'annual', hoursPerWeek: 40, daysPerWeek: 5, weeksPerYear: 52 }),
-}));
-
-const crumbs = [
-  { name: 'Home', path: '/' },
-  { name: 'Reference', path: '/reference' },
-  { name: ref.shortName, path },
-];
-const jsonLd = [
-  breadcrumbSchema(crumbs),
-  articleSchema({ title: ref.title, description: ref.description, path, authorName: `${SITE.name} Editorial`, datePublished: `${reviewed}T00:00:00Z` }),
-];
 ---
 
-<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
-  <div class="wrap py-8">
-    <Breadcrumbs crumbs={crumbs} />
-    <header class="mt-5 max-w-3xl">
-      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">
-        Common annual salaries broken down into hourly, weekly, biweekly and monthly pay — based on a standard
-        40-hour week and 52-week year. Figures are gross (before tax).
-      </p>
-    </header>
+<ReferenceLayout reference={ref}>
+  <Fragment slot="intro">
+    Common annual salaries broken down into hourly, weekly, biweekly and monthly pay — based on a standard
+    40-hour week and 52-week year. Figures are gross (before tax).
+  </Fragment>
 
-    <div class="prose mt-8">
-      <h2>How to use this table</h2>
-      <p>
-        Find the annual salary and read across for the equivalent pay in each period. These assume 2,080 working
-        hours a year (40 × 52); if you work different hours, the <a href={`/${ref.relatedCalculator}`}>salary calculator</a>
-        lets you set your own.
-      </p>
-    </div>
+  <Fragment slot="howto">
+    <h2>How to use this table</h2>
+    <p>
+      Find the annual salary and read across for the equivalent pay in each period. These assume 2,080 working
+      hours a year (40 × 52); if you work different hours, the <a href={`/${ref.relatedCalculator}`}>salary calculator</a>
+      lets you set your own.
+    </p>
+  </Fragment>
 
-    <div class="prose mt-4" style="max-width: 60rem">
-      <table>
-        <thead>
-          <tr>
-            <th>Annual</th>
-            <th>Hourly</th>
-            <th>Weekly</th>
-            <th>Biweekly</th>
-            <th>Monthly</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ annual, r }) => (
-            <tr>
-              <td>{formatCurrencyRounded(annual)}</td>
-              <td>{formatCurrency(r.hourly)}</td>
-              <td>{formatCurrency(r.weekly)}</td>
-              <td>{formatCurrency(r.biweekly)}</td>
-              <td>{formatCurrency(r.monthly)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="prose mt-8">
-      <h2>Methodology</h2>
-      <p>
-        Each row is computed with this site's unit-tested salary function, normalising the annual figure to a
-        40-hour, 5-day, 52-week year. Hourly = annual ÷ 2,080; weekly = annual ÷ 52; biweekly = annual ÷ 26;
-        monthly = annual ÷ 12. All figures are gross — actual take-home pay is lower after tax and deductions.
-        Estimate tax with the <a href="/finance/income-tax-calculator">income tax calculator</a>.
-      </p>
-    </div>
-  </div>
-</BaseLayout>
+  <Fragment slot="notes">
+    <h2>Methodology</h2>
+    <p>
+      Each row is computed with this site's unit-tested salary function, normalising the annual figure to a
+      40-hour, 5-day, 52-week year. Hourly = annual ÷ 2,080; weekly = annual ÷ 52; biweekly = annual ÷ 26;
+      monthly = annual ÷ 12. All figures are gross — actual take-home pay is lower after tax and deductions.
+      Estimate tax with the <a href="/finance/income-tax-calculator">income tax calculator</a>.
+    </p>
+  </Fragment>
+</ReferenceLayout>

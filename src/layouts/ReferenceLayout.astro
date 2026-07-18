@@ -1,0 +1,73 @@
+---
+/**
+ * ReferenceLayout — shared skeleton for a reference table/chart page.
+ *
+ * A page supplies its registry entry and editorial slots (intro, how-to, notes);
+ * this layout derives SEO metadata, breadcrumbs and Article + Breadcrumb schema,
+ * renders the shared DataTable from getReferenceTable(), and appends the embed
+ * box so every reference table is embeddable (each embed = an attribution
+ * backlink). New reference assets get all of this for free.
+ *
+ * Slots: "intro" (lead sentence), "howto" (how to use, prose), "notes"
+ * (worked example + methodology, prose).
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Breadcrumbs from '@components/Breadcrumbs.astro';
+import DataTable from '@components/DataTable.astro';
+import EmbedBox from '@components/EmbedBox.astro';
+import { type ReferenceAsset, referencePath } from '@data/reference';
+import { getReferenceTable } from '@lib/referenceTables';
+import { breadcrumbSchema, articleSchema } from '@lib/schema';
+import { SITE } from '@config/site';
+
+interface Props {
+  reference: ReferenceAsset;
+  /** ISO date the data was last reviewed (drives Article dateModified). */
+  reviewed?: string;
+}
+const { reference, reviewed = '2026-07-18' } = Astro.props;
+const path = referencePath(reference);
+const table = getReferenceTable(reference.slug);
+
+const crumbs = [
+  { name: 'Home', path: '/' },
+  { name: 'Reference', path: '/reference' },
+  { name: reference.shortName, path },
+];
+const jsonLd = [
+  breadcrumbSchema(crumbs),
+  articleSchema({
+    title: reference.title,
+    description: reference.description,
+    path,
+    authorName: `${SITE.name} Editorial`,
+    datePublished: `${reviewed}T00:00:00Z`,
+  }),
+];
+---
+
+<BaseLayout title={reference.title} description={reference.description} path={path} jsonLd={jsonLd}>
+  <div class="wrap py-8">
+    <Breadcrumbs crumbs={crumbs} />
+
+    <header class="mt-5 max-w-3xl">
+      <div class="text-4xl" aria-hidden="true">{reference.icon}</div>
+      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{reference.title}</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)"><slot name="intro" /></p>
+    </header>
+
+    <div class="prose mt-8"><slot name="howto" /></div>
+
+    {table && <div class="mt-4"><DataTable headers={table.headers} rows={table.rows} maxWidth={table.maxWidth} /></div>}
+
+    <div class="prose mt-8"><slot name="notes" /></div>
+
+    <EmbedBox
+      title={reference.shortName}
+      slug={reference.slug}
+      embedPath={`/embed/reference/${reference.slug}`}
+      canonicalPath={path}
+      noun="table"
+    />
+  </div>
+</BaseLayout>

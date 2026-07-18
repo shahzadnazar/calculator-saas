@@ -1,0 +1,26 @@
+---
+/**
+ * Presentational reference table — renders headers + pre-formatted string rows
+ * from getReferenceTable(). Wrapped in `.prose` for the shared table styling,
+ * with overflow-x so wide tables scroll rather than break the layout.
+ */
+interface Props {
+  headers: string[];
+  rows: string[][];
+  maxWidth?: string;
+}
+const { headers, rows, maxWidth = '56rem' } = Astro.props;
+---
+
+<div class="prose" style={`max-width: ${maxWidth}`}>
+  <table>
+    <thead>
+      <tr>{headers.map((h) => <th>{h}</th>)}</tr>
+    </thead>
+    <tbody>
+      {rows.map((row) => (
+        <tr>{row.map((cell) => <td>{cell}</td>)}</tr>
+      ))}
+    </tbody>
+  </table>
+</div>

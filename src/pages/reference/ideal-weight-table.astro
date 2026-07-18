@@ -1,98 +1,33 @@
 ---
-import BaseLayout from '@layouts/BaseLayout.astro';
-import Breadcrumbs from '@components/Breadcrumbs.astro';
-import { calculateIdealWeight } from '@lib/calculators/ideal-weight';
-import { getReference, referencePath } from '@data/reference';
-import { breadcrumbSchema, articleSchema } from '@lib/schema';
-import { SITE } from '@config/site';
+import ReferenceLayout from '@layouts/ReferenceLayout.astro';
+import { getReference } from '@data/reference';
 
 const ref = getReference('ideal-weight-table')!;
-const path = referencePath(ref);
-const reviewed = '2026-07-18';
-
-const CM_PER_IN = 2.54;
-const formulaRange = (sex: 'male' | 'female', heightFt: number, heightIn: number) => {
-  const r = calculateIdealWeight({ sex, system: 'imperial', heightFt, heightIn });
-  const vals = [r.robinson, r.miller, r.devine, r.hamwi];
-  return { low: Math.round(Math.min(...vals)), high: Math.round(Math.max(...vals)) };
-};
-
-// Heights 5'0" to 6'6" (the formulas are defined for height over 5 ft).
-const rows = Array.from({ length: 19 }, (_, i) => {
-  const inches = 60 + i;
-  const ft = Math.floor(inches / 12);
-  const inch = inches % 12;
-  return {
-    ft,
-    inch,
-    cm: Math.round(inches * CM_PER_IN),
-    men: formulaRange('male', ft, inch),
-    women: formulaRange('female', ft, inch),
-  };
-});
-
-const crumbs = [
-  { name: 'Home', path: '/' },
-  { name: 'Reference', path: '/reference' },
-  { name: ref.shortName, path },
-];
-const jsonLd = [
-  breadcrumbSchema(crumbs),
-  articleSchema({ title: ref.title, description: ref.description, path, authorName: `${SITE.name} Editorial`, datePublished: `${reviewed}T00:00:00Z` }),
-];
 ---
 
-<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
-  <div class="wrap py-8">
-    <Breadcrumbs crumbs={crumbs} />
-    <header class="mt-5 max-w-3xl">
-      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">
-        Ideal body weight for each height, for men and women. Because the classic formulas disagree, each value
-        is shown as a range across all four — treat it as a healthy target zone, not a single number.
-      </p>
-    </header>
+<ReferenceLayout reference={ref}>
+  <Fragment slot="intro">
+    Ideal body weight for each height, for men and women. Because the classic formulas disagree, each value
+    is shown as a range across all four — treat it as a healthy target zone, not a single number.
+  </Fragment>
 
-    <div class="prose mt-8">
-      <h2>How to use this chart</h2>
-      <p>
-        Find your height and read the range for your sex. It spans the Robinson, Miller, Devine and Hamwi
-        formulas, which were each derived differently — so a healthy target usually sits somewhere within the
-        range. Frame size, muscle and age all shift what is right for an individual.
-      </p>
-    </div>
+  <Fragment slot="howto">
+    <h2>How to use this chart</h2>
+    <p>
+      Find your height and read the range for your sex. It spans the Robinson, Miller, Devine and Hamwi
+      formulas, which were each derived differently — so a healthy target usually sits somewhere within the
+      range. Frame size, muscle and age all shift what is right for an individual.
+    </p>
+  </Fragment>
 
-    <div class="prose mt-4" style="max-width: 48rem">
-      <table>
-        <thead>
-          <tr>
-            <th>Height</th>
-            <th>Men</th>
-            <th>Women</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr>
-              <td>{r.ft}′{r.inch}″ ({r.cm} cm)</td>
-              <td>{r.men.low}–{r.men.high} lb</td>
-              <td>{r.women.low}–{r.women.high} lb</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="prose mt-8">
-      <h2>Methodology</h2>
-      <p>
-        Each range is the lowest and highest of the Robinson, Miller, Devine and Hamwi ideal-body-weight formulas
-        for the given height and sex, computed with this site's unit-tested function and rounded to the nearest
-        pound. These formulas were originally developed for clinical use; a healthy weight is better thought of as
-        a range. For your figures and the healthy-BMI range, use the <a href={`/${ref.relatedCalculator}`}>ideal weight calculator</a>.
-        This is general information, not medical advice.
-      </p>
-    </div>
-  </div>
-</BaseLayout>
+  <Fragment slot="notes">
+    <h2>Methodology</h2>
+    <p>
+      Each range is the lowest and highest of the Robinson, Miller, Devine and Hamwi ideal-body-weight formulas
+      for the given height and sex, computed with this site's unit-tested function and rounded to the nearest
+      pound. These formulas were originally developed for clinical use; a healthy weight is better thought of as
+      a range. For your figures and the healthy-BMI range, use the <a href={`/${ref.relatedCalculator}`}>ideal weight calculator</a>.
+      This is general information, not medical advice.
+    </p>
+  </Fragment>
+</ReferenceLayout>

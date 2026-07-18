@@ -1,0 +1,21 @@
+---
+import type { GetStaticPaths } from 'astro';
+import EmbedLayout from '@layouts/EmbedLayout.astro';
+import DataTable from '@components/DataTable.astro';
+import { REFERENCES, referencePath, type ReferenceAsset } from '@data/reference';
+import { getReferenceTable } from '@lib/referenceTables';
+
+export const getStaticPaths = (() => {
+  return REFERENCES.map((ref) => ({ params: { slug: ref.slug }, props: { ref } }));
+}) satisfies GetStaticPaths;
+
+interface Props {
+  ref: ReferenceAsset;
+}
+const { ref } = Astro.props;
+const table = getReferenceTable(ref.slug);
+---
+
+<EmbedLayout title={ref.shortName} canonicalPath={referencePath(ref)} slug={ref.slug}>
+  {table && <DataTable headers={table.headers} rows={table.rows} maxWidth={table.maxWidth} />}
+</EmbedLayout>

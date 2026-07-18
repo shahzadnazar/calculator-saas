@@ -1,102 +1,43 @@
 ---
-import BaseLayout from '@layouts/BaseLayout.astro';
-import Breadcrumbs from '@components/Breadcrumbs.astro';
+import ReferenceLayout from '@layouts/ReferenceLayout.astro';
+import { getReference } from '@data/reference';
 import { loanPayment } from '@lib/calculators/payment';
 import { formatCurrency } from '@lib/format';
-import { getReference, referencePath } from '@data/reference';
-import { breadcrumbSchema, articleSchema } from '@lib/schema';
-import { SITE } from '@config/site';
 
 const ref = getReference('loan-payment-table')!;
-const path = referencePath(ref);
-const reviewed = '2026-07-18';
-
-// Common auto/personal-loan rates and terms.
-const rates = Array.from({ length: 12 }, (_, i) => 4 + i); // 4%–15%
-const termsMonths = [12, 24, 36, 48, 60, 72];
-const rows = rates.map((rate) => ({
-  rate,
-  payments: termsMonths.map((m) => loanPayment(1_000, rate, m)),
-}));
-
-const crumbs = [
-  { name: 'Home', path: '/' },
-  { name: 'Reference', path: '/reference' },
-  { name: ref.shortName, path },
-];
-const jsonLd = [
-  breadcrumbSchema(crumbs),
-  articleSchema({
-    title: ref.title,
-    description: ref.description,
-    path,
-    authorName: `${SITE.name} Editorial`,
-    datePublished: `${reviewed}T00:00:00Z`,
-  }),
-];
 ---
 
-<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
-  <div class="wrap py-8">
-    <Breadcrumbs crumbs={crumbs} />
-    <header class="mt-5 max-w-3xl">
-      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">
-        The monthly payment on <strong>$1,000</strong> borrowed, across the rates and terms typical of auto and
-        personal loans. Multiply by your loan size in thousands to get your payment.
-      </p>
-    </header>
+<ReferenceLayout reference={ref}>
+  <Fragment slot="intro">
+    The monthly payment on <strong>$1,000</strong> borrowed, across the rates and terms typical of auto and
+    personal loans. Multiply by your loan size in thousands to get your payment.
+  </Fragment>
 
-    <div class="prose mt-8">
-      <h2>How to use this table</h2>
-      <p>
-        Read down to your interest rate and across to your term in months. That is the monthly payment per $1,000
-        borrowed — multiply by your loan amount ÷ 1,000:
-      </p>
-      <ul>
-        <li>A <strong>$20,000</strong> car loan → multiply by <strong>20</strong>.</li>
-        <li>A <strong>$7,500</strong> personal loan → multiply by <strong>7.5</strong>.</li>
-      </ul>
-    </div>
+  <Fragment slot="howto">
+    <h2>How to use this table</h2>
+    <p>
+      Read down to your interest rate and across to your term in months. That is the monthly payment per $1,000
+      borrowed — multiply by your loan amount ÷ 1,000:
+    </p>
+    <ul>
+      <li>A <strong>$20,000</strong> car loan → multiply by <strong>20</strong>.</li>
+      <li>A <strong>$7,500</strong> personal loan → multiply by <strong>7.5</strong>.</li>
+    </ul>
+  </Fragment>
 
-    <div class="prose mt-4" style="max-width: 62rem">
-      <table>
-        <thead>
-          <tr>
-            <th>Interest rate</th>
-            {termsMonths.map((m) => <th>{m} mo</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {
-            rows.map((row) => (
-              <tr>
-                <td>{row.rate}%</td>
-                {row.payments.map((p) => (
-                  <td>{formatCurrency(p)}</td>
-                ))}
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <div class="prose mt-8">
-      <h2>Worked example</h2>
-      <p>
-        A <strong>$20,000</strong> car loan at <strong>6%</strong> over <strong>60 months</strong>: the table shows
-        {formatCurrency(loanPayment(1_000, 6, 60))} per $1,000, so the payment is × 20 ≈
-        <strong>{formatCurrency(loanPayment(20_000, 6, 60))}</strong> a month.
-      </p>
-      <h2>Methodology</h2>
-      <p>
-        Each value is the monthly payment on a $1,000 loan at the given annual rate over the given number of
-        months, from the standard amortization formula (the same unit-tested function behind this site's
-        calculators). For a full payoff schedule and your exact numbers, use the
-        <a href={`/${ref.relatedCalculator}`}>loan calculator</a>. This is general information, not a loan offer.
-      </p>
-    </div>
-  </div>
-</BaseLayout>
+  <Fragment slot="notes">
+    <h2>Worked example</h2>
+    <p>
+      A <strong>$20,000</strong> car loan at <strong>6%</strong> over <strong>60 months</strong>: the table shows
+      {formatCurrency(loanPayment(1_000, 6, 60))} per $1,000, so the payment is × 20 ≈
+      <strong>{formatCurrency(loanPayment(20_000, 6, 60))}</strong> a month.
+    </p>
+    <h2>Methodology</h2>
+    <p>
+      Each value is the monthly payment on a $1,000 loan at the given annual rate over the given number of
+      months, from the standard amortization formula (the same unit-tested function behind this site's
+      calculators). For a full payoff schedule and your exact numbers, use the
+      <a href={`/${ref.relatedCalculator}`}>loan calculator</a>. This is general information, not a loan offer.
+    </p>
+  </Fragment>
+</ReferenceLayout>

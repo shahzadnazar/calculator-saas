@@ -1,87 +1,40 @@
 ---
-import BaseLayout from '@layouts/BaseLayout.astro';
-import Breadcrumbs from '@components/Breadcrumbs.astro';
+import ReferenceLayout from '@layouts/ReferenceLayout.astro';
+import { getReference } from '@data/reference';
 import { adjustForInflation } from '@lib/calculators/inflation';
 import { formatCurrency } from '@lib/format';
-import { getReference, referencePath } from '@data/reference';
-import { breadcrumbSchema, articleSchema } from '@lib/schema';
-import { SITE } from '@config/site';
 
 const ref = getReference('inflation-purchasing-power-table')!;
-const path = referencePath(ref);
-const reviewed = '2026-07-18';
-
-const yearsList = [5, 10, 15, 20, 25, 30, 40, 50];
-const rates = [2, 3, 4, 5];
-// What $100 of cash held today is worth, in today's money, after each period.
-const rows = yearsList.map((years) => ({
-  years,
-  values: rates.map((rate) => adjustForInflation({ amount: 100, annualRatePct: rate, years }).buyingPower),
-}));
-
-const crumbs = [
-  { name: 'Home', path: '/' },
-  { name: 'Reference', path: '/reference' },
-  { name: ref.shortName, path },
-];
-const jsonLd = [
-  breadcrumbSchema(crumbs),
-  articleSchema({ title: ref.title, description: ref.description, path, authorName: `${SITE.name} Editorial`, datePublished: `${reviewed}T00:00:00Z` }),
-];
+const futureCost = adjustForInflation({ amount: 100, annualRatePct: 3, years: 20 }).futureCost;
 ---
 
-<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
-  <div class="wrap py-8">
-    <Breadcrumbs crumbs={crumbs} />
-    <header class="mt-5 max-w-3xl">
-      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">
-        Inflation quietly erodes cash. This table shows what <strong>$100</strong> held today would be worth, in
-        today's buying power, after 5 to 50 years at steady inflation rates of 2% to 5%.
-      </p>
-    </header>
+<ReferenceLayout reference={ref}>
+  <Fragment slot="intro">
+    Inflation quietly erodes cash. This table shows what <strong>$100</strong> held today would be worth, in
+    today's buying power, after 5 to 50 years at steady inflation rates of 2% to 5%.
+  </Fragment>
 
-    <div class="prose mt-8">
-      <h2>How to read this table</h2>
-      <p>
-        Find the number of years down the left and the inflation rate across the top. The value is what $100 of
-        cash could still buy, expressed in today's dollars. For any amount, scale it — $1,000 is simply 10× the
-        figure shown. It is why money left idle needs to earn at least the inflation rate to hold its value.
-      </p>
-    </div>
+  <Fragment slot="howto">
+    <h2>How to read this table</h2>
+    <p>
+      Find the number of years down the left and the inflation rate across the top. The value is what $100 of
+      cash could still buy, expressed in today's dollars. For any amount, scale it — $1,000 is simply 10× the
+      figure shown. It is why money left idle needs to earn at least the inflation rate to hold its value.
+    </p>
+  </Fragment>
 
-    <div class="prose mt-4" style="max-width: 52rem">
-      <table>
-        <thead>
-          <tr>
-            <th>Years</th>
-            {rates.map((r) => <th>{r}% inflation</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr>
-              <td>{row.years}</td>
-              {row.values.map((v) => <td>{formatCurrency(v)}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="prose mt-8">
-      <h2>The flip side</h2>
-      <p>
-        The same math run forward shows prices rising: at 3% inflation, something costing $100 today will cost
-        about {formatCurrency(adjustForInflation({ amount: 100, annualRatePct: 3, years: 20 }).futureCost)} in 20
-        years. The <a href={`/${ref.relatedCalculator}`}>inflation calculator</a> works in both directions for any amount.
-      </p>
-      <h2>Methodology</h2>
-      <p>
-        Each value is $100 divided by (1 + rate)<sup>years</sup>, using this site's unit-tested inflation function
-        at a constant annual rate. Real inflation varies year to year. This is general information, not financial advice.
-      </p>
-    </div>
-  </div>
-</BaseLayout>
+  <Fragment slot="notes">
+    <h2>The flip side</h2>
+    <p>
+      The same math run forward shows prices rising: at 3% inflation, something costing $100 today will cost
+      about {formatCurrency(futureCost)} in 20 years. The <a href={`/${ref.relatedCalculator}`}>inflation calculator</a>
+      works in both directions for any amount.
+    </p>
+    <h2>Methodology</h2>
+    <p>
+      Each value is $100 divided by (1 + rate) to the power of the years, using this site's unit-tested inflation
+      function at a constant annual rate. Real inflation varies year to year. This is general information, not
+      financial advice.
+    </p>
+  </Fragment>
+</ReferenceLayout>

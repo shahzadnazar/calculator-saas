@@ -1,108 +1,43 @@
 ---
-import BaseLayout from '@layouts/BaseLayout.astro';
-import Breadcrumbs from '@components/Breadcrumbs.astro';
+import ReferenceLayout from '@layouts/ReferenceLayout.astro';
+import { getReference } from '@data/reference';
 import { calculateCompoundInterest } from '@lib/calculators/compound-interest';
 import { formatCurrencyRounded } from '@lib/format';
-import { getReference, referencePath } from '@data/reference';
-import { breadcrumbSchema, articleSchema } from '@lib/schema';
-import { SITE } from '@config/site';
 
 const ref = getReference('savings-growth-table')!;
-const path = referencePath(ref);
-const reviewed = '2026-07-18';
-
-const PRINCIPAL = 10_000;
-const yearsList = [5, 10, 15, 20, 25, 30, 40];
-const rates = [2, 4, 6, 8, 10];
-// Future value of $10,000 at each rate/term (annual compounding, no deposits).
-const rows = yearsList.map((years) => ({
-  years,
-  values: rates.map(
-    (rate) =>
-      calculateCompoundInterest({ principal: PRINCIPAL, annualRatePct: rate, years, compoundsPerYear: 1 })
-        .futureValue,
-  ),
-}));
-
-const crumbs = [
-  { name: 'Home', path: '/' },
-  { name: 'Reference', path: '/reference' },
-  { name: ref.shortName, path },
-];
-const jsonLd = [
-  breadcrumbSchema(crumbs),
-  articleSchema({
-    title: ref.title,
-    description: ref.description,
-    path,
-    authorName: `${SITE.name} Editorial`,
-    datePublished: `${reviewed}T00:00:00Z`,
-  }),
-];
+const at8for30 = calculateCompoundInterest({ principal: 10_000, annualRatePct: 8, years: 30, compoundsPerYear: 1 }).futureValue;
 ---
 
-<BaseLayout title={ref.title} description={ref.description} path={path} jsonLd={jsonLd}>
-  <div class="wrap py-8">
-    <Breadcrumbs crumbs={crumbs} />
-    <header class="mt-5 max-w-3xl">
-      <div class="text-4xl" aria-hidden="true">{ref.icon}</div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{ref.title}</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">
-        What a single <strong>$10,000</strong> deposit grows into with compound interest, across annual returns of
-        2% to 10% over 5 to 40 years. Scale it to any starting amount.
-      </p>
-    </header>
+<ReferenceLayout reference={ref}>
+  <Fragment slot="intro">
+    What a single <strong>$10,000</strong> deposit grows into with compound interest, across annual returns of
+    2% to 10% over 5 to 40 years. Scale it to any starting amount.
+  </Fragment>
 
-    <div class="prose mt-8">
-      <h2>How to use this table</h2>
-      <p>
-        Read down to your time horizon and across to your expected annual return. That is what $10,000 becomes.
-        To scale to your amount, multiply by your amount ÷ 10,000 — a <strong>$50,000</strong> balance is simply
-        <strong>5×</strong> the figure shown.
-      </p>
-    </div>
+  <Fragment slot="howto">
+    <h2>How to use this table</h2>
+    <p>
+      Read down to your time horizon and across to your expected annual return. That is what $10,000 becomes.
+      To scale to your amount, multiply by your amount ÷ 10,000 — a <strong>$50,000</strong> balance is simply
+      <strong>5×</strong> the figure shown.
+    </p>
+  </Fragment>
 
-    <div class="prose mt-4" style="max-width: 60rem">
-      <table>
-        <thead>
-          <tr>
-            <th>Years</th>
-            {rates.map((r) => <th>{r}% return</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {
-            rows.map((row) => (
-              <tr>
-                <td>{row.years}</td>
-                {row.values.map((v) => (
-                  <td>{formatCurrencyRounded(v)}</td>
-                ))}
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <div class="prose mt-8">
-      <h2>The lesson in the numbers</h2>
-      <p>
-        Look along any row and the higher rates pull away dramatically; look down any column and later years
-        do the same. At 8%, $10,000 roughly doubles every nine years — reaching about
-        {formatCurrencyRounded(
-          calculateCompoundInterest({ principal: PRINCIPAL, annualRatePct: 8, years: 30, compoundsPerYear: 1 })
-            .futureValue,
-        )} in 30 years without adding a cent. That is compounding, and time is its biggest lever.
-      </p>
-      <h2>Methodology</h2>
-      <p>
-        Each value is $10,000 grown with annual compounding at the stated rate for the stated number of years,
-        using this site's unit-tested compound-interest function, with no additional contributions. Real returns
-        vary year to year and are never guaranteed. To model contributions and other compounding frequencies, use
-        the <a href={`/${ref.relatedCalculator}`}>compound interest calculator</a>. This is general information,
-        not investment advice.
-      </p>
-    </div>
-  </div>
-</BaseLayout>
+  <Fragment slot="notes">
+    <h2>The lesson in the numbers</h2>
+    <p>
+      Look along any row and the higher rates pull away dramatically; look down any column and later years
+      do the same. At 8%, $10,000 roughly doubles every nine years — reaching about
+      {formatCurrencyRounded(at8for30)} in 30 years without adding a cent. That is compounding, and time is its
+      biggest lever.
+    </p>
+    <h2>Methodology</h2>
+    <p>
+      Each value is $10,000 grown with annual compounding at the stated rate for the stated number of years,
+      using this site's unit-tested compound-interest function, with no additional contributions. Real returns
+      vary year to year and are never guaranteed. To model contributions and other compounding frequencies, use
+      the <a href={`/${ref.relatedCalculator}`}>compound interest calculator</a>. This is general information,
+      not investment advice.
+    </p>
+  </Fragment>
+</ReferenceLayout>

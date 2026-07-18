@@ -210,6 +210,13 @@ const reviewedDisplay = reviewedOn
     }
 
     <!-- Embed this calculator (authority/link program; renders only when enabled) -->
-    <EmbedBox calculator={calculator} />
+    <EmbedBox
+      title={calculator.title}
+      slug={calculator.slug}
+      embedPath={`/embed/${calculator.category}/${calculator.slug}`}
+      canonicalPath={path}
+      noun="calculator"
+    />
+
   </div>
 </BaseLayout>
