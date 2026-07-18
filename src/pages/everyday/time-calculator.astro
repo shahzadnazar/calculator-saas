@@ -1,0 +1,20 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import TimeCalculator from '@components/islands/TimeCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('everyday', 'time-calculator')!;
+const faqs = [
+  { question: 'How do I add two durations?', answer: 'Enter each duration in days, hours, minutes and seconds, choose Add, and the calculator combines them and normalises the result — so 2h 30m plus 1h 45m becomes 4h 15m.' },
+  { question: 'Can it subtract time?', answer: 'Yes. Choose Subtract to find the difference between two durations. If the result is negative, the calculator shows it with a minus sign.' },
+  { question: 'What is the difference from the hours calculator?', answer: 'This tool adds and subtracts durations (spans of time). The hours calculator works out time worked between two clock times, with breaks — better for timesheets.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Add or subtract two durations in days, hours, minutes and seconds, and see the normalised result plus the total in seconds." faqs={faqs}>
+  <TimeCalculator />
+  <Fragment slot="content">
+    <h2>Working with durations</h2>
+    <p>Time is awkward to add by hand because it is in base 60, not base 10. Enter two durations and pick add or subtract; the calculator carries the minutes and hours correctly and shows a tidy result.</p>
+    <h2>Related time tools</h2>
+    <p>To calculate hours worked between two clock times (with breaks), use the <a href="/everyday/hours-calculator">hours calculator</a>. To count days between calendar dates, use the <a href="/everyday/date-calculator">date calculator</a>.</p>
+  </Fragment>
+</CalculatorLayout>

@@ -1,0 +1,24 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import TriangleCalculator from '@components/islands/TriangleCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('math', 'triangle-calculator')!;
+const faqs = [
+  { question: 'How do you find the angles of a triangle from its sides?', answer: 'Use the law of cosines. For each angle, the cosine equals (sum of the squares of the two adjacent sides minus the square of the opposite side) divided by twice the product of the adjacent sides. This calculator does it for all three angles.' },
+  { question: 'How is the area calculated?', answer: 'From three sides, the calculator uses Heron\'s formula: with s as half the perimeter, area = √(s(s−a)(s−b)(s−c)).' },
+  { question: 'What makes three lengths a valid triangle?', answer: 'The triangle inequality: each side must be shorter than the sum of the other two. If not, no triangle can be formed and the calculator flags it.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Solve a triangle from its three sides — find all angles, the area, the perimeter, and whether it is scalene, isosceles or equilateral, and right, acute or obtuse." faqs={faqs}>
+  <TriangleCalculator />
+  <Fragment slot="content">
+    <h2>Solving a triangle from three sides</h2>
+    <p>Enter the three side lengths (a, b, c). The calculator applies the law of cosines to find each angle, Heron's formula for the area, and classifies the triangle by both its sides and its angles.</p>
+    <h2>Classifying triangles</h2>
+    <ul>
+      <li><strong>By sides:</strong> equilateral (all equal), isosceles (two equal), or scalene (all different).</li>
+      <li><strong>By angles:</strong> right (one 90° angle), acute (all under 90°), or obtuse (one over 90°).</li>
+    </ul>
+    <p>For general trigonometry, the <a href="/math/scientific-calculator">scientific calculator</a> handles sine, cosine and tangent directly.</p>
+  </Fragment>
+</CalculatorLayout>

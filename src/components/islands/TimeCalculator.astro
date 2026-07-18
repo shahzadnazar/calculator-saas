@@ -1,0 +1,76 @@
+---
+import { toSeconds, combineDurations, breakdownDuration } from '@lib/calculators/time';
+
+const a = { days: 0, hours: 2, minutes: 30, seconds: 0 };
+const bVals = { days: 0, hours: 1, minutes: 45, seconds: 0 };
+const res = breakdownDuration(combineDurations(toSeconds(a), 'add', toSeconds(bVals)));
+const fields = ['days', 'hours', 'minutes', 'seconds'] as const;
+---
+
+<div class="mx-auto w-full max-w-3xl" data-timecalc>
+  <form class="card p-5 sm:p-6" data-tc-form novalidate>
+    <fieldset>
+      <legend class="field-label">Duration A</legend>
+      <div class="grid grid-cols-4 gap-2">
+        {fields.map((f) => (
+          <div>
+            <input class="field text-center" name={`a_${f}`} type="number" min="0" value={a[f]} aria-label={`A ${f}`} inputmode="numeric" />
+            <p class="mt-1 text-center text-xs" style="color: var(--muted)">{f}</p>
+          </div>
+        ))}
+      </div>
+    </fieldset>
+    <div class="my-3 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Operation" style="border-color: var(--line)">
+      <button type="button" class="op-btn is-active" data-op="add" role="radio" aria-checked="true">Add (+)</button>
+      <button type="button" class="op-btn" data-op="subtract" role="radio" aria-checked="false">Subtract (−)</button>
+    </div>
+    <fieldset>
+      <legend class="field-label">Duration B</legend>
+      <div class="grid grid-cols-4 gap-2">
+        {fields.map((f) => (
+          <div>
+            <input class="field text-center" name={`b_${f}`} type="number" min="0" value={bVals[f]} aria-label={`B ${f}`} inputmode="numeric" />
+            <p class="mt-1 text-center text-xs" style="color: var(--muted)">{f}</p>
+          </div>
+        ))}
+      </div>
+    </fieldset>
+  </form>
+
+  <div class="card mt-6 p-6 text-center">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Result</p>
+    <p class="mt-1 text-3xl font-extrabold tracking-tight" style="color: var(--heading)" data-tc-result>
+      {res.days}d {res.hours}h {res.minutes}m {res.seconds}s
+    </p>
+    <p class="mt-2 text-sm" style="color: var(--muted)">Total: <span data-tc-total>{toSeconds(a) + toSeconds(bVals)}</span> seconds</p>
+  </div>
+</div>
+
+<style>
+  .op-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .op-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { toSeconds, combineDurations, breakdownDuration } from '@lib/calculators/time';
+  const nf = new Intl.NumberFormat('en-US');
+  document.querySelectorAll<HTMLElement>('[data-timecalc]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-tc-form]')!;
+    let op: 'add' | 'subtract' = 'add';
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const dur = (p: string) => toSeconds({ days: num(`${p}_days`), hours: num(`${p}_hours`), minutes: num(`${p}_minutes`), seconds: num(`${p}_seconds`) });
+    function recompute() {
+      const total = combineDurations(dur('a'), op, dur('b'));
+      const d = breakdownDuration(total);
+      root.querySelector<HTMLElement>('[data-tc-result]')!.textContent = `${d.negative ? '−' : ''}${d.days}d ${d.hours}h ${d.minutes}m ${d.seconds}s`;
+      root.querySelector<HTMLElement>('[data-tc-total]')!.textContent = nf.format(total);
+    }
+    root.querySelectorAll<HTMLButtonElement>('.op-btn').forEach((btn) => btn.addEventListener('click', () => {
+      op = (btn.dataset.op as 'add' | 'subtract') ?? 'add';
+      root.querySelectorAll('.op-btn').forEach((x) => { const act = x === btn; x.classList.toggle('is-active', act); x.setAttribute('aria-checked', String(act)); });
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

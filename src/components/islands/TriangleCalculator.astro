@@ -1,0 +1,52 @@
+---
+import { solveTriangleSSS } from '@lib/calculators/triangle';
+import { formatNumber } from '@lib/format';
+
+const d = { a: 3, b: 4, c: 5 };
+const r = solveTriangleSSS(d.a, d.b, d.c);
+const fmt = (v: number) => (Number.isNaN(v) ? '—' : formatNumber(v, 2));
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-triangle>
+  <form class="card p-5 sm:p-6" data-tri-form novalidate>
+    <p class="mb-3 text-sm" style="color: var(--muted)">Enter the three side lengths.</p>
+    <div class="space-y-4">
+      <div><label class="field-label" for="tri-a">Side a</label><input class="field" id="tri-a" name="a" type="number" min="0" step="0.1" value={d.a} inputmode="decimal" /></div>
+      <div><label class="field-label" for="tri-b">Side b</label><input class="field" id="tri-b" name="b" type="number" min="0" step="0.1" value={d.b} inputmode="decimal" /></div>
+      <div><label class="field-label" for="tri-c">Side c</label><input class="field" id="tri-c" name="c" type="number" min="0" step="0.1" value={d.c} inputmode="decimal" /></div>
+    </div>
+    <p class="mt-3 text-xs" style="color: var(--color-danger)" data-tri-invalid hidden>Those side lengths cannot form a triangle.</p>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <div class="grid grid-cols-2 gap-3 text-center">
+      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Area</p><p class="mt-1 text-xl font-bold" data-tri-area>{fmt(r.area)}</p></div>
+      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Perimeter</p><p class="mt-1 text-xl font-bold" data-tri-perim>{fmt(r.perimeter)}</p></div>
+    </div>
+    <dl class="mt-4 space-y-2 text-sm">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Angle A (opposite a)</dt><dd class="font-semibold"><span data-tri-A>{fmt(r.angleA)}</span>°</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Angle B (opposite b)</dt><dd class="font-semibold"><span data-tri-B>{fmt(r.angleB)}</span>°</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Angle C (opposite c)</dt><dd class="font-semibold"><span data-tri-C>{fmt(r.angleC)}</span>°</dd></div>
+      <div class="flex justify-between border-t pt-2" style="border-color: var(--line)"><dt class="font-semibold">Type</dt><dd class="font-bold" style="color: var(--color-brand-700)"><span data-tri-stype>{r.sideType}</span> · <span data-tri-atype>{r.angleType}</span></dd></div>
+    </dl>
+  </div>
+</div>
+
+<script>
+  import { solveTriangleSSS } from '@lib/calculators/triangle';
+  const fmt = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(v));
+  document.querySelectorAll<HTMLElement>('[data-triangle]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-tri-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = solveTriangleSSS(num('a'), num('b'), num('c'));
+      root.querySelector<HTMLElement>('[data-tri-invalid]')!.hidden = r.valid;
+      set('[data-tri-area]', fmt(r.area)); set('[data-tri-perim]', fmt(r.perimeter));
+      set('[data-tri-A]', fmt(r.angleA)); set('[data-tri-B]', fmt(r.angleB)); set('[data-tri-C]', fmt(r.angleC));
+      set('[data-tri-stype]', r.valid ? r.sideType : '—'); set('[data-tri-atype]', r.valid ? r.angleType : '—');
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

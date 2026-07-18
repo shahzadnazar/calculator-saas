@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import ConcreteCalculator from '@components/islands/ConcreteCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('everyday', 'concrete-calculator')!;
+const faqs = [
+  { question: 'How much concrete do I need?', answer: 'Multiply the length, width and depth of your slab to get the volume, then convert to cubic yards or metres. Enter your dimensions above and the calculator does it, including the number of pre-mix bags.' },
+  { question: 'How many bags of concrete are in a cubic yard?', answer: 'Roughly 45 × 80-lb bags, 60 × 60-lb bags, or 90 × 40-lb bags make a cubic yard. For anything more than a few cubic yards, ready-mix delivery is usually cheaper and easier.' },
+  { question: 'Why add a waste allowance?', answer: 'Some concrete is always lost to spillage, uneven subgrade and over-excavation. Adding about 5–10% extra ensures you do not run short mid-pour.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate how much concrete a slab or footing needs — in cubic yards, cubic metres and pre-mix bags — with an optional waste allowance." faqs={faqs}>
+  <ConcreteCalculator />
+  <Fragment slot="content">
+    <h2>Estimating your pour</h2>
+    <p>Enter the length, width and depth (thickness) of the area, in feet or metres. The calculator returns the volume in cubic yards, cubic metres and cubic feet, plus how many 40, 60 or 80-lb pre-mix bags you would need.</p>
+    <h2>Bags vs. ready-mix</h2>
+    <p>Bags suit small jobs — footings, posts, a small pad. For large slabs, ordering ready-mix by the cubic yard is usually more economical. Always add a waste allowance so you do not stop a pour to buy more.</p>
+    <p>These are estimates; confirm quantities with your supplier and account for your specific site conditions.</p>
+  </Fragment>
+</CalculatorLayout>

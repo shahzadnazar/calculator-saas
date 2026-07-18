@@ -1,0 +1,66 @@
+---
+import { calculateConcrete, type LengthUnit } from '@lib/calculators/concrete';
+import { formatNumber } from '@lib/format';
+
+const d = { length: 10, width: 10, depth: 0.5, unit: 'ft' as LengthUnit, wastePct: 10 };
+const r = calculateConcrete(d);
+const nf = (v: number) => formatNumber(v, 2);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-concrete>
+  <form class="card p-5 sm:p-6" data-co-form novalidate>
+    <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Units" style="border-color: var(--line)">
+      <button type="button" class="unit-btn is-active" data-unit="ft" role="radio" aria-checked="true">Feet</button>
+      <button type="button" class="unit-btn" data-unit="m" role="radio" aria-checked="false">Metres</button>
+    </div>
+    <div class="space-y-4">
+      <div><label class="field-label" for="co-l">Length</label><input class="field" id="co-l" name="length" type="number" min="0" step="0.1" value={d.length} inputmode="decimal" /></div>
+      <div><label class="field-label" for="co-w">Width</label><input class="field" id="co-w" name="width" type="number" min="0" step="0.1" value={d.width} inputmode="decimal" /></div>
+      <div><label class="field-label" for="co-d">Depth / thickness</label><input class="field" id="co-d" name="depth" type="number" min="0" step="0.05" value={d.depth} inputmode="decimal" /></div>
+      <div><label class="field-label" for="co-waste">Waste allowance</label><div class="flex"><input class="field rounded-r-none" id="co-waste" name="wastePct" type="number" min="0" step="1" value={d.wastePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div></div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Concrete needed</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-co-yards>{nf(r.cubicYards)}</span> <span class="text-xl" style="color: var(--muted)">yd³</span></p>
+    <dl class="mt-4 space-y-2 text-sm">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Cubic metres</dt><dd class="font-semibold"><span data-co-meters>{nf(r.cubicMeters)}</span> m³</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Cubic feet</dt><dd class="font-semibold"><span data-co-feet>{nf(r.cubicFeet)}</span> ft³</dd></div>
+    </dl>
+    <h3 class="mt-4 text-sm font-bold" style="color: var(--heading)">Pre-mix bags needed</h3>
+    <div class="mt-2 grid grid-cols-3 gap-2 text-center text-sm">
+      <div class="rounded-lg p-2" style="background: var(--subtle)"><p class="font-bold" data-co-b40>{r.bags40lb}</p><p class="text-xs" style="color: var(--muted)">40 lb</p></div>
+      <div class="rounded-lg p-2" style="background: var(--subtle)"><p class="font-bold" data-co-b60>{r.bags60lb}</p><p class="text-xs" style="color: var(--muted)">60 lb</p></div>
+      <div class="rounded-lg p-2" style="background: var(--subtle)"><p class="font-bold" data-co-b80>{r.bags80lb}</p><p class="text-xs" style="color: var(--muted)">80 lb</p></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .unit-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .unit-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { calculateConcrete, type LengthUnit } from '@lib/calculators/concrete';
+  const nf = (v: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(v);
+  document.querySelectorAll<HTMLElement>('[data-concrete]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-co-form]')!;
+    let unit: LengthUnit = 'ft';
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = calculateConcrete({ length: num('length'), width: num('width'), depth: num('depth'), unit, wastePct: num('wastePct') });
+      set('[data-co-yards]', nf(r.cubicYards)); set('[data-co-meters]', nf(r.cubicMeters)); set('[data-co-feet]', nf(r.cubicFeet));
+      set('[data-co-b40]', String(r.bags40lb)); set('[data-co-b60]', String(r.bags60lb)); set('[data-co-b80]', String(r.bags80lb));
+    }
+    root.querySelectorAll<HTMLButtonElement>('.unit-btn').forEach((b) => b.addEventListener('click', () => {
+      unit = (b.dataset.unit as LengthUnit) ?? 'ft';
+      root.querySelectorAll('.unit-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

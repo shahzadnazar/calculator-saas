@@ -1,0 +1,20 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import RandomNumberGenerator from '@components/islands/RandomNumberGenerator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('math', 'random-number-generator')!;
+const faqs = [
+  { question: 'How random are these numbers?', answer: 'They are generated with the Web Cryptography API, which provides cryptographically strong randomness — far more unpredictable than typical pseudo-random functions. Everything runs in your browser.' },
+  { question: 'Can I generate numbers without repeats?', answer: 'Yes. Tick the "Unique" box and every number in the result will be different. If you request more unique numbers than the range allows, the generator returns as many distinct values as possible.' },
+  { question: 'What can I use it for?', answer: 'Drawing raffle winners, picking lottery-style numbers, sampling, assigning order, games, or any time you need an impartial random choice.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Generate one or many random numbers within any range, with an option for unique (non-repeating) values — powered by secure browser randomness." faqs={faqs}>
+  <RandomNumberGenerator />
+  <Fragment slot="content">
+    <h2>How to use the generator</h2>
+    <p>Set the minimum and maximum, choose how many numbers you want, and press Generate. Tick <strong>Unique</strong> to avoid repeats — useful for lottery numbers or drawing names.</p>
+    <h2>Truly random, and private</h2>
+    <p>The numbers come from your browser's cryptographic random source, so they are unpredictable and unbiased. Nothing is sent to a server — the generation happens entirely on your device. For strong random passwords instead, see the <a href="/everyday/password-generator">password generator</a>.</p>
+  </Fragment>
+</CalculatorLayout>

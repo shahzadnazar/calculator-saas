@@ -1,0 +1,38 @@
+---
+/** Random number generator — runs client-side using the Web Crypto API. */
+---
+
+<div class="mx-auto w-full max-w-3xl" data-rng>
+  <div class="card p-5 sm:p-6">
+    <form class="grid grid-cols-2 gap-4 sm:grid-cols-4" data-rng-form>
+      <div><label class="field-label" for="rng-min">Min</label><input class="field" id="rng-min" name="min" type="number" value="1" inputmode="numeric" /></div>
+      <div><label class="field-label" for="rng-max">Max</label><input class="field" id="rng-max" name="max" type="number" value="100" inputmode="numeric" /></div>
+      <div><label class="field-label" for="rng-count">How many</label><input class="field" id="rng-count" name="count" type="number" min="1" max="1000" value="5" inputmode="numeric" /></div>
+      <label class="flex items-end gap-2 pb-2 text-sm font-medium"><input type="checkbox" name="unique" /> Unique</label>
+    </form>
+    <button type="button" class="btn btn-primary mt-4 w-full" data-rng-go>Generate</button>
+    <div class="mt-5 min-h-16 rounded-lg p-4 text-center" style="background: var(--subtle)">
+      <p class="flex flex-wrap justify-center gap-2 text-lg font-bold" style="color: var(--heading)" data-rng-out aria-live="polite"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { randomIntegers } from '@lib/calculators/random-number';
+  document.querySelectorAll<HTMLElement>('[data-rng]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-rng-form]')!;
+    const out = root.querySelector<HTMLElement>('[data-rng-out]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement).value) || 0;
+    function generate() {
+      const nums = randomIntegers({
+        min: num('min'), max: num('max'), count: num('count'),
+        unique: (form.elements.namedItem('unique') as HTMLInputElement).checked,
+      });
+      out.innerHTML = nums.length
+        ? nums.map((n) => `<span class="rounded-md px-2 py-1" style="background: var(--card)">${n}</span>`).join('')
+        : '<span style="color: var(--muted)">Check your range and count.</span>';
+    }
+    root.querySelector('[data-rng-go]')!.addEventListener('click', generate);
+    generate();
+  });
+</script>
