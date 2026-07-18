@@ -5,23 +5,34 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('math', 'volume-calculator')!;
 const faqs = [
   { question: 'How do I calculate volume?', answer: 'Pick the 3D shape and enter its dimensions. A box is length × width × height; a sphere is 4⁄3 × π × radius³; a cylinder is π × radius² × height. The calculator uses the correct formula for each shape.' },
-  { question: 'What is the volume of a cylinder?', answer: 'Volume = π × radius² × height. A cylinder with radius 2 and height 5 has a volume of about 62.83 cubic units.' },
+  { question: 'How do I find the volume of a cylinder?', answer: 'Volume = π × radius² × height. A cylinder with radius 2 and height 5 has a volume of π × 4 × 5 ≈ 62.83 cubic units. It is simply the circular base area (π × r²) multiplied by the height.' },
+  { question: 'How do I find the volume of a sphere?', answer: 'Volume = 4⁄3 × π × radius³. A sphere of radius 3 has a volume of 4⁄3 × π × 27 ≈ 113.10 cubic units. Only the radius matters — a sphere has no other dimension.' },
+  { question: 'How do I find the volume of a cone?', answer: 'Volume = ⅓ × π × radius² × height — exactly one third of a cylinder with the same base and height. A cone with radius 3 and height 6 holds ⅓ × π × 9 × 6 ≈ 56.55 cubic units.' },
+  { question: 'How do I find the volume of a rectangular prism?', answer: 'A rectangular prism (a box) is length × width × height. A box 2 × 3 × 4 has a volume of 24 cubic units. Use the "box" shape above and enter the three dimensions.' },
   { question: 'What units is the volume in?', answer: 'Enter all dimensions in the same unit; the volume is in that unit cubed (e.g. cubic metres or cubic feet). Choose a unit label to match your measurements.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid or capsule — select the shape and enter its dimensions." faqs={faqs}>
   <VolumeCalculator />
   <Fragment slot="content">
-    <h2>Volume formulas</h2>
-    <ul>
-      <li><strong>Cube:</strong> side³</li>
-      <li><strong>Box:</strong> length × width × height</li>
-      <li><strong>Sphere:</strong> 4⁄3 × π × radius³</li>
-      <li><strong>Cylinder:</strong> π × radius² × height</li>
-      <li><strong>Cone:</strong> ⅓ × π × radius² × height</li>
-      <li><strong>Pyramid:</strong> ⅓ × base length × base width × height</li>
-      <li><strong>Capsule:</strong> π × radius² × (4⁄3 × radius + height)</li>
-    </ul>
+    <h2>Volume formulas, with worked examples</h2>
+    <p>Volume is always in cubic units. Each shape has its own formula — these are the ones the calculator solves:</p>
+    <table>
+      <thead>
+        <tr><th>Shape</th><th>Formula</th><th>Example</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Cube</td><td>side³</td><td>3³ = 27</td></tr>
+        <tr><td>Box (rectangular prism)</td><td>length × width × height</td><td>2 × 3 × 4 = 24</td></tr>
+        <tr><td>Sphere</td><td>4⁄3 × π × radius³</td><td>4⁄3 × π × 3³ ≈ 113.10</td></tr>
+        <tr><td>Cylinder</td><td>π × radius² × height</td><td>π × 2² × 5 ≈ 62.83</td></tr>
+        <tr><td>Cone</td><td>⅓ × π × radius² × height</td><td>⅓ × π × 3² × 6 ≈ 56.55</td></tr>
+        <tr><td>Pyramid</td><td>⅓ × base length × base width × height</td><td>⅓ × 4 × 4 × 9 = 48</td></tr>
+        <tr><td>Capsule</td><td>π × r² × (4⁄3 × r + height)</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p>A useful pattern: a cone is exactly one third of the cylinder that would enclose it, and a pyramid is one third of its enclosing box.</p>
+
     <h2>Everyday uses</h2>
     <p>Volume calculations help with shipping and packaging, filling a pool or tank, cooking, and construction. For pouring a concrete slab, the <a href="/everyday/concrete-calculator">concrete calculator</a> converts volume into cubic yards and bags. For flat areas, see the <a href="/math/area-calculator">area calculator</a>.</p>
   </Fragment>

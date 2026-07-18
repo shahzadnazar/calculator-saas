@@ -7,6 +7,7 @@ const faqs = [
   { question: 'How do you find the angles of a triangle from its sides?', answer: 'Use the law of cosines. For each angle, the cosine equals (sum of the squares of the two adjacent sides minus the square of the opposite side) divided by twice the product of the adjacent sides. This calculator does it for all three angles.' },
   { question: 'How is the area calculated?', answer: 'From three sides, the calculator uses Heron\'s formula: with s as half the perimeter, area = √(s(s−a)(s−b)(s−c)).' },
   { question: 'What makes three lengths a valid triangle?', answer: 'The triangle inequality: each side must be shorter than the sum of the other two. If not, no triangle can be formed and the calculator flags it.' },
+  { question: 'How do I know if a triangle is right-angled?', answer: 'Check whether the squares of the two shorter sides add up to the square of the longest side (the Pythagorean theorem). A 3-4-5 triangle is right-angled because 3² + 4² = 9 + 16 = 25 = 5². The calculator classifies each triangle as right, acute or obtuse for you.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Solve a triangle from its three sides — find all angles, the area, the perimeter, and whether it is scalene, isosceles or equilateral, and right, acute or obtuse." faqs={faqs}>
@@ -19,6 +20,9 @@ const faqs = [
       <li><strong>By sides:</strong> equilateral (all equal), isosceles (two equal), or scalene (all different).</li>
       <li><strong>By angles:</strong> right (one 90° angle), acute (all under 90°), or obtuse (one over 90°).</li>
     </ul>
+
+    <h2>A worked example: the 3-4-5 triangle</h2>
+    <p>Enter sides of 3, 4 and 5. Because 3² + 4² = 9 + 16 = 25 = 5², the Pythagorean theorem holds exactly, so the calculator reports a <strong>right triangle</strong> with a 90° angle opposite the longest side. Heron's formula gives an area of 6, and the other two angles come out to about 36.87° and 53.13°. The 3-4-5 is the smallest whole-number right triangle, which is why builders use it to square up corners.</p>
     <p>For general trigonometry, the <a href="/math/scientific-calculator">scientific calculator</a> handles sine, cosine and tangent directly.</p>
   </Fragment>
 </CalculatorLayout>

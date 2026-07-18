@@ -4,24 +4,37 @@ import TipCalculator from '@components/islands/TipCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'tip-calculator')!;
 const faqs = [
-  { question: 'How much should I tip?', answer: 'In the United States, 15–20% of the pre-tax bill is standard for sit-down restaurant service, with 18–20% common for good service. Tip 10% or less for minimal service, and more for exceptional service. Norms differ by country and by service type.' },
+  { question: 'How do I calculate a tip?', answer: 'Multiply the bill by the tip percentage as a decimal. For a $50 bill at 20%, that is 50 × 0.20 = $10, for a $60 total. A quick mental shortcut for 20% is to take 10% (move the decimal one place: $5) and double it.' },
+  { question: 'How much should I tip?', answer: 'In the United States, 15–20% of the pre-tax bill is standard for sit-down restaurant service, with 18–20% for good service. Tip 10% or less for minimal service, and more for exceptional service. Norms differ by country and service type.' },
+  { question: 'How much should I tip movers, a hairdresser or an Uber driver?', answer: 'Common US guidance: movers about $20–40 per person for a day\'s work (or 5–10% of the bill split among the crew), hairdressers and barbers 15–20%, massage therapists 15–20%, and rideshare or taxi drivers 10–20% with a small minimum. See the table below for more.' },
   { question: 'Do I tip on the total with tax, or before tax?', answer: 'Etiquette says to tip on the pre-tax amount, though many people tip on the total for simplicity. Enter whichever figure you prefer as the bill.' },
-  { question: 'How do I split a bill with a tip?', answer: 'Enter the number of people and the calculator divides the total (bill plus tip) evenly, showing the amount and the tip each person owes.' },
-  { question: 'What is a good tip for delivery or a barber?', answer: 'Around 15–20% is typical for food delivery (with a minimum of a few dollars) and for personal services like haircuts. Use the preset buttons to compare quickly.' },
+  { question: 'How do I split a bill with a tip?', answer: 'Enter the number of people and the calculator divides the total (bill plus tip) evenly, showing the amount and the tip each person owes. A $60 total split four ways is $15 each.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the tip and total on any bill and split it evenly between friends. Tap a preset percentage or enter your own." faqs={faqs}>
   <TipCalculator />
   <Fragment slot="content">
-    <h2>How to use the tip calculator</h2>
-    <p>Enter the bill, choose a tip percentage (or tap a preset), and set how many people are splitting it. The calculator shows the tip, the grand total, and exactly what each person owes — no mental math at the table.</p>
-    <h2>Tipping guide</h2>
-    <ul>
-      <li><strong>Restaurants:</strong> 15–20% of the pre-tax bill for table service.</li>
-      <li><strong>Delivery:</strong> 15–20%, with a few-dollar minimum.</li>
-      <li><strong>Bars:</strong> around $1–2 per drink, or 15–20% of a tab.</li>
-      <li><strong>Personal services</strong> (haircuts, taxis): roughly 15–20%.</li>
-    </ul>
-    <p>Customs vary widely by country — in many places a service charge is already included and tipping is minimal. When in doubt, check local norms. To add or remove sales tax from a price, see the <a href="/finance/sales-tax-calculator">sales tax calculator</a>.</p>
+    <h2>How to calculate a tip</h2>
+    <p>Multiply the bill by the tip rate: a <strong>$50</strong> bill at <strong>20%</strong> is 50 × 0.20 = <strong>$10</strong>, for a $60 total. Splitting four ways, that is $15 each. The fastest mental trick for 20% is to find 10% (just move the decimal one place — $5) and double it; for 15%, take that 10% and add half of it again.</p>
+
+    <h2>How much to tip, by service</h2>
+    <table>
+      <thead>
+        <tr><th>Service</th><th>Typical US tip</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Restaurant (table service)</td><td>15–20% pre-tax</td></tr>
+        <tr><td>Food delivery</td><td>15–20% (min. $3–5)</td></tr>
+        <tr><td>Rideshare / taxi</td><td>10–20%</td></tr>
+        <tr><td>Hairdresser / barber</td><td>15–20%</td></tr>
+        <tr><td>Massage therapist</td><td>15–20%</td></tr>
+        <tr><td>Movers</td><td>$20–40 per mover / day</td></tr>
+        <tr><td>Bartender</td><td>$1–2 per drink</td></tr>
+        <tr><td>Hotel housekeeping</td><td>$2–5 per night</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Tipping around the world</h2>
+    <p>Customs vary widely by country — in much of Europe and Asia a service charge is often already included and tipping is minimal or rounded up rather than a set percentage. When travelling, check local norms so you neither under- nor over-tip. To add or remove sales tax from a price, see the <a href="/finance/sales-tax-calculator">sales tax calculator</a>.</p>
   </Fragment>
 </CalculatorLayout>
