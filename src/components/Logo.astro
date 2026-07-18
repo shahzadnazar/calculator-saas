@@ -22,16 +22,18 @@ const { markOnly = false, class: className = '' } = Astro.props;
     aria-hidden="true"
     class="shrink-0"
   >
-    <rect width="32" height="32" rx="8" fill="var(--color-brand-600)" />
-    <rect x="6" y="5" width="20" height="8" rx="2" fill="#fff" fill-opacity="0.92" />
+    <rect width="32" height="32" rx="7.5" fill="var(--color-brand-600)" />
+    <!-- Subtle top sheen for depth (premium, no gradient id needed). -->
+    <path d="M0 7.5A7.5 7.5 0 0 1 7.5 0h17A7.5 7.5 0 0 1 32 7.5V13H0Z" fill="#fff" fill-opacity="0.08" />
+    <rect x="6" y="5.5" width="20" height="7" rx="2" fill="#fff" fill-opacity="0.95" />
     <g fill="#fff">
-      <rect x="6" y="16" width="5.5" height="5.5" rx="1.4" />
-      <rect x="13.25" y="16" width="5.5" height="5.5" rx="1.4" />
-      <rect x="20.5" y="16" width="5.5" height="5.5" rx="1.4" fill="var(--color-accent-400)" />
-      <rect x="6" y="23.25" width="5.5" height="3.75" rx="1.4" />
-      <rect x="13.25" y="23.25" width="5.5" height="3.75" rx="1.4" />
-      <rect x="20.5" y="23.25" width="5.5" height="3.75" rx="1.4" fill="var(--color-accent-400)" />
+      <rect x="6" y="16" width="5.5" height="5.5" rx="1.5" />
+      <rect x="13.25" y="16" width="5.5" height="5.5" rx="1.5" />
+      <rect x="6" y="23.25" width="5.5" height="3.75" rx="1.5" />
+      <rect x="13.25" y="23.25" width="5.5" height="3.75" rx="1.5" />
     </g>
+    <!-- Distinctive accent "operator" key spanning the right column. -->
+    <rect x="20.5" y="16" width="5.5" height="11" rx="1.8" fill="var(--color-accent-400)" />
   </svg>
   {
     !markOnly && (
