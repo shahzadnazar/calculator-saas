@@ -53,6 +53,9 @@ const fullTitle = title.includes(SITE.name) ? title : `${title} | ${SITE.name}`;
 <meta name="theme-color" content={SITE.themeColor} />
 <meta name="color-scheme" content="light dark" />
 
+<!-- Preload the primary font (self-hosted Inter) for fast, low-CLS first paint -->
+<link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+
 <!-- Icons -->
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />

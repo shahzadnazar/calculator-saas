@@ -4,7 +4,7 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import { SITE } from '@config/site';
 import {
   CATEGORIES_ORDERED,
-  getLiveCalculators,
+  getCalculator,
   getCalculatorsByCategory,
   getCategory,
   calculatorPath,
@@ -12,7 +12,24 @@ import {
   STATS,
 } from '@data/calculators';
 
-const featured = getLiveCalculators();
+// A curated set of flagship tools — a teaser, not the full 49 (that's /calculators).
+const popularRefs = [
+  'finance/mortgage-calculator',
+  'health/bmi-calculator',
+  'math/percent-calculator',
+  'math/scientific-calculator',
+  'finance/loan-calculator',
+  'health/calorie-calculator',
+  'finance/compound-interest-calculator',
+  'everyday/age-calculator',
+  'finance/tip-calculator',
+];
+const featured = popularRefs
+  .map((ref) => {
+    const [cat, slug] = ref.split('/');
+    return getCalculator(cat, slug);
+  })
+  .filter((c): c is NonNullable<typeof c> => Boolean(c));
 
 // Surface the flagship pillar guides on the home page (fall back to featured).
 const allGuides = await getCollection('guides', ({ data }) => !data.draft);
