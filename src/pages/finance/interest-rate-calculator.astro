@@ -4,9 +4,11 @@ import InterestRateCalculator from '@components/islands/InterestRateCalculator.a
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'interest-rate-calculator')!;
 const faqs = [
-  { question: 'How do you find the interest rate on a loan?', answer: 'When you know the loan amount, the monthly payment and the term, the interest rate can be found by solving the payment formula in reverse. There is no simple algebraic answer, so this calculator finds it numerically to a high precision.' },
+  { question: 'How do you find the interest rate on a loan?', answer: 'When you know the loan amount, the monthly payment and the term, the rate can be found by solving the payment formula in reverse. There is no simple algebraic answer, so this calculator finds it numerically to a high precision.' },
   { question: 'Why would I need to calculate the rate?', answer: 'Sometimes an offer quotes only a monthly payment and a term, not a rate — common with in-house financing or "same as cash" deals. Backing out the rate lets you compare the true cost against other loans.' },
-  { question: 'Is this the same as APR?', answer: 'It is the interest rate implied by the payments. True APR also folds in certain fees, so a loan with fees has a higher APR than the rate shown here.' },
+  { question: 'What is the difference between the interest rate and APR?', answer: 'The interest rate is the cost of borrowing the principal. The APR (annual percentage rate) also folds in certain fees, such as origination charges or points, so it is usually a little higher. This tool returns the rate implied by the payments, so a loan with fees will have a higher APR than the number shown.' },
+  { question: 'How is the rate found if there is no direct formula?', answer: 'The payment formula cannot be rearranged to isolate the rate, so the calculator solves it iteratively — trying rates and narrowing in until the computed payment matches yours. It happens instantly and to many decimal places.' },
+  { question: 'What is a good interest rate?', answer: 'It depends entirely on the loan type and your credit. Mortgage rates are far lower than credit-card rates, and a strong credit score earns better offers. Rather than chase an absolute number, compare the rate here against competing offers for the same kind of loan.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Work out the interest rate implied by a loan's amount, monthly payment and term — useful for comparing offers that only quote a payment." faqs={faqs}>
@@ -14,6 +16,13 @@ const faqs = [
   <Fragment slot="content">
     <h2>Reverse-engineering the rate</h2>
     <p>Lenders often lead with a monthly payment because it sounds affordable, while the rate stays buried. Enter the loan amount, the payment and the number of months, and this tool solves for the annual rate hiding inside those numbers.</p>
+
+    <h2>A worked example</h2>
+    <p>Suppose a $12,000 car is offered at <strong>$238 a month for 60 months</strong>. That is $14,280 paid in total — <strong>$2,280 of interest</strong> — and the rate baked into those payments works out to about <strong>7%</strong>. Seeing that number is what lets you judge whether the "easy monthly payment" is actually a good deal.</p>
+
+    <h2>Interest rate vs. APR</h2>
+    <p>The figure here is the rate implied by the payments alone. A quoted <strong>APR</strong> also includes certain fees, so it is usually slightly higher than the raw rate — worth remembering when you compare this result against an advertised APR.</p>
+
     <h2>Comparing offers fairly</h2>
     <p>Once you know the implied rate, you can compare a financing offer against a straightforward loan. Model the alternatives with the <a href="/finance/loan-calculator">loan calculator</a> and the <a href="/finance/payment-calculator">payment calculator</a>.</p>
     <p>This is general educational information, not financial advice.</p>

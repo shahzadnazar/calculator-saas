@@ -12,21 +12,36 @@ const faqs = [
       'Multiply the pre-tax price by the tax rate (as a decimal) to get the tax amount, then add it to the price for the total. For example, $100 at 7.25% is $7.25 tax and $107.25 total.',
   },
   {
+    question: 'What is sales tax?',
+    answer:
+      'Sales tax is a percentage added at the point of sale, collected by the seller and passed to the government. In the US it is set by state and local jurisdictions (there is no national sales tax), so the combined rate depends on where the sale happens.',
+  },
+  {
     question: 'How do I find the price before tax from a total?',
     answer:
-      'Divide the tax-inclusive total by (1 + rate). For a $107.25 total at 7.25%, the pre-tax price is 107.25 ÷ 1.0725 = $100. Use the “Remove tax” mode above to do this automatically.',
+      'Divide the tax-inclusive total by (1 + rate). For a $107.25 total at 7.25%, the pre-tax price is 107.25 ÷ 1.0725 = $100. Use the "Remove tax" mode above to do this automatically.',
+  },
+  {
+    question: 'Which states have no sales tax?',
+    answer:
+      'Five states have no statewide sales tax — New Hampshire, Oregon, Montana, Alaska and Delaware (the "NOMAD" states). Alaska has no state sales tax but allows local ones, so some Alaskan cities still charge it.',
+  },
+  {
+    question: 'Are all purchases taxed?',
+    answer:
+      'No. Many states exempt or reduce tax on necessities such as groceries and prescription medicine, and rules vary widely by jurisdiction. Enter the rate that actually applies to your item and location.',
   },
   {
     question: 'What sales tax rate should I use?',
     answer:
-      'Sales tax rates vary by country, state and even city, and some goods are exempt. Enter the combined rate that applies where the purchase is made to get an accurate figure.',
+      'Use the combined state-plus-local rate that applies where the purchase is made. Rates range from 0% to over 10% once local taxes are included, so the correct figure depends on the exact city or county.',
   },
 ];
 ---
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Add sales tax to a price, or work backwards to find the pre-tax amount and tax included in a total. Enter any tax rate."
   faqs={faqs}
 >
@@ -47,9 +62,25 @@ const faqs = [
       <li><strong>Pre-tax from total:</strong> total ÷ (1 + rate ÷ 100)</li>
     </ul>
 
+    <h2>A worked example</h2>
+    <p>
+      A $100 item at a 7.25% rate has $100 × 0.0725 = <strong>$7.25</strong> in tax, for a
+      <strong>$107.25</strong> total. Working backwards from a $107.25 receipt: $107.25 ÷
+      1.0725 = <strong>$100</strong> before tax, so $7.25 was tax. The same two steps scale
+      to any price and rate.
+    </p>
+
+    <h2>States with no sales tax</h2>
+    <p>
+      Five states levy no statewide sales tax — <strong>New Hampshire, Oregon, Montana,
+      Alaska and Delaware</strong> (remembered as "NOMAD"). Alaska is the asterisk: it has
+      no state rate but lets cities and boroughs add their own, so a purchase there may
+      still be taxed locally. Everywhere else, the combined state-and-local rate applies.
+    </p>
     <p>
       Rates and exemptions differ by jurisdiction; confirm the correct combined rate for
-      your location. This tool is for estimation only.
+      your location. To split a tip on a taxed restaurant bill, see the
+      <a href="/finance/tip-calculator">tip calculator</a>. This tool is for estimation only.
     </p>
   </Fragment>
 </CalculatorLayout>

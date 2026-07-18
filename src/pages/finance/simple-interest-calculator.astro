@@ -7,26 +7,41 @@ const calc = getCalculator('finance', 'simple-interest-calculator')!;
 
 const faqs = [
   {
+    question: 'What is simple interest?',
+    answer:
+      'Simple interest is interest charged only on the original principal, never on interest already earned. Because the base never changes, it grows in a straight line — the same amount every period.',
+  },
+  {
     question: 'What is the simple interest formula?',
     answer:
       'Simple interest is I = P × r × t, where P is the principal, r is the annual interest rate as a decimal, and t is the time in years. The total amount owed or earned is the principal plus the interest.',
   },
   {
+    question: 'How do I calculate simple interest?',
+    answer:
+      'Multiply principal by rate by time. Borrow $5,000 at 5% for 3 years and the interest is 5,000 × 0.05 × 3 = $750, for a total of $5,750. That is $250 of interest each year, unchanged.',
+  },
+  {
     question: 'How is simple interest different from compound interest?',
     answer:
-      'Simple interest is calculated only on the original principal, so it grows in a straight line. Compound interest is calculated on the principal plus previously earned interest, so it grows faster over time.',
+      'Simple interest is calculated only on the principal, so it is linear. Compound interest is calculated on the principal plus accumulated interest, so it accelerates. Over short terms the difference is small; over decades it is enormous.',
+  },
+  {
+    question: 'How do I solve for the rate, principal or time?',
+    answer:
+      'Rearrange I = P × r × t: the rate is r = I ÷ (P × t), the principal is P = I ÷ (r × t), and the time is t = I ÷ (P × r). Knowing any three of the four values gives you the fourth.',
   },
   {
     question: 'When is simple interest used?',
     answer:
-      'Simple interest is common for short-term loans, car loans, and some personal loans and bonds. Savings accounts and most long-term investments use compound interest instead.',
+      'Simple interest is common for short-term loans, many car loans, and some personal loans and bonds. Savings accounts and most long-term investments use compound interest instead.',
   },
 ];
 ---
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Calculate simple interest and the total amount for a loan or investment using the classic I = P × r × t formula."
   faqs={faqs}
 >
@@ -47,9 +62,26 @@ const faqs = [
       every year.
     </p>
 
+    <h2>Simple vs. compound — why the term matters</h2>
+    <p>
+      Over that 3-year loan, compound interest would add about $788 instead of $750 — a
+      small gap. Stretch the same $5,000 at 5% to <strong>30 years</strong> and simple
+      interest totals $7,500, while compound interest totals over <strong>$16,000</strong>.
+      The longer the horizon, the more compounding pulls ahead — which is why it is the
+      friend of savers and the cost of long-term debt.
+    </p>
+
+    <h2>Rearranging the formula</h2>
+    <p>Because I = P × r × t links four values, knowing any three gives the fourth:</p>
+    <ul>
+      <li><strong>Rate:</strong> r = I ÷ (P × t)</li>
+      <li><strong>Principal:</strong> P = I ÷ (r × t)</li>
+      <li><strong>Time:</strong> t = I ÷ (P × r)</li>
+    </ul>
     <p>
       For savings and long-term investments where interest compounds, use the
-      <a href="/finance/compound-interest-calculator">compound interest calculator</a>.
+      <a href="/finance/compound-interest-calculator">compound interest calculator</a>, or
+      compare both side by side in the <a href="/finance/interest-calculator">interest calculator</a>.
       This tool is for estimation and is not financial advice.
     </p>
   </Fragment>

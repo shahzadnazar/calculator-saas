@@ -12,9 +12,24 @@ const faqs = [
       'It grows your starting amount plus any monthly contributions at your expected annual return, compounding monthly. The result separates how much came from your contributions versus investment earnings.',
   },
   {
+    question: 'How do I calculate return on investment (ROI)?',
+    answer:
+      'ROI = (net gain ÷ cost) × 100. If you invest $1,000 and it becomes $1,300, the net gain is $300, so ROI is 300 ÷ 1,000 = 30%. For investments held over time, an annualised return matters more than total ROI because it accounts for how long the money was invested.',
+  },
+  {
     question: 'What return rate should I assume?',
     answer:
       'Historical stock-market returns have averaged roughly 7% per year after inflation over the long term, but returns vary widely and are never guaranteed. Try a range of rates to see best- and worst-case scenarios.',
+  },
+  {
+    question: 'What is a good return on investment?',
+    answer:
+      'It depends on risk and time frame. A widely used benchmark is the stock market\'s long-run average of about 7% real (after inflation); "safe" assets like savings or bonds return less, while higher potential returns come with a higher chance of loss.',
+  },
+  {
+    question: 'What is the rule of 72?',
+    answer:
+      'Divide 72 by your annual return to estimate the years for money to double. At 7% that is about 10 years; at 9%, roughly 8. It is a quick mental check on how powerful a given return really is.',
   },
   {
     question: 'Why do monthly contributions matter so much?',
@@ -26,7 +41,7 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Project the future value of an investment with a starting amount and regular monthly contributions, and see how much of the growth comes from earnings versus deposits."
   faqs={faqs}
 >
@@ -41,6 +56,15 @@ const faqs = [
       earnings update instantly.
     </p>
 
+    <h2>A worked example</h2>
+    <p>
+      Start with <strong>$10,000</strong>, add <strong>$500 a month</strong>, and assume a
+      <strong>7%</strong> return for <strong>20 years</strong>. The balance grows to
+      roughly <strong>$300,000</strong> — yet you only contributed $130,000 ($10,000 plus
+      $500 × 240 months). The other ~$170,000 is compounding. That crossover, where
+      earnings outgrow everything you put in, is the whole case for investing early.
+    </p>
+
     <h2>Contributions vs. earnings</h2>
     <p>
       The colored bar shows three parts of your ending balance: your initial investment,
@@ -48,6 +72,15 @@ const faqs = [
       Over long horizons the earnings portion typically grows to dominate.
     </p>
 
+    <h2>Measuring return: ROI and the rule of 72</h2>
+    <p>
+      To judge an investment after the fact, use <strong>ROI = (net gain ÷ cost) × 100</strong>.
+      To judge one before, use the <strong>rule of 72</strong>: 72 ÷ your return is roughly
+      how many years the money takes to double. These pair well with the
+      <a href="/finance/compound-interest-calculator">compound interest calculator</a> for the
+      underlying growth and the <a href="/finance/inflation-calculator">inflation calculator</a>
+      to see returns in today's money.
+    </p>
     <p>
       Projections assume a constant return, which real markets never provide. Actual
       results vary and can be negative. This is educational information, not investment
