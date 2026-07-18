@@ -8,6 +8,8 @@ const faqs = [
   { question: 'How is the area calculated?', answer: 'From three sides, the calculator uses Heron\'s formula: with s as half the perimeter, area = √(s(s−a)(s−b)(s−c)).' },
   { question: 'What makes three lengths a valid triangle?', answer: 'The triangle inequality: each side must be shorter than the sum of the other two. If not, no triangle can be formed and the calculator flags it.' },
   { question: 'How do I know if a triangle is right-angled?', answer: 'Check whether the squares of the two shorter sides add up to the square of the longest side (the Pythagorean theorem). A 3-4-5 triangle is right-angled because 3² + 4² = 9 + 16 = 25 = 5². The calculator classifies each triangle as right, acute or obtuse for you.' },
+  { question: 'How do I find the area of a triangle?', answer: 'If you know the base and height, the area is ½ × base × height. If you only know the three side lengths, use Heron\'s formula — which is what this calculator does — so you get the area without needing to measure the height.' },
+  { question: 'What are the different types of triangles?', answer: 'By sides: equilateral (all three equal), isosceles (two equal) or scalene (all different). By angles: right (one 90° angle), acute (all angles under 90°) or obtuse (one angle over 90°). The calculator labels both for any triangle you enter.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Solve a triangle from its three sides — find all angles, the area, the perimeter, and whether it is scalene, isosceles or equilateral, and right, acute or obtuse." faqs={faqs}>
