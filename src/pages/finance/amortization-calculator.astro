@@ -4,9 +4,12 @@ import AmortizationCalculator from '@components/islands/AmortizationCalculator.a
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'amortization-calculator')!;
 const faqs = [
-  { question: 'What is an amortization schedule?', answer: 'It is a table showing every payment on a loan, split into how much goes to interest and how much reduces the principal, along with the remaining balance after each payment.' },
-  { question: 'Why is early interest so high?', answer: 'Interest is charged on the outstanding balance, which is largest at the start. So early payments are mostly interest and only slowly chip away at principal — the balance falls faster as the loan matures.' },
-  { question: 'How can I pay off a loan faster?', answer: 'Extra payments applied to principal shrink the balance ahead of schedule, which reduces the interest charged on every future payment. Even small additional amounts early in the loan save a surprising amount.' },
+  { question: 'What is amortization?', answer: 'Amortization is paying off a debt in equal, regular installments over a set term. Each payment is the same, but the split changes: early on most of it covers interest, and over time more and more goes to reducing the principal until the balance reaches zero.' },
+  { question: 'What is an amortization schedule?', answer: 'It is a table showing every payment on the loan, split into how much goes to interest and how much reduces the principal, along with the remaining balance after each payment. The schedule above switches between a yearly summary and the full monthly breakdown.' },
+  { question: 'How do I calculate an amortization schedule?', answer: 'First find the fixed payment with M = P·r(1+r)ⁿ ÷ ((1+r)ⁿ − 1), where P is the loan, r the monthly rate and n the number of payments. Then for each month, interest = balance × r, principal = payment − interest, and the new balance = balance − principal. Repeat until the balance is zero.' },
+  { question: 'What is negative amortization?', answer: 'Negative amortization happens when your payment is smaller than the interest due, so the unpaid interest is added to the balance and the debt actually grows instead of shrinking. It can occur with some adjustable-rate or minimum-payment "option" loans and deferred plans, and it is a warning sign to watch for.' },
+  { question: 'Why is early interest so high?', answer: 'Interest is charged on the outstanding balance, which is largest at the start. So early payments are mostly interest and only slowly chip away at principal — the balance then falls faster as the loan matures and the interest share shrinks.' },
+  { question: 'How can I pay off a loan faster?', answer: 'Extra payments applied to principal shrink the balance ahead of schedule, which lowers the interest charged on every future payment. Even small additional amounts early in the loan — when interest dominates — save a surprising amount over the full term.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="See exactly how each payment on a loan splits between principal and interest, and how the balance falls over the full term — month by month or year by year." faqs={faqs}>
@@ -14,8 +17,13 @@ const faqs = [
   <Fragment slot="content">
     <h2>How amortization works</h2>
     <p>An amortized loan has equal payments, but the makeup of each payment changes over time. Because interest is charged on the remaining balance, early payments are mostly interest and later payments are mostly principal. The schedule above lets you switch between a yearly summary and the full monthly breakdown.</p>
+
+    <h2>A worked example</h2>
+    <p>Take a <strong>$20,000</strong> car loan at <strong>6%</strong> over <strong>5 years</strong>. The fixed payment works out to about <strong>$387/month</strong>. In the very first payment, interest is $20,000 × (6% ÷ 12) = $100 and the other $287 reduces the principal. By the final payment almost the entire $387 is principal, because the balance — and therefore the interest on it — has shrunk to nearly nothing. That shift is the whole story of amortization.</p>
+
     <h2>Reading the schedule</h2>
-    <p>Each row shows the principal paid, interest paid and the balance left. Watch how the interest column shrinks and the principal column grows as the loan matures — that crossover is the heart of amortization.</p>
+    <p>Each row shows the principal paid, interest paid and the balance left. Watch the interest column shrink and the principal column grow as the loan matures — the point where principal overtakes interest is the crossover that marks the halfway point of the loan's cost, not its calendar.</p>
+
     <h2>Using it to your advantage</h2>
     <p>The schedule reveals why extra early payments are so powerful: they attack the balance while interest still dominates, saving interest on every remaining payment. Compare scenarios with the <a href="/finance/loan-calculator">loan calculator</a> and <a href="/finance/mortgage-calculator">mortgage calculator</a>.</p>
     <p>This tool is for planning and education, not financial advice.</p>

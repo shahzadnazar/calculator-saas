@@ -4,18 +4,27 @@ import InflationCalculator from '@components/islands/InflationCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'inflation-calculator')!;
 const faqs = [
-  { question: 'What does the inflation calculator show?', answer: 'It shows how prices grow over time at a constant inflation rate — both what something costing a set amount today will cost in the future, and how much a future amount is worth in today’s money.' },
-  { question: 'Why does inflation matter for savings?', answer: 'Money that does not grow at least as fast as inflation loses buying power. At 3% inflation, cash under the mattress loses roughly a quarter of its value in a decade — which is why investing to outpace inflation matters.' },
-  { question: 'What inflation rate should I use?', answer: 'Long-run inflation has averaged around 2–3% per year in many developed economies, though it varies year to year. Use a rate that reflects your expectations or your central bank’s target.' },
+  { question: 'What is inflation?', answer: 'Inflation is a general, sustained rise in prices across an economy, which means each unit of money buys a little less over time. It is usually expressed as an annual percentage — 3% inflation means a basket of goods that cost $100 last year costs about $103 this year.' },
+  { question: 'What causes inflation?', answer: 'Broadly three forces: demand-pull (more spending chasing the same goods), cost-push (rising costs of labour, energy or materials pushing prices up), and monetary expansion (the money supply growing faster than the economy). Most real-world inflation is a mix of all three.' },
+  { question: 'How is the inflation rate calculated?', answer: 'Statistical agencies track the price of a fixed "basket" of goods and services — the Consumer Price Index (CPI). The inflation rate is the percentage change in that index: (new CPI − old CPI) ÷ old CPI × 100. This calculator applies a constant rate you choose over the period.' },
+  { question: 'Why does inflation matter for savings?', answer: 'Money that does not grow at least as fast as inflation loses buying power. At 3% inflation, cash left idle loses roughly a quarter of its value in a decade — which is why investing to outpace inflation, rather than holding only cash, matters over the long run.' },
+  { question: 'What inflation rate should I use?', answer: 'Long-run inflation has averaged around 2–3% per year in many developed economies, though it varies year to year and spiked well above that in some recent years. Use a rate that reflects your expectations or your central bank\'s stated target (often 2%).' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="See how inflation erodes the value of money over time — what a sum today will cost in the future, and what future money is worth now." faqs={faqs}>
   <InflationCalculator />
   <Fragment slot="content">
-    <h2>The silent tax</h2>
-    <p>Inflation is a steady rise in prices, which means each dollar buys a little less each year. Over decades the effect is dramatic: at 3% a year, prices roughly double in about 24 years. That is why "safe" cash can be a slow loss in real terms.</p>
+    <h2>What inflation is, and what causes it</h2>
+    <p>Inflation is a steady rise in the general price level, so each dollar buys a little less each year. It comes from three broad sources: <strong>demand-pull</strong> (spending outpacing supply), <strong>cost-push</strong> (rising wages, energy or materials), and <strong>monetary</strong> growth (more money in circulation). A little inflation is normal and even targeted by central banks; the problem is what it does to money left standing still.</p>
+
+    <h2>A worked example</h2>
+    <p>Suppose prices rise a steady 3% a year. Something that costs <strong>$100 today</strong> will cost 100 × 1.03¹⁰ ≈ <strong>$134 in ten years</strong>. Flip it around and <strong>$100 received in ten years</strong> is worth only about <strong>$74</strong> in today's money. The calculator does both directions for any amount, rate and time span.</p>
+
+    <h2>The rule of 72</h2>
+    <p>For a quick mental estimate, divide 72 by the inflation rate to see how many years it takes prices to <em>double</em>. At 3%, that is 72 ÷ 3 = about 24 years; at 6% it halves to 12. The same shortcut works for investment growth in reverse — which is exactly why your returns need to clear the inflation rate to make real progress.</p>
+
     <h2>Protecting your buying power</h2>
-    <p>To keep pace with — or beat — inflation, money generally needs to be invested for a return above the inflation rate. Model that growth with the <a href="/finance/investment-calculator">investment calculator</a> and the <a href="/finance/compound-interest-calculator">compound interest calculator</a>.</p>
-    <p>This is a simplified model using a constant rate. Real inflation varies. This is general educational information, not financial advice.</p>
+    <p>To keep pace with — or beat — inflation, money generally needs to earn a return above the inflation rate. Model that growth with the <a href="/finance/investment-calculator">investment calculator</a> and the <a href="/finance/compound-interest-calculator">compound interest calculator</a>.</p>
+    <p>This is a simplified model using a constant rate; real inflation varies year to year. This is general educational information, not financial advice.</p>
   </Fragment>
 </CalculatorLayout>

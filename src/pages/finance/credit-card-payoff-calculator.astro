@@ -5,17 +5,32 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'credit-card-payoff-calculator')!;
 const faqs = [
   { question: 'How long will it take to pay off my credit card?', answer: 'Enter your balance, APR and monthly payment in "By payment" mode, and the calculator shows the payoff time and the total interest you will pay. Switch to "By timeline" to find the payment needed to clear it by a target date.' },
-  { question: 'Why do credit cards take so long to pay off?', answer: 'Credit-card interest is high and compounds monthly. If your payment is only a little above the interest charge, most of it goes to interest and the balance barely moves — which is why minimum payments can stretch for years.' },
-  { question: 'What happens if I only pay the minimum?', answer: 'Minimum payments are designed to keep you in debt. On a high balance, paying only the minimum can take over a decade and cost more in interest than the original purchase. Paying even a bit extra dramatically shortens the timeline.' },
+  { question: 'What happens if I only pay the minimum?', answer: 'Minimum payments are designed to keep you in debt as long as possible. On a high balance, paying only the minimum can take over a decade and cost more in interest than the original purchase. Paying even a little extra each month dramatically shortens the timeline.' },
+  { question: 'How can I pay off credit card debt faster?', answer: 'Pay more than the minimum, and if you have several cards use a payoff order: the avalanche method (highest APR first) costs the least interest, while the snowball method (smallest balance first) gives quicker wins for motivation. A 0% balance-transfer card can also pause interest while you clear the principal.' },
+  { question: 'Should I use a balance transfer?', answer: 'A 0% introductory-APR balance transfer can save a lot of interest if you clear the balance before the promotional period ends. Weigh the transfer fee (typically 3–5%) and be sure the payment you can afford will actually pay it off in time — the rate jumps once the intro period is over.' },
+  { question: 'Will credit card companies negotiate a payoff?', answer: 'Sometimes — but usually only on seriously delinquent accounts, where a lender may accept a lump-sum settlement for less than the full balance. It is not an option for accounts in good standing, and a settlement can hurt your credit score, so treat it as a last resort rather than a strategy.' },
+  { question: 'How is credit card interest calculated?', answer: 'Card interest is quoted as an APR but usually charged daily on your balance. Divide the APR by 365 for the daily rate, and the issuer applies it to your average balance each day, so carrying a balance even a few days costs interest. Paying the statement in full each month avoids it entirely.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Find out how long it will take to pay off a credit card and what it costs in interest — or the monthly payment needed to be debt-free by a set date." faqs={faqs}>
   <CreditCardPayoffCalculator />
   <Fragment slot="content">
     <h2>Two ways to plan your payoff</h2>
-    <p><strong>By payment:</strong> see how long a chosen monthly payment takes and the total interest. <strong>By timeline:</strong> pick a payoff date and see the payment required. Either way, the goal is to pay as much above the interest charge as you can.</p>
-    <h2>Why the payment matters so much</h2>
-    <p>At a typical 20% APR, a $5,000 balance accrues over $80 in interest in the first month alone. A payment barely above that trickle takes years; a larger one clears the debt fast. If you carry a balance, prioritising it usually beats almost any investment return. See how interest compounds in the <a href="/finance/compound-interest-calculator">compound interest guide</a>.</p>
+    <p><strong>By payment:</strong> see how long a chosen monthly payment takes and the total interest. <strong>By timeline:</strong> pick a payoff date and see the payment required. Either way, the goal is to pay as far above the monthly interest charge as you can.</p>
+
+    <h2>The minimum-payment trap</h2>
+    <p>At a typical 22% APR, a <strong>$5,000</strong> balance accrues about <strong>$92 in interest in the first month alone</strong>. Pay $120 and only $28 actually reduces the balance — dragging the payoff past a decade. Bump the payment to $250 and the same debt is gone in roughly <strong>two years</strong>, for a fraction of the interest. That is the entire game: every dollar above the interest charge attacks the principal directly.</p>
+
+    <h2>Strategies to clear it faster</h2>
+    <ul>
+      <li><strong>Avalanche</strong> — with multiple cards, pay extra on the highest-APR card first. This costs the least total interest.</li>
+      <li><strong>Snowball</strong> — pay the smallest balance first for a quick, motivating win, then roll that payment into the next card.</li>
+      <li><strong>Balance transfer</strong> — a 0% intro-APR card pauses interest; clear the balance before the promo ends and mind the transfer fee.</li>
+      <li><strong>Pay biweekly</strong> — half-payments every two weeks make one extra monthly payment a year and cut the daily-interest base.</li>
+    </ul>
+
+    <h2>Why paying it down beats saving</h2>
+    <p>If you carry a balance at 20%+, clearing it is effectively a guaranteed, tax-free 20% return — more than almost any investment reliably earns. Prioritising high-interest debt is usually the highest-value thing you can do with a spare dollar. To see the same compounding working <em>for</em> you instead, use the <a href="/finance/compound-interest-calculator">compound interest calculator</a>.</p>
     <p>This is general educational information, not financial advice.</p>
   </Fragment>
 </CalculatorLayout>

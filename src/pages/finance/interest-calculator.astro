@@ -5,8 +5,10 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'interest-calculator')!;
 const faqs = [
   { question: 'What is the difference between simple and compound interest?', answer: 'Simple interest is calculated only on the original principal, so it stays flat. Compound interest is calculated on the principal plus previously earned interest, so it grows faster over time. This calculator shows both side by side.' },
-  { question: 'How does compounding frequency change my interest?', answer: 'More frequent compounding — daily versus monthly versus annually — adds interest to the balance sooner, so it starts earning interest sooner. The effect is small at low rates and larger over long periods.' },
-  { question: 'Which type applies to my account?', answer: 'Most savings accounts and investments compound (often daily or monthly). Some short-term loans and bonds use simple interest. Check your account terms.' },
+  { question: 'How do I calculate interest?', answer: 'Simple interest is I = P × r × t (principal × annual rate × years). Compound interest uses A = P × (1 + r/n)^(n·t), where n is how many times a year it compounds; the interest earned is A − P. The calculator applies both for you.' },
+  { question: 'How does compounding frequency change my interest?', answer: 'More frequent compounding — daily versus monthly versus annually — adds interest to the balance sooner, so it starts earning interest sooner. The effect is small at low rates and larger over long periods and higher rates.' },
+  { question: 'What is the difference between APR and APY?', answer: 'APR is the plain annual rate before compounding; APY (annual percentage yield) is the effective rate after compounding is included, so it is the number that reflects what you actually earn. At 5% compounded monthly, the APY is about 5.12%. Compare accounts by APY, not APR.' },
+  { question: 'Which type applies to my account?', answer: 'Most savings accounts and investments compound (often daily or monthly). Some short-term loans and bonds use simple interest. Check your account terms to see which applies and how often it compounds.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the interest earned on a deposit and see exactly how much extra compounding adds compared with simple interest." faqs={faqs}>
@@ -14,8 +16,15 @@ const faqs = [
   <Fragment slot="content">
     <h2>Simple vs. compound, side by side</h2>
     <p>Enter a principal, rate and time, and the calculator shows the interest under both methods plus the <strong>compounding advantage</strong> — the extra you earn purely because interest earns interest. Over long horizons, that gap becomes substantial.</p>
+
+    <h2>A worked example</h2>
+    <p>Put <strong>$10,000</strong> away at <strong>5%</strong> for <strong>10 years</strong>. With simple interest you earn a flat $500 a year, or <strong>$5,000</strong> total. With annual compounding the balance grows to $10,000 × 1.05¹⁰ ≈ <strong>$16,289</strong> — about <strong>$1,289 more</strong>, earned on nothing but the interest itself. Compound more often than yearly and the gap widens further.</p>
+
+    <h2>APR vs. APY</h2>
+    <p>Rates are quoted two ways. <strong>APR</strong> is the nominal annual rate; <strong>APY</strong> folds in compounding and is the effective rate you truly earn. A 5% APR compounded monthly is an APY of about 5.12%. When comparing savings accounts, compare the APY — it is apples to apples, while APRs at different compounding frequencies are not.</p>
+
     <h2>Why compounding wins</h2>
-    <p>With simple interest, your $10,000 at 5% earns a flat $500 every year. With compounding, each year's interest joins the balance and earns its own interest, so the yearly amount keeps rising. This is the engine behind long-term saving — explore it further with the <a href="/finance/compound-interest-calculator">compound interest calculator</a>.</p>
+    <p>With simple interest, your $10,000 at 5% earns a flat $500 every year. With compounding, each year's interest joins the balance and earns its own interest, so the yearly amount keeps rising. This is the engine behind long-term saving — explore it further with the <a href="/finance/compound-interest-calculator">compound interest calculator</a> or model regular contributions in the <a href="/finance/investment-calculator">investment calculator</a>.</p>
     <p>This is general educational information, not financial advice.</p>
   </Fragment>
 </CalculatorLayout>
