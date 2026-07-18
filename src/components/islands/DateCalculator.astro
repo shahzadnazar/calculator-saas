@@ -74,14 +74,21 @@ const longDate = (iso: string) =>
     function recomputeDiff() {
       const a = parseISODateUTC(fromEl.value);
       const b = parseISODateUTC(toEl.value);
-      if (!a || !b) return;
+      if (!a || !b) {
+        q('[data-dc-total]').textContent = '—';
+        q('[data-dc-break]').textContent = '—';
+        return;
+      }
       const d = diffDates(a, b);
       q('[data-dc-total]').textContent = nf.format(d.totalDays);
       q('[data-dc-break]').textContent = `${d.breakdown.years}y ${d.breakdown.months}m ${d.breakdown.days}d · ${nf.format(d.weeks)} weeks`;
     }
     function recomputeAdd() {
       const s = parseISODateUTC(startEl.value);
-      if (!s) return;
+      if (!s) {
+        q('[data-dc-result]').textContent = '—';
+        return;
+      }
       const days = Number(daysEl.value) || 0;
       const signed = opEl.value === 'sub' ? -days : days;
       q('[data-dc-result]').textContent = longDate(toISODateUTC(addDays(s, signed)));

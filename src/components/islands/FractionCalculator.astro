@@ -43,6 +43,7 @@ const r = computeFraction({ num: 1, den: 2 }, 'add', { num: 1, den: 3 });
 
 <script>
   import { computeFraction, type FractionOp } from '@lib/calculators/fraction';
+  import { formatNumber } from '@lib/format';
   document.querySelectorAll<HTMLElement>('[data-fraction]').forEach((root) => {
     const form = root.querySelector<HTMLFormElement>('[data-fr-form]')!;
     const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value);
@@ -51,12 +52,12 @@ const r = computeFraction({ num: 1, den: 2 }, 'add', { num: 1, den: 3 });
       const op = (form.elements.namedItem('op') as HTMLSelectElement).value as FractionOp;
       const r = computeFraction({ num: num('an'), den: num('ad') }, op, { num: num('bn'), den: num('bd') });
       if (Number.isNaN(r.fraction.num)) {
-        set('[data-fr-result]', '—'); set('[data-fr-mixed]', '—'); set('[data-fr-decimal]', 'undefined');
+        set('[data-fr-result]', '—'); set('[data-fr-mixed]', '—'); set('[data-fr-decimal]', '—');
         return;
       }
       set('[data-fr-result]', `${r.fraction.num}/${r.fraction.den}`);
       set('[data-fr-mixed]', r.mixed);
-      set('[data-fr-decimal]', new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(r.decimal));
+      set('[data-fr-decimal]', formatNumber(r.decimal, 4));
     }
     form.addEventListener('input', recompute);
     recompute();

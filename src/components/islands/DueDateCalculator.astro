@@ -38,7 +38,13 @@ const longDate = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateStrin
     const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
     function recompute() {
       const lmp = parseISODateUTC(input.value);
-      if (!lmp) return;
+      if (!lmp) {
+        // Cleared/invalid date — degrade to placeholders, don't leave a stale due date on screen.
+        set('[data-dd-due]', '—');
+        set('[data-dd-along]', '—');
+        set('[data-dd-trimester]', '—');
+        return;
+      }
       set('[data-dd-due]', longDate(toISODateUTC(dueDateFromLMP(lmp))));
       const g = gestationalAge(lmp, todayUTC());
       set('[data-dd-along]', g.totalDays > 0 ? `${g.weeks}w ${g.days}d` : '—');

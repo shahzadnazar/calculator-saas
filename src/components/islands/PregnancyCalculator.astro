@@ -39,7 +39,13 @@ const defaultLmp = '2026-01-01';
     const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
     function recompute() {
       const lmp = parseISODateUTC(input.value);
-      if (!lmp) return;
+      if (!lmp) {
+        // Cleared/invalid date — reset every field instead of leaving stale results on screen.
+        ['[data-pg-along]', '[data-pg-trimester]', '[data-pg-remaining]', '[data-pg-conception]', '[data-pg-t1]', '[data-pg-t2]', '[data-pg-due]'].forEach((s) => set(s, '—'));
+        const bar = root.querySelector<HTMLElement>('[data-pg-bar]');
+        if (bar) bar.style.width = '0%';
+        return;
+      }
       const p = pregnancyInfo(lmp, todayUTC());
       set('[data-pg-along]', p.age.totalDays > 0 ? `${p.age.weeks} weeks, ${p.age.days} days` : 'Not started');
       set('[data-pg-trimester]', p.age.totalDays > 0 ? ord(p.age.trimester) : '—');
