@@ -9,12 +9,22 @@ const faqs = [
   {
     question: 'How do I calculate the number of days between two dates?',
     answer:
-      'Enter a start date and an end date in the “Days between two dates” tool. It counts every calendar day between them, including leap days, and also shows the span in years, months, days and weeks.',
+      'Enter a start date and an end date in the "Days between two dates" tool. It counts every calendar day between them, including leap days, and also shows the span in years, months, days and weeks.',
+  },
+  {
+    question: 'Does the day count include both the start and end date?',
+    answer:
+      'The result is the difference — end date minus start date — so from January 1 to January 2 is 1 day. If you need to count both endpoints (for example, total vacation days you are away), add one to the result.',
   },
   {
     question: 'How do I add or subtract days from a date?',
     answer:
-      'Use the “Add or subtract days” tool: pick a start date, choose add or subtract, and enter the number of days. The resulting calendar date is shown instantly.',
+      'Use the "Add or subtract days" tool: pick a start date, choose add or subtract, and enter the number of days. The resulting calendar date is shown instantly.',
+  },
+  {
+    question: 'How do I count down the days until a future date?',
+    answer:
+      'Enter today as the start date and the event as the end date; the "days between" result is your countdown. It updates as soon as you change either date.',
   },
   {
     question: 'Are leap years and month lengths handled correctly?',
@@ -26,7 +36,7 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Find the number of days between two dates, or add and subtract days from any date. Leap years and month lengths are handled automatically."
   faqs={faqs}
 >
@@ -41,15 +51,20 @@ const faqs = [
       handy for deadlines, due dates and return-by dates.
     </p>
 
+    <h2>Counting days: the endpoint question</h2>
+    <p>
+      "How many days between" almost always means the difference — subtract the earlier
+      date from the later one. From July 1 to July 10 that is <strong>9 days</strong>. If
+      you actually want to include both the first and last day (as when counting the days
+      of a trip), add one to get <strong>10</strong>. Deciding which you need up front
+      avoids the classic off-by-one error.
+    </p>
+
     <h2>Accurate calendar math</h2>
     <p>
       Because months vary in length and leap years add a day, counting dates by hand is
       error-prone. This calculator works directly on the calendar so every result is
-      exact, no matter which dates you choose.
-    </p>
-
-    <p>
-      Looking for an exact age instead? Try the
+      exact, no matter which dates you choose. Looking for an exact age instead? Try the
       <a href="/everyday/age-calculator">age calculator</a>.
     </p>
   </Fragment>

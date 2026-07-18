@@ -6,6 +6,8 @@ const calc = getCalculator('everyday', 'time-calculator')!;
 const faqs = [
   { question: 'How do I add two durations?', answer: 'Enter each duration in days, hours, minutes and seconds, choose Add, and the calculator combines them and normalises the result — so 2h 30m plus 1h 45m becomes 4h 15m.' },
   { question: 'Can it subtract time?', answer: 'Yes. Choose Subtract to find the difference between two durations. If the result is negative, the calculator shows it with a minus sign.' },
+  { question: 'How do I convert between hours, minutes and seconds?', answer: 'There are 60 seconds in a minute, 60 minutes in an hour and 24 hours in a day. So one hour is 3,600 seconds, and one day is 86,400 seconds. The calculator also shows the total duration in seconds.' },
+  { question: 'Why is adding time different from adding ordinary numbers?', answer: 'Time is in base 60, not base 10 — 60 minutes roll over into an hour, not 100. That is why 45 minutes plus 30 minutes is 1h 15m, and why doing it by hand is easy to get wrong.' },
   { question: 'What is the difference from the hours calculator?', answer: 'This tool adds and subtracts durations (spans of time). The hours calculator works out time worked between two clock times, with breaks — better for timesheets.' },
 ];
 ---
@@ -14,6 +16,19 @@ const faqs = [
   <Fragment slot="content">
     <h2>Working with durations</h2>
     <p>Time is awkward to add by hand because it is in base 60, not base 10. Enter two durations and pick add or subtract; the calculator carries the minutes and hours correctly and shows a tidy result.</p>
+
+    <h2>Time unit conversions</h2>
+    <table>
+      <thead>
+        <tr><th>Unit</th><th>Equivalent</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1 minute</td><td>60 seconds</td></tr>
+        <tr><td>1 hour</td><td>60 minutes = 3,600 seconds</td></tr>
+        <tr><td>1 day</td><td>24 hours = 1,440 minutes = 86,400 seconds</td></tr>
+      </tbody>
+    </table>
+
     <h2>Related time tools</h2>
     <p>To calculate hours worked between two clock times (with breaks), use the <a href="/everyday/hours-calculator">hours calculator</a>. To count days between calendar dates, use the <a href="/everyday/date-calculator">date calculator</a>.</p>
   </Fragment>

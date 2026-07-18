@@ -12,6 +12,16 @@ const faqs = [
       'Enter your start and end times and any unpaid break. The calculator subtracts the break from the elapsed time and shows the result in hours and minutes, plus decimal hours for payroll.',
   },
   {
+    question: 'How many work hours are in a year?',
+    answer:
+      'Full-time work is usually counted as 2,080 hours a year — 40 hours a week × 52 weeks. That works out to about 173 hours in a month. Paid time off does not reduce the figure; unpaid leave does.',
+  },
+  {
+    question: 'How many hours is full-time work?',
+    answer:
+      'Full-time is most commonly 40 hours a week (8 hours over 5 days), though some employers and countries treat 35–37.5 hours as full-time. Check your contract for the definition that applies to you.',
+  },
+  {
     question: 'Does it handle overnight shifts?',
     answer:
       'Yes. If the end time is earlier than the start time, the calculator assumes the shift crossed midnight and counts the hours correctly.',
@@ -21,12 +31,17 @@ const faqs = [
     answer:
       'Decimal hours express minutes as a fraction of an hour — for example, 8 hours 30 minutes is 8.5 decimal hours. Payroll systems usually use this format to multiply by an hourly rate.',
   },
+  {
+    question: 'How do I turn hours worked into pay?',
+    answer:
+      'Multiply the decimal hours by your hourly rate. For example, 8.5 decimal hours at $20/hour is $170. To convert between hourly, weekly and annual pay, use the salary calculator.',
+  },
 ];
 ---
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Calculate the hours between two times, minus breaks — including overnight shifts. Get the result in hours and minutes and as decimal hours for payroll."
   faqs={faqs}
 >
@@ -40,12 +55,25 @@ const faqs = [
       hours-and-minutes and decimal-hour formats.
     </p>
 
+    <h2>How many work hours are in a year?</h2>
+    <p>For standard full-time work at 40 hours a week, the common reference figures are:</p>
+    <table>
+      <thead>
+        <tr><th>Period</th><th>Full-time hours (40/week)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Week</td><td>40</td></tr>
+        <tr><td>Month</td><td>~173</td></tr>
+        <tr><td>Year</td><td>2,080</td></tr>
+      </tbody>
+    </table>
+
     <h2>Turning hours into pay</h2>
     <p>
       To estimate pay, multiply the decimal hours by your hourly rate. For example, 8.5
-      decimal hours at $20/hour is $170. A dedicated salary calculator is coming soon.
+      decimal hours at $20/hour is $170. To convert between hourly, weekly and annual
+      figures, use the <a href="/finance/salary-calculator">salary calculator</a>.
     </p>
-
     <p>
       This tool is for general timekeeping. Always follow your employer's official
       timekeeping and rounding rules for payroll.

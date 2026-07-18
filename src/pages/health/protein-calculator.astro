@@ -12,21 +12,31 @@ const faqs = [
       'It depends on your weight and goals. The general baseline is about 0.8 g per kg of body weight, rising to 1.2–1.6 g/kg for active people and athletes, and up to about 2.2 g/kg when building muscle or dieting to preserve it.',
   },
   {
+    question: 'How do I calculate my daily protein intake?',
+    answer:
+      'Multiply your body weight in kilograms by a target in grams per kg. A 70 kg (154 lb) recreationally active person at 1.4 g/kg needs about 98 g a day; the same person strength training at 1.8 g/kg needs about 126 g. To convert pounds to kilograms, divide by 2.205.',
+  },
+  {
+    question: 'Can you eat too much protein?',
+    answer:
+      'For healthy people, protein well above the baseline is generally considered safe, though extremely high intakes offer no extra benefit and displace other nutrients. People with kidney disease should follow medical guidance, as they may need to limit protein.',
+  },
+  {
     question: 'Should I use body weight or lean mass?',
     answer:
       'This calculator uses total body weight, which is the most common approach. People with very high body fat may prefer to base intake on lean or goal weight — treat the result as a practical estimate.',
   },
   {
-    question: 'Can I get enough protein from food?',
+    question: 'What foods are high in protein?',
     answer:
-      'Yes. Common sources include chicken, fish, eggs, dairy, legumes, tofu and whole grains. Spreading protein across meals helps your body use it effectively.',
+      'Chicken, fish, lean beef, eggs, Greek yogurt, cottage cheese, milk, lentils, beans, tofu, tempeh and edamame are all protein-dense. Spreading these across meals — roughly 20–40 g each — helps your body use protein most effectively.',
   },
 ];
 ---
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Estimate your recommended daily protein intake based on your body weight and activity or goal, with a comparison across common targets."
   faqs={faqs}
 >
@@ -48,6 +58,21 @@ const faqs = [
       <li><strong>2.2 g/kg</strong> — preserving muscle while in a calorie deficit.</li>
     </ul>
 
+    <h2>A worked example</h2>
+    <p>
+      A 70 kg (154 lb) person who trains recreationally, targeting 1.4 g/kg, needs about
+      <strong>98 g of protein a day</strong>. Shift the goal to muscle gain at 1.8 g/kg and
+      it rises to about <strong>126 g</strong>. Splitting that across three or four meals
+      (roughly 25–35 g each) is easier to hit and to digest than one large serving.
+    </p>
+
+    <h2>Hitting your target with food</h2>
+    <p>
+      Protein-dense options include chicken, fish, eggs, Greek yogurt, cottage cheese,
+      lentils, beans, tofu and edamame. Pair your protein target with the
+      <a href="/health/calorie-calculator">calorie calculator</a> and the
+      <a href="/health/fat-intake-calculator">fat intake calculator</a> for a fuller picture.
+    </p>
     <p>
       These are general guidelines, not medical or dietary advice. People with kidney
       conditions or specific medical needs should consult a healthcare professional.

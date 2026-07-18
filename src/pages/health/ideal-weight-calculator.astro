@@ -12,9 +12,19 @@ const faqs = [
       'There is no single "correct" formula. The Robinson, Miller, Devine and Hamwi equations were each developed for different purposes and give slightly different results. Treat the spread of values as a healthy range rather than one exact target.',
   },
   {
+    question: 'How is ideal body weight calculated?',
+    answer:
+      'Each formula starts from a base weight at 5 feet of height and adds a fixed amount per inch above that. The Devine formula, for example, is 50 kg + 2.3 kg per inch over 5 ft for men (45.5 kg for women), so a 5\'10" man works out to about 73 kg (161 lb).',
+  },
+  {
     question: 'Why do the formulas only use height and sex?',
     answer:
       'These classic formulas estimate a reference weight from height and sex alone. They do not account for body frame, muscle mass or age, which is why the healthy-BMI range is also shown for context.',
+  },
+  {
+    question: 'How much should I weigh for my height?',
+    answer:
+      'Rather than one number, aim for the range that corresponds to a healthy BMI of 18.5–24.9 for your height, which the calculator shows alongside the formula estimates. A wider frame or more muscle can place a healthy weight toward or above the top of that range.',
   },
   {
     question: 'Is ideal weight the same as a healthy weight?',
@@ -26,7 +36,7 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Estimate your ideal body weight from height and sex using four established formulas (Robinson, Miller, Devine, Hamwi), plus the healthy weight range for your height."
   faqs={faqs}
 >
@@ -40,13 +50,21 @@ const faqs = [
       that range and within the BMI-based healthy range shown alongside it.
     </p>
 
+    <h2>How the formulas work</h2>
+    <p>
+      Each equation sets a base weight for a 5-foot frame and adds a set amount for every
+      inch above that. They differ only in those constants — which is why, for a 5'10" man,
+      Devine gives about 73 kg while the others land a kilogram or two either side. Seeing
+      all four at once is more honest than pretending any single one is exact.
+    </p>
+
     <h2>Beyond the formulas</h2>
     <p>
       Frame size, muscle mass, age and overall health all affect what a healthy weight
       looks like for you. Athletes in particular may weigh more than these formulas
-      suggest while being very healthy. Use the results as a guide, not a rule.
+      suggest while being very healthy. For the weight range tied to a healthy BMI, see the
+      <a href="/health/bmi-calculator">BMI calculator</a>. Use the results as a guide, not a rule.
     </p>
-
     <p>
       This is general educational information, not medical advice. Talk to a healthcare
       professional about a weight target that is right for you.

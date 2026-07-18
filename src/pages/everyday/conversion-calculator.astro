@@ -5,8 +5,10 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'conversion-calculator')!;
 const faqs = [
   { question: 'What units can I convert?', answer: 'Length, weight/mass, volume, area, speed, digital storage and temperature. Pick a category, choose your "from" and "to" units, and enter a value — the result updates instantly.' },
+  { question: 'How many kilometres are in a mile?', answer: 'One mile is 1.609 kilometres, and one kilometre is 0.621 miles. Other everyday ones: 1 kg = 2.205 lb, 1 inch = 2.54 cm, and 1 US gallon = 3.785 litres.' },
   { question: 'How is temperature converted?', answer: 'Temperature uses formulas rather than simple multipliers. For example, Celsius to Fahrenheit is (°C × 9/5) + 32, and Celsius to Kelvin is °C + 273.15. The calculator applies the correct formula automatically.' },
   { question: 'What is the difference between KB and KiB?', answer: 'A kilobyte (KB) is 1,000 bytes, while a kibibyte (KiB) is 1,024 bytes. The calculator supports both decimal (KB, MB, GB) and binary (KiB, MiB, GiB) units in the digital storage category.' },
+  { question: 'Are the conversion factors exact?', answer: 'Yes — they use internationally defined values, such as one inch being exactly 2.54 cm and one mile exactly 1,609.344 m. Results are rounded for display but computed from the exact factors.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Convert between units of length, weight, volume, area, speed, digital storage and temperature — instantly and accurately." faqs={faqs}>
@@ -14,6 +16,21 @@ const faqs = [
   <Fragment slot="content">
     <h2>How to use the converter</h2>
     <p>Choose a category, then select the unit you're converting <strong>from</strong> and the unit you're converting <strong>to</strong>. Enter a value and read the result. Switching category automatically updates the available units.</p>
+
+    <h2>Common conversions at a glance</h2>
+    <table>
+      <thead>
+        <tr><th>From</th><th>To</th><th>Multiply by</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Miles</td><td>Kilometres</td><td>1.609</td></tr>
+        <tr><td>Kilograms</td><td>Pounds</td><td>2.205</td></tr>
+        <tr><td>Inches</td><td>Centimetres</td><td>2.54</td></tr>
+        <tr><td>US gallons</td><td>Litres</td><td>3.785</td></tr>
+        <tr><td>Celsius</td><td>Fahrenheit</td><td>× 9/5, then + 32</td></tr>
+      </tbody>
+    </table>
+
     <h2>Accurate, standard factors</h2>
     <p>Conversions use internationally standard factors — for example, one mile is exactly 1,609.344 metres and one pound is 0.453592 kilograms. Temperature is handled with the correct formulas rather than multipliers. For currency-style financial conversions, see our <a href="/finance">financial calculators</a>.</p>
   </Fragment>

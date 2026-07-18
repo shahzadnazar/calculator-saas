@@ -21,12 +21,27 @@ const faqs = [
     answer:
       'Subtract the old value from the new value, divide by the old value, and multiply by 100. Going from 200 to 250 is ((250 − 200) ÷ 200) × 100 = 25% increase. A negative result means a decrease.',
   },
+  {
+    question: 'How do I convert a decimal or fraction to a percentage?',
+    answer:
+      'Multiply a decimal by 100 (0.25 → 25%). For a fraction, divide the top by the bottom first, then multiply by 100 (1/4 → 0.25 → 25%). To go the other way, divide the percentage by 100.',
+  },
+  {
+    question: 'What is the difference between a percent and a percentage point?',
+    answer:
+      'They are not the same. If a rate rises from 10% to 15%, that is a 5 percentage-point increase but a 50% relative increase (5 ÷ 10). Percentage points measure the gap between two percentages; percent measures the change relative to the starting value.',
+  },
+  {
+    question: 'How do I find the original price before a discount?',
+    answer:
+      'Divide the final price by (1 − discount as a decimal). A jacket costing $60 after 25% off was 60 ÷ 0.75 = $80 originally. This "reverse percentage" is the same idea as removing sales tax from a total.',
+  },
 ];
 ---
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Answer the three most common percentage questions instantly: what is X% of a number, what percent one number is of another, and the percentage increase or decrease between two values."
   faqs={faqs}
 >
@@ -40,20 +55,30 @@ const faqs = [
       <li><strong>Percentage change:</strong> ((new − old) ÷ old) × 100.</li>
     </ul>
 
-    <h2>Everyday uses</h2>
-    <p>
-      Percentages show up everywhere: working out a tip or a sales discount, comparing a
-      price rise, calculating a test score, or understanding interest and tax rates.
-      Because the three tools above stay on screen at once, you can pick whichever
-      question matches your situation without switching modes.
-    </p>
-
     <h2>A worked example</h2>
     <p>
       A $80 jacket is marked down by 25%. Using "what is 25% of 80" gives $20 off, so you
       pay $60. If it later rises from $60 back to $80, the "percentage change" tool shows
       a 33.3% increase — a reminder that a percentage decrease and the increase that
       reverses it are not the same size.
+    </p>
+
+    <h2>Percentage points vs. percent</h2>
+    <p>
+      This trips people up constantly. If an interest rate goes from 10% to 15%, it rose
+      <strong>5 percentage points</strong> — but that is a <strong>50% increase</strong>
+      relative to where it started. Use "percentage points" for the raw gap between two
+      percentages, and "percent" for change measured against the original value.
+    </p>
+
+    <h2>Decimals, fractions and percentages</h2>
+    <p>
+      They are three ways to write the same thing: 0.25 = 25% = 1/4. Multiply a decimal by
+      100 to get a percentage, or divide a percentage by 100 to get a decimal. To turn a
+      fraction into a percentage, divide it out first. For fraction arithmetic itself, use
+      the <a href="/math/fraction-calculator">fraction calculator</a>; for a tip or
+      discount at the checkout, the <a href="/finance/tip-calculator">tip calculator</a>
+      and <a href="/finance/sales-tax-calculator">sales tax calculator</a> apply the same math.
     </p>
   </Fragment>
 </CalculatorLayout>

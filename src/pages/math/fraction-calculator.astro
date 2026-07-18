@@ -12,9 +12,24 @@ const faqs = [
       'Give the fractions a common denominator, then add or subtract the numerators. For example, 1/2 + 1/3 becomes 3/6 + 2/6 = 5/6. This calculator finds the common denominator and simplifies the result automatically.',
   },
   {
-    question: 'How do I multiply and divide fractions?',
+    question: 'How do I multiply fractions?',
     answer:
-      'To multiply, multiply the numerators together and the denominators together. To divide, flip the second fraction and multiply. The calculator reduces the answer to lowest terms.',
+      'Multiply the numerators together and the denominators together, then simplify. For example, 2/3 × 3/4 = 6/12 = 1/2. No common denominator is needed for multiplication.',
+  },
+  {
+    question: 'How do I divide fractions?',
+    answer:
+      'Flip the second fraction (its reciprocal) and multiply. For example, 3/4 ÷ 2/3 = 3/4 × 3/2 = 9/8, which is 1 1/8 as a mixed number. The calculator reduces the answer to lowest terms.',
+  },
+  {
+    question: 'How do I simplify a fraction?',
+    answer:
+      'Divide the numerator and denominator by their greatest common divisor (GCD). For 8/12 the GCD is 4, so it simplifies to 2/3. The calculator simplifies every result for you.',
+  },
+  {
+    question: 'How do I convert between fractions and decimals?',
+    answer:
+      'To turn a fraction into a decimal, divide the numerator by the denominator (3/4 = 0.75). To turn a decimal into a fraction, write it over its place value and simplify (0.75 = 75/100 = 3/4).',
   },
   {
     question: 'What is a mixed number?',
@@ -26,7 +41,7 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  reviewedOn="2026-07-18"
   intro="Add, subtract, multiply and divide fractions and get the answer as a simplified fraction, a mixed number and a decimal."
   faqs={faqs}
 >
@@ -48,8 +63,18 @@ const faqs = [
       <li><strong>Simplify:</strong> divide the numerator and denominator by their greatest common divisor.</li>
     </ul>
 
+    <h2>Worked examples</h2>
+    <ul>
+      <li><strong>Add:</strong> 1/2 + 1/3 → 3/6 + 2/6 = <strong>5/6</strong></li>
+      <li><strong>Multiply:</strong> 2/3 × 3/4 = 6/12 = <strong>1/2</strong></li>
+      <li><strong>Divide:</strong> 3/4 ÷ 2/3 = 3/4 × 3/2 = 9/8 = <strong>1 1/8</strong></li>
+    </ul>
+
+    <h2>Fractions, decimals and percentages</h2>
     <p>
-      Working with percentages instead? Try the
+      Every fraction is also a decimal and a percentage: 3/4 = 0.75 = 75%. Divide the top
+      by the bottom to get the decimal, then multiply by 100 for the percentage. Working
+      the other way or with percentages? Try the
       <a href="/math/percent-calculator">percentage calculator</a>.
     </p>
   </Fragment>

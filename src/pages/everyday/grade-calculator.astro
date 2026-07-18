@@ -5,8 +5,10 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'grade-calculator')!;
 const faqs = [
   { question: 'How do I calculate my weighted grade?', answer: 'Multiply each assessment\'s score by its weight, add those up, and divide by the total weight. The "Weighted average" mode does this — add a row for each assignment, test or project with its score and weight.' },
+  { question: 'How do I calculate a weighted average?', answer: 'Weight each score by its share of the grade. A quiz at 80% (worth 20%), a midterm at 75% (30%) and a final at 90% (50%) give 0.20×80 + 0.30×75 + 0.50×90 = 83.5%. The heavier the weight, the more that score moves the result.' },
   { question: 'What grade do I need on the final?', answer: 'Switch to "Final grade needed" mode. Enter your current grade, how much the final is worth, and your target grade, and the calculator tells you the score you need on the final.' },
   { question: 'What if the needed score is over 100%?', answer: 'It means your target is not reachable with the final alone. The calculator flags this so you can set a realistic goal.' },
+  { question: 'What is the difference between a course grade and a GPA?', answer: 'A course grade is your percentage in one class, weighted by assessments. A GPA converts final letter grades across several courses to points (on a 4.0 scale) and averages them by credit hours. Use the GPA calculator for the second.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Work out your weighted course grade from assignments and tests, or find exactly what you need to score on the final to reach your target." faqs={faqs}>
@@ -14,6 +16,10 @@ const faqs = [
   <Fragment slot="content">
     <h2>Two grade tools in one</h2>
     <p><strong>Weighted average</strong> combines your scores by their weights to show your current grade. <strong>Final grade needed</strong> works backwards from a target: enter your current grade and the final's weight, and it tells you the score required.</p>
+
+    <h2>A worked example</h2>
+    <p>Say a course is graded on a quiz worth 20%, a midterm worth 30% and a final worth 50%. If you scored 80% and 75% on the first two and expect 90% on the final, your grade is 0.20 × 80 + 0.30 × 75 + 0.50 × 90 = <strong>83.5%</strong>. Because the final carries half the weight, it moves your grade more than the quiz and midterm combined.</p>
+
     <h2>Understanding weights</h2>
     <p>Assessments rarely count equally — a final exam might be worth 30% while a quiz is 5%. Weighting reflects that, so a high score on a heavily weighted item matters most. To combine grades across whole courses into a GPA, use the <a href="/everyday/gpa-calculator">GPA calculator</a>.</p>
   </Fragment>
