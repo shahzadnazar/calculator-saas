@@ -1,11 +1,19 @@
 /**
- * Monetization configuration.
+ * Unified monetization configuration — every revenue stream in one place.
  *
- * Ads are OFF by default: an ad-light experience is a competitive advantage and
- * a prerequisite for the trust an authority site needs. When you are approved
- * for a network, set `ads.enabled = true` and fill in the publisher id. Every
- * <AdSlot> across the site then activates from this one switch — no page edits.
+ * PRINCIPLE: trust first, revenue second. EVERYTHING here is OFF (or empty) by
+ * default. Nothing degrades UX, adds layout shift, or collects data until it is
+ * deliberately enabled. The architecture is ready; activation is a config flip
+ * once traffic, trust and (where relevant) approvals are in place.
+ *
+ * See docs/MONETIZATION.md for the strategy, activation thresholds and the UX
+ * guardrails each stream must respect.
  */
+
+/* ---------------------------------------------------------------- */
+/* 1. Display ads                                                    */
+/* ---------------------------------------------------------------- */
+export type AdPlacement = 'in-content' | 'below-tool' | 'sidebar';
 
 export interface AdConfig {
   enabled: boolean;
@@ -13,13 +21,91 @@ export interface AdConfig {
   publisherId?: string;
   /** Reserve slot height even when disabled? Keep false to avoid blank space. */
   reserveSpaceWhenDisabled: boolean;
+  /** Lazy-load ad units below the fold to protect LCP/CLS. */
+  lazyLoad: boolean;
+  /** Hard cap on ad units per page — density guardrail for UX + RPM balance. */
+  maxUnitsPerPage: number;
 }
 
 export const ADS: AdConfig = {
   enabled: false,
   publisherId: undefined,
   reserveSpaceWhenDisabled: false,
+  lazyLoad: true,
+  maxUnitsPerPage: 2,
 };
 
-/** Named placements let us tune density/format per position later. */
-export type AdPlacement = 'in-content' | 'below-tool' | 'sidebar';
+/* ---------------------------------------------------------------- */
+/* 2. Affiliate marketing (highest near-term commercial-intent lever) */
+/* ---------------------------------------------------------------- */
+export interface AffiliateConfig {
+  enabled: boolean;
+  /** FTC-compliant disclosure shown wherever partner links appear. */
+  disclosure: string;
+  /** rel attribute applied to every partner link. */
+  linkRel: string;
+}
+
+export const AFFILIATE: AffiliateConfig = {
+  enabled: false,
+  disclosure:
+    'Some links below are partner links. If you use them we may earn a commission at no extra cost to you. It never affects our calculators or what we recommend.',
+  linkRel: 'sponsored nofollow noopener',
+};
+
+/* ---------------------------------------------------------------- */
+/* 3. Email marketing (owned audience → return visitors)             */
+/* ---------------------------------------------------------------- */
+export interface NewsletterConfig {
+  enabled: boolean;
+  /** Form POST endpoint from your provider (Buttondown, ConvertKit, etc.). */
+  actionUrl?: string;
+  heading: string;
+  blurb: string;
+}
+
+export const NEWSLETTER: NewsletterConfig = {
+  enabled: false,
+  actionUrl: undefined,
+  heading: 'Get one useful calculator or guide a week',
+  blurb: 'No spam, no clutter — just practical tools. Unsubscribe anytime.',
+};
+
+/* ---------------------------------------------------------------- */
+/* 4. Privacy-friendly analytics (measure RPM, CTR, dwell, returns)  */
+/* ---------------------------------------------------------------- */
+export interface AnalyticsConfig {
+  enabled: boolean;
+  /** 'plausible' | 'umami' | 'ga4' etc. Cookieless preferred for trust. */
+  provider?: string;
+  siteId?: string;
+  scriptSrc?: string;
+}
+
+export const ANALYTICS: AnalyticsConfig = {
+  enabled: false,
+  provider: undefined,
+  siteId: undefined,
+  scriptSrc: undefined,
+};
+
+/* ---------------------------------------------------------------- */
+/* 5+. Roadmap streams — architecture placeholders, activated later  */
+/* ---------------------------------------------------------------- */
+export interface StreamFlag {
+  enabled: boolean;
+  note: string;
+}
+
+/** Premium tools: freemium extras (PDF export, saved history, ad-free). */
+export const PREMIUM: StreamFlag = { enabled: false, note: 'Requires payments + entitlement checks (edge function).' };
+/** Membership/accounts: sync, history, ad-free. */
+export const MEMBERSHIP: StreamFlag = { enabled: false, note: 'Requires auth backend.' };
+/** Direct sponsorships of calculators/guides (disclosed like affiliate). */
+export const SPONSORSHIPS: StreamFlag = { enabled: false, note: 'Uses the disclosed offer slot with sponsored=true.' };
+/** Digital products: templates, printables, ebooks. */
+export const DIGITAL_PRODUCTS: StreamFlag = { enabled: false, note: 'Static product pages + a checkout provider.' };
+/** Public API: the pure, tested calc logic in src/lib/calculators is API-ready. */
+export const PUBLIC_API: StreamFlag = { enabled: false, note: 'Expose src/lib/calculators via serverless functions.' };
+/** Embeddable widgets / white-label (also builds backlinks → authority). */
+export const EMBEDDABLE: StreamFlag = { enabled: false, note: 'iframe/script embed of islands; drives links + brand.' };

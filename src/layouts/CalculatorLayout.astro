@@ -13,6 +13,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import AdSlot from '@components/AdSlot.astro';
+import RelatedOffers from '@components/RelatedOffers.astro';
 import {
   type Calculator,
   getCategory,
@@ -154,6 +155,9 @@ const reviewedDisplay = reviewedOn
         </section>
       )
     }
+
+    <!-- Contextual partner offers (disclosed; renders only when enabled + relevant) -->
+    <RelatedOffers category={calculator.category} slug={calculator.slug} />
 
     <!-- Related -->
     {

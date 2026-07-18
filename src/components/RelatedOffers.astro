@@ -1,0 +1,49 @@
+---
+/**
+ * Disclosed, contextual partner-offer slot (affiliate / sponsorship revenue).
+ *
+ * Renders NOTHING unless affiliate is enabled AND relevant offers exist for this
+ * calculator — so it never adds clutter or layout shift to a page with no
+ * offers. Every offer carries an FTC disclosure and rel="sponsored nofollow".
+ * Placed low on the page as a genuine "next step", never above the tool.
+ */
+import { getOffers } from '@data/offers';
+import { AFFILIATE } from '@config/monetization';
+
+interface Props {
+  category: string;
+  slug?: string;
+}
+const { category, slug } = Astro.props;
+const offers = getOffers(category, slug);
+---
+
+{
+  offers.length > 0 && (
+    <section class="mt-14 max-w-3xl" aria-label="Partner offers">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold">Recommended services</h2>
+        <span class="rounded px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide" style="background: var(--subtle); color: var(--muted)">
+          {offers.some((o) => o.sponsored) ? 'Sponsored' : 'Partner'}
+        </span>
+      </div>
+      <p class="mt-1 text-xs" style="color: var(--muted)">{AFFILIATE.disclosure}</p>
+      <ul class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {offers.map((o) => (
+          <li>
+            <a
+              href={o.url}
+              rel={AFFILIATE.linkRel}
+              target="_blank"
+              class="card flex h-full flex-col gap-1 p-4 transition-shadow hover:shadow-lg"
+            >
+              <span class="font-semibold" style="color: var(--heading)">{o.title}</span>
+              <span class="text-sm" style="color: var(--muted)">{o.description}</span>
+              <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">{o.cta} →</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

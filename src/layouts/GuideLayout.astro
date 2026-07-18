@@ -7,6 +7,7 @@
 import type { CollectionEntry } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
+import Newsletter from '@components/Newsletter.astro';
 import { getAuthor } from '@config/authors';
 import { getCalculator, getCategory, calculatorPath } from '@data/calculators';
 import { articleSchema, breadcrumbSchema } from '@lib/schema';
@@ -101,6 +102,9 @@ const jsonLd = [
           <p class="mt-1 text-sm" style="color: var(--muted)">{author.bio}</p>
         </div>
       </aside>
+
+      <!-- Email capture (renders only when a provider is configured) -->
+      <Newsletter class="mt-12" />
     </article>
   </div>
 </BaseLayout>

@@ -1,0 +1,43 @@
+---
+/**
+ * Email capture (email-marketing stream → owned audience → return visitors).
+ *
+ * Renders NOTHING until a provider endpoint is configured, so we never ship a
+ * broken form or push signups on a site with no audience yet. Inline and quiet
+ * by design — no pop-ups, no interstitials, no dark patterns. Trust first.
+ */
+import { NEWSLETTER } from '@config/monetization';
+
+interface Props {
+  class?: string;
+}
+const { class: className = '' } = Astro.props;
+const show = NEWSLETTER.enabled && !!NEWSLETTER.actionUrl;
+---
+
+{
+  show && (
+    <section class={`card mx-auto max-w-3xl p-6 ${className}`} aria-labelledby="newsletter-heading">
+      <h2 id="newsletter-heading" class="text-xl font-bold" style="color: var(--heading)">
+        {NEWSLETTER.heading}
+      </h2>
+      <p class="mt-1 text-sm" style="color: var(--muted)">{NEWSLETTER.blurb}</p>
+      <form action={NEWSLETTER.actionUrl} method="post" class="mt-4 flex flex-col gap-2 sm:flex-row">
+        <label class="sr-only" for="newsletter-email">Email address</label>
+        <input
+          id="newsletter-email"
+          name="email"
+          type="email"
+          required
+          autocomplete="email"
+          placeholder="you@example.com"
+          class="field"
+        />
+        <button type="submit" class="btn btn-primary shrink-0">Subscribe</button>
+      </form>
+      <p class="mt-2 text-xs" style="color: var(--muted)">
+        We store only your email to send the newsletter, and never share it. Unsubscribe in one click.
+      </p>
+    </section>
+  )
+}
