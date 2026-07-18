@@ -4,18 +4,53 @@ import GpaCalculator from '@components/islands/GpaCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'gpa-calculator')!;
 const faqs = [
-  { question: 'How is GPA calculated?', answer: 'Each letter grade is worth a number of grade points (A = 4.0, B = 3.0, and so on). Multiply each course\'s grade points by its credit hours, add those up, and divide by the total credits. This calculator does it as you add courses.' },
-  { question: 'What is a good GPA?', answer: 'On a 4.0 scale, 3.0 is generally considered good (roughly a B average) and 3.5+ is very strong. Requirements vary by school and program.' },
-  { question: 'How do credit hours affect my GPA?', answer: 'Higher-credit courses count more toward your GPA because the grade is weighted by credits. A top grade in a 4-credit course moves your GPA more than the same grade in a 1-credit course.' },
+  { question: 'How is GPA calculated?', answer: 'Each letter grade is worth a number of grade points (A = 4.0, B = 3.0, and so on). Multiply each course\'s grade points by its credit hours, add those products up, and divide by the total credit hours. This calculator does it automatically as you add courses.' },
+  { question: 'What is the 4.0 grade scale?', answer: 'On the standard unweighted scale an A is 4.0, A− is 3.7, B+ is 3.3, B is 3.0, and it continues down in steps to F at 0.0. Some schools award 4.0 for both A and A+; a few use pluses and minuses differently, so check your institution\'s official scale.' },
+  { question: 'What is a good GPA?', answer: 'On a 4.0 scale, 3.0 is generally considered good (roughly a B average), 3.5+ is strong, and 3.8+ is excellent. Many scholarships and graduate programs set 3.0 as a minimum, but "good" ultimately depends on your school, major and goals.' },
+  { question: 'What is the difference between weighted and unweighted GPA?', answer: 'An unweighted GPA caps every course at 4.0. A weighted GPA gives harder classes a boost — typically +0.5 for honors and +1.0 for AP or IB — so a weighted GPA can exceed 4.0 (often up to 5.0). This tool uses the standard unweighted 4.0 scale.' },
+  { question: 'How do credit hours affect my GPA?', answer: 'GPA is weighted by credits, so higher-credit courses count more. A top grade in a 4-credit course moves your GPA more than the same grade in a 1-credit course — and a poor grade in a heavy course hurts more.' },
+  { question: 'How do I calculate my cumulative GPA across semesters?', answer: 'Add up the grade points (grade × credits) from every course across all semesters, then divide by your total credit hours. A cumulative GPA is not the average of each semester\'s GPA unless every semester carried the same number of credits.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate your grade point average on the 4.0 scale. Add each course's grade and credit hours to see your weighted GPA update instantly." faqs={faqs}>
   <GpaCalculator />
   <Fragment slot="content">
     <h2>How to calculate your GPA</h2>
-    <p>Add a row for each course, choose its letter grade, and enter its credit hours. The calculator converts grades to grade points, weights them by credits, and shows your cumulative GPA and total credits.</p>
-    <h2>Weighting by credits</h2>
-    <p>GPA is a <em>weighted</em> average: courses worth more credits pull harder on the result. That is why a strong grade in a heavy course helps more — and a weak one hurts more — than in a light one. To work out an individual course grade from assignments, use the <a href="/everyday/grade-calculator">grade calculator</a>.</p>
+    <p>GPA turns letter grades into a single number in three steps: convert each grade to grade points, weight it by the course's credit hours, and average across all your credits. Above, just add a row per course, pick its grade and enter its credits — but here is what the calculator is doing behind the scenes, using the standard unweighted scale:</p>
+    <table>
+      <thead>
+        <tr><th>Letter grade</th><th>Grade points</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>A / A+</td><td>4.0</td></tr>
+        <tr><td>A−</td><td>3.7</td></tr>
+        <tr><td>B+</td><td>3.3</td></tr>
+        <tr><td>B</td><td>3.0</td></tr>
+        <tr><td>B−</td><td>2.7</td></tr>
+        <tr><td>C+</td><td>2.3</td></tr>
+        <tr><td>C</td><td>2.0</td></tr>
+        <tr><td>C−</td><td>1.7</td></tr>
+        <tr><td>D+</td><td>1.3</td></tr>
+        <tr><td>D</td><td>1.0</td></tr>
+        <tr><td>D−</td><td>0.7</td></tr>
+        <tr><td>F</td><td>0.0</td></tr>
+      </tbody>
+    </table>
+
+    <h2>A worked example</h2>
+    <p>Suppose you took three courses: an A in a 3-credit class, a B+ in a 4-credit class, and an A− in a 3-credit class. Multiply grade points by credits for each, then divide by total credits:</p>
+    <ul>
+      <li>A (4.0) × 3 credits = 12.0</li>
+      <li>B+ (3.3) × 4 credits = 13.2</li>
+      <li>A− (3.7) × 3 credits = 11.1</li>
+      <li>Total: 36.3 grade points ÷ 10 credits = <strong>3.63 GPA</strong></li>
+    </ul>
+
+    <h2>Weighted vs. unweighted GPA</h2>
+    <p>This calculator uses the <strong>unweighted</strong> 4.0 scale, where every course maxes out at 4.0. Many high schools also report a <strong>weighted</strong> GPA that rewards course difficulty — commonly +0.5 for honors and +1.0 for AP or IB classes — which is why some transcripts show GPAs above 4.0. Colleges often recalculate to their own scale, so know which number a form is asking for.</p>
+
+    <h2>What counts as a good GPA</h2>
+    <p>As a rough guide, 3.0 is a solid B average, 3.5+ is competitive for many programs, and 3.8+ is excellent. But context matters more than the number: a strong GPA in a demanding major can outweigh a higher one in an easier track. To work out an individual course grade from your assignments and exams, use the <a href="/everyday/grade-calculator">grade calculator</a>.</p>
     <p>This uses the standard unweighted 4.0 scale; your institution's scale may differ.</p>
   </Fragment>
 </CalculatorLayout>

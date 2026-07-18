@@ -288,6 +288,29 @@
   .prose strong {
     color: var(--heading);
   }
+  /* Tables inside long-form content (tax brackets, grade scales, comparisons).
+     display:block + overflow-x keeps wide tables from breaking mobile layout. */
+  .prose table {
+    width: 100%;
+    margin-top: 1.25rem;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+    display: block;
+    overflow-x: auto;
+  }
+  .prose thead th {
+    background: var(--subtle);
+    color: var(--heading);
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .prose th,
+  .prose td {
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.75rem;
+    vertical-align: top;
+  }
 
   /* Theme-toggle icon visibility — mirrors the theme-variable logic exactly so
      the correct icon shows whether the theme is system-driven or overridden. */

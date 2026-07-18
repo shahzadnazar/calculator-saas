@@ -4,17 +4,36 @@ import SquareFootageCalculator from '@components/islands/SquareFootageCalculator
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'square-footage-calculator')!;
 const faqs = [
-  { question: 'How do I calculate square footage?', answer: 'Multiply the length by the width of the area in feet. A room 12 ft by 10 ft is 120 square feet. If you measure in inches, yards or metres, the calculator converts to feet for you.' },
-  { question: 'How do I find the square footage of multiple rooms?', answer: 'Enter one room\'s dimensions and set "number of areas" to how many identical areas you have, or add up each room\'s square footage separately for rooms of different sizes.' },
-  { question: 'How much flooring or paint do I need?', answer: 'Once you know the square footage, add 5–10% for waste and cuts, then divide by the coverage per box or per gallon on the product label. Enter a price per square foot for a quick cost estimate.' },
+  { question: 'How do I calculate square footage?', answer: 'Multiply the length by the width of the area in feet. A room 12 ft by 15 ft is 12 × 15 = 180 square feet. If you measure in inches, yards or metres, the calculator converts to feet for you before multiplying.' },
+  { question: 'How do I measure the square footage of a room?', answer: 'Measure the longest length and the widest width in feet with a tape measure or laser measure, rounding to the nearest few inches, then multiply the two. Measure at floor level and ignore small alcoves for a quick figure, or add them separately for precision.' },
+  { question: 'How do I calculate the square footage of an L-shaped or irregular room?', answer: 'Split the space into rectangles, calculate each one (length × width), and add the results. An L-shaped room is just two rectangles; a room with a bay is one rectangle plus the bay. For circles and triangles, use the area calculator.' },
+  { question: 'How do I find the square footage of multiple rooms?', answer: 'For identical areas, enter one room and set "number of areas". For rooms of different sizes, calculate each separately and add the totals — that combined figure is what you order flooring or paint against.' },
+  { question: 'How much flooring or paint do I need?', answer: 'Take your total square footage, add 5–10% for waste and cuts, then divide by the coverage per box or per gallon on the product label. Enter a price per square foot here for a quick cost estimate.' },
+  { question: 'How many square feet are in a square yard or an acre?', answer: 'One square yard equals 9 square feet (carpet is often priced per square yard), and one acre equals 43,560 square feet. Divide your square footage by 9 for square yards, or by 43,560 for acres.' },
 ];
 ---
 <CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the square footage of a room or area for flooring, paint, tile or landscaping — with metric conversions and an optional cost estimate." faqs={faqs}>
   <SquareFootageCalculator />
   <Fragment slot="content">
-    <h2>How to measure square footage</h2>
-    <p>Measure the length and width of the area and multiply them. This calculator accepts feet, inches, yards or metres and converts everything to square feet, square metres and square yards. Set the number of identical areas to total up several rooms at once.</p>
+    <h2>How to calculate square footage</h2>
+    <p>Square footage is simply <strong>length × width</strong> measured in feet. A bedroom that is 12 ft long and 15 ft wide is 12 × 15 = <strong>180 square feet</strong>. If you measure in inches, yards or metres, this calculator converts everything to feet first, then to square feet, square metres and square yards so you can order in whatever unit your material is sold in.</p>
+
+    <h2>Measuring a room accurately</h2>
+    <p>Run a tape measure or laser measure along the longest wall for the length and the widest wall for the width, at floor level. Round to the nearest few inches — flooring and paint are estimates, not engineering. Measure into doorways and closets only if you intend to floor them. A quick sketch with each wall's length noted saves re-measuring later.</p>
+
+    <h2>L-shaped and irregular rooms</h2>
+    <p>Any awkward shape becomes easy once you break it into rectangles:</p>
+    <ul>
+      <li>Divide the floor plan into simple rectangles.</li>
+      <li>Calculate each rectangle's square footage (length × width).</li>
+      <li>Add them together for the total.</li>
+    </ul>
+    <p>An L-shaped living room is just two rectangles — say a 12 × 15 main area (180 sq ft) plus a 6 × 8 alcove (48 sq ft) for 228 sq ft in total. For genuinely curved or triangular areas, the <a href="/math/area-calculator">area calculator</a> handles circles, triangles, trapezoids and more.</p>
+
+    <h2>Converting square feet</h2>
+    <p>Different materials are sold in different units, so it helps to know the conversions: <strong>1 square yard = 9 square feet</strong> (carpet is often priced per square yard), and <strong>1 acre = 43,560 square feet</strong> (useful for land and lots). Divide your square footage by 9 for square yards or by 43,560 for acres.</p>
+
     <h2>Estimating materials and cost</h2>
-    <p>For flooring, tile or paint, take your total square footage and add about 5–10% for waste, offcuts and mistakes. Enter a price per square foot to estimate the cost. For an irregular slab you're pouring, the <a href="/everyday/concrete-calculator">concrete calculator</a> works in cubic yards and bags, and the <a href="/math/area-calculator">area calculator</a> handles non-rectangular shapes.</p>
+    <p>For flooring, tile or paint, take your total square footage and add about 5–10% for waste, offcuts and mistakes, then enter a price per square foot to estimate the cost. For a slab you're pouring rather than a floor you're covering, the <a href="/everyday/concrete-calculator">concrete calculator</a> works in cubic yards and bags.</p>
   </Fragment>
 </CalculatorLayout>
