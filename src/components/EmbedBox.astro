@@ -10,7 +10,7 @@
  * embed page path and the canonical page path.
  */
 import { EMBEDDABLE } from '@config/monetization';
-import { SITE, absoluteUrl } from '@config/site';
+import { buildEmbedSnippet } from '@lib/embed';
 
 interface Props {
   title: string;
@@ -22,15 +22,7 @@ interface Props {
 }
 const { title, slug, embedPath, canonicalPath, noun = 'calculator' } = Astro.props;
 
-const embedUrl = absoluteUrl(embedPath);
-const canonicalUrl = absoluteUrl(canonicalPath);
-const iframeId = `allcalc-${slug}`;
-
-const snippet = [
-  `<iframe src="${embedUrl}" title="${title} by ${SITE.name}" loading="lazy" style="width:100%;border:0;height:640px" id="${iframeId}"></iframe>`,
-  `<script>window.addEventListener("message",function(e){if(e.data&&e.data.type==="allcalc-resize"&&e.data.slug==="${slug}"){var f=document.getElementById("${iframeId}");if(f)f.style.height=e.data.height+"px";}});</script>`,
-  `<p style="font:13px/1.5 sans-serif">Free <a href="${canonicalUrl}">${title}</a> by ${SITE.name}</p>`,
-].join('\n');
+const snippet = buildEmbedSnippet({ title, slug, embedPath, canonicalPath });
 ---
 
 {
