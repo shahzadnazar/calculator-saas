@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import PaceCalculator from '@components/islands/PaceCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('health', 'pace-calculator')!;
+const faqs = [
+  { question: 'How do I calculate running pace?', answer: 'Pace is your time divided by distance. Enter the distance you ran and your time, and the calculator shows your pace per kilometre and per mile, your speed, and predicted times for common race distances.' },
+  { question: 'What is a good running pace?', answer: 'It depends on fitness and distance. Many recreational runners average 6–7 minutes per kilometre (about 10–11 min/mile). Focus on your own trend rather than comparisons.' },
+  { question: 'How are the race predictions calculated?', answer: 'The calculator applies your current pace evenly across each race distance. Real race times vary with endurance and conditions, so treat longer-distance predictions as optimistic estimates.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate your running pace and speed from a distance and time, and see predicted finish times for 5K, 10K, half and full marathon." faqs={faqs}>
+  <PaceCalculator />
+  <Fragment slot="content">
+    <h2>Pace, speed and predictions</h2>
+    <p>Enter how far you ran and how long it took. The calculator shows your pace in minutes per kilometre and per mile, your speed in km/h and mph, and estimated finish times for standard races at that pace.</p>
+    <h2>Using pace in training</h2>
+    <p>Knowing your pace helps you run at the right effort — easy days truly easy, hard efforts controlled. Pair it with heart-rate zones from the <a href="/health/target-heart-rate-calculator">target heart rate calculator</a> for a complete picture of intensity.</p>
+    <p>Race predictions assume even pacing and ideal conditions; actual times vary. This is general information, not coaching or medical advice.</p>
+  </Fragment>
+</CalculatorLayout>

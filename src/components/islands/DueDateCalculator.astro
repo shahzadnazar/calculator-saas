@@ -1,0 +1,50 @@
+---
+import { dueDateFromLMP } from '@lib/calculators/due-date';
+import { toISODateUTC } from '@lib/calculators/date-duration';
+import { parseISODateUTC } from '@lib/calculators/age';
+
+const defaultLmp = '2026-01-01';
+const due = dueDateFromLMP(parseISODateUTC(defaultLmp)!);
+const longDate = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-duedate>
+  <form class="card p-5 sm:p-6" data-dd-form novalidate>
+    <label class="field-label" for="dd-lmp">First day of your last period (LMP)</label>
+    <input class="field" id="dd-lmp" name="lmp" type="date" value={defaultLmp} max="9999-12-31" />
+    <p class="mt-3 text-xs" style="color: var(--muted)">Uses Naegele's rule: due date is 280 days (40 weeks) after the LMP.</p>
+  </form>
+
+  <div class="card p-5 sm:p-6 text-center">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Estimated due date</p>
+    <p class="mt-1 text-2xl font-extrabold tracking-tight" style="color: var(--heading)" data-dd-due>{longDate(toISODateUTC(due))}</p>
+    <div class="mt-5 grid grid-cols-2 gap-4 border-t pt-4 text-center" style="border-color: var(--line)">
+      <div><p class="text-2xl font-bold" data-dd-along>—</p><p class="text-xs" style="color: var(--muted)">how far along</p></div>
+      <div><p class="text-2xl font-bold" data-dd-trimester>—</p><p class="text-xs" style="color: var(--muted)">trimester</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { dueDateFromLMP, gestationalAge } from '@lib/calculators/due-date';
+  import { toISODateUTC } from '@lib/calculators/date-duration';
+  import { parseISODateUTC } from '@lib/calculators/age';
+  const longDate = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+  const todayUTC = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); };
+  const ord = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : '3rd');
+
+  document.querySelectorAll<HTMLElement>('[data-duedate]').forEach((root) => {
+    const input = root.querySelector<HTMLInputElement>('#dd-lmp')!;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const lmp = parseISODateUTC(input.value);
+      if (!lmp) return;
+      set('[data-dd-due]', longDate(toISODateUTC(dueDateFromLMP(lmp))));
+      const g = gestationalAge(lmp, todayUTC());
+      set('[data-dd-along]', g.totalDays > 0 ? `${g.weeks}w ${g.days}d` : '—');
+      set('[data-dd-trimester]', g.totalDays > 0 ? ord(g.trimester) : '—');
+    }
+    input.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

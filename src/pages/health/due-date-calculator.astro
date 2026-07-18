@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import DueDateCalculator from '@components/islands/DueDateCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('health', 'due-date-calculator')!;
+const faqs = [
+  { question: 'How is a due date calculated?', answer: 'The most common method is Naegele\'s rule: the estimated due date is 280 days (40 weeks) from the first day of your last menstrual period (LMP). This assumes a regular 28-day cycle with ovulation around day 14.' },
+  { question: 'How accurate is the due date?', answer: 'It is an estimate. Only about 4% of babies are born on their exact due date; most arrive within two weeks either side. An ultrasound dating scan can refine the estimate.' },
+  { question: 'What if my cycle is irregular?', answer: 'Naegele\'s rule assumes a 28-day cycle. If your cycle is longer or shorter, or you know your conception date, your due date may differ — your healthcare provider can adjust it.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate your baby's due date from the first day of your last period, and see how far along you are today." faqs={faqs}>
+  <DueDateCalculator />
+  <Fragment slot="content">
+    <h2>How the estimate works</h2>
+    <p>Enter the first day of your last menstrual period. Using Naegele's rule, the calculator adds 280 days to estimate your due date, and shows how many weeks and days along you are today, plus your current trimester.</p>
+    <h2>Remember it's an estimate</h2>
+    <p>Very few babies arrive exactly on the due date — it marks the middle of a normal range. Your provider may refine the date with an early ultrasound. To follow your pregnancy week by week, use the <a href="/health/pregnancy-calculator">pregnancy calculator</a>.</p>
+    <p>This is general information, not medical advice. Always follow guidance from your healthcare provider.</p>
+  </Fragment>
+</CalculatorLayout>

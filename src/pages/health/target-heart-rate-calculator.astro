@@ -1,0 +1,25 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import TargetHeartRateCalculator from '@components/islands/TargetHeartRateCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('health', 'target-heart-rate-calculator')!;
+const faqs = [
+  { question: 'How do I calculate my target heart rate?', answer: 'First estimate your maximum heart rate as 220 minus your age. Your training zones are then percentages of that maximum. Adding your resting heart rate lets the calculator use the more accurate Karvonen (heart-rate reserve) method.' },
+  { question: 'What are heart rate zones for?', answer: 'Different intensities train different systems. Lower zones (60–70%) build endurance and burn fat; higher zones (70–90%) improve cardiovascular fitness and speed. Training across zones is most effective.' },
+  { question: 'What is the Karvonen method?', answer: 'It calculates target heart rate using your heart-rate reserve (max minus resting), which accounts for your individual fitness level and gives more personalised zones than a simple percentage of maximum.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Find your maximum heart rate and personalised training zones for warm-up, fat burn, aerobic, anaerobic and maximum-effort exercise." faqs={faqs}>
+  <TargetHeartRateCalculator />
+  <Fragment slot="content">
+    <h2>Training by heart rate</h2>
+    <p>Your maximum heart rate is estimated as 220 minus your age. The zones below express training intensities as heart-rate ranges. Enter your resting heart rate for more accurate, personalised zones using the Karvonen method.</p>
+    <h2>Which zone should I train in?</h2>
+    <ul>
+      <li><strong>Warm-up / fat burn (50–70%):</strong> easy, sustainable effort — great for base building and recovery.</li>
+      <li><strong>Aerobic (70–80%):</strong> improves cardiovascular endurance; you can still talk in short sentences.</li>
+      <li><strong>Anaerobic / max (80–100%):</strong> short, hard intervals that build speed and power.</li>
+    </ul>
+    <p>To gauge running effort by pace instead, see the <a href="/health/pace-calculator">pace calculator</a>. Consult a doctor before beginning intense exercise. This is general information, not medical advice.</p>
+  </Fragment>
+</CalculatorLayout>

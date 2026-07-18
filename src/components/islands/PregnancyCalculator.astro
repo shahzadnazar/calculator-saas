@@ -1,0 +1,56 @@
+---
+const defaultLmp = '2026-01-01';
+---
+
+<div class="mx-auto w-full max-w-3xl" data-pregnancy>
+  <form class="card p-5 sm:p-6" data-pg-form novalidate>
+    <label class="field-label" for="pg-lmp">First day of your last period (LMP)</label>
+    <input class="field" id="pg-lmp" name="lmp" type="date" value={defaultLmp} max="9999-12-31" />
+  </form>
+
+  <div class="card mt-6 p-6">
+    <div class="text-center">
+      <p class="text-sm font-semibold" style="color: var(--muted)">You are approximately</p>
+      <p class="mt-1 text-3xl font-extrabold tracking-tight" style="color: var(--heading)" data-pg-along>—</p>
+      <p class="mt-1 text-sm" style="color: var(--muted)"><span data-pg-trimester>—</span> · <span data-pg-remaining>—</span> to go</p>
+    </div>
+    <div class="mt-5 h-3 w-full overflow-hidden rounded-full" style="background: var(--subtle)">
+      <span class="block h-full" style="width: 0%; background: var(--color-brand-600)" data-pg-bar></span>
+    </div>
+    <dl class="mt-6 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><dt style="color: var(--muted)">Conception (est.)</dt><dd class="font-semibold" data-pg-conception>—</dd></div>
+      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><dt style="color: var(--muted)">End of 1st trimester</dt><dd class="font-semibold" data-pg-t1>—</dd></div>
+      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><dt style="color: var(--muted)">End of 2nd trimester</dt><dd class="font-semibold" data-pg-t2>—</dd></div>
+      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><dt style="color: var(--muted)">Due date</dt><dd class="font-semibold" style="color: var(--color-brand-700)" data-pg-due>—</dd></div>
+    </dl>
+  </div>
+</div>
+
+<script>
+  import { pregnancyInfo } from '@lib/calculators/pregnancy';
+  import { toISODateUTC } from '@lib/calculators/date-duration';
+  import { parseISODateUTC } from '@lib/calculators/age';
+  const shortDate = (d: Date) => new Date(toISODateUTC(d) + 'T00:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const todayUTC = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); };
+  const ord = (n: number) => (n === 1 ? '1st trimester' : n === 2 ? '2nd trimester' : '3rd trimester');
+
+  document.querySelectorAll<HTMLElement>('[data-pregnancy]').forEach((root) => {
+    const input = root.querySelector<HTMLInputElement>('#pg-lmp')!;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const lmp = parseISODateUTC(input.value);
+      if (!lmp) return;
+      const p = pregnancyInfo(lmp, todayUTC());
+      set('[data-pg-along]', p.age.totalDays > 0 ? `${p.age.weeks} weeks, ${p.age.days} days` : 'Not started');
+      set('[data-pg-trimester]', p.age.totalDays > 0 ? ord(p.age.trimester) : '—');
+      set('[data-pg-remaining]', `${Math.ceil(p.age.daysRemaining / 7)} weeks`);
+      root.querySelector<HTMLElement>('[data-pg-bar]')!.style.width = `${p.age.progressPct}%`;
+      set('[data-pg-conception]', shortDate(p.conceptionDate));
+      set('[data-pg-t1]', shortDate(p.firstTrimesterEnd));
+      set('[data-pg-t2]', shortDate(p.secondTrimesterEnd));
+      set('[data-pg-due]', shortDate(p.dueDate));
+    }
+    input.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

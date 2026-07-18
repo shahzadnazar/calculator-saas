@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import FatIntakeCalculator from '@components/islands/FatIntakeCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('health', 'fat-intake-calculator')!;
+const faqs = [
+  { question: 'How much fat should I eat per day?', answer: 'Health authorities recommend that 20–35% of your daily calories come from fat. On a 2,000-calorie diet, that is roughly 44–78 grams of fat per day, since each gram of fat provides 9 calories.' },
+  { question: 'Is dietary fat bad for you?', answer: 'No — fat is essential for hormones, vitamin absorption and cell health. What matters is the type: favour unsaturated fats (olive oil, nuts, fish) and limit saturated and trans fats.' },
+  { question: 'How do I know my calorie target?', answer: 'Estimate your daily calorie needs with the calorie calculator, then enter that number here to get your fat range.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Find your recommended daily fat intake in grams, based on your calorie target and the standard 20–35% of calories from fat." faqs={faqs}>
+  <FatIntakeCalculator />
+  <Fragment slot="content">
+    <h2>How the range is calculated</h2>
+    <p>The Acceptable Macronutrient Distribution Range puts fat at 20–35% of daily calories. Because fat provides 9 calories per gram, the calculator converts your calorie target into a gram range. Enter the calories from the <a href="/health/calorie-calculator">calorie calculator</a> for a personalised figure.</p>
+    <h2>Quality over quantity</h2>
+    <p>Within your range, prioritise unsaturated fats — olive and avocado oil, nuts, seeds and oily fish — which support heart health. Keep saturated fat moderate and avoid trans fats. Pair this with your <a href="/health/protein-calculator">protein target</a> for a balanced plan.</p>
+    <p>This is general educational information, not medical or dietary advice.</p>
+  </Fragment>
+</CalculatorLayout>

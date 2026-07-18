@@ -1,0 +1,54 @@
+---
+import { calculateTargetHeartRate } from '@lib/calculators/target-heart-rate';
+
+const d = { age: 30, restingHr: 0 };
+const r = calculateTargetHeartRate(d.age, d.restingHr);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-thr>
+  <form class="card p-5 sm:p-6" data-thr-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="thr-age">Age</label>
+        <input class="field" id="thr-age" name="age" type="number" min="1" max="120" value={d.age} inputmode="decimal" />
+      </div>
+      <div>
+        <label class="field-label" for="thr-rest">Resting heart rate <span style="color: var(--muted)">(optional)</span></label>
+        <div class="flex"><input class="field rounded-r-none" id="thr-rest" name="restingHr" type="number" min="0" max="150" value={d.restingHr} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">bpm</span></div>
+        <p class="mt-1 text-xs" style="color: var(--muted)">Add your resting rate for more accurate zones (Karvonen method).</p>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Maximum heart rate</p>
+    <p class="mt-1 text-3xl font-extrabold" style="color: var(--heading)"><span data-thr-max>{r.maxHr}</span> <span class="text-lg" style="color: var(--muted)">bpm</span></p>
+    <table class="mt-4 w-full text-sm">
+      <tbody data-thr-table>
+        {r.zones.map((z) => (
+          <tr class="border-t" style="border-color: var(--line)">
+            <td class="py-2" style="color: var(--muted)">{z.name} <span class="text-xs">({z.lowPct}–{z.highPct}%)</span></td>
+            <td class="py-2 text-right font-semibold" style="color: var(--heading)">{z.low}–{z.high} bpm</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  import { calculateTargetHeartRate } from '@lib/calculators/target-heart-rate';
+  document.querySelectorAll<HTMLElement>('[data-thr]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-thr-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    function recompute() {
+      const r = calculateTargetHeartRate(num('age'), num('restingHr'));
+      const maxEl = root.querySelector<HTMLElement>('[data-thr-max]')!; maxEl.textContent = String(r.maxHr);
+      root.querySelector<HTMLElement>('[data-thr-table]')!.innerHTML = r.zones
+        .map((z) => `<tr class="border-t" style="border-color: var(--line)"><td class="py-2" style="color: var(--muted)">${z.name} <span class="text-xs">(${z.lowPct}–${z.highPct}%)</span></td><td class="py-2 text-right font-semibold" style="color: var(--heading)">${z.low}–${z.high} bpm</td></tr>`)
+        .join('');
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

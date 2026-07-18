@@ -1,0 +1,69 @@
+---
+import { computePace, predictTime, formatDuration, RACE_DISTANCES, type DistanceUnit } from '@lib/calculators/pace';
+
+const d = { distance: 5, unit: 'km' as DistanceUnit, h: 0, m: 25, s: 0 };
+const timeSeconds = d.h * 3600 + d.m * 60 + d.s;
+const r = computePace({ distance: d.distance, unit: d.unit, timeSeconds });
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-pace>
+  <form class="card p-5 sm:p-6" data-pc-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="pc-dist">Distance</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="pc-dist" name="distance" type="number" min="0" step="0.1" value={d.distance} inputmode="decimal" />
+          <select class="field w-24 rounded-l-none" name="unit" aria-label="Distance unit">
+            <option value="km" selected={d.unit === 'km'}>km</option>
+            <option value="mi" selected={d.unit === 'mi'}>miles</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Time (h : m : s)</label>
+        <div class="grid grid-cols-3 gap-2">
+          <input class="field text-center" name="h" type="number" min="0" value={d.h} aria-label="hours" inputmode="numeric" />
+          <input class="field text-center" name="m" type="number" min="0" max="59" value={d.m} aria-label="minutes" inputmode="numeric" />
+          <input class="field text-center" name="s" type="number" min="0" max="59" value={d.s} aria-label="seconds" inputmode="numeric" />
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <div class="grid grid-cols-2 gap-3 text-center">
+      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Pace / km</p><p class="mt-1 text-xl font-bold" data-pc-km>{formatDuration(r.secPerKm)}</p></div>
+      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Pace / mile</p><p class="mt-1 text-xl font-bold" data-pc-mi>{formatDuration(r.secPerMi)}</p></div>
+      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Speed</p><p class="mt-1 text-xl font-bold"><span data-pc-kmh>{Number.isNaN(r.kmh) ? '—' : r.kmh.toFixed(1)}</span> km/h</p></div>
+      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Speed</p><p class="mt-1 text-xl font-bold"><span data-pc-mph>{Number.isNaN(r.mph) ? '—' : r.mph.toFixed(1)}</span> mph</p></div>
+    </div>
+    <h3 class="mt-5 text-sm font-bold" style="color: var(--heading)">Predicted finish times at this pace</h3>
+    <table class="mt-2 w-full text-sm"><tbody data-pc-races>
+      {RACE_DISTANCES.map((race) => (
+        <tr class="border-t" style="border-color: var(--line)"><td class="py-1.5" style="color: var(--muted)">{race.name}</td><td class="py-1.5 text-right font-semibold">{formatDuration(predictTime(r.secPerKm, race.km))}</td></tr>
+      ))}
+    </tbody></table>
+  </div>
+</div>
+
+<script>
+  import { computePace, predictTime, formatDuration, RACE_DISTANCES, type DistanceUnit } from '@lib/calculators/pace';
+  document.querySelectorAll<HTMLElement>('[data-pace]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-pc-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const timeSeconds = num('h') * 3600 + num('m') * 60 + num('s');
+      const r = computePace({ distance: num('distance'), unit: (form.elements.namedItem('unit') as HTMLSelectElement).value as DistanceUnit, timeSeconds });
+      set('[data-pc-km]', formatDuration(r.secPerKm));
+      set('[data-pc-mi]', formatDuration(r.secPerMi));
+      set('[data-pc-kmh]', Number.isNaN(r.kmh) ? '—' : r.kmh.toFixed(1));
+      set('[data-pc-mph]', Number.isNaN(r.mph) ? '—' : r.mph.toFixed(1));
+      root.querySelector<HTMLElement>('[data-pc-races]')!.innerHTML = RACE_DISTANCES
+        .map((race) => `<tr class="border-t" style="border-color: var(--line)"><td class="py-1.5" style="color: var(--muted)">${race.name}</td><td class="py-1.5 text-right font-semibold">${formatDuration(predictTime(r.secPerKm, race.km))}</td></tr>`)
+        .join('');
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

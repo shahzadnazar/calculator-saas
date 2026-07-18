@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import PregnancyCalculator from '@components/islands/PregnancyCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('health', 'pregnancy-calculator')!;
+const faqs = [
+  { question: 'How far along am I?', answer: 'Pregnancy is dated from the first day of your last menstrual period (LMP), not conception. Enter your LMP and the calculator shows your current week and day, trimester, and progress toward your due date.' },
+  { question: 'What are the trimesters?', answer: 'The first trimester runs from week 1 to the end of week 13, the second from week 14 to the end of week 27, and the third from week 28 until birth. Each brings different developments.' },
+  { question: 'When did I conceive?', answer: 'Conception typically occurs about two weeks after the LMP, around ovulation. The calculator shows this estimated date, though the exact day can vary with cycle length.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Track your pregnancy week by week from your last period — current gestational age, trimester, estimated conception and due dates, and progress." faqs={faqs}>
+  <PregnancyCalculator />
+  <Fragment slot="content">
+    <h2>Following your pregnancy</h2>
+    <p>Enter the first day of your last period. The calculator shows how many weeks and days along you are, your trimester, a progress bar toward your due date, and the key dates: estimated conception, the end of each trimester, and your due date.</p>
+    <h2>Why it's dated from the LMP</h2>
+    <p>By convention, pregnancy is measured from the first day of your last menstrual period — about two weeks before conception actually occurs. That is why "40 weeks pregnant" corresponds to roughly 38 weeks since conception. For just the due date, use the <a href="/health/due-date-calculator">due date calculator</a>.</p>
+    <p>This is general information, not medical advice. Your healthcare provider's dating takes precedence.</p>
+  </Fragment>
+</CalculatorLayout>

@@ -1,0 +1,42 @@
+---
+import { calculateFatIntake } from '@lib/calculators/fat-intake';
+
+const d = { calories: 2000 };
+const r = calculateFatIntake(d.calories);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-fatintake>
+  <form class="card p-5 sm:p-6" data-fi-form novalidate>
+    <div>
+      <label class="field-label" for="fi-cal">Daily calorie target</label>
+      <div class="flex"><input class="field rounded-r-none" id="fi-cal" name="calories" type="number" min="0" step="50" value={d.calories} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">kcal</span></div>
+    </div>
+    <p class="mt-3 text-xs" style="color: var(--muted)">Not sure of your daily calories? Estimate them with the <a href="/health/calorie-calculator" style="color: var(--color-brand-600)">calorie calculator</a>.</p>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Recommended daily fat</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-fi-min>{r.minGrams}</span>–<span data-fi-max>{r.maxGrams}</span> <span class="text-2xl" style="color: var(--muted)">g</span></p>
+    <p class="mt-1 text-sm" style="color: var(--muted)">based on 20–35% of calories from fat</p>
+    <div class="mt-5 space-y-2 text-sm">
+      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><span>Lower (20%)</span><strong data-fi-min2>{r.minGrams} g</strong></div>
+      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><span>Moderate (27.5%)</span><strong data-fi-mod>{r.moderateGrams} g</strong></div>
+      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><span>Upper (35%)</span><strong data-fi-max2>{r.maxGrams} g</strong></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { calculateFatIntake } from '@lib/calculators/fat-intake';
+  document.querySelectorAll<HTMLElement>('[data-fatintake]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-fi-form]')!;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = calculateFatIntake(Number((form.elements.namedItem('calories') as HTMLInputElement).value) || 0);
+      set('[data-fi-min]', String(r.minGrams)); set('[data-fi-max]', String(r.maxGrams));
+      set('[data-fi-min2]', `${r.minGrams} g`); set('[data-fi-mod]', `${r.moderateGrams} g`); set('[data-fi-max2]', `${r.maxGrams} g`);
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>
