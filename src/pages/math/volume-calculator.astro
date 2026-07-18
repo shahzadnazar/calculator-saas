@@ -1,0 +1,28 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import VolumeCalculator from '@components/islands/VolumeCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('math', 'volume-calculator')!;
+const faqs = [
+  { question: 'How do I calculate volume?', answer: 'Pick the 3D shape and enter its dimensions. A box is length × width × height; a sphere is 4⁄3 × π × radius³; a cylinder is π × radius² × height. The calculator uses the correct formula for each shape.' },
+  { question: 'What is the volume of a cylinder?', answer: 'Volume = π × radius² × height. A cylinder with radius 2 and height 5 has a volume of about 62.83 cubic units.' },
+  { question: 'What units is the volume in?', answer: 'Enter all dimensions in the same unit; the volume is in that unit cubed (e.g. cubic metres or cubic feet). Choose a unit label to match your measurements.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid or capsule — select the shape and enter its dimensions." faqs={faqs}>
+  <VolumeCalculator />
+  <Fragment slot="content">
+    <h2>Volume formulas</h2>
+    <ul>
+      <li><strong>Cube:</strong> side³</li>
+      <li><strong>Box:</strong> length × width × height</li>
+      <li><strong>Sphere:</strong> 4⁄3 × π × radius³</li>
+      <li><strong>Cylinder:</strong> π × radius² × height</li>
+      <li><strong>Cone:</strong> ⅓ × π × radius² × height</li>
+      <li><strong>Pyramid:</strong> ⅓ × base length × base width × height</li>
+      <li><strong>Capsule:</strong> π × radius² × (4⁄3 × radius + height)</li>
+    </ul>
+    <h2>Everyday uses</h2>
+    <p>Volume calculations help with shipping and packaging, filling a pool or tank, cooking, and construction. For pouring a concrete slab, the <a href="/everyday/concrete-calculator">concrete calculator</a> converts volume into cubic yards and bags. For flat areas, see the <a href="/math/area-calculator">area calculator</a>.</p>
+  </Fragment>
+</CalculatorLayout>

@@ -54,7 +54,7 @@ const crumbs = [
 ];
 
 const jsonLd = [
-  calculatorSchema({ name: calculator.title, description: calculator.description, path }),
+  calculatorSchema({ name: calculator.title, description: calculator.description, path, dateModified: reviewedOn }),
   breadcrumbSchema(crumbs),
   ...(faqs.length ? [faqSchema(faqs)] : []),
 ];

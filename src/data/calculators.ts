@@ -243,6 +243,16 @@ export const CALCULATORS: readonly Calculator[] = [
     keywords: ['income tax calculator', 'tax estimate'],
   },
 
+  {
+    slug: 'tip-calculator',
+    title: 'Tip Calculator',
+    category: 'finance',
+    status: 'live',
+    description:
+      'Calculate the tip and total on a bill, and split it evenly between any number of people.',
+    keywords: ['tip calculator', 'gratuity calculator', 'split the bill', 'how much to tip'],
+  },
+
   /* -- Health ------------------------------------------------------ */
   {
     slug: 'bmi-calculator',
@@ -385,6 +395,25 @@ export const CALCULATORS: readonly Calculator[] = [
     keywords: ['random number generator', 'rng'],
   },
 
+  {
+    slug: 'area-calculator',
+    title: 'Area Calculator',
+    category: 'math',
+    status: 'live',
+    description:
+      'Calculate the area of a rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse.',
+    keywords: ['area calculator', 'area of a shape', 'area of circle', 'area of triangle'],
+  },
+  {
+    slug: 'volume-calculator',
+    title: 'Volume Calculator',
+    category: 'math',
+    status: 'live',
+    description:
+      'Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid or capsule.',
+    keywords: ['volume calculator', 'volume of a cylinder', 'volume of a sphere', 'volume of a cone'],
+  },
+
   /* -- Everyday ---------------------------------------------------- */
   {
     slug: 'age-calculator',
@@ -457,6 +486,15 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Create strong, random passwords with configurable length and characters.',
     keywords: ['password generator', 'strong password'],
+  },
+  {
+    slug: 'square-footage-calculator',
+    title: 'Square Footage Calculator',
+    category: 'everyday',
+    status: 'live',
+    description:
+      'Calculate the square footage of a room or area for flooring, paint or landscaping, with a cost estimate.',
+    keywords: ['square footage calculator', 'sq ft calculator', 'room area', 'flooring calculator'],
   },
 ] as const;
 

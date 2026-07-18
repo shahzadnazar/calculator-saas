@@ -1,0 +1,20 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import SquareFootageCalculator from '@components/islands/SquareFootageCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('everyday', 'square-footage-calculator')!;
+const faqs = [
+  { question: 'How do I calculate square footage?', answer: 'Multiply the length by the width of the area in feet. A room 12 ft by 10 ft is 120 square feet. If you measure in inches, yards or metres, the calculator converts to feet for you.' },
+  { question: 'How do I find the square footage of multiple rooms?', answer: 'Enter one room\'s dimensions and set "number of areas" to how many identical areas you have, or add up each room\'s square footage separately for rooms of different sizes.' },
+  { question: 'How much flooring or paint do I need?', answer: 'Once you know the square footage, add 5–10% for waste and cuts, then divide by the coverage per box or per gallon on the product label. Enter a price per square foot for a quick cost estimate.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the square footage of a room or area for flooring, paint, tile or landscaping — with metric conversions and an optional cost estimate." faqs={faqs}>
+  <SquareFootageCalculator />
+  <Fragment slot="content">
+    <h2>How to measure square footage</h2>
+    <p>Measure the length and width of the area and multiply them. This calculator accepts feet, inches, yards or metres and converts everything to square feet, square metres and square yards. Set the number of identical areas to total up several rooms at once.</p>
+    <h2>Estimating materials and cost</h2>
+    <p>For flooring, tile or paint, take your total square footage and add about 5–10% for waste, offcuts and mistakes. Enter a price per square foot to estimate the cost. For an irregular slab you're pouring, the <a href="/everyday/concrete-calculator">concrete calculator</a> works in cubic yards and bags, and the <a href="/math/area-calculator">area calculator</a> handles non-rectangular shapes.</p>
+  </Fragment>
+</CalculatorLayout>

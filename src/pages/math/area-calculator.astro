@@ -1,0 +1,28 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import AreaCalculator from '@components/islands/AreaCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('math', 'area-calculator')!;
+const faqs = [
+  { question: 'How do I calculate the area of a shape?', answer: 'It depends on the shape. A rectangle is length × width; a triangle is ½ × base × height; a circle is π × radius². Choose your shape above and enter its dimensions — the calculator applies the right formula automatically.' },
+  { question: 'What is the formula for the area of a circle?', answer: 'Area = π × r², where r is the radius (half the diameter). For a circle with radius 5, the area is about 78.54 square units.' },
+  { question: 'What units does the area come out in?', answer: 'Enter all measurements in the same unit; the area is in that unit squared. Select a unit label (cm, m, in, ft, yd) to match your measurements.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the area of a rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse — just pick the shape and enter its dimensions." faqs={faqs}>
+  <AreaCalculator />
+  <Fragment slot="content">
+    <h2>Area formulas</h2>
+    <ul>
+      <li><strong>Rectangle:</strong> length × width</li>
+      <li><strong>Square:</strong> side²</li>
+      <li><strong>Triangle:</strong> ½ × base × height</li>
+      <li><strong>Circle:</strong> π × radius²</li>
+      <li><strong>Trapezoid:</strong> ½ × (base a + base b) × height</li>
+      <li><strong>Parallelogram:</strong> base × height</li>
+      <li><strong>Ellipse:</strong> π × semi-axis a × semi-axis b</li>
+    </ul>
+    <h2>Keep your units consistent</h2>
+    <p>Area is always in squared units. If you measure in metres, the area is in square metres; in feet, square feet. For a floor or room specifically, the <a href="/everyday/square-footage-calculator">square footage calculator</a> also estimates material cost. For 3D shapes, use the <a href="/math/volume-calculator">volume calculator</a>.</p>
+  </Fragment>
+</CalculatorLayout>

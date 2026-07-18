@@ -1,0 +1,27 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import TipCalculator from '@components/islands/TipCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'tip-calculator')!;
+const faqs = [
+  { question: 'How much should I tip?', answer: 'In the United States, 15–20% of the pre-tax bill is standard for sit-down restaurant service, with 18–20% common for good service. Tip 10% or less for minimal service, and more for exceptional service. Norms differ by country and by service type.' },
+  { question: 'Do I tip on the total with tax, or before tax?', answer: 'Etiquette says to tip on the pre-tax amount, though many people tip on the total for simplicity. Enter whichever figure you prefer as the bill.' },
+  { question: 'How do I split a bill with a tip?', answer: 'Enter the number of people and the calculator divides the total (bill plus tip) evenly, showing the amount and the tip each person owes.' },
+  { question: 'What is a good tip for delivery or a barber?', answer: 'Around 15–20% is typical for food delivery (with a minimum of a few dollars) and for personal services like haircuts. Use the preset buttons to compare quickly.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the tip and total on any bill and split it evenly between friends. Tap a preset percentage or enter your own." faqs={faqs}>
+  <TipCalculator />
+  <Fragment slot="content">
+    <h2>How to use the tip calculator</h2>
+    <p>Enter the bill, choose a tip percentage (or tap a preset), and set how many people are splitting it. The calculator shows the tip, the grand total, and exactly what each person owes — no mental math at the table.</p>
+    <h2>Tipping guide</h2>
+    <ul>
+      <li><strong>Restaurants:</strong> 15–20% of the pre-tax bill for table service.</li>
+      <li><strong>Delivery:</strong> 15–20%, with a few-dollar minimum.</li>
+      <li><strong>Bars:</strong> around $1–2 per drink, or 15–20% of a tab.</li>
+      <li><strong>Personal services</strong> (haircuts, taxis): roughly 15–20%.</li>
+    </ul>
+    <p>Customs vary widely by country — in many places a service charge is already included and tipping is minimal. When in doubt, check local norms. To add or remove sales tax from a price, see the <a href="/finance/sales-tax-calculator">sales tax calculator</a>.</p>
+  </Fragment>
+</CalculatorLayout>

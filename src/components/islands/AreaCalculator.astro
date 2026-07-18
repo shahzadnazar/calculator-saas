@@ -1,0 +1,70 @@
+---
+import { AREA_SHAPES, calculateArea } from '@lib/calculators/area';
+import { formatNumber } from '@lib/format';
+
+const first = AREA_SHAPES[0]; // rectangle
+const defaults: Record<string, number> = { length: 5, width: 4 };
+const result = calculateArea(first.key, defaults);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-area>
+  <form class="card p-5 sm:p-6" data-ar-form novalidate>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="field-label" for="ar-shape">Shape</label>
+        <select class="field" id="ar-shape" data-ar-shape>
+          {AREA_SHAPES.map((s) => (<option value={s.key} selected={s.key === first.key}>{s.label}</option>))}
+        </select>
+      </div>
+      <div>
+        <label class="field-label" for="ar-unit">Unit</label>
+        <select class="field" id="ar-unit" data-ar-unit>
+          {['cm', 'm', 'in', 'ft', 'yd'].map((u) => (<option value={u} selected={u === 'm'}>{u}</option>))}
+        </select>
+      </div>
+    </div>
+    <div class="mt-4 space-y-3" data-ar-inputs>
+      {first.inputs.map((inp) => (
+        <div>
+          <label class="field-label">{inp.label}</label>
+          <input class="field" data-ar-dim={inp.key} type="number" min="0" step="0.1" value={defaults[inp.key] ?? 1} inputmode="decimal" />
+        </div>
+      ))}
+    </div>
+  </form>
+
+  <div class="card flex flex-col justify-center p-6 text-center">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Area</p>
+    <p class="mt-2 text-5xl font-extrabold tracking-tight" style="color: var(--heading)" data-ar-result>{formatNumber(result, 3)}</p>
+    <p class="mt-1 text-lg" style="color: var(--muted)"><span data-ar-unit-label>m</span>²</p>
+  </div>
+</div>
+
+<script>
+  import { AREA_SHAPES, calculateArea, type AreaShapeKey } from '@lib/calculators/area';
+  const nf = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }).format(v));
+  const shapeMap = new Map(AREA_SHAPES.map((s) => [s.key, s]));
+
+  document.querySelectorAll<HTMLElement>('[data-area]').forEach((root) => {
+    const shapeSel = root.querySelector<HTMLSelectElement>('[data-ar-shape]')!;
+    const unitSel = root.querySelector<HTMLSelectElement>('[data-ar-unit]')!;
+    const inputsEl = root.querySelector<HTMLElement>('[data-ar-inputs]')!;
+
+    function buildInputs() {
+      const shape = shapeMap.get(shapeSel.value as AreaShapeKey)!;
+      inputsEl.innerHTML = shape.inputs
+        .map((inp) => `<div><label class="field-label">${inp.label}</label><input class="field" data-ar-dim="${inp.key}" type="number" min="0" step="0.1" value="1" inputmode="decimal" /></div>`)
+        .join('');
+    }
+    function recompute() {
+      const dims: Record<string, number> = {};
+      inputsEl.querySelectorAll<HTMLInputElement>('[data-ar-dim]').forEach((el) => (dims[el.dataset.arDim!] = Number(el.value) || 0));
+      root.querySelector<HTMLElement>('[data-ar-result]')!.textContent = nf(calculateArea(shapeSel.value as AreaShapeKey, dims));
+      root.querySelector<HTMLElement>('[data-ar-unit-label]')!.textContent = unitSel.value;
+    }
+    shapeSel.addEventListener('change', () => { buildInputs(); recompute(); });
+    unitSel.addEventListener('change', recompute);
+    inputsEl.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

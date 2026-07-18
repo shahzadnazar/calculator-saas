@@ -1,0 +1,59 @@
+---
+import { calculateSquareFootage, type SqFtUnit } from '@lib/calculators/square-footage';
+import { formatNumber, formatCurrency } from '@lib/format';
+
+const d = { length: 12, width: 10, unit: 'ft' as SqFtUnit, quantity: 1, pricePerSqFt: 0 };
+const r = calculateSquareFootage(d);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-sqft>
+  <form class="card p-5 sm:p-6" data-sf-form novalidate>
+    <div class="grid grid-cols-3 gap-3">
+      <div><label class="field-label" for="sf-length">Length</label><input class="field" id="sf-length" name="length" type="number" min="0" step="0.1" value={d.length} inputmode="decimal" /></div>
+      <div><label class="field-label" for="sf-width">Width</label><input class="field" id="sf-width" name="width" type="number" min="0" step="0.1" value={d.width} inputmode="decimal" /></div>
+      <div>
+        <label class="field-label" for="sf-unit">Unit</label>
+        <select class="field" id="sf-unit" name="unit">
+          {['ft', 'in', 'yd', 'm'].map((u) => (<option value={u} selected={u === d.unit}>{u}</option>))}
+        </select>
+      </div>
+    </div>
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <div><label class="field-label" for="sf-qty">Number of areas</label><input class="field" id="sf-qty" name="quantity" type="number" min="1" step="1" value={d.quantity} inputmode="numeric" /></div>
+      <div><label class="field-label" for="sf-price">Price per sq ft</label><div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="sf-price" name="pricePerSqFt" type="number" min="0" step="0.01" value={d.pricePerSqFt} inputmode="decimal" /></div></div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Total square footage</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)"><span data-sf-total>{formatNumber(r.totalSqFt, 2)}</span> <span class="text-xl" style="color: var(--muted)">ft²</span></p>
+    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Square metres</dt><dd class="font-semibold"><span data-sf-sqm>{formatNumber(r.totalSqM, 2)}</span> m²</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Square yards</dt><dd class="font-semibold"><span data-sf-sqyd>{formatNumber(r.totalSqYd, 2)}</span> yd²</dd></div>
+      <div class="flex justify-between border-t pt-2" style="border-color: var(--line)"><dt class="font-semibold">Estimated cost</dt><dd class="text-lg font-bold" style="color: var(--color-accent-600)" data-sf-cost>{formatCurrency(r.cost)}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<script>
+  import { calculateSquareFootage, type SqFtUnit } from '@lib/calculators/square-footage';
+  import { formatNumber, formatCurrency } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-sqft]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-sf-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = calculateSquareFootage({
+        length: num('length'), width: num('width'),
+        unit: (form.elements.namedItem('unit') as HTMLSelectElement).value as SqFtUnit,
+        quantity: num('quantity'), pricePerSqFt: num('pricePerSqFt'),
+      });
+      set('[data-sf-total]', formatNumber(r.totalSqFt, 2));
+      set('[data-sf-sqm]', formatNumber(r.totalSqM, 2));
+      set('[data-sf-sqyd]', formatNumber(r.totalSqYd, 2));
+      set('[data-sf-cost]', formatCurrency(r.cost));
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

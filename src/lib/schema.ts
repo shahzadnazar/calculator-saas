@@ -68,6 +68,8 @@ export function calculatorSchema(opts: {
   name: string;
   description: string;
   path: string;
+  /** ISO date the tool's method was last reviewed (drives dateModified). */
+  dateModified?: string;
 }): Schema {
   return {
     '@context': 'https://schema.org',
@@ -78,13 +80,17 @@ export function calculatorSchema(opts: {
     applicationCategory: 'UtilityApplication',
     operatingSystem: 'Any',
     browserRequirements: 'Requires JavaScript.',
+    softwareVersion: '1.0',
     isAccessibleForFree: true,
+    ...(opts.dateModified ? { dateModified: opts.dateModified } : {}),
     offers: {
       '@type': 'Offer',
       price: '0',
       priceCurrency: 'USD',
     },
     publisher: { '@id': `${SITE.url}/#organization` },
+    // NOTE: aggregateRating intentionally omitted — Google requires genuine
+    // user ratings; fabricating them violates guidelines and our EEAT stance.
   };
 }
 

@@ -1,0 +1,70 @@
+---
+import { VOLUME_SHAPES, calculateVolume } from '@lib/calculators/volume';
+import { formatNumber } from '@lib/format';
+
+const first = VOLUME_SHAPES[0]; // cube
+const defaults: Record<string, number> = { side: 3 };
+const result = calculateVolume(first.key, defaults);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-volume>
+  <form class="card p-5 sm:p-6" data-vo-form novalidate>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="field-label" for="vo-shape">Shape</label>
+        <select class="field" id="vo-shape" data-vo-shape>
+          {VOLUME_SHAPES.map((s) => (<option value={s.key} selected={s.key === first.key}>{s.label}</option>))}
+        </select>
+      </div>
+      <div>
+        <label class="field-label" for="vo-unit">Unit</label>
+        <select class="field" id="vo-unit" data-vo-unit>
+          {['cm', 'm', 'in', 'ft', 'yd'].map((u) => (<option value={u} selected={u === 'm'}>{u}</option>))}
+        </select>
+      </div>
+    </div>
+    <div class="mt-4 space-y-3" data-vo-inputs>
+      {first.inputs.map((inp) => (
+        <div>
+          <label class="field-label">{inp.label}</label>
+          <input class="field" data-vo-dim={inp.key} type="number" min="0" step="0.1" value={defaults[inp.key] ?? 1} inputmode="decimal" />
+        </div>
+      ))}
+    </div>
+  </form>
+
+  <div class="card flex flex-col justify-center p-6 text-center">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Volume</p>
+    <p class="mt-2 text-5xl font-extrabold tracking-tight" style="color: var(--heading)" data-vo-result>{formatNumber(result, 3)}</p>
+    <p class="mt-1 text-lg" style="color: var(--muted)"><span data-vo-unit-label>m</span>³</p>
+  </div>
+</div>
+
+<script>
+  import { VOLUME_SHAPES, calculateVolume, type VolumeShapeKey } from '@lib/calculators/volume';
+  const nf = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }).format(v));
+  const shapeMap = new Map(VOLUME_SHAPES.map((s) => [s.key, s]));
+
+  document.querySelectorAll<HTMLElement>('[data-volume]').forEach((root) => {
+    const shapeSel = root.querySelector<HTMLSelectElement>('[data-vo-shape]')!;
+    const unitSel = root.querySelector<HTMLSelectElement>('[data-vo-unit]')!;
+    const inputsEl = root.querySelector<HTMLElement>('[data-vo-inputs]')!;
+
+    function buildInputs() {
+      const shape = shapeMap.get(shapeSel.value as VolumeShapeKey)!;
+      inputsEl.innerHTML = shape.inputs
+        .map((inp) => `<div><label class="field-label">${inp.label}</label><input class="field" data-vo-dim="${inp.key}" type="number" min="0" step="0.1" value="1" inputmode="decimal" /></div>`)
+        .join('');
+    }
+    function recompute() {
+      const dims: Record<string, number> = {};
+      inputsEl.querySelectorAll<HTMLInputElement>('[data-vo-dim]').forEach((el) => (dims[el.dataset.voDim!] = Number(el.value) || 0));
+      root.querySelector<HTMLElement>('[data-vo-result]')!.textContent = nf(calculateVolume(shapeSel.value as VolumeShapeKey, dims));
+      root.querySelector<HTMLElement>('[data-vo-unit-label]')!.textContent = unitSel.value;
+    }
+    shapeSel.addEventListener('change', () => { buildInputs(); recompute(); });
+    unitSel.addEventListener('change', recompute);
+    inputsEl.addEventListener('input', recompute);
+    recompute();
+  });
+</script>
