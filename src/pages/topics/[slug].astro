@@ -60,7 +60,7 @@ const jsonLd = [
 ];
 ---
 
-<BaseLayout title={cluster.title} description={cluster.description} path={path} jsonLd={jsonLd}>
+<BaseLayout title={cluster.title} description={cluster.description} path={path} ogImage={`/og/topic-${cluster.slug}.png`} jsonLd={jsonLd}>
   <div class="wrap py-8">
     <Breadcrumbs crumbs={crumbs} />
 

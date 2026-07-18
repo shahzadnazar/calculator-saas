@@ -47,7 +47,7 @@ const jsonLd = [
 ];
 ---
 
-<BaseLayout title={reference.title} description={reference.description} path={path} jsonLd={jsonLd}>
+<BaseLayout title={reference.title} description={reference.description} path={path} ogImage={`/og/ref-${reference.slug}.png`} jsonLd={jsonLd}>
   <div class="wrap py-8">
     <Breadcrumbs crumbs={crumbs} />
 
