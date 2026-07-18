@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import HomeEquityLoanCalculator from '@components/islands/HomeEquityLoanCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'home-equity-loan-calculator')!;
+const faqs = [
+  { question: 'How much can I borrow against my home?', answer: 'Lenders cap your combined borrowing at a percentage of your home value — the loan-to-value (LTV) limit, often 80–85%. Your maximum is that percentage of the home value minus what you still owe on your mortgage.' },
+  { question: 'What is home equity?', answer: 'Equity is the portion of your home you actually own: its current value minus your outstanding mortgage balance. A home equity loan lets you borrow against part of that equity.' },
+  { question: 'Home equity loan vs. HELOC?', answer: 'A home equity loan gives you a lump sum at a fixed rate with fixed payments. A HELOC is a revolving line of credit you draw from as needed, usually at a variable rate. This calculator models the fixed-payment loan.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate how much you can borrow against your home equity and the monthly payment on a home equity loan." faqs={faqs}>
+  <HomeEquityLoanCalculator />
+  <Fragment slot="content">
+    <h2>How borrowing power is calculated</h2>
+    <p>Enter your home value, mortgage balance and the lender's maximum LTV. The calculator shows your total equity and the most you could borrow within that cap, plus the monthly payment for the loan amount you choose. If your requested loan exceeds the limit, it flags it.</p>
+    <h2>Borrow carefully</h2>
+    <p>A home equity loan is secured by your home, which means the stakes are higher than an unsecured loan — missed payments can put the property at risk. Compare the payment against your budget, and see the full amortization with the <a href="/finance/amortization-calculator">amortization calculator</a>.</p>
+    <p>This is general educational information, not financial advice.</p>
+  </Fragment>
+</CalculatorLayout>

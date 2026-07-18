@@ -1,0 +1,85 @@
+---
+import { convertSalary, type PayUnit } from '@lib/calculators/salary';
+import { formatCurrency } from '@lib/format';
+
+const d = { amount: 25, unit: 'hourly' as PayUnit, hoursPerWeek: 40, daysPerWeek: 5, weeksPerYear: 52 };
+const r = convertSalary(d);
+const units: { v: PayUnit; l: string }[] = [
+  { v: 'hourly', l: 'per hour' }, { v: 'daily', l: 'per day' }, { v: 'weekly', l: 'per week' },
+  { v: 'biweekly', l: 'biweekly' }, { v: 'monthly', l: 'per month' }, { v: 'annual', l: 'per year' },
+];
+const rows: { key: keyof typeof r; label: string }[] = [
+  { key: 'hourly', label: 'Hourly' }, { key: 'daily', label: 'Daily' }, { key: 'weekly', label: 'Weekly' },
+  { key: 'biweekly', label: 'Biweekly' }, { key: 'monthly', label: 'Monthly' }, { key: 'annual', label: 'Annual' },
+];
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-salary>
+  <form class="card p-5 sm:p-6" data-sal-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="sal-amount">Pay amount</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-none border-x-0" id="sal-amount" name="amount" type="number" min="0" step="0.5" value={d.amount} inputmode="decimal" />
+          <select class="field w-32 rounded-l-none" name="unit" aria-label="Pay period">
+            {units.map((u) => (<option value={u.v} selected={u.v === d.unit}>{u.l}</option>))}
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="field-label" for="sal-hpw">Hrs/week</label>
+          <input class="field" id="sal-hpw" name="hoursPerWeek" type="number" min="1" step="1" value={d.hoursPerWeek} inputmode="decimal" />
+        </div>
+        <div>
+          <label class="field-label" for="sal-dpw">Days/week</label>
+          <input class="field" id="sal-dpw" name="daysPerWeek" type="number" min="1" step="1" value={d.daysPerWeek} inputmode="decimal" />
+        </div>
+        <div>
+          <label class="field-label" for="sal-wpy">Weeks/yr</label>
+          <input class="field" id="sal-wpy" name="weeksPerYear" type="number" min="1" step="1" value={d.weeksPerYear} inputmode="decimal" />
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="mb-3 text-sm font-semibold" style="color: var(--muted)">Equivalent pay</p>
+    <table class="w-full text-sm">
+      <tbody data-sal-table>
+        {rows.map((row) => (
+          <tr class="border-t" style="border-color: var(--line)">
+            <td class="py-2" style="color: var(--muted)">{row.label}</td>
+            <td class="py-2 text-right font-bold" style="color: var(--heading)">{formatCurrency(r[row.key])}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  import { convertSalary, type PayUnit } from '@lib/calculators/salary';
+  import { formatCurrency } from '@lib/format';
+  const rows: { key: keyof ReturnType<typeof convertSalary>; label: string }[] = [
+    { key: 'hourly', label: 'Hourly' }, { key: 'daily', label: 'Daily' }, { key: 'weekly', label: 'Weekly' },
+    { key: 'biweekly', label: 'Biweekly' }, { key: 'monthly', label: 'Monthly' }, { key: 'annual', label: 'Annual' },
+  ];
+  document.querySelectorAll<HTMLElement>('[data-salary]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-sal-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    function recompute() {
+      const r = convertSalary({
+        amount: num('amount'),
+        unit: (form.elements.namedItem('unit') as HTMLSelectElement).value as PayUnit,
+        hoursPerWeek: num('hoursPerWeek'), daysPerWeek: num('daysPerWeek'), weeksPerYear: num('weeksPerYear'),
+      });
+      root.querySelector<HTMLElement>('[data-sal-table]')!.innerHTML = rows
+        .map((row) => `<tr class="border-t" style="border-color: var(--line)"><td class="py-2" style="color: var(--muted)">${row.label}</td><td class="py-2 text-right font-bold" style="color: var(--heading)">${formatCurrency(r[row.key])}</td></tr>`)
+        .join('');
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

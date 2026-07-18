@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import CreditCardPayoffCalculator from '@components/islands/CreditCardPayoffCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'credit-card-payoff-calculator')!;
+const faqs = [
+  { question: 'How long will it take to pay off my credit card?', answer: 'Enter your balance, APR and monthly payment in "By payment" mode, and the calculator shows the payoff time and the total interest you will pay. Switch to "By timeline" to find the payment needed to clear it by a target date.' },
+  { question: 'Why do credit cards take so long to pay off?', answer: 'Credit-card interest is high and compounds monthly. If your payment is only a little above the interest charge, most of it goes to interest and the balance barely moves — which is why minimum payments can stretch for years.' },
+  { question: 'What happens if I only pay the minimum?', answer: 'Minimum payments are designed to keep you in debt. On a high balance, paying only the minimum can take over a decade and cost more in interest than the original purchase. Paying even a bit extra dramatically shortens the timeline.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Find out how long it will take to pay off a credit card and what it costs in interest — or the monthly payment needed to be debt-free by a set date." faqs={faqs}>
+  <CreditCardPayoffCalculator />
+  <Fragment slot="content">
+    <h2>Two ways to plan your payoff</h2>
+    <p><strong>By payment:</strong> see how long a chosen monthly payment takes and the total interest. <strong>By timeline:</strong> pick a payoff date and see the payment required. Either way, the goal is to pay as much above the interest charge as you can.</p>
+    <h2>Why the payment matters so much</h2>
+    <p>At a typical 20% APR, a $5,000 balance accrues over $80 in interest in the first month alone. A payment barely above that trickle takes years; a larger one clears the debt fast. If you carry a balance, prioritising it usually beats almost any investment return. See how interest compounds in the <a href="/finance/compound-interest-calculator">compound interest guide</a>.</p>
+    <p>This is general educational information, not financial advice.</p>
+  </Fragment>
+</CalculatorLayout>

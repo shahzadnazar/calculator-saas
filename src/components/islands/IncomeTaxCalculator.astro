@@ -1,0 +1,71 @@
+---
+import { calculateIncomeTax, STANDARD_DEDUCTION, type FilingStatus } from '@lib/calculators/income-tax';
+import { formatCurrency, formatPercent } from '@lib/format';
+
+const d = { grossIncome: 75000, filingStatus: 'single' as FilingStatus, additionalDeductions: 0 };
+const r = calculateIncomeTax(d);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-tax-est>
+  <form class="card p-5 sm:p-6" data-it-form novalidate>
+    <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Filing status" style="border-color: var(--line)">
+      <button type="button" class="fs-btn is-active" data-fs="single" role="radio" aria-checked="true">Single</button>
+      <button type="button" class="fs-btn" data-fs="married" role="radio" aria-checked="false">Married (joint)</button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="it-gross">Gross annual income</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="it-gross" name="grossIncome" type="number" min="0" step="1000" value={d.grossIncome} inputmode="decimal" /></div>
+      </div>
+      <div>
+        <label class="field-label" for="it-ded">Pre-tax deductions (e.g. 401k)</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="it-ded" name="additionalDeductions" type="number" min="0" step="500" value={d.additionalDeductions} inputmode="decimal" /></div>
+        <p class="mt-1 text-xs" style="color: var(--muted)">Standard deduction applied automatically (<span data-it-std>{formatCurrency(STANDARD_DEDUCTION.single)}</span>).</p>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Estimated federal income tax</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-it-tax>{formatCurrency(r.tax)}</p>
+    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Taxable income</dt><dd class="font-semibold" data-it-taxable>{formatCurrency(r.taxableIncome)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">After-tax income</dt><dd class="font-semibold" style="color: var(--color-accent-600)" data-it-after>{formatCurrency(r.afterTax)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Effective rate</dt><dd class="font-semibold" data-it-eff>{formatPercent(r.effectiveRate, 1)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Marginal (top) rate</dt><dd class="font-semibold" data-it-marg>{formatPercent(r.marginalRate, 0)}</dd></div>
+    </dl>
+    <p class="mt-4 text-xs" style="color: var(--muted)">2024 federal brackets. Estimate only — excludes credits, state tax and payroll (FICA) taxes.</p>
+  </div>
+</div>
+
+<style>
+  .fs-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .fs-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { calculateIncomeTax, STANDARD_DEDUCTION, type FilingStatus } from '@lib/calculators/income-tax';
+  import { formatCurrency, formatPercent } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-tax-est]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-it-form]')!;
+    let filingStatus: FilingStatus = 'single';
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = calculateIncomeTax({ grossIncome: num('grossIncome'), filingStatus, additionalDeductions: num('additionalDeductions') });
+      set('[data-it-tax]', formatCurrency(r.tax));
+      set('[data-it-taxable]', formatCurrency(r.taxableIncome));
+      set('[data-it-after]', formatCurrency(r.afterTax));
+      set('[data-it-eff]', formatPercent(r.effectiveRate, 1));
+      set('[data-it-marg]', formatPercent(r.marginalRate, 0));
+      set('[data-it-std]', formatCurrency(STANDARD_DEDUCTION[filingStatus]));
+    }
+    root.querySelectorAll<HTMLButtonElement>('.fs-btn').forEach((b) => b.addEventListener('click', () => {
+      filingStatus = (b.dataset.fs as FilingStatus) ?? 'single';
+      root.querySelectorAll('.fs-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

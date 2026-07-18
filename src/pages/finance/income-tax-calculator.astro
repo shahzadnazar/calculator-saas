@@ -1,0 +1,23 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import IncomeTaxCalculator from '@components/islands/IncomeTaxCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'income-tax-calculator')!;
+const faqs = [
+  { question: 'How is federal income tax calculated?', answer: 'The U.S. uses progressive brackets: different portions of your income are taxed at increasing rates. Your income is first reduced by deductions, then each bracket applies to the income that falls within its range. This calculator uses the 2024 brackets and standard deduction.' },
+  { question: 'What is the difference between marginal and effective rate?', answer: 'Your marginal rate is the rate on your last dollar of income (your top bracket). Your effective rate is the total tax divided by your total income — always lower, because the early brackets are taxed less.' },
+  { question: 'Does this include state tax and FICA?', answer: 'No. This is a federal income tax estimate only. It excludes state and local income taxes, Social Security and Medicare (FICA) payroll taxes, and tax credits, all of which affect your actual bill.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate your U.S. federal income tax using the 2024 brackets and standard deduction, with your effective and marginal rates and after-tax income." faqs={faqs}>
+  <IncomeTaxCalculator />
+  <Fragment slot="content">
+    <h2>How progressive tax works</h2>
+    <p>A higher salary does not mean your whole income is taxed at a higher rate — only the portion inside each bracket is. That is why your <strong>effective</strong> rate (total tax ÷ income) is always lower than your <strong>marginal</strong> rate (your top bracket).</p>
+    <h2>Deductions reduce your bill</h2>
+    <p>Your taxable income is your gross income minus deductions. The standard deduction is applied automatically; pre-tax contributions like a 401(k) reduce it further, which is why they are such an effective way to lower your tax.</p>
+    <h2>Important limitations</h2>
+    <p>This is a simplified federal estimate for the 2024 tax year. It ignores tax credits, itemized deductions, state and local taxes, and FICA payroll taxes. For an accurate figure, consult a tax professional or the IRS. To see your pay in other terms, use the <a href="/finance/salary-calculator">salary calculator</a>.</p>
+    <p>This is general educational information, not tax advice.</p>
+  </Fragment>
+</CalculatorLayout>

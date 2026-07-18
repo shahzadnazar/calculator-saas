@@ -1,0 +1,21 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import SalaryCalculator from '@components/islands/SalaryCalculator.astro';
+import { getCalculator } from '@data/calculators';
+const calc = getCalculator('finance', 'salary-calculator')!;
+const faqs = [
+  { question: 'How do I convert an hourly wage to an annual salary?', answer: 'Multiply your hourly rate by the hours you work per week, then by the number of weeks you work per year. For example, $25/hour × 40 hours × 52 weeks = $52,000 per year. This calculator does it in every direction.' },
+  { question: 'How many work hours are in a year?', answer: 'A common full-time assumption is 2,080 hours (40 hours × 52 weeks). Adjust the hours-per-week and weeks-per-year fields to match your actual schedule, including unpaid time off.' },
+  { question: 'Is this gross or net pay?', answer: 'These figures are gross (before tax). To estimate what you keep, use the income tax calculator.' },
+];
+---
+<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Convert pay between hourly, daily, weekly, biweekly, monthly and annual figures — enter any one and see them all." faqs={faqs}>
+  <SalaryCalculator />
+  <Fragment slot="content">
+    <h2>Compare offers on the same basis</h2>
+    <p>Job offers come in different units — one hourly, one annual, one monthly. Convert them to the same basis to compare fairly. Enter any figure and choose its period; the table fills in every equivalent.</p>
+    <h2>Match it to your real schedule</h2>
+    <p>The conversion depends on your hours per week, days per week and weeks worked per year. Adjust these to reflect overtime, part-time hours or unpaid leave for an accurate picture. To estimate take-home pay, try the <a href="/finance/income-tax-calculator">income tax calculator</a>, and for time worked see the <a href="/everyday/hours-calculator">hours calculator</a>.</p>
+    <p>These are gross figures for general use, not payroll or tax advice.</p>
+  </Fragment>
+</CalculatorLayout>

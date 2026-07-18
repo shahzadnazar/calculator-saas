@@ -1,0 +1,74 @@
+---
+import { calculateHomeEquity } from '@lib/calculators/home-equity';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+const d = { homeValue: 450000, mortgageBalance: 250000, maxLtvPct: 85, loanAmount: 50000, annualRatePct: 8.5, termYears: 15 };
+const r = calculateHomeEquity(d);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-heloc>
+  <form class="card p-5 sm:p-6" data-he-form novalidate>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="he-value">Home value</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="he-value" name="homeValue" type="number" min="0" step="5000" value={d.homeValue} inputmode="decimal" /></div>
+      </div>
+      <div>
+        <label class="field-label" for="he-balance">Mortgage balance</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="he-balance" name="mortgageBalance" type="number" min="0" step="5000" value={d.mortgageBalance} inputmode="decimal" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="he-ltv">Max LTV</label>
+          <div class="flex"><input class="field rounded-r-none" id="he-ltv" name="maxLtvPct" type="number" min="0" max="100" step="1" value={d.maxLtvPct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        </div>
+        <div>
+          <label class="field-label" for="he-loan">Loan amount</label>
+          <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="he-loan" name="loanAmount" type="number" min="0" step="5000" value={d.loanAmount} inputmode="decimal" /></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label" for="he-rate">Interest rate</label>
+          <div class="flex"><input class="field rounded-r-none" id="he-rate" name="annualRatePct" type="number" min="0" step="0.1" value={d.annualRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        </div>
+        <div>
+          <label class="field-label" for="he-term">Term (years)</label>
+          <input class="field" id="he-term" name="termYears" type="number" min="1" step="1" value={d.termYears} inputmode="decimal" />
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)">Estimated monthly payment</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-he-payment>{formatCurrency(r.monthlyPayment)}</p>
+    <p class="mt-2 text-sm" style="color: var(--color-danger)" data-he-warn hidden>Requested loan exceeds your available equity.</p>
+    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Your equity</dt><dd class="font-semibold" data-he-equity>{formatCurrencyRounded(r.equity)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Max you can borrow</dt><dd class="font-semibold" style="color: var(--color-accent-600)" data-he-max>{formatCurrencyRounded(r.maxBorrow)}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<script>
+  import { calculateHomeEquity } from '@lib/calculators/home-equity';
+  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  document.querySelectorAll<HTMLElement>('[data-heloc]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-he-form]')!;
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const r = calculateHomeEquity({
+        homeValue: num('homeValue'), mortgageBalance: num('mortgageBalance'), maxLtvPct: num('maxLtvPct'),
+        loanAmount: num('loanAmount'), annualRatePct: num('annualRatePct'), termYears: num('termYears'),
+      });
+      set('[data-he-payment]', formatCurrency(r.monthlyPayment));
+      set('[data-he-equity]', formatCurrencyRounded(r.equity));
+      set('[data-he-max]', formatCurrencyRounded(r.maxBorrow));
+      root.querySelector<HTMLElement>('[data-he-warn]')!.hidden = !r.exceedsMax;
+    }
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>

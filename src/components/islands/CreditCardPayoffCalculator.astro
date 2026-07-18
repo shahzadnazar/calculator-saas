@@ -1,0 +1,86 @@
+---
+import { payoffByPayment } from '@lib/calculators/credit-card';
+import { formatCurrency } from '@lib/format';
+
+const d = { balance: 5000, aprPct: 19.99, payment: 200, months: 24 };
+const r = payoffByPayment(d.balance, d.aprPct, d.payment);
+const fmtMonths = (m: number) => (!isFinite(m) ? 'Never' : `${Math.floor(m / 12)}y ${m % 12}m`);
+---
+
+<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-cc>
+  <form class="card p-5 sm:p-6" data-cc-form novalidate>
+    <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Mode" style="border-color: var(--line)">
+      <button type="button" class="mode-btn is-active" data-mode="payment" role="radio" aria-checked="true">By payment</button>
+      <button type="button" class="mode-btn" data-mode="months" role="radio" aria-checked="false">By timeline</button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="cc-balance">Card balance</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="cc-balance" name="balance" type="number" min="0" step="100" value={d.balance} inputmode="decimal" /></div>
+      </div>
+      <div>
+        <label class="field-label" for="cc-apr">APR</label>
+        <div class="flex"><input class="field rounded-r-none" id="cc-apr" name="aprPct" type="number" min="0" step="0.01" value={d.aprPct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+      </div>
+      <div data-cc-payment>
+        <label class="field-label" for="cc-pay">Monthly payment</label>
+        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="cc-pay" name="payment" type="number" min="0" step="10" value={d.payment} inputmode="decimal" /></div>
+      </div>
+      <div data-cc-months hidden>
+        <label class="field-label" for="cc-mon">Pay off in (months)</label>
+        <input class="field" id="cc-mon" name="months" type="number" min="1" step="1" value={d.months} inputmode="decimal" />
+      </div>
+    </div>
+  </form>
+
+  <div class="card p-5 sm:p-6">
+    <p class="text-sm font-semibold" style="color: var(--muted)" data-cc-label>Time to pay off</p>
+    <p class="mt-1 text-4xl font-extrabold tracking-tight" style="color: var(--heading)" data-cc-main>{fmtMonths(r.months)}</p>
+    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
+      <div class="flex justify-between"><dt style="color: var(--muted)">Total interest</dt><dd class="font-semibold" style="color: var(--color-danger)" data-cc-interest>{formatCurrency(r.totalInterest)}</dd></div>
+      <div class="flex justify-between"><dt style="color: var(--muted)">Total paid</dt><dd class="font-semibold" data-cc-total>{formatCurrency(r.totalPaid)}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<style>
+  .mode-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .mode-btn.is-active { background: var(--color-brand-600); color: #fff; }
+</style>
+
+<script>
+  import { payoffByPayment, payoffByMonths } from '@lib/calculators/credit-card';
+  import { formatCurrency } from '@lib/format';
+  const fmtMonths = (m: number) => (!isFinite(m) ? 'Never' : `${Math.floor(m / 12)}y ${m % 12}m`);
+  document.querySelectorAll<HTMLElement>('[data-cc]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-cc-form]')!;
+    let mode: 'payment' | 'months' = 'payment';
+    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
+    function recompute() {
+      const balance = num('balance'), apr = num('aprPct');
+      if (mode === 'payment') {
+        const r = payoffByPayment(balance, apr, num('payment'));
+        set('[data-cc-label]', 'Time to pay off');
+        set('[data-cc-main]', fmtMonths(r.months));
+        set('[data-cc-interest]', isFinite(r.totalInterest) ? formatCurrency(r.totalInterest) : '—');
+        set('[data-cc-total]', isFinite(r.totalPaid) ? formatCurrency(r.totalPaid) : '—');
+      } else {
+        const r = payoffByMonths(balance, apr, num('months'));
+        set('[data-cc-label]', 'Required monthly payment');
+        set('[data-cc-main]', formatCurrency(r.monthlyPayment));
+        set('[data-cc-interest]', formatCurrency(r.totalInterest));
+        set('[data-cc-total]', formatCurrency(r.totalPaid));
+      }
+    }
+    root.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach((b) => b.addEventListener('click', () => {
+      mode = (b.dataset.mode as 'payment' | 'months') ?? 'payment';
+      root.querySelectorAll('.mode-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
+      root.querySelector<HTMLElement>('[data-cc-payment]')!.hidden = mode !== 'payment';
+      root.querySelector<HTMLElement>('[data-cc-months]')!.hidden = mode !== 'months';
+      recompute();
+    }));
+    form.addEventListener('input', recompute);
+    recompute();
+  });
+</script>
