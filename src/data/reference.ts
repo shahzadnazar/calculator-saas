@@ -161,3 +161,13 @@ export function getReferencesForCalculator(categorySlug: string, slug: string): 
   const ref = `${categorySlug}/${slug}`;
   return REFERENCES_ORDERED.filter((r) => r.relatedCalculator === ref);
 }
+
+/**
+ * Reference assets whose related calculator is one of the given "category/slug"
+ * refs — used to surface the relevant tables on a topic hub (whose members are
+ * such refs), without the reference registry needing to know about clusters.
+ */
+export function getReferencesForCalculatorRefs(calcRefs: readonly string[]): ReferenceAsset[] {
+  const set = new Set(calcRefs);
+  return REFERENCES_ORDERED.filter((r) => set.has(r.relatedCalculator));
+}

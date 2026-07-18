@@ -5,6 +5,7 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import { CLUSTERS, type Cluster, clusterPath } from '@data/clusters';
 import { getCalculator, calculatorPath } from '@data/calculators';
+import { getReferencesForCalculatorRefs, referencePath } from '@data/reference';
 import { breadcrumbSchema, collectionPageSchema } from '@lib/schema';
 
 export const getStaticPaths = (() => {
@@ -35,6 +36,9 @@ const guides = cluster.guides
   .map((id) => allGuides.find((g) => g.id === id))
   .filter((g): g is NonNullable<typeof g> => Boolean(g));
 
+// Reference tables whose related calculator is a member of this cluster.
+const references = getReferencesForCalculatorRefs(cluster.members.map((m) => m.ref));
+
 const crumbs = [
   { name: 'Home', path: '/' },
   { name: 'Topics', path: '/topics' },
@@ -47,7 +51,10 @@ const jsonLd = [
     name: cluster.title,
     description: cluster.description,
     path,
-    items: members.map((m) => ({ name: m.calc.title, path: calculatorPath(m.calc) })),
+    items: [
+      ...members.map((m) => ({ name: m.calc.title, path: calculatorPath(m.calc) })),
+      ...references.map((r) => ({ name: r.title, path: referencePath(r) })),
+    ],
   }),
 ];
 ---
@@ -86,6 +93,31 @@ const jsonLd = [
         }
       </ul>
     </section>
+
+    {
+      references.length > 0 && (
+        <section class="mt-14" aria-labelledby="reference-heading">
+          <h2 id="reference-heading" class="text-2xl font-bold">Reference tables</h2>
+          <p class="mt-1 text-sm" style="color: var(--muted)">
+            At-a-glance tables you can cite, print or embed — computed from the same formulas as the calculators.
+          </p>
+          <ul class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {references.map((r) => (
+              <li>
+                <a href={referencePath(r)} class="card flex h-full flex-col gap-1 p-5 transition-shadow hover:shadow-lg">
+                  <span class="flex items-center gap-2 text-lg font-bold" style="color: var(--heading)">
+                    <span aria-hidden="true">{r.icon}</span>
+                    {r.shortName}
+                  </span>
+                  <span class="text-sm" style="color: var(--muted)">{r.description}</span>
+                  <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">View the table →</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
 
     {
       guides.length > 0 && (
