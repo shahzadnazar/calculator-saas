@@ -23,7 +23,7 @@ import {
   calculatorPath,
   categoryPath,
 } from '@data/calculators';
-import { getClustersForCalculator, clusterPath } from '@data/clusters';
+import { getTaskGroupForCalculator, taskPath } from '@data/tasks';
 import { getReferencesForCalculator, referencePath } from '@data/reference';
 import { calculatorSchema, breadcrumbSchema, faqSchema } from '@lib/schema';
 
@@ -45,7 +45,8 @@ const { calculator, intro, faqs = [], reviewedOn } = Astro.props;
 const category = getCategory(calculator.category)!;
 const path = calculatorPath(calculator);
 const related = getRelatedCalculators(calculator);
-const clusters = getClustersForCalculator(calculator.category, calculator.slug);
+// The task group is the calculator's PRIMARY home in the task-first IA.
+const taskGroup = getTaskGroupForCalculator(calculator.category, calculator.slug);
 const references = getReferencesForCalculator(calculator.category, calculator.slug);
 
 // Guides that reference this calculator — bidirectional internal linking.
@@ -54,9 +55,13 @@ const relatedGuides = (await getCollection('guides', ({ data }) => !data.draft))
   g.data.relatedCalculators.includes(calcRef),
 );
 
+// Breadcrumb follows the primary (task) hierarchy, falling back to the category
+// for any tool not yet mapped to a task group.
 const crumbs = [
   { name: 'Home', path: '/' },
-  { name: category.shortName, path: categoryPath(category) },
+  taskGroup
+    ? { name: taskGroup.shortName, path: taskPath(taskGroup) }
+    : { name: category.shortName, path: categoryPath(category) },
   { name: calculator.title, path },
 ];
 
@@ -88,15 +93,20 @@ const reviewedDisplay = reviewedOn
 
     <header class="mt-5 max-w-3xl">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
-        <Icon name={category.icon} size={16} />
-        <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
         {
-          clusters.map((cl) => (
+          taskGroup ? (
             <Fragment>
+              <Icon name={taskGroup.icon} size={16} />
+              <a href={taskPath(taskGroup)} class="hover:underline">{taskGroup.title}</a>
               <span aria-hidden="true" style="color: var(--muted)">·</span>
-              <a href={clusterPath(cl)} class="hover:underline">{cl.title}</a>
+              <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
             </Fragment>
-          ))
+          ) : (
+            <Fragment>
+              <Icon name={category.icon} size={16} />
+              <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
+            </Fragment>
+          )
         }
       </div>
       <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
