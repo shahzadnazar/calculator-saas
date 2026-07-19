@@ -143,10 +143,36 @@ test('reset clears height, restores Male + Metric, returns to empty', async ({ p
 
 /* ---- Announcement ------------------------------------------------------- */
 
-test('announces the healthy range concisely, never the formula table', async ({ page }) => {
+test('announces the healthy range concisely on the first result, never the formula table', async ({ page }) => {
   await calcMetric(page, '175');
-  await expect(liveRegion(page)).toHaveText('The healthy weight range for your height is about 56.7 to 76.3 kilograms.');
+  await expect(liveRegion(page)).toHaveText('Your healthy-weight range is approximately 56.7 to 76.3 kilograms.');
   await expect(liveRegion(page)).not.toContainText(/robinson|devine|68\.9/i);
+});
+
+test('changing sex after the first result updates the formulas, keeps the range, and announces the update without moving focus', async ({ page }) => {
+  await calcMetric(page, '175'); // male
+  await expect(rangeMin(page)).toHaveText('56.7');
+  await expect(rangeMax(page)).toHaveText('76.3');
+  const maleDevine = await page.locator('[data-iw-devine]').textContent();
+
+  // Change sex — a real radio, so a live-after-first update whose PRIMARY range
+  // (BMI-based, height-only) is identical while the named formulas move.
+  const female = page.locator('[name="sex"][value="female"]');
+  await female.check();
+  await page.waitForTimeout(DEBOUNCE);
+
+  // Formula estimates change…
+  await expect(page.locator('[data-iw-devine]')).not.toHaveText(maleDevine!);
+  // …the primary healthy range is unchanged and still correct…
+  await expect(rangeMin(page)).toHaveText('56.7');
+  await expect(rangeMax(page)).toHaveText('76.3');
+  // …focus stays on the selected radio (live updates never steal focus)…
+  await expect(female).toBeFocused();
+  // …and exactly one concise announcement notes the update, never the formula rows.
+  await expect(liveRegion(page)).toHaveText(
+    'Healthy-weight range: 56.7 to 76.3 kilograms. Formula estimates updated for female.',
+  );
+  await expect(liveRegion(page)).not.toContainText(/robinson|miller|devine|hamwi/i);
 });
 
 /* ---- Responsive / theme / embed / monetization ------------------------- */

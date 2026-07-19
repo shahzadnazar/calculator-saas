@@ -164,6 +164,30 @@ legacy set is `random-number-generator`). Documented behavioral exceptions exist
 (below) and are tracked in the migration-status table. These recurring gaps are
 what the R1–R7 program closes.
 
+## Accepted migration commits (provenance)
+
+| Phase | Calculator(s) / scope | Accepted commit |
+|---|---|---|
+| R7B.1 | shared health-domain modules (`activity-levels`, `body-measurements`) | `309ec75` |
+| R7C-1 #1 | ideal-weight-calculator | `d28917e` |
+| R7C-1 #2 | protein-calculator | `2648aa0` |
+| R7C-1.1 | ideal-weight announcement hardening + embed-CSS report (no calculator migrated) | *(this R7C-1.1 commit)* |
+
+**Fleet after R7C-1 / R7C-1.1:** 49 total · **7 migrated** · **42 legacy** · **0 approved exceptions.**
+
+## Embed CSS baseline (dynamic IslandBySlug ripple)
+
+The embed route bundles **every** island's scoped CSS onto **every** `/embed/*`
+page, so each migration that adds scoped CSS grows that shared bundle (the
+accepted "inert IslandBySlug ripple"). `npm run report:embed-css` (READ-ONLY,
+non-failing) measures an unrelated embed page and reports the delta vs
+`docs/embed-css-baseline.json`. **Baseline** (mortgage embed, commit `2648aa0`):
+total **56,744 B** / gzip **10,642 B** / island-scoped **16,563 B (29.2%)**, of
+which **15,864 B across 138 selectors (17 non-rendered islands)** is inert ripple.
+Re-baseline (`--write-baseline`) after each accepted migration so future
+migrations show cumulative growth. This is a measurement only — **not** a failing
+CI budget, and **IslandBySlug is unchanged**.
+
 ## Migration status (per calculator)
 
 Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
@@ -173,7 +197,7 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 | `migrated` | scientific-calculator; **bmi-calculator**; **percent-calculator**; **password-generator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot (family: standard form). Accepted migration: R2 range `843d113..b7f9d44`, refined by R2.1.** **percent: equation runtime pilot (family: equation) — three INDEPENDENT equations. Accepted migration: R3 range `7460547..45e432f` (incl. R3.1 positive start; direction from operands).** **password: explicit-output generator pilot (family: generator) — no output on load, explicit Generate, settings-change → stale (kept visible, Copy off, note), Copy gated on a fresh output, strength as text, crypto-only generation never announced/stored/logged/transmitted. Accepted migration: R4 implementation `9c51c33`, docs/status `45f5e56`.** |
 | `pilot` | (none active) | The initial standard-form, equation and explicit-output generator pilots are complete. Additional calculator subfamilies still require separate pilots (each validated before binding). |
 | `migrated` (R7B, `a4c6c6f`; hardened R7B.1) | **bmr-calculator** | **First standard-form GENERALIZATION beyond BMI** (family: standard form). Task-first; empty inputs → explicit **Calculate BMR** → live-after-first; **Reset**; field-level validation + first-invalid focus; concise result `aria-live`; Metric/Imperial with in-place conversion; dominant BMR figure + a **secondary "Estimated daily calorie needs" (TDEE) table** (BMR × the shared `ACTIVITY_LEVELS`, labelled as daily calorie needs, not more BMR values). The shared standard-form runtime was used **UNCHANGED** (no runtime extension). Sex is a native fieldset/legend radio group so its changes flow through the runtime's `input` path. **R7B.1:** the activity multipliers moved to `@lib/health/activity-levels` and the Metric/Imperial conversions + imperial-height classification to `@lib/health/body-measurements`; **BMI and BMR both consume these shared primitives with no behaviour change** (BMI + Calorie pages byte-identical). Accepted implementation: R7B `a4c6c6f`. |
-| `migrated` (R7C-1) | **ideal-weight-calculator** | Standard-form wave, calculator #1 (runtime UNCHANGED). Task-first; height-only; empty → **Calculate Ideal Weight** → live-after-first; **Reset**; field-level validation + focus; concise `aria-live` announcing the RANGE only. **Multi-formula policy:** the DOMINANT result is the healthy-BMI weight range (the defensible primary the copy frames as the target); Robinson/Miller/Devine/Hamwi are shown as a SECONDARY accessible comparison table (col + row `scope` headers) — **no average is invented and no single formula is made authoritative**. Reuses the R7B.1 shared `@lib/health/body-measurements` primitives; formulas preserved in `ideal-weight.ts`. One guide (`healthy-weight-for-your-height`) embeds the island and updates accordingly. |
+| `migrated` (R7C-1) | **ideal-weight-calculator** | Standard-form wave, calculator #1 (runtime UNCHANGED). Task-first; height-only; empty → **Calculate Ideal Weight** → live-after-first; **Reset**; field-level validation + focus; concise `aria-live` announcing the RANGE only. **Multi-formula policy:** the DOMINANT result is the healthy-BMI weight range (the defensible primary the copy frames as the target); Robinson/Miller/Devine/Hamwi are shown as a SECONDARY accessible comparison table (col + row `scope` headers) — **no average is invented and no single formula is made authoritative**. Reuses the R7B.1 shared `@lib/health/body-measurements` primitives; formulas preserved in `ideal-weight.ts`. One guide (`healthy-weight-for-your-height`) embeds the island and updates accordingly. **R7C-1.1:** after the first result, changing sex moves the (sex-dependent) formula estimates while the height-only BMI range stays identical — a range-only announcement would be byte-identical and deduped (left silent), so the binding announces a distinct concise message (*"Healthy-weight range: X to Y … Formula estimates updated for [sex]."*) without moving focus, never speaking the formula rows. Decision logic is the pure `idealWeightAnnouncement`. |
 | `migrated` (R7C-1) | **protein-calculator** | Standard-form wave, calculator #2 (runtime UNCHANGED). Task-first; body weight + goal/activity select; empty → **Calculate Protein Needs** → live-after-first; **Reset** (restores the default goal); field-level validation (weight never `Number()\|\|0`) + focus; concise `aria-live` announcing the PRIMARY daily target only. **Single-value policy:** the reviewed `calculateProtein` returns ONE gram value per goal (not a range), so the DOMINANT result is the selected goal's `N g/day`; every goal's g/kg factor + grams are shown as a SECONDARY accessible comparison table (col + row `scope` headers) with the **selected goal highlighted (`aria-current`)** — grams delegated verbatim to `protein.ts` (factors preserved). Reuses the R7B.1 shared `@lib/health/body-measurements` weight conversions. One guide (`how-much-protein-do-you-need`) embeds the island and updates accordingly. |
 | `not-migrated` | the other **42** live calculators | Current recurring-gap behavior; scheduled by family wave. |
 | `approved-exception` | (none yet) | Reserved for deliberate, documented deviations. Requires a documented user-task reason, tests and explicit matrix approval (see Ratified product decisions #7) — legacy compatibility alone is never a valid reason. |

@@ -90,16 +90,52 @@ function toInput(values: IdealWeightValues) {
   };
 }
 
-export function computeIdealWeight(values: IdealWeightValues): IdealWeightResult {
-  return calculateIdealWeight(toInput(values));
+/** The binding's computed result echoes the selected sex so the announcement can
+ *  name it when only the (sex-dependent) formula estimates change. The healthy-BMI
+ *  RANGE is height-only, so a sex change leaves it identical — the reason the
+ *  announcement must distinguish "range changed" from "formula estimates updated". */
+export interface IdealWeightComputed extends IdealWeightResult {
+  sex: Sex;
 }
 
-/** Concise announcement — the primary healthy weight RANGE only, never the table. */
-export function describeIdealWeightResult(result: IdealWeightResult): string {
-  return `The healthy weight range for your height is about ${formatNumber(result.bmiMin, 1)} to ${formatNumber(
-    result.bmiMax,
-    1,
-  )} ${accessibleUnit(result.unit)}.`;
+export function computeIdealWeight(values: IdealWeightValues): IdealWeightComputed {
+  return { ...calculateIdealWeight(toInput(values)), sex: values.sex };
+}
+
+/** The primary healthy-weight RANGE, formatted for speech (never the formulas). */
+function rangeSpeech(result: IdealWeightResult): string {
+  return `${formatNumber(result.bmiMin, 1)} to ${formatNumber(result.bmiMax, 1)} ${accessibleUnit(result.unit)}`;
+}
+
+/**
+ * Concise live announcement — the primary RANGE only, never the formula table.
+ *
+ * Two shapes, chosen from the previously-announced range:
+ *  - first announcement, or the displayed range CHANGED → the plain range
+ *    ("Your healthy-weight range is approximately X to Y kilograms.");
+ *  - the displayed range is UNCHANGED but a recompute happened (e.g. the visitor
+ *    changed sex, which moves the formula estimates but not the BMI range) → a
+ *    distinct message noting the estimates were updated, so a screen reader is
+ *    actually notified even though the headline number is identical
+ *    ("Healthy-weight range: X to Y kilograms. Formula estimates updated for Z.").
+ *
+ * Without the second shape a sex change would produce byte-identical range text,
+ * which the runtime's announcer dedupes — leaving the visible formula update
+ * silent to assistive tech. The formula rows themselves are never spoken.
+ */
+export function idealWeightAnnouncement(
+  result: IdealWeightComputed,
+  previous: { bmiMin: number; bmiMax: number } | null,
+): string {
+  const range = rangeSpeech(result);
+  const rangeUnchanged =
+    previous !== null &&
+    formatNumber(previous.bmiMin, 1) === formatNumber(result.bmiMin, 1) &&
+    formatNumber(previous.bmiMax, 1) === formatNumber(result.bmiMax, 1);
+  if (rangeUnchanged) {
+    return `Healthy-weight range: ${range}. Formula estimates updated for ${result.sex}.`;
+  }
+  return `Your healthy-weight range is approximately ${range}.`;
 }
 
 /* ---- height-only conversion (pure) -------------------------------------- */
@@ -135,7 +171,15 @@ const fmtWeight = (v: number, unit: string): string => (Number.isFinite(v) ? `${
 
 /* ---- the binding -------------------------------------------------------- */
 
-export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealWeightResult> = {
+/**
+ * The last announced range, so `describeResult` can tell a range change from a
+ * formula-only change (see `idealWeightAnnouncement`). One Ideal Weight island
+ * mounts per page, so this single module-level cell is safe; `resetValues` clears
+ * it, and the pure decision lives in `idealWeightAnnouncement` for testability.
+ */
+let lastAnnouncedRange: { bmiMin: number; bmiMax: number } | null = null;
+
+export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealWeightComputed> = {
   readValues(root) {
     const active = root.querySelector<HTMLElement>('[data-unit].is-active, [data-unit][aria-checked="true"]');
     const system = active?.dataset.unit === 'imperial' ? 'imperial' : 'metric';
@@ -159,7 +203,11 @@ export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealW
     return result.bmiMin; // finiteness sentinel — finite whenever height is valid
   },
 
-  describeResult: describeIdealWeightResult,
+  describeResult(result) {
+    const message = idealWeightAnnouncement(result, lastAnnouncedRange);
+    lastAnnouncedRange = { bmiMin: result.bmiMin, bmiMax: result.bmiMax };
+    return message;
+  },
 
   renderResult(result, context: FormRenderContext) {
     const scope = context.result;
@@ -198,6 +246,7 @@ export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealW
     const female = root.querySelector<HTMLInputElement>('[name="sex"][value="female"]');
     if (male) male.checked = true;
     if (female) female.checked = false;
+    lastAnnouncedRange = null; // next calculation announces as a first result
   },
 
   convertValues(root, fromUnit, toUnit) {

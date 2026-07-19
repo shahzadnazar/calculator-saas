@@ -1,0 +1,17 @@
+{
+  "commit": "2648aa0",
+  "label": "post-Protein 2648aa0; hardening adds no island CSS",
+  "measuredPage": "embed/finance/mortgage-calculator.html",
+  "measurement": {
+    "page": "embed/finance/mortgage-calculator.html",
+    "totalCssBytes": 56744,
+    "gzippedCssBytes": 10642,
+    "scopedCssBytes": 16563,
+    "unusedScopedBytes": 15864,
+    "unusedScopedSelectors": 138,
+    "scopedIslandCids": 18,
+    "renderedCids": [
+      "r4tsmomu"
+    ]
+  }
+}

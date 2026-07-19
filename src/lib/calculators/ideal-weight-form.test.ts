@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   validateIdealWeightValues,
   computeIdealWeight,
-  describeIdealWeightResult,
+  idealWeightAnnouncement,
   metricHeightToImperial,
   imperialHeightToMetric,
   type IdealWeightValues,
@@ -56,14 +56,27 @@ describe('computeIdealWeight — preserved formulas, no invented average', () =>
     for (const v of [r.robinson, r.miller, r.devine, r.hamwi]) expect(Number.isFinite(v)).toBe(true);
     expect(new Set([r.robinson, r.miller, r.devine, r.hamwi]).size).toBeGreaterThan(1);
   });
-  it('does NOT fabricate an average/single-headline field', () => {
+  it('echoes the selected sex but fabricates no average/single-headline field', () => {
     const keys = Object.keys(computeIdealWeight(metric('175'))).sort();
-    expect(keys).toEqual(['bmiMax', 'bmiMin', 'devine', 'hamwi', 'miller', 'robinson', 'unit']);
+    expect(keys).toEqual(['bmiMax', 'bmiMin', 'devine', 'hamwi', 'miller', 'robinson', 'sex', 'unit']);
     expect(keys).not.toContain('average');
+    expect(computeIdealWeight(metric('175', 'female')).sex).toBe('female');
   });
   it('reports pounds in imperial and differs by sex', () => {
     expect(computeIdealWeight(imperial('5', '9')).unit).toBe('lb');
     expect(computeIdealWeight(metric('175', 'female')).devine).not.toBe(computeIdealWeight(metric('175', 'male')).devine);
+  });
+  it('changing sex moves the named formulas but leaves the healthy-BMI range identical + correct', () => {
+    const male = computeIdealWeight(metric('175', 'male'));
+    const female = computeIdealWeight(metric('175', 'female'));
+    // Named formulas are sex-dependent…
+    expect(female.robinson).not.toBe(male.robinson);
+    expect(female.devine).not.toBe(male.devine);
+    // …but the healthy-BMI range is height-only, so it is unchanged and still correct.
+    expect(female.bmiMin).toBe(male.bmiMin);
+    expect(female.bmiMax).toBe(male.bmiMax);
+    expect(male.bmiMin).toBeCloseTo(56.7, 1); // 18.5 × 1.75²
+    expect(male.bmiMax).toBeCloseTo(76.3, 1); // 24.9 × 1.75²
   });
   it('is non-finite (guarded) for an empty height', () => {
     const r = computeIdealWeight(metric(''));
@@ -71,11 +84,35 @@ describe('computeIdealWeight — preserved formulas, no invented average', () =>
   });
 });
 
-describe('describeIdealWeightResult', () => {
-  it('announces the healthy weight RANGE concisely (not the formula table)', () => {
-    const s = describeIdealWeightResult(computeIdealWeight(metric('175')));
-    expect(s).toBe('The healthy weight range for your height is about 56.7 to 76.3 kilograms.');
-    expect(s).not.toMatch(/robinson|devine|formula/i);
+describe('idealWeightAnnouncement', () => {
+  const male = computeIdealWeight(metric('175', 'male'));
+  const female = computeIdealWeight(metric('175', 'female'));
+  const taller = computeIdealWeight(metric('185', 'male'));
+
+  it('announces the RANGE concisely on the first result (no previous range)', () => {
+    const s = idealWeightAnnouncement(male, null);
+    expect(s).toBe('Your healthy-weight range is approximately 56.7 to 76.3 kilograms.');
+    expect(s).not.toMatch(/robinson|miller|devine|hamwi|formula estimates/i);
+  });
+
+  it('names the sex when only the formulas change (displayed range unchanged)', () => {
+    const s = idealWeightAnnouncement(female, { bmiMin: male.bmiMin, bmiMax: male.bmiMax });
+    expect(s).toBe('Healthy-weight range: 56.7 to 76.3 kilograms. Formula estimates updated for female.');
+    // The formula rows are never spoken — only the primary range + the sex.
+    expect(s).not.toMatch(/robinson|miller|devine|hamwi/i);
+  });
+
+  it('falls back to the plain range when the range itself changes', () => {
+    const s = idealWeightAnnouncement(taller, { bmiMin: male.bmiMin, bmiMax: male.bmiMax });
+    expect(s).toMatch(/^Your healthy-weight range is approximately /);
+    expect(s).not.toMatch(/formula estimates updated/i);
+  });
+
+  it('never includes formula-table values, in either shape', () => {
+    for (const prev of [null, { bmiMin: male.bmiMin, bmiMax: male.bmiMax }]) {
+      const s = idealWeightAnnouncement(female, prev);
+      expect(s).not.toMatch(/robinson|miller|devine|hamwi/i);
+    }
   });
 });
 
