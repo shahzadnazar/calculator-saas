@@ -21,6 +21,42 @@ import EmptyResult from '@components/result/EmptyResult.astro';
 import ExampleResult from '@components/result/ExampleResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+
+/**
+ * Dev-only consistency guard for the complex financial demos. The displayed
+ * total and its breakdown components are stated INDEPENDENTLY (so an edit can
+ * desync them); this build-time assertion fails the (dev-only) build if the
+ * components do not reconcile to the total within a cents-rounding tolerance.
+ * It is purely for the demonstration — it does not touch the shared result
+ * architecture, which carries no financial knowledge.
+ */
+const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+function assertReconciles(label: string, total: number, parts: number[]): void {
+  const sum = parts.reduce((a, b) => a + b, 0);
+  const tolerance = 0.005 * (parts.length + 1); // ≤ half a cent of rounding per line
+  if (Math.abs(sum - total) > tolerance) {
+    throw new Error(
+      `[dev/result] ${label}: breakdown components sum to ${sum.toFixed(2)} but the ` +
+        `displayed total is ${total.toFixed(2)} (tolerance ${tolerance.toFixed(3)}).`,
+    );
+  }
+}
+
+// $300,000 loan at 6.5% over 30 years: principal & interest ≈ $1,896.20/mo,
+// plus escrow. The monthly-payment total is the sum of these lines.
+const MORTGAGE_TOTAL = 2300.37;
+const mortgageDetailed = [
+  { label: 'Principal & interest', value: 1896.2 },
+  { label: 'Property tax', value: 312.5 },
+  { label: 'Home insurance', value: 91.67 },
+];
+const mortgageGrouped = [
+  { label: 'Principal & interest', value: 1896.2 },
+  { label: 'Taxes & insurance', value: 404.17 },
+];
+assertReconciles('mortgage breakdown', MORTGAGE_TOTAL, mortgageDetailed.map((p) => p.value));
+assertReconciles('mortgage grouped breakdown', MORTGAGE_TOTAL, mortgageGrouped.map((p) => p.value));
 ---
 
 <BaseLayout
@@ -149,14 +185,14 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <ResultShell state="valid" density="complex" label="Monthly payment result">
           <div data-result-when="valid">
             <ResultSummary label="Monthly payment">
-              <ResultValue value="$1,347.13" size="text-4xl" />
+              <ResultValue value={usd(MORTGAGE_TOTAL)} size="text-4xl" />
             </ResultSummary>
             <ResultInterpretation>On a $300,000 loan at 6.5% over 30 years.</ResultInterpretation>
             <ResultBreakdown title="Breakdown">
               <dl>
-                <div class="result-row"><dt>Principal &amp; interest</dt><dd>$1,896.20</dd></div>
-                <div class="result-row"><dt>Property tax</dt><dd>$312.50</dd></div>
-                <div class="result-row"><dt>Home insurance</dt><dd>$91.67</dd></div>
+                {mortgageDetailed.map((p) => (
+                  <div class="result-row"><dt>{p.label}</dt><dd>{usd(p.value)}</dd></div>
+                ))}
               </dl>
             </ResultBreakdown>
           </div>
@@ -254,12 +290,13 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <ResultShell state="valid" density="complex" label="Loan result">
           <div data-result-when="valid">
             <ResultSummary label="Monthly payment">
-              <ResultValue value="$1,347.13" size="text-4xl" />
+              <ResultValue value={usd(MORTGAGE_TOTAL)} size="text-4xl" />
             </ResultSummary>
             <ResultBreakdown>
               <dl>
-                <div class="result-row"><dt>Principal &amp; interest</dt><dd>$1,896.20</dd></div>
-                <div class="result-row"><dt>Taxes &amp; insurance</dt><dd>$404.17</dd></div>
+                {mortgageGrouped.map((p) => (
+                  <div class="result-row"><dt>{p.label}</dt><dd>{usd(p.value)}</dd></div>
+                ))}
               </dl>
             </ResultBreakdown>
           </div>
