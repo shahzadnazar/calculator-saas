@@ -12,7 +12,6 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
-import Icon from '@components/Icon.astro';
 import PhysicalCalculator from '@components/calc/PhysicalCalculator.astro';
 import {
   getCalculator,
@@ -70,17 +69,15 @@ const jsonLd = [
   <div class="wrap py-8">
     <Breadcrumbs crumbs={crumbs} />
 
+    <!--
+      Task-first header: one breadcrumb (above), H1, one short sentence, then the
+      calculator. No second category/task eyebrow, no review date, no reference
+      or methodology link above the tool — those live below it.
+    -->
     <header class="mt-5 max-w-3xl">
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
-        {taskGroup && <Icon name={taskGroup.icon} size={16} />}
-        {taskGroup && <a href={taskPath(taskGroup)} class="hover:underline">{taskGroup.title}</a>}
-        <span aria-hidden="true" style="color: var(--muted)">·</span>
-        <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
-      </div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Scientific Calculator</h1>
+      <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Scientific Calculator</h1>
       <p class="mt-3 text-lg" style="color: var(--muted)">
-        Enter a full expression and press <strong>=</strong> — trigonometry, logarithms, powers, roots and
-        constants, evaluated with the correct order of operations.
+        Enter an expression and calculate trigonometry, logarithms, powers and roots.
       </p>
     </header>
 
