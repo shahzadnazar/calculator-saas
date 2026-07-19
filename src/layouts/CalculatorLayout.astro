@@ -31,6 +31,7 @@ import Icon from '@components/Icon.astro';
 import AdSlot from '@components/AdSlot.astro';
 import RelatedOffers from '@components/RelatedOffers.astro';
 import EmbedBox from '@components/EmbedBox.astro';
+import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
 import {
   type Calculator,
   getCategory,
@@ -41,6 +42,9 @@ import {
 import { getTaskGroupForCalculator, taskPath } from '@data/tasks';
 import { getReferencesForCalculator, referencePath } from '@data/reference';
 import { calculatorSchema, breadcrumbSchema, faqSchema } from '@lib/schema';
+import { MONETIZATION_CONFIG } from '@config/monetization';
+import { planCalculatorMonetization, type CalculatorMonetizationOptions } from '@lib/monetization/layout';
+import { MONETIZATION_CSS } from '@lib/monetization/styles';
 
 interface FAQ {
   question: string;
@@ -72,6 +76,13 @@ interface Props {
   reviewMetadata?: CalculatorReviewMetadata;
   /** Legacy shorthand for reviewMetadata.reviewedDate; still used by un-migrated pages. Prefer reviewMetadata on new/migrated pages. */
   reviewedOn?: string;
+  /**
+   * Monetization opt-in (R6). Expresses ELIGIBILITY only — every field is off by
+   * default, and the central `MONETIZATION_CONFIG` (all off) gates every
+   * placement, so this changes nothing until monetization is deliberately
+   * enabled. A page cannot pass provider ids or bypass consent/result gating.
+   */
+  monetization?: CalculatorMonetizationOptions;
 }
 
 const {
@@ -81,6 +92,7 @@ const {
   presentation = 'legacy',
   reviewMetadata,
   reviewedOn,
+  monetization,
 } = Astro.props;
 
 const taskFirst = presentation === 'task-first';
@@ -133,6 +145,49 @@ const aboutReferences = [
   ...references.map((r) => ({ label: r.shortName, href: referencePath(r) })),
   ...(review?.references ?? []),
 ];
+
+/* ---------------------------------------------------------------- */
+/* Monetization integration (R6)                                     */
+/* ---------------------------------------------------------------- */
+// Server-side plan from the central config + this page's opt-in. With the
+// production config (all off) every flag is false → `active`/`bridge` false →
+// none of the blocks below render, no monetization CSS/JS is emitted, and the
+// page is byte-identical to one with no monetization at all. Post-result
+// additionally requires a shared, client-observable result state (task-first).
+const monetizationPlan = planCalculatorMonetization({
+  config: MONETIZATION_CONFIG,
+  options: monetization,
+  hasSharedResultState: taskFirst,
+});
+
+// Monetization CSS (region + module + workspace + gate) lives in
+// @lib/monetization/styles and is emitted inline (see below) ONLY when a region
+// is active, so a disabled page ships zero monetization bytes.
+//
+// BYTE-IDENTITY NOTE: every monetization region below is a conditional appended
+// to its preceding sibling's line with NO intervening whitespace (and no new
+// comment lines in the element flow). Astro emits inter-node whitespace verbatim,
+// so a standalone `{cond && ...}` line — or even a `{/* */}` comment — would add
+// stray whitespace to EVERY calculator page even when the condition is false. The
+// same-line append renders to the empty string with zero surrounding whitespace
+// when off, keeping disabled pages byte-identical to the pre-monetization build.
+
+// Result-state bridge. Observes each result shell and reveals the client-gated
+// post-result region only for a fresh valid result (any one of the percentage
+// tool's independent equations qualifies the page). Pure logic mirrors
+// @lib/monetization/result-bridge (shellEligible/pageEligible); keep in sync.
+// Emitted inline ONLY when the post-result region is active — so on a disabled
+// page no monetization JS exists, let alone runs, and no observer is created.
+const bridgeScript = `(function(){
+var shells=document.querySelectorAll(${JSON.stringify(monetizationPlan.resultSelector)});
+var gates=document.querySelectorAll('[data-mon-client-gated]');
+if(!shells.length||!gates.length)return;
+function ok(){for(var i=0;i<shells.length;i++){var e=shells[i];if(e.getAttribute('data-result-state')==='valid'&&e.getAttribute('data-result-activity')!=='calculating'&&e.getAttribute('data-stale')!=='true')return true;}return false;}
+function sync(){var v=ok();for(var j=0;j<gates.length;j++){gates[j].hidden=!v;gates[j].setAttribute('data-mon-eligible',v?'true':'false');}}
+var o=new MutationObserver(sync);
+for(var k=0;k<shells.length;k++){o.observe(shells[k],{attributes:true,attributeFilter:['data-result-state','data-result-activity','data-stale']});}
+sync();
+})();`;
 ---
 
 <BaseLayout
@@ -201,17 +256,34 @@ const aboutReferences = [
     </header>
 
     <!-- Interactive tool -->
-    <section class={taskFirst ? 'mt-6' : 'mt-8'} aria-label={`${calculator.title} tool`}>
-      <slot />
-    </section>
+    {
+      monetizationPlan.sidebar ? (
+        <div class="mon-workspace" data-mon-workspace>
+          <section class:list={['mon-workspace__core', taskFirst ? 'mt-6' : 'mt-8']} aria-label={`${calculator.title} tool`}>
+            <slot />
+          </section>
+          <MonetizationRegion
+            placement="calculator-sidebar"
+            allowSidebar={true}
+            pageSlug={calculator.slug}
+            category={calculator.category}
+            class="mon-workspace__aside"
+          />
+        </div>
+      ) : (
+        <section class={taskFirst ? 'mt-6' : 'mt-8'} aria-label={`${calculator.title} tool`}>
+          <slot />
+        </section>
+      )
+    }
     {/* Optional region hugging the tool (result explanation, assumptions); emits nothing unless a page fills it. */}
-    {Astro.slots.has('belowTool') && <slot name="belowTool" />}
+    {Astro.slots.has('belowTool') && <slot name="belowTool" />}{monetizationPlan.postResult && <MonetizationRegion placement="calculator-post-result" resultGate="client" pageSlug={calculator.slug} category={calculator.category} class="mt-8 max-w-3xl" />}
     <AdSlot placement="below-tool" class="mt-10 max-w-3xl" />
 
     <!-- Explainer content -->
     <div class="prose mt-12">
       <slot name="content" />
-    </div>
+    </div>{monetizationPlan.inContent && <MonetizationRegion placement="calculator-in-content" pageSlug={calculator.slug} category={calculator.category} class="mt-12 max-w-3xl" />}
 
     <!-- Related guides -->
     {
@@ -278,7 +350,7 @@ const aboutReferences = [
           </ul>
         </section>
       )
-    }
+    }{monetizationPlan.relatedTools && <MonetizationRegion placement="related-tools" pageSlug={calculator.slug} category={calculator.category} class="mt-8" />}
 
     {/* Trust signals (task-first): review date, methodology and references, below the tool */}
     {
@@ -321,7 +393,7 @@ const aboutReferences = [
       embedPath={`/embed/${calculator.category}/${calculator.slug}`}
       canonicalPath={path}
       noun="calculator"
-    />
+    />{monetizationPlan.active && <style is:inline set:html={MONETIZATION_CSS} />}{monetizationPlan.bridge && <script is:inline set:html={bridgeScript} />}
 
   </div>
 </BaseLayout>

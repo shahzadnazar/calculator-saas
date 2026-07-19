@@ -96,12 +96,12 @@ test('consent gates restricted modules; placeholders only when granted', async (
 test('an eligible wide workspace shows the sidebar; a narrow one hides it (core not compressed)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  const wideSide = cell(page, 'sidebar-eligible').locator('.mon-side');
-  const narrowSide = cell(page, 'sidebar-ineligible').locator('.mon-side');
+  const wideSide = cell(page, 'sidebar-eligible').locator('.mon-elig-side');
+  const narrowSide = cell(page, 'sidebar-ineligible').locator('.mon-elig-side');
   await expect(wideSide).toBeVisible();
   await expect(narrowSide).toBeHidden();
   // The narrow core keeps its width (never compressed by a sidebar).
-  const core = cell(page, 'sidebar-ineligible').locator('.mon-core');
+  const core = cell(page, 'sidebar-ineligible').locator('.mon-elig-core');
   expect((await core.boundingBox())!.width).toBeGreaterThan(0);
 });
 
@@ -110,7 +110,7 @@ test('an eligible wide workspace shows the sidebar; a narrow one hides it (core 
 test('mobile: the sidebar column drops below the core and nothing overflows', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  await expect(cell(page, 'sidebar-eligible').locator('.mon-side')).toBeHidden(); // container too narrow
+  await expect(cell(page, 'sidebar-eligible').locator('.mon-elig-side')).toBeHidden(); // container too narrow
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
@@ -157,4 +157,69 @@ test('makes no third-party or analytics requests and leaks no sensitive data', a
   expect(scripts.some((s) => /google-analytics|googletagmanager|gtag|plausible|segment|doubleclick|adsbygoogle/i.test(s))).toBe(
     false,
   );
+});
+
+/* ---- Result-state bridge (R6, layout integration) ----------------------- */
+
+const gate = (page: Page, demo: string) => cell(page, demo).locator('[data-mon-client-gated]');
+const act = (page: Page, demo: string, action: string, target = 0) =>
+  cell(page, demo).locator(`[data-act="${action}"][data-target="${target}"]`).click();
+
+test('the post-result region starts hidden and reveals only for a fresh valid result', async ({ page }) => {
+  const region = gate(page, 'bridge-single');
+  await expect(region).toBeHidden(); // empty on load
+  await expect(region).toHaveAttribute('data-mon-eligible', 'false');
+
+  await act(page, 'bridge-single', 'valid');
+  await expect(region).toBeVisible();
+  await expect(region).toHaveAttribute('data-mon-eligible', 'true');
+  await expect(region).toContainText(/partner links|commission/i); // affiliate placeholder
+});
+
+test('the region hides again on stale, recalculating, invalid or reset', async ({ page }) => {
+  const region = gate(page, 'bridge-single');
+  for (const blocking of ['stale', 'calc', 'invalid', 'empty']) {
+    await act(page, 'bridge-single', 'valid');
+    await expect(region).toBeVisible();
+    await act(page, 'bridge-single', blocking);
+    await expect(region).toBeHidden();
+    await expect(region).toHaveAttribute('data-mon-eligible', 'false');
+  }
+});
+
+test('percentage: three independent equations share ONE region; any single valid result qualifies', async ({ page }) => {
+  const region = gate(page, 'bridge-percent');
+  await expect(cell(page, 'bridge-percent').locator('[data-result-shell]')).toHaveCount(3);
+  await expect(region).toBeHidden();
+
+  // Only the second equation is valid → the single region reveals.
+  await act(page, 'bridge-percent', 'valid', 1);
+  await expect(region).toBeVisible();
+
+  // Reset it → all three empty again → hidden.
+  await act(page, 'bridge-percent', 'empty', 1);
+  await expect(region).toBeHidden();
+
+  // Two others valid → still one region, still shown.
+  await act(page, 'bridge-percent', 'valid', 0);
+  await act(page, 'bridge-percent', 'valid', 2);
+  await expect(region).toBeVisible();
+});
+
+test('the post-result region is a sibling of the result shell, never nested inside it', async ({ page }) => {
+  const nested = await cell(page, 'bridge-single').locator('[data-result-shell] [data-mon-region]').count();
+  expect(nested).toBe(0);
+});
+
+/* ---- Disabled ⇒ nothing on a real (live) calculator page ---------------- */
+
+test('a live calculator page carries no monetization region, wrapper, CSS or bridge', async ({ page }) => {
+  await page.goto('/health/bmi-calculator', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
+  await expect(page.locator('[data-mon-workspace]')).toHaveCount(0);
+  await expect(page.locator('[data-mon-client-gated]')).toHaveCount(0);
+  const html = await page.content();
+  expect(html).not.toContain('data-mon-');
+  expect(html).not.toContain('mon-region{');
+  expect(html).not.toContain('mon-workspace{');
 });

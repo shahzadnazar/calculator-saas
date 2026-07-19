@@ -91,3 +91,33 @@ responsibilities — and it is NOT wired into any live layout (that is R6).
 provider or script is integrated. A vendor-neutral `ConsentState` defaults to all
 denied; a real CMP + providers remain deferred. `CalculatorLayout` integration
 and homepage monetization (after its future dashboard) are later phases.
+
+## CalculatorLayout integration (R6 — eligibility + layout only, still all off)
+
+R6 wires the orchestrator into `CalculatorLayout` (both presentation modes)
+WITHOUT enabling anything. With the production config (all off), every live
+calculator page is byte-identical to the pre-R6 build — no region, wrapper,
+reserved space, landmark, monetization CSS, bridge, tracking or request.
+
+- **`monetization` prop (`CalculatorMonetizationOptions`)** — `allowSidebar`,
+  `enablePostResult`, `enableInContent`, `enableRelatedTools`, `resultSelector`,
+  all default off. Eligibility only: no provider ids, and it cannot bypass the
+  global config, consent or result-state gating.
+- **`src/lib/monetization/layout.ts`** — pure `planCalculatorMonetization` ANDs
+  each opt-in with the global + per-placement `enabled` flags. Off config →
+  all-false plan → the layout renders nothing.
+- **Result-state bridge (`src/lib/monetization/result-bridge.ts` + inline script)**
+  — the post-result region is a `hidden`, client-gated sibling of the result,
+  revealed by observing `[data-result-shell]` state only for a fresh valid result
+  (`valid && !stale && !calculating`). The percentage tool's three equations share
+  ONE region — any one fresh valid result qualifies. The inline observer is emitted
+  ONLY when the region is active, so disabled pages run no monetization JS.
+- **CSS** — `.mon-*` styles live in `src/lib/monetization/styles.ts`, emitted
+  inline only when a region renders (the components carry no scoped `<style>`, so
+  referencing them never links CSS onto a disabled page).
+- **Gate** — `npm run assert:mon-off` fails the build if any monetization artifact
+  appears on a live page while the config is disabled.
+
+**Status:** integration complete; every placement still disabled. Enabling live
+revenue, a CMP, ad/affiliate providers, and homepage/category/guide monetization
+remain later phases.

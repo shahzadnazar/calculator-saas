@@ -34,6 +34,15 @@ interface Props {
   resultState?: ResultState;
   resultIsStale?: boolean;
   allowSidebar?: boolean;
+  /**
+   * Where the post-result result-state gate is enforced. `'server'` (default)
+   * uses the static result state (dev demo, no-JS). `'client'` defers the
+   * result-state axis to the runtime bridge: the region renders its markup (if
+   * config + consent permit) but starts `hidden`, and the bridge reveals it only
+   * for a fresh valid result. Config/consent/global gating are unaffected — a
+   * client-gated region on the production (off) config still renders nothing.
+   */
+  resultGate?: 'server' | 'client';
   /** Internal-demo only: force a slot state to showcase it. */
   demonstrationState?: MonetizationSlotState;
   /** Internal-demo only: whether a lazy slot has entered the viewport. */
@@ -52,6 +61,7 @@ const {
   resultState,
   resultIsStale,
   allowSidebar,
+  resultGate = 'server',
   demonstrationState,
   seen = true,
   config = MONETIZATION_CONFIG,
@@ -59,11 +69,16 @@ const {
   class: className = '',
 } = Astro.props;
 
+// Client-gated: the layout owns the result-state gate via the runtime bridge, so
+// resolve as if a fresh valid result exists (config/consent still apply) and
+// render the markup `hidden` until the bridge confirms eligibility client-side.
+const clientGated = resultGate === 'client';
+
 const resolved = resolvePlacement(config, placement, {
   category,
   slug: pageSlug,
-  resultState,
-  resultIsStale,
+  resultState: clientGated ? 'valid' : resultState,
+  resultIsStale: clientGated ? false : resultIsStale,
   allowSidebar,
   consent,
 });
@@ -107,6 +122,9 @@ const regionLabel =
       data-mon-placement={placement}
       data-mon-state={state}
       data-mon-module={resolved.module}
+      data-mon-client-gated={clientGated ? '' : undefined}
+      data-mon-eligible={clientGated ? 'false' : undefined}
+      hidden={clientGated || undefined}
     >
       {showModule && resolved.module && (
         <>
@@ -132,30 +150,7 @@ const regionLabel =
   )
 }
 
-<style>
-  .mon-region {
-    display: block;
-    width: 100%;
-  }
-  .mon-region__label {
-    font-size: 0.62rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin: 0 0 0.3rem;
-  }
-  .mon-region__reserve {
-    display: grid;
-    place-items: center;
-    border: 1px dashed var(--line);
-    border-radius: 0.5rem;
-    color: var(--muted);
-    font-size: 0.72rem;
-    text-align: center;
-    padding: 0.5rem;
-  }
-  .mon-region__loading {
-    opacity: 0.7;
-  }
-</style>
+{/* Styles intentionally live in @lib/monetization/styles (MONETIZATION_CSS),
+    emitted inline ONLY where a region renders. A scoped <style> here would be
+    linked onto every page that references this component — even when it renders
+    nothing — breaking the disabled-page byte-identity guarantee. */}

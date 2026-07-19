@@ -11,6 +11,7 @@
  */
 import BaseLayout from '@layouts/BaseLayout.astro';
 import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
+import { MONETIZATION_CSS } from '@lib/monetization/styles';
 import type { MonetizationConfig, ConsentState } from '@lib/monetization/policy';
 
 // Demo-only config: enabled, with each placement mapped to a module kind so all
@@ -41,6 +42,10 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
   path="/dev/monetization"
   noindex={true}
 >
+  {/* Region + module + workspace styles, normally emitted by CalculatorLayout only
+      when a placement is active. This demo renders regions directly, so it emits
+      the same shared CSS itself. */}
+  <style is:inline set:html={MONETIZATION_CSS} />
   <div class="wrap py-8">
     <p class="text-sm" style="color: var(--muted)">
       Internal demo route — noindex, excluded from sitemap, removed before launch.
@@ -179,21 +184,63 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
     </p>
     <div class="mon-cell" data-demo="sidebar-eligible">
       <p class="mon-cap">Wide workspace → sidebar eligible</p>
-      <div class="mon-workspace mon-workspace--wide">
-        <div class="mon-core">Core calculator workspace (placeholder)</div>
-        <div class="mon-side">
+      <div class="mon-elig mon-elig--wide">
+        <div class="mon-elig-core">Core calculator workspace (placeholder)</div>
+        <div class="mon-elig-side">
           <MonetizationRegion placement="calculator-sidebar" config={DEMO_CONFIG} consent={ADS_OK} allowSidebar={true} demonstrationState="reserved" />
         </div>
       </div>
     </div>
     <div class="mon-cell mt-4" data-demo="sidebar-ineligible">
       <p class="mon-cap">Narrow workspace → sidebar hidden (core never compressed)</p>
-      <div class="mon-workspace mon-workspace--narrow">
-        <div class="mon-core">Core calculator workspace (placeholder)</div>
-        <div class="mon-side">
+      <div class="mon-elig mon-elig--narrow">
+        <div class="mon-elig-core">Core calculator workspace (placeholder)</div>
+        <div class="mon-elig-side">
           <MonetizationRegion placement="calculator-sidebar" config={DEMO_CONFIG} consent={ADS_OK} allowSidebar={true} demonstrationState="reserved" />
         </div>
       </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- LAYOUT INTEGRATION — RESULT-STATE BRIDGE (R6)                -->
+    <!-- ============================================================ -->
+    <h2 class="mon-h2">Layout integration — result-state bridge (R6)</h2>
+    <p class="mon-sub">
+      In CalculatorLayout the post-result region is a hidden sibling of the result (never
+      inside it). The client bridge observes the shared result shells and reveals it ONLY
+      for a fresh valid result — hiding it again on empty / invalid / stale / calculating.
+      These are mock result shells (no calculator logic runs); the region is a placeholder.
+    </p>
+
+    <div class="mon-cell" data-demo="bridge-single" data-bridge-demo>
+      <p class="mon-cap">Single result (BMI / password style)</p>
+      <div class="mon-bridge-controls">
+        <button type="button" class="btn btn-secondary" data-act="valid" data-target="0">Valid result</button>
+        <button type="button" class="btn btn-secondary" data-act="stale" data-target="0">Mark stale</button>
+        <button type="button" class="btn btn-secondary" data-act="calc" data-target="0">Recalculating</button>
+        <button type="button" class="btn btn-secondary" data-act="invalid" data-target="0">Invalid</button>
+        <button type="button" class="btn btn-secondary" data-act="empty" data-target="0">Reset</button>
+      </div>
+      <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock result shell">
+        Mock result shell — state: <strong data-mock-state>empty</strong>
+      </section>
+      <MonetizationRegion placement="calculator-post-result" resultGate="client" config={DEMO_CONFIG} />
+    </div>
+
+    <div class="mon-cell mt-4" data-demo="bridge-percent" data-bridge-demo>
+      <p class="mon-cap">Three independent equations (percentage) → ONE region; any single fresh valid result qualifies</p>
+      <div class="mon-bridge-controls">
+        <button type="button" class="btn btn-secondary" data-act="valid" data-target="0">Eq 1 valid</button>
+        <button type="button" class="btn btn-secondary" data-act="empty" data-target="0">Eq 1 reset</button>
+        <button type="button" class="btn btn-secondary" data-act="valid" data-target="1">Eq 2 valid</button>
+        <button type="button" class="btn btn-secondary" data-act="empty" data-target="1">Eq 2 reset</button>
+        <button type="button" class="btn btn-secondary" data-act="valid" data-target="2">Eq 3 valid</button>
+        <button type="button" class="btn btn-secondary" data-act="empty" data-target="2">Eq 3 reset</button>
+      </div>
+      <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 1">Equation 1 — <strong data-mock-state>empty</strong></section>
+      <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 2">Equation 2 — <strong data-mock-state>empty</strong></section>
+      <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 3">Equation 3 — <strong data-mock-state>empty</strong></section>
+      <MonetizationRegion placement="calculator-post-result" resultGate="client" config={DEMO_CONFIG} />
     </div>
 
     <p class="mt-10 text-sm" style="color: var(--muted)">
@@ -203,6 +250,81 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
     </p>
   </div>
 </BaseLayout>
+
+<script>
+  // Bridge demo: the SAME eligibility predicate CalculatorLayout's inline bridge
+  // uses (imported from @lib/monetization/result-bridge), wired to mock shells so
+  // the reveal/hide behaviour is exercised in a real browser. No calculator logic.
+  import { shellEligible } from '@lib/monetization/result-bridge';
+
+  document.querySelectorAll<HTMLElement>('[data-bridge-demo]').forEach((root) => {
+    const shells = Array.from(root.querySelectorAll<HTMLElement>('[data-result-shell]'));
+    const gates = Array.from(root.querySelectorAll<HTMLElement>('[data-mon-client-gated]'));
+    if (!shells.length || !gates.length) return;
+
+    const reflect = (shell: HTMLElement) => {
+      const label = shell.querySelector<HTMLElement>('[data-mock-state]');
+      if (label) label.textContent = shell.dataset.stale === 'true' ? 'valid (stale)' : (shell.dataset.resultState ?? '');
+    };
+
+    const sync = () => {
+      const eligible = shells.some((el) =>
+        shellEligible({
+          state: el.getAttribute('data-result-state'),
+          activity: el.getAttribute('data-result-activity'),
+          stale: el.getAttribute('data-stale') === 'true',
+        }),
+      );
+      gates.forEach((g) => {
+        g.hidden = !eligible;
+        g.setAttribute('data-mon-eligible', String(eligible));
+      });
+    };
+
+    const obs = new MutationObserver(() => {
+      shells.forEach(reflect);
+      sync();
+    });
+    shells.forEach((s) => obs.observe(s, { attributes: true, attributeFilter: ['data-result-state', 'data-result-activity', 'data-stale'] }));
+
+    root.querySelectorAll<HTMLButtonElement>('[data-act]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const shell = shells[Number(btn.dataset.target ?? '0')];
+        if (!shell) return;
+        switch (btn.dataset.act) {
+          case 'valid':
+            shell.dataset.resultState = 'valid';
+            shell.dataset.resultActivity = 'just-updated';
+            shell.dataset.stale = 'false';
+            break;
+          case 'empty':
+            shell.dataset.resultState = 'empty';
+            shell.dataset.resultActivity = 'idle';
+            shell.dataset.stale = 'false';
+            break;
+          case 'invalid':
+            shell.dataset.resultState = 'invalid';
+            shell.dataset.resultActivity = 'idle';
+            shell.dataset.stale = 'false';
+            break;
+          case 'stale':
+            shell.dataset.resultState = 'valid';
+            shell.dataset.resultActivity = 'idle';
+            shell.dataset.stale = 'true';
+            break;
+          case 'calc':
+            shell.dataset.resultState = 'valid';
+            shell.dataset.resultActivity = 'calculating';
+            shell.dataset.stale = 'false';
+            break;
+        }
+      });
+    });
+
+    shells.forEach(reflect);
+    sync();
+  });
+</script>
 
 <style>
   .mon-h2 {
@@ -242,23 +364,22 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
     font-style: italic;
     color: var(--muted);
   }
-  /* Sidebar workspace: a container query decides whether the side column shows. */
-  .mon-workspace {
+  /* Sidebar eligibility demo: a container query decides whether the side column
+     shows. Named `.mon-elig*` to stay distinct from the real layout's
+     `.mon-workspace` (shipped via MONETIZATION_CSS). */
+  .mon-elig {
     margin-top: 0.5rem;
     container-type: inline-size;
-    display: block;
-  }
-  .mon-workspace {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1.5rem;
   }
   /* Constrain the narrow workspace's CONTAINER width so its container query
      never reaches the sidebar threshold. */
-  .mon-workspace--narrow {
+  .mon-elig--narrow {
     max-width: 720px;
   }
-  .mon-core {
+  .mon-elig-core {
     min-height: 120px;
     display: grid;
     place-items: center;
@@ -267,17 +388,43 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
     color: var(--muted);
     font-size: 0.85rem;
   }
-  .mon-side {
+  .mon-elig-side {
     display: none;
   }
   /* Only when the container is wide enough do we add the ~300px sidebar and keep
      the core ≥ 600px — mirrors sidebarFitsContainer() in the policy. */
   @container (min-width: 1040px) {
-    .mon-workspace {
+    .mon-elig {
       grid-template-columns: minmax(600px, 1fr) 300px;
     }
-    .mon-side {
+    .mon-elig-side {
       display: block;
     }
+  }
+  /* Result-state bridge demo */
+  .mon-bridge-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+  }
+  .mon-bridge-controls .btn {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  .mon-mock-shell {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+  }
+  .mon-mock-shell[data-result-state='valid'] {
+    border-color: var(--color-brand-500);
+    color: var(--heading);
+  }
+  .mon-mock-shell[data-result-state='invalid'] {
+    border-color: #e11d48;
   }
 </style>

@@ -21,7 +21,7 @@ R0.5 work, which shipped.
 | **R3** | **Equation runtime + Percentage pilot** | ✅ **shipped** (`7460547..45e432f`, incl. R3.1 positive-start semantics) |
 | **R4** | **Generator runtime + Password pilot** | ✅ **shipped** (impl `9c51c33`, docs/status `45f5e56`) |
 | **R5** | **Monetization-region architecture (placeholders, off)** | ✅ **shipped** (architecture only; all placements disabled) |
-| R6 | CalculatorLayout monetization integration | ⏳ (belongs here — R5 does NOT integrate) |
+| **R6** | **CalculatorLayout monetization integration (eligibility + layout only, off)** | ✅ **shipped** (integration + result-state bridge; live pages byte-identical, all off) |
 | R7 | Full validation + docs | ⏳ |
 
 Do not build the form, equation and generator runtimes together in R1.
@@ -294,3 +294,63 @@ no third-party/analytics request; no sensitive data in region attributes/events.
 **Deferred to later phases:** CalculatorLayout integration (R6); homepage
 monetization (after its future complete dashboard); a real consent vendor and ad/
 affiliate providers (undecided); full validation (R7).
+
+## R6 — shipped (CalculatorLayout monetization integration, off)
+
+**Eligibility + layout wiring only — still no live revenue, no provider, no CMP.**
+R6 wires the R5 architecture into `CalculatorLayout` for both presentation modes.
+With the production config (all off) it changes NOTHING: every live calculator
+page is **byte-identical** (asset-hash-normalized) to the pre-R6 build — no region,
+no wrapper, no reserved space, no accessibility landmark, no monetization CSS, no
+result-state bridge, no client tracking, no layout shift, no third-party request.
+
+- **Page contract (`CalculatorMonetizationOptions`)** — `allowSidebar`,
+  `enablePostResult`, `enableInContent`, `enableRelatedTools`, `resultSelector`,
+  ALL default off. Passed as `CalculatorLayout`'s `monetization` prop. Props
+  express ELIGIBILITY only: they carry no provider ids and cannot bypass the
+  global config, consent or result-state gating.
+- **Planner (`src/lib/monetization/layout.ts`)** — pure `planCalculatorMonetization`
+  ANDs each opt-in with `placementLive` (global `enabled` AND the placement's
+  `enabled`). Production config → all-false plan → `active`/`bridge` false → the
+  layout emits nothing. Post-result additionally requires a shared, client-
+  observable result state (task-first migrated tools); legacy pages never get it.
+- **Placements + task-first order** — Breadcrumb → H1 → sentence → calculator
+  workspace → result+interpretation → **calculator-post-result** → supporting
+  content → **calculator-in-content** → related calculators → **related-tools** →
+  About (review/methodology/references). Each region is a conditional appended to
+  its preceding sibling's line with NO intervening whitespace, so a disabled page
+  is byte-identical (Astro emits inter-node whitespace verbatim; a standalone
+  `{cond && …}` line or `{/* */}` comment would add stray bytes to every page).
+- **Result-state bridge** — the post-result region renders as a `hidden`,
+  `data-mon-client-gated` sibling of the result (never inside `ResultShell`). An
+  `is:inline` script (emitted ONLY when the region is active) observes each
+  `[data-result-shell]`'s `data-result-state` / `data-result-activity` /
+  `data-stale` and reveals it only for a fresh valid result — eligible when
+  `valid && !stale && activity !== 'calculating'`; hidden for empty/example/
+  invalid/calculating/stale. Pure predicates live in
+  `src/lib/monetization/result-bridge.ts` (`shellEligible` / `pageEligible`); the
+  inline script mirrors them. Percentage policy: its three independent equations
+  share ONE region — any single fresh valid result qualifies the page.
+- **Sidebar** — opt-in; an additive container-query workspace (`.mon-workspace`,
+  ~1040/600/300px) that never compresses the core (600px basis) and, on a narrow
+  container, drops the aside to a full-width row after the result. Needs
+  advertising consent, so it is inert until a CMP exists.
+- **CSS strategy** — `MonetizationRegion` / `RevenueModule` carry NO scoped
+  `<style>` (Astro would link a referenced component's styles onto every page even
+  when it renders nothing). All `.mon-*` styles live in
+  `src/lib/monetization/styles.ts` (`MONETIZATION_CSS`), emitted inline ONLY when
+  a region is active (and by the `/dev/monetization` demo).
+- **Legacy islands / runtimes untouched** — no calculator island, result runtime,
+  homepage, header, search, category, guide, reference or embed route is modified.
+
+**Verified:** `astro check` 0 errors; 415 unit (+11 layout, +8 bridge) + 161 E2E
+(+5 bridge/gate) pass; 174-page build; **byte-identical live pages** vs the pre-R6
+tip (only `/dev/monetization` changes); `node scripts/assert-monetization-off.mjs`
+green (no monetization artifact on any live page); temporary enable-and-inspect
+confirmed the post-result (client-gated, hidden), related-tools (embed) and bridge
+render in the correct task-first order, with in-content/sidebar correctly consent-
+blocked (no CMP).
+
+**Deferred (NOT in R6):** enabling any live placement; a real consent vendor (CMP)
+and ad/affiliate providers; homepage/category/guide monetization; provider
+integration; full validation (R7).

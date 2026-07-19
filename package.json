@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "assert:no-dev": "node scripts/assert-no-dev.mjs"
+    "assert:no-dev": "node scripts/assert-no-dev.mjs",
+    "assert:mon-off": "node scripts/assert-monetization-off.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.3.14",
