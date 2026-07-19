@@ -354,3 +354,28 @@ blocked (no CMP).
 **Deferred (NOT in R6):** enabling any live placement; a real consent vendor (CMP)
 and ad/affiliate providers; homepage/category/guide monetization; provider
 integration; full validation (R7).
+
+### R6.1 — hardening (shipped)
+
+- **CI gate** — `npm run assert:mon-off` runs in the always-on `build-and-test`
+  CI job, right after the production build, so every push/PR fails if disabled
+  monetization leaks rendered HTML, a landmark, reserved space, monetization CSS,
+  bridge JS or the workspace-scope attribute onto a live page (a provider request
+  can only originate from a rendered region, so the absence of every marker also
+  precludes one; the E2E suite additionally asserts zero third-party requests). It
+  is no longer only a manual package script.
+- **Result-bridge scope** — the inline bridge now roots its shell query at this
+  layout instance's `[data-calculator-workspace]` element (emitted on the tool
+  section only when the bridge is active, so disabled pages stay byte-identical)
+  and never queries `document`-wide. An unrelated result shell elsewhere on the
+  page can no longer make this calculator's post-result region eligible. Covered
+  by E2E: external-valid + empty/invalid workspace → blocked; external mutations
+  never change eligibility; the percentage any-fresh-valid rule and stale-output
+  blocking still hold within the scoped root.
+
+**Verified (R6.1):** `astro check` 0 errors; 415 unit + **167 E2E** (+6 scope) pass;
+174-page build; live pages byte-identical; `assert:mon-off` green via the
+CI-equivalent command; a temporary enable-and-inspect confirmed the real layout
+emits `data-calculator-workspace` on the tool section and the bridge scopes to it
+(`document.querySelector('[data-calculator-workspace]')` → `ws.querySelectorAll`,
+zero `document`-wide shell query). All placements remain disabled.

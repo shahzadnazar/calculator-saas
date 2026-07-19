@@ -18,8 +18,17 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const DIST = 'dist';
-// Markers that only ever appear when a monetization region/bridge/CSS renders.
-const MARKERS = ['data-mon-', 'mon-region{', 'mon-workspace{', 'data-mon-client-gated'];
+// Markers that only ever appear when a monetization region / landmark / reserved
+// slot / CSS / result-state bridge renders. `data-mon-` covers rendered region
+// HTML, the `complementary` landmark (`data-mon-region`), reserved slots
+// (`data-mon-reserve`) and the bridge's own source (it queries
+// `[data-mon-client-gated]` / sets `data-mon-eligible`). `data-calculator-workspace`
+// is the bridge's scope root, emitted only when the bridge is active. The CSS
+// markers catch the inline monetization stylesheet. A provider script/URL is only
+// ever loaded from inside a rendered region, so the absence of every marker also
+// means no provider request can fire (the E2E suite additionally asserts zero
+// third-party requests at runtime).
+const MARKERS = ['data-mon-', 'data-calculator-workspace', 'mon-region{', 'mon-workspace{'];
 
 function* htmlFiles(dir) {
   for (const entry of readdirSync(dir)) {

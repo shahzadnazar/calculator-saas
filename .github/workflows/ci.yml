@@ -20,6 +20,8 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Assert monetization stays off (no region/landmark/reserved space/CSS/bridge JS on any live page)
+        run: npm run assert:mon-off
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: E2E smoke

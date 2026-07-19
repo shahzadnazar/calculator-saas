@@ -212,8 +212,14 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
       These are mock result shells (no calculator logic runs); the region is a placeholder.
     </p>
 
+    <p class="mon-sub">
+      The bridge is rooted at this calculator's <code>[data-calculator-workspace]</code>
+      and queries result shells ONLY inside it — an unrelated result shell elsewhere on
+      the page can never make this region eligible.
+    </p>
+
     <div class="mon-cell" data-demo="bridge-single" data-bridge-demo>
-      <p class="mon-cap">Single result (BMI / password style)</p>
+      <p class="mon-cap">Single result (BMI / password style) + an unrelated external result</p>
       <div class="mon-bridge-controls">
         <button type="button" class="btn btn-secondary" data-act="valid" data-target="0">Valid result</button>
         <button type="button" class="btn btn-secondary" data-act="stale" data-target="0">Mark stale</button>
@@ -221,8 +227,17 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
         <button type="button" class="btn btn-secondary" data-act="invalid" data-target="0">Invalid</button>
         <button type="button" class="btn btn-secondary" data-act="empty" data-target="0">Reset</button>
       </div>
-      <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock result shell">
-        Mock result shell — state: <strong data-mock-state>empty</strong>
+      <div class="mon-bridge-controls" data-demo="bridge-external-controls">
+        <button type="button" class="btn btn-secondary" data-scope="ext" data-act="valid" data-target="0">External → valid</button>
+        <button type="button" class="btn btn-secondary" data-scope="ext" data-act="empty" data-target="0">External → reset</button>
+      </div>
+      <div data-calculator-workspace>
+        <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock result shell">
+          Workspace result — state: <strong data-mock-state>empty</strong>
+        </section>
+      </div>
+      <section data-result-shell data-external-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell mon-mock-shell--external" aria-label="Unrelated external result">
+        Unrelated external result (outside the workspace) — <strong data-mock-state>empty</strong>
       </section>
       <MonetizationRegion placement="calculator-post-result" resultGate="client" config={DEMO_CONFIG} />
     </div>
@@ -237,9 +252,11 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
         <button type="button" class="btn btn-secondary" data-act="valid" data-target="2">Eq 3 valid</button>
         <button type="button" class="btn btn-secondary" data-act="empty" data-target="2">Eq 3 reset</button>
       </div>
-      <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 1">Equation 1 — <strong data-mock-state>empty</strong></section>
-      <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 2">Equation 2 — <strong data-mock-state>empty</strong></section>
-      <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 3">Equation 3 — <strong data-mock-state>empty</strong></section>
+      <div data-calculator-workspace>
+        <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 1">Equation 1 — <strong data-mock-state>empty</strong></section>
+        <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 2">Equation 2 — <strong data-mock-state>empty</strong></section>
+        <section data-result-shell data-result-state="empty" data-result-activity="idle" class="mon-mock-shell" aria-label="Mock equation 3">Equation 3 — <strong data-mock-state>empty</strong></section>
+      </div>
       <MonetizationRegion placement="calculator-post-result" resultGate="client" config={DEMO_CONFIG} />
     </div>
 
@@ -258,7 +275,12 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
   import { shellEligible } from '@lib/monetization/result-bridge';
 
   document.querySelectorAll<HTMLElement>('[data-bridge-demo]').forEach((root) => {
-    const shells = Array.from(root.querySelectorAll<HTMLElement>('[data-result-shell]'));
+    // Scope EXACTLY like CalculatorLayout's inline bridge: query result shells only
+    // inside this instance's [data-calculator-workspace] root, never document-wide.
+    const workspace = root.querySelector<HTMLElement>('[data-calculator-workspace]');
+    if (!workspace) return;
+    const shells = Array.from(workspace.querySelectorAll<HTMLElement>('[data-result-shell]'));
+    const externalShells = Array.from(root.querySelectorAll<HTMLElement>('[data-external-shell]'));
     const gates = Array.from(root.querySelectorAll<HTMLElement>('[data-mon-client-gated]'));
     if (!shells.length || !gates.length) return;
 
@@ -267,6 +289,7 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
       if (label) label.textContent = shell.dataset.stale === 'true' ? 'valid (stale)' : (shell.dataset.resultState ?? '');
     };
 
+    // Eligibility considers ONLY the workspace shells — external shells are ignored.
     const sync = () => {
       const eligible = shells.some((el) =>
         shellEligible({
@@ -281,15 +304,20 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
       });
     };
 
+    // Observe both workspace AND external shells so a mutation to EITHER re-runs
+    // sync — proving that an external change still leaves eligibility unaffected.
     const obs = new MutationObserver(() => {
-      shells.forEach(reflect);
+      [...shells, ...externalShells].forEach(reflect);
       sync();
     });
-    shells.forEach((s) => obs.observe(s, { attributes: true, attributeFilter: ['data-result-state', 'data-result-activity', 'data-stale'] }));
+    [...shells, ...externalShells].forEach((s) =>
+      obs.observe(s, { attributes: true, attributeFilter: ['data-result-state', 'data-result-activity', 'data-stale'] }),
+    );
 
     root.querySelectorAll<HTMLButtonElement>('[data-act]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const shell = shells[Number(btn.dataset.target ?? '0')];
+        const list = btn.dataset.scope === 'ext' ? externalShells : shells;
+        const shell = list[Number(btn.dataset.target ?? '0')];
         if (!shell) return;
         switch (btn.dataset.act) {
           case 'valid':
@@ -321,7 +349,7 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
       });
     });
 
-    shells.forEach(reflect);
+    [...shells, ...externalShells].forEach(reflect);
     sync();
   });
 </script>
@@ -426,5 +454,9 @@ const DENIED: ConsentState = { advertising: false, analytics: false, personaliza
   }
   .mon-mock-shell[data-result-state='invalid'] {
     border-color: #e11d48;
+  }
+  .mon-mock-shell--external {
+    border-style: dashed;
+    opacity: 0.85;
   }
 </style>

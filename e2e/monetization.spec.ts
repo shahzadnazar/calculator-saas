@@ -162,8 +162,12 @@ test('makes no third-party or analytics requests and leaks no sensitive data', a
 /* ---- Result-state bridge (R6, layout integration) ----------------------- */
 
 const gate = (page: Page, demo: string) => cell(page, demo).locator('[data-mon-client-gated]');
+// Workspace controls (exclude the external-scope buttons, which share data-act/target).
 const act = (page: Page, demo: string, action: string, target = 0) =>
-  cell(page, demo).locator(`[data-act="${action}"][data-target="${target}"]`).click();
+  cell(page, demo).locator(`[data-act="${action}"][data-target="${target}"]:not([data-scope="ext"])`).click();
+// Unrelated external-shell controls (outside [data-calculator-workspace]).
+const actExternal = (page: Page, demo: string, action: string, target = 0) =>
+  cell(page, demo).locator(`[data-scope="ext"][data-act="${action}"][data-target="${target}"]`).click();
 
 test('the post-result region starts hidden and reveals only for a fresh valid result', async ({ page }) => {
   const region = gate(page, 'bridge-single');
@@ -209,6 +213,62 @@ test('percentage: three independent equations share ONE region; any single valid
 test('the post-result region is a sibling of the result shell, never nested inside it', async ({ page }) => {
   const nested = await cell(page, 'bridge-single').locator('[data-result-shell] [data-mon-region]').count();
   expect(nested).toBe(0);
+});
+
+/* ---- Result-bridge scope: workspace-only, ignores external shells (R6.1) ---- */
+
+test('an unrelated external valid result does NOT make an empty workspace eligible', async ({ page }) => {
+  const region = gate(page, 'bridge-single');
+  await expect(region).toBeHidden();
+  await actExternal(page, 'bridge-single', 'valid'); // external shell → valid
+  await expect(region).toBeHidden(); // workspace still empty → blocked
+  await expect(region).toHaveAttribute('data-mon-eligible', 'false');
+});
+
+test('an external valid result does NOT rescue an invalid workspace', async ({ page }) => {
+  const region = gate(page, 'bridge-single');
+  await act(page, 'bridge-single', 'invalid'); // workspace → invalid
+  await actExternal(page, 'bridge-single', 'valid'); // external → valid
+  await expect(region).toBeHidden();
+});
+
+test('eligibility tracks the workspace result and ignores external mutations', async ({ page }) => {
+  const region = gate(page, 'bridge-single');
+  await act(page, 'bridge-single', 'valid'); // workspace → valid
+  await expect(region).toBeVisible();
+  // Mutating the unrelated external shell (valid → empty → valid) never changes it.
+  await actExternal(page, 'bridge-single', 'valid');
+  await expect(region).toBeVisible();
+  await actExternal(page, 'bridge-single', 'empty');
+  await expect(region).toBeVisible(); // still driven only by the workspace result
+  // Only a workspace change flips it.
+  await act(page, 'bridge-single', 'empty');
+  await expect(region).toBeHidden();
+});
+
+test('the workspace root scopes the shell query (external shell is outside it)', async ({ page }) => {
+  const scope = cell(page, 'bridge-single');
+  // The external shell exists but lives OUTSIDE [data-calculator-workspace].
+  await expect(scope.locator('[data-external-shell]')).toHaveCount(1);
+  await expect(scope.locator('[data-calculator-workspace] [data-external-shell]')).toHaveCount(0);
+  await expect(scope.locator('[data-calculator-workspace] [data-result-shell]')).toHaveCount(1);
+});
+
+test('percentage: the any-fresh-valid rule still holds within the scoped workspace', async ({ page }) => {
+  const region = gate(page, 'bridge-percent');
+  await expect(cell(page, 'bridge-percent').locator('[data-calculator-workspace] [data-result-shell]')).toHaveCount(3);
+  await act(page, 'bridge-percent', 'valid', 2); // only the third equation
+  await expect(region).toBeVisible();
+  await act(page, 'bridge-percent', 'empty', 2);
+  await expect(region).toBeHidden();
+});
+
+test('a stale workspace output stays blocked', async ({ page }) => {
+  const region = gate(page, 'bridge-single');
+  await act(page, 'bridge-single', 'valid');
+  await expect(region).toBeVisible();
+  await act(page, 'bridge-single', 'stale'); // password-style stale
+  await expect(region).toBeHidden();
 });
 
 /* ---- Disabled ⇒ nothing on a real (live) calculator page ---------------- */
