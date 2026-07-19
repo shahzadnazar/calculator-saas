@@ -109,8 +109,9 @@ interface CalculatorReviewMetadata {
 The layout renders review/reference content; **pages never hand-render** it.
 Internal reference-data pages (from the `reference` registry, e.g. the BMI
 chart) are merged automatically with any `reviewMetadata.references`. `reviewedOn`
-is a legacy shorthand normalized into `reviewMetadata.reviewedDate`, so the 48
-un-migrated pages keep working untouched.
+is a legacy shorthand normalized into `reviewMetadata.reviewedDate`, so the
+remaining legacy pages keep working untouched (45 not-migrated today — see the
+canonical fleet audit in `TASK-COMPLETION-DOCTRINE.md`).
 
 ### 3.3 Lower-content flexibility (regions/slots)
 
@@ -129,9 +130,10 @@ vary per calculator intent**:
 
 With no page opting in, the extended layout is **byte-for-byte** compatible: a
 whitespace-ignoring diff (`diff -rw`) of all 171 built pages is **empty** — no
-comment, tag, attribute, text, internal-link or JSON-LD change. The 48 raw
-differences are whitespace only. `intro` was made required safely because all
-48 existing pages already pass it.
+comment, tag, attribute, text, internal-link or JSON-LD change. The raw
+differences found were whitespace only. `intro` was made required safely because
+every existing calculator page already passed it. (Historical measurement from
+the task-first layout rollout; current fleet counts live in the canonical audit.)
 
 ### 3.5 Pilots (shipped) — one per interaction structure
 

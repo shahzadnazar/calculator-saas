@@ -138,18 +138,31 @@ validation patterns, responsive density tokens, and monetization boundaries.
 
 ---
 
-# Fleet audit against the doctrine (baseline)
+# Fleet audit against the doctrine (canonical)
 
-**Audited:** 2026-07-19 · **Source commit:** `0e4d61c`. Re-run this audit and
-refresh the date + commit whenever the fleet changes.
+**This is the single authoritative fleet audit. It supersedes every earlier
+count — any "48 island/calculator" figure elsewhere in the docs is stale and
+replaced by the table below.**
 
-Grounded in the island behavior audit (48 islands; see the family classification
-below). **The current fleet is largely noncompliant with the doctrine in the
-same recurring ways** — it mostly **auto-calculates prefilled example values and
-shows a result that reads as the visitor's own**, with **no explicit primary
-action, no reset, and no result `aria-live`** on 45 of 48. It is not
-behaviorally identical: documented exceptions exist (see below), and each is
-tracked in the migration-status table. These recurring gaps are what R1–R7 close.
+**Audit date:** 2026-07-19 · **Source commit:** `7592a2d`. Re-run and refresh
+the date, commit and counts whenever the fleet changes.
+
+| Metric | Value |
+|---|---|
+| Total live calculators | **49** |
+| Migrated (task-first + shared runtime) | **4** — scientific, bmi, percent, password-generator |
+| Not migrated (legacy) | **45** |
+| Approved exceptions | **0** |
+| Distinct Astro islands | **47** — statistics + standard-deviation share `StatisticsCalculator` via a `primary` prop; **scientific uses `PhysicalCalculator`** (`components/calc/`, not an island) |
+| Embed exposure | **all 49** — every calculator is served by the dynamic route `src/pages/embed/[category]/[slug].astro` (`getLiveCalculators()` → `IslandBySlug`); no per-slug embed files exist |
+
+**The 45 legacy calculators are noncompliant with the doctrine in the same
+recurring ways** — each **auto-calculates prefilled example values and shows a
+result that reads as the visitor's own**, with **no explicit primary action, no
+Reset, and no result `aria-live`** (the lone `aria-live` exception among the
+legacy set is `random-number-generator`). Documented behavioral exceptions exist
+(below) and are tracked in the migration-status table. These recurring gaps are
+what the R1–R7 program closes.
 
 ## Migration status (per calculator)
 
@@ -159,8 +172,8 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 |---|---|---|
 | `migrated` | scientific-calculator; **bmi-calculator**; **percent-calculator**; **password-generator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot (family: standard form). Accepted migration: R2 range `843d113..b7f9d44`, refined by R2.1.** **percent: equation runtime pilot (family: equation) — three INDEPENDENT equations. Accepted migration: R3 range `7460547..45e432f` (incl. R3.1 positive start; direction from operands).** **password: explicit-output generator pilot (family: generator) — no output on load, explicit Generate, settings-change → stale (kept visible, Copy off, note), Copy gated on a fresh output, strength as text, crypto-only generation never announced/stored/logged/transmitted. Accepted migration: R4 implementation `9c51c33`, docs/status `45f5e56`.** |
 | `pilot` | (none active) | The initial standard-form, equation and explicit-output generator pilots are complete. Additional calculator subfamilies still require separate pilots (each validated before binding). |
-| `not-migrated` | the other 44 live calculators | Current recurring-gap behavior; scheduled by family wave. |
-| `approved-exception` | (none yet) | Reserved for deliberate, documented deviations (e.g. a complex-finance tool using a clearly-labelled Example). |
+| `not-migrated` | the other **45** live calculators | Current recurring-gap behavior; scheduled by family wave. |
+| `approved-exception` | (none yet) | Reserved for deliberate, documented deviations. Requires a documented user-task reason, tests and explicit matrix approval (see Ratified product decisions #7) — legacy compatibility alone is never a valid reason. |
 
 > **R2 / R2.1 note (2026-07-19):** BMI is the first standard-form migration. The
 > shared standard-form runtime (`src/lib/result/form-runtime.ts`) is validated for
@@ -198,24 +211,66 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 > this single pilot. It reuses the shared state machine + focus helpers; the form
 > and equation runtimes (BMI, Percentage) are untouched.
 
-## Family classification (all 48)
+## Family classification (canonical — 49 calculators, 13 families)
 
-| Family | Calculators |
-|---|---|
-| physical/keypad (1) | scientific-calculator |
-| standard form — health/personal (9) | bmi, bmr, calorie, body-fat, ideal-weight, protein, fat-intake, target-heart-rate, pace |
-| standard form — geometry (5) | area, volume, triangle, square-footage, concrete |
-| complex / financial-schedule (11) | mortgage, amortization, loan, auto-loan, home-equity-loan, compound-interest, investment, retirement, savings, simple-interest, interest |
-| multi-mode form (7) | sales-tax, credit-card-payoff, payment, interest-rate, income-tax, salary, tip |
-| specialized report (2) | statistics, standard-deviation |
-| equation (2) | percent, fraction |
-| generator (2) | password-generator, random-number-generator |
-| converter (1) | conversion |
-| date/duration (5) | age, date, due-date, pregnancy, hours, time |
-| dynamic-row (2) | gpa, grade |
+Primary interaction family; **(2°)** = secondary behavior. **Runtime-fit:**
+`done` · **B** binding-only on a certified runtime · **C** certified runtime +
+family-safe extension · **D** new family runtime required. **Test coverage:**
+`dedicated` (own `*.test.ts`) · `batch` (shared `batch-*`/`gaps.test.ts`) ·
+`indirect` (exercised only through another module's tests) · `missing`.
+**Indirect coverage is NOT equivalent to a dedicated module test.**
 
-(48 total. `time` is date/duration; `statistics`/`standard-deviation` share one
-island via a `primary` prop.)
+| Family | n | Calculators (fit; coverage) |
+|---|---|---|
+| physical/keypad | 1 | scientific ✅done (dedicated) |
+| standard form | 15 | **health (9):** bmi ✅done · bmr, body-fat, calorie, ideal-weight, protein, fat-intake *(all B)*, target-heart-rate *(B; **missing** test)*, pace *(B/C — deferred, decision 5)* · **geometry (3):** triangle *(**C** — multi-output + triangle-inequality; batch)*, square-footage *(B; batch)*, concrete *(B; batch)* · **finance-simple (3):** simple-interest *(B; dedicated)*, inflation *(B; dedicated)*, tip *(B; batch)* |
+| complex form | 7 | income-tax *(brackets + filing-status parameter; batch)*, interest *(dual simple-vs-compound; **indirect**)*, interest-rate *(iterative solver; batch)*, investment *(proportion bar; dedicated)*, retirement *(multi-metric report; dedicated)*, auto-loan *(collapsible groups; dedicated)*, home-equity-loan *(LTV advisory; batch)* — all **C** |
+| shape selector | 2 | area, volume — **D** *(shape `<select>` rebuilds the input-field schema at runtime; the certified standard-form runtime assumes fixed fields; **indirect** via `gaps.test.ts`)* |
+| equation | 2 | percent ✅done (dedicated) · fraction *(**C** — operator-select operand + tri-format output; dedicated)* |
+| explicit-output generator | 1 | password ✅done (dedicated ×2) |
+| random-data generator | 1 | random-number-generator *(**C** — extend generator runtime: explicit Generate, no-live, no-Copy, list output; already has `aria-live`; batch)* |
+| converter | 2 | conversion, salary — **D** *(category / pay-period select drives the option lists + equivalence output, result-as-input; both batch)* |
+| date/duration | 6 | age *(client-clock → intentional SSR-empty result + hydrate; dedicated)*, date *(two sub-tools/result-regions in one island; dedicated)*, due-date *(dedicated)*, pregnancy *(**missing** test)*, hours *(dedicated)*, time *(batch)* — all **D** |
+| multi-mode | 4 | sales-tax *(add/remove)*, payment *(term/payment)*, credit-card-payoff *(2° schedule)*, savings *(2° schedule — project/goal)* — all **D** |
+| dynamic-row | 2 | gpa *(pure add-row; batch)*, grade *(2° co-resident fixed "final-needed" mode + advisories; batch)* — **D** |
+| financial schedule | 4 | mortgage *(2° complex-form; **the only island embedded live in a guide** → highest regression risk; dedicated)*, amortization *(**indirect** via loan)*, loan *(dedicated)*, compound-interest *(dedicated)* — all **D** |
+| specialized report | 2 | statistics *(dedicated)*, standard-deviation *(**indirect** — shares `StatisticsCalculator` + module via `primary` summary/sd)* — **D** |
+
+**Reclassifications from the prior (stale "48") audit — now canonical:**
+`salary` → **converter** (pay-period select, not a solve-mode) · `income-tax` →
+**complex form** (filing status is a parameter, not a mode) · `savings` →
+**multi-mode** with schedule behavior · `home-equity-loan` → **complex form** ·
+`interest` → **complex form** · `area` & `volume` → **shape-selector family** ·
+`triangle` → **standard form requiring a family-safe extension** ·
+**financial-schedule family = `mortgage`, `amortization`, `loan`,
+`compound-interest` only**. The prior audit also omitted `inflation-calculator`
+and undercounted date/duration; both are fixed here.
+
+**Coverage gaps to close before the relevant wave:** dedicated tests for
+`target-heart-rate` and `pregnancy` (**missing**); dedicated tests for the
+`src/lib/finance.ts` schedule engine and the *indirect* modules (amortization,
+interest, standard-deviation) before their family waves.
+
+## Ratified product decisions (R7A.1)
+
+1. **Complex-finance initial state** starts **empty** by default. A labelled
+   Example requires **calculator-specific approval + evidence** (the only
+   sanctioned source of an `approved-exception`; see #7).
+2. **Converter family** uses a **neutral value `1`** with **immediate
+   conversion** — **no Calculate button required**. This is an **approved family
+   behavior, not a doctrine violation** of the one-primary-action rule.
+3. **Multi-mode state** stays **ephemeral** initially — **no query-parameter mode
+   state** during a multi-mode tool's first migration.
+4. **Financial-schedule order:** inputs → Calculate → summary →
+   interpretation/assumptions → schedule control → detailed schedule →
+   monetization.
+5. **Pace** classification (standard-form vs multi-mode) is **deferred to its
+   pre-wave source audit**.
+6. **Interest Calculator** remains a **distinct complex-form calculator** (never
+   folded into simple/compound).
+7. **Approved exceptions** require a **documented user-task reason, tests, and
+   explicit matrix approval**. **Legacy compatibility alone is not a valid
+   reason.**
 
 ## Current compliance matrix (by family)
 
@@ -236,7 +291,7 @@ Legend: ✅ meets · ⚠️ partial · ❌ gap.
 | Keyboard + mobile path | ✅ | ⚠️ native inputs; no focus mgmt | ⚠️ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ |
 
 ¹ 4 calculator pages are task-first (scientific, bmi, percent, password); the
-other 44 render the category eyebrow + review metadata above the tool (legacy
+other 45 render the category eyebrow + review metadata above the tool (legacy
 `CalculatorLayout` mode). ² Age/GPA/Pregnancy SSR `—`; DueDate partial.
 ³ Inline *warnings* exist on triangle, home-equity-loan, grade, payment,
 body-fat (not field-level error association). ⁴ credit-card-payoff & payment
@@ -253,26 +308,30 @@ render "Never" for non-finite payoff.
   `random-number-generator`.
 - **Generator split:** `random-number-generator` = explicit Generate, **no
   live**, **no Copy**; `password-generator` = Generate/regen + **live** + Copy.
-- **Converter:** `conversion` uses a readonly input as its result (not a result
-  card) — the doctrine's converter neutral-default (`1`) fits it.
+- **Converter (2):** `conversion` (category → from/to selects, readonly result
+  input) and `salary` (pay-period select → equivalence table). Neutral default
+  `1` + immediate conversion is the approved family behavior (product decision 2).
 
 ## Family-level migration roadmap (maps to existing phases)
 
-The doctrine is realized by the already-planned phases — this roadmap sequences
-families onto them; **no new fix-each-calculator work.**
+The doctrine is realized by the planned phases — this roadmap sequences the
+canonical families (above) onto them; **no new fix-each-calculator work.** Family
+membership + runtime-fit (B/C/D) come from the canonical classification.
 
-| Wave | Families | Vehicle (phase) |
-|---|---|---|
-| A | equation, generator, standard-form | R1 result primitives + R2/R3/R4 controller runtimes; pilots BMI/Percent/Password |
-| B | complex/financial-schedule, multi-mode | R2 form runtime hardened per subfamily (financial-schedule + multi-mode validated before claiming support) |
-| C | converter, date/duration, dynamic-row | family-specific workspace adapters on the shared runtimes (validate each subfamily) |
-| D | all migrated pages | above-tool order via `CalculatorLayout presentation="task-first"` category waves (see `TASK-FIRST-MIGRATION.md`) |
-| E | all | monetization regions (R5/R6), density tokens, container sidebar |
-| ✅ | physical | already compliant (`PhysicalCalculator`; legacy island retired in R0.5) |
+| Wave | Families (canonical) | Vehicle (phase) | State |
+|---|---|---|---|
+| A | equation, explicit-output generator, standard-form (pilots) | R1 primitives + R2/R3/R4 runtimes; BMI / Percent / Password | ✅ shipped |
+| — | monetization regions (all placements off) | R5 architecture + R6 CalculatorLayout integration + R6.1 CI gate & bridge scope | ✅ shipped |
+| — | migration program (audit → waves → policies) | **R7A** (+ R7A.1 canonical audit) | ✅ shipped |
+| B | standard-form (fit B: health-personal, geometry-simple, finance-simple) | binding-only on the certified standard-form runtime — **R7B pilot = `bmr`**, then family waves | ▶ R7B |
+| C | complex-form, equation-extension (fraction), shape-selector, random-data | certified runtime + family-safe extension; pilot per family | ⏳ |
+| D | converter, date/duration, multi-mode, dynamic-row, financial-schedule, specialized-report | **new** family runtimes; foundation → pilot → wave, one at a time | ⏳ |
+| — | above-tool order for every migrated page | `CalculatorLayout presentation="task-first"` (flips **with** each migration) | ▶ ongoing |
+| ✅ | physical/keypad | `PhysicalCalculator` (legacy island retired R0.5) | ✅ compliant |
 
-Subfamilies must be **validated individually** before the standard runtime
-claims support (per the R0 correction). No category-wide migration in one
-commit; pilots first, each behind build + `astro check` + E2E + backward-compat
+Each family is **validated individually** before its runtime claims support (per
+the R0 correction). No category-wide migration in one commit; pilots first, each
+behind build + `astro check` + unit + E2E + backward-compat + `assert:mon-off`
 gates.
 
 ## Guardrail
