@@ -10,6 +10,7 @@ import { test, expect, type Page } from '@playwright/test';
 const PILOTS = [
   { route: '/math/scientific-calculator', structure: 'keypad' },
   { route: '/health/bmi-calculator', structure: 'form' },
+  { route: '/health/bmr-calculator', structure: 'form (generalization pilot)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];

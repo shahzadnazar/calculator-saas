@@ -150,8 +150,8 @@ the date, commit and counts whenever the fleet changes.
 | Metric | Value |
 |---|---|
 | Total live calculators | **49** |
-| Migrated (task-first + shared runtime) | **4** — scientific, bmi, percent, password-generator |
-| Not migrated (legacy) | **45** |
+| Migrated (task-first + shared runtime) | **5** — scientific, bmi, **bmr**, percent, password-generator |
+| Not migrated (legacy) | **44** |
 | Approved exceptions | **0** |
 | Distinct Astro islands | **47** — statistics + standard-deviation share `StatisticsCalculator` via a `primary` prop; **scientific uses `PhysicalCalculator`** (`components/calc/`, not an island) |
 | Embed exposure | **all 49** — every calculator is served by the dynamic route `src/pages/embed/[category]/[slug].astro` (`getLiveCalculators()` → `IslandBySlug`); no per-slug embed files exist |
@@ -172,7 +172,8 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 |---|---|---|
 | `migrated` | scientific-calculator; **bmi-calculator**; **percent-calculator**; **password-generator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot (family: standard form). Accepted migration: R2 range `843d113..b7f9d44`, refined by R2.1.** **percent: equation runtime pilot (family: equation) — three INDEPENDENT equations. Accepted migration: R3 range `7460547..45e432f` (incl. R3.1 positive start; direction from operands).** **password: explicit-output generator pilot (family: generator) — no output on load, explicit Generate, settings-change → stale (kept visible, Copy off, note), Copy gated on a fresh output, strength as text, crypto-only generation never announced/stored/logged/transmitted. Accepted migration: R4 implementation `9c51c33`, docs/status `45f5e56`.** |
 | `pilot` | (none active) | The initial standard-form, equation and explicit-output generator pilots are complete. Additional calculator subfamilies still require separate pilots (each validated before binding). |
-| `not-migrated` | the other **45** live calculators | Current recurring-gap behavior; scheduled by family wave. |
+| `migrated` (R7B) | **bmr-calculator** | **First standard-form GENERALIZATION beyond BMI** (family: standard form). Task-first; empty inputs → explicit **Calculate BMR** → live-after-first; **Reset**; field-level validation + first-invalid focus; concise result `aria-live`; Metric/Imperial with in-place conversion; dominant BMR figure + a **secondary activity-level daily-calorie table** (BMR × the canonical `ACTIVITY_LEVELS`). The shared standard-form runtime was used **UNCHANGED** (no runtime extension). Sex is a native radio group so its changes flow through the runtime's `input` path. Body-metric validators/converters are replicated from BMI's accepted semantics (a later wave should extract them to a shared module). |
+| `not-migrated` | the other **44** live calculators | Current recurring-gap behavior; scheduled by family wave. |
 | `approved-exception` | (none yet) | Reserved for deliberate, documented deviations. Requires a documented user-task reason, tests and explicit matrix approval (see Ratified product decisions #7) — legacy compatibility alone is never a valid reason. |
 
 > **R2 / R2.1 note (2026-07-19):** BMI is the first standard-form migration. The
@@ -211,6 +212,24 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 > this single pilot. It reuses the shared state machine + focus helpers; the form
 > and equation runtimes (BMI, Percentage) are untouched.
 
+> **R7B note (2026-07-19):** BMR is the first standard-form GENERALIZATION beyond
+> BMI. The shared standard-form runtime (`src/lib/result/form-runtime.ts`) was used
+> **UNCHANGED** — the whole point of the pilot was to prove generalization without
+> bending the runtime to fit. New surface is confined to the BMR binding
+> (`src/lib/calculators/bmr-form.ts`): reading a sex selector (a native radio group,
+> so changes flow through the runtime's existing `input` path — no new event
+> wiring), BMR validation, Metric/Imperial conversion, and rendering a dominant BMR
+> figure + a **secondary** activity-level daily-calorie table (BMR × the canonical
+> `ACTIVITY_LEVELS` reused read-only from `calorie.ts`; the previous island only
+> cross-linked, so this is newly surfaced — the Mifflin-St Jeor formula and the
+> multipliers are unchanged). Body-metric validators/converters are replicated from
+> BMI's accepted semantics to keep BMI byte-identical; a later standard-form wave
+> should extract them to a shared body-metrics module. **Outcome: the pilot
+> SUPPORTS the planned R7C standard-form wave** — a certified runtime + a
+> per-calculator binding + a task-first presentation flip generalizes cleanly. It
+> does NOT certify multi-mode, shape-selector, converter, date/duration,
+> dynamic-row, financial-schedule or specialized-report families.
+
 ## Family classification (canonical — 49 calculators, 13 families)
 
 Primary interaction family; **(2°)** = secondary behavior. **Runtime-fit:**
@@ -223,7 +242,7 @@ family-safe extension · **D** new family runtime required. **Test coverage:**
 | Family | n | Calculators (fit; coverage) |
 |---|---|---|
 | physical/keypad | 1 | scientific ✅done (dedicated) |
-| standard form | 15 | **health (9):** bmi ✅done · bmr, body-fat, calorie, ideal-weight, protein, fat-intake *(all B)*, target-heart-rate *(B; **missing** test)*, pace *(B/C — deferred, decision 5)* · **geometry (3):** triangle *(**C** — multi-output + triangle-inequality; batch)*, square-footage *(B; batch)*, concrete *(B; batch)* · **finance-simple (3):** simple-interest *(B; dedicated)*, inflation *(B; dedicated)*, tip *(B; batch)* |
+| standard form | 15 | **health (9):** bmi ✅done · bmr ✅done *(R7B — generalization pilot; runtime unchanged)* · body-fat, calorie, ideal-weight, protein, fat-intake *(all B)*, target-heart-rate *(B; **missing** test)*, pace *(B/C — deferred, decision 5)* · **geometry (3):** triangle *(**C** — multi-output + triangle-inequality; batch)*, square-footage *(B; batch)*, concrete *(B; batch)* · **finance-simple (3):** simple-interest *(B; dedicated)*, inflation *(B; dedicated)*, tip *(B; batch)* |
 | complex form | 7 | income-tax *(brackets + filing-status parameter; batch)*, interest *(dual simple-vs-compound; **indirect**)*, interest-rate *(iterative solver; batch)*, investment *(proportion bar; dedicated)*, retirement *(multi-metric report; dedicated)*, auto-loan *(collapsible groups; dedicated)*, home-equity-loan *(LTV advisory; batch)* — all **C** |
 | shape selector | 2 | area, volume — **D** *(shape `<select>` rebuilds the input-field schema at runtime; the certified standard-form runtime assumes fixed fields; **indirect** via `gaps.test.ts`)* |
 | equation | 2 | percent ✅done (dedicated) · fraction *(**C** — operator-select operand + tri-format output; dedicated)* |
