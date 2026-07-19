@@ -16,8 +16,8 @@ R0.5 work, which shipped.
 | --- | --- | --- |
 | R0 | Audit + contracts | ✅ approved |
 | **R0.5** | **Retire the duplicate legacy Scientific island** | ✅ **shipped** |
-| R1 | Result state machine + shared result primitives | ⏳ next (own phase) |
-| R2 | Form runtime + BMI pilot | ⏳ |
+| R1 | Result state machine + shared result primitives | ✅ shipped |
+| **R2** | **Standard-form runtime + BMI pilot** | ✅ **shipped** (commit `843d113`) |
 | R3 | Equation runtime + Percentage pilot | ⏳ |
 | R4 | Generator runtime + Password pilot | ⏳ |
 | R5 | Monetization-region architecture (placeholders, off) | ⏳ |
@@ -157,3 +157,39 @@ the only Scientific Calculator UI.** Verified: zero legacy imports; live
 Scientific page, homepage, search and all pages unchanged in content (only the
 shared CSS bundle re-hashed as the obsolete styles were removed); 253 unit +
 83 E2E pass.
+
+## R1 — shipped
+
+Result state machine + shared result primitives, isolated on `/dev/result`.
+`src/lib/result/state.ts` (two-axis `ResultState`×`ResultActivity`, pure
+`reduceResult` with illegal-transition protection, sanitization, accessible
+units, single-announcement generator) + `focus.ts`; primitives in
+`src/components/result/` + scoped `src/styles/result.css`. No live page touched.
+
+## R2 — shipped (BMI standard-form pilot)
+
+The **standard-form runtime** (`src/lib/result/form-runtime.ts`) implements the
+`FormCalculatorBinding` / `FormCalculatorOptions` contracts from this document:
+pure `planFormAction` (first-calc gate, `live-after-first`, explicit/always-live,
+reset, invalid↔valid recovery, non-finite protection, announce/focus decisions)
++ `mountFormCalculator` (DOM executor — submit/reset/debounced-input/unit wiring,
+field `aria-invalid` + error association, one deduped `aria-live` announcement,
+the "Changes update automatically." note, focus/scroll via `focus.ts`).
+
+The **BMI binding** (`src/lib/calculators/bmi-form.ts`) reads/validates/converts/
+renders BMI and speaks an accessible summary; the island
+(`src/components/islands/BmiCalculator.astro`) is rebuilt task-first (empty
+initial state, `Calculate BMI` + subordinate Reset, R1 primitives, reserved
+result height so live editing never jumps). Default `recalculationMode =
+'live-after-first'`.
+
+**Scope caveat:** validated for **standard one-form calculators only**. It does
+NOT yet certify converters, date/duration, dynamic-row, multi-mode, financial
+schedules or specialized reports — one pilot does not certify the family.
+
+Verified: `astro check` 0 errors; 324 unit + 114 E2E pass; 173-page build;
+first viewport (1366×768) shows H1 + inputs + unit selector + Calculate + full
+result; backward-compat confirmed — homepage, search, reference, category and
+all non-BMI calculator pages byte-identical (embed pages carry only inert BMI
+scoped-CSS ripple; two BMI-embedding guides show the migrated tool, prose
+unchanged). SEO/schema/FAQ/content on the BMI page preserved.
