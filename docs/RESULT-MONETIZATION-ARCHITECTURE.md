@@ -1,5 +1,10 @@
 # Shared Result & Monetization Architecture
 
+> Governed by the **Global Task-Completion Psychology** doctrine
+> (`docs/TASK-COMPLETION-DOCTRINE.md`): the result hierarchy, initial-state
+> policy, recalculation model and monetization boundaries below implement it.
+> Reviews must check doctrine compliance.
+
 Approved R0 blueprint for the result-state system, per-family controllers, and
 monetization regions. This records the locked contracts and product decisions so
 R1+ implements against a fixed target. **Everything below is a plan** except the

@@ -1,5 +1,9 @@
 # Task-First Calculator Pages — Contracts & Migration Plan
 
+> Governed by the **Global Task-Completion Psychology** doctrine
+> (`docs/TASK-COMPLETION-DOCTRINE.md`). The above-tool order and density rules
+> below are one expression of it; reviews must check doctrine compliance.
+
 This document locks three product contracts (homepage calculator, task-first
 page header, global calculator search) and records the shared-layout migration.
 It is the reference for how calculator pages present the tool and trust signals.

@@ -1,5 +1,10 @@
 # AllCalculators — Product & SEO Strategy
 
+> **Non-negotiable product doctrine:** every calculator and content surface must
+> comply with **Global Task-Completion Psychology**
+> (`docs/TASK-COMPLETION-DOCTRINE.md`) and the content/density standards in
+> `docs/CONTENT-STYLE.md`. All design and migration reviews evaluate compliance.
+
 This document records the strategic decisions behind the rebuild: what we found,
 what we chose, the trade-offs, and the roadmap. It is the reference for why the
 architecture looks the way it does.
