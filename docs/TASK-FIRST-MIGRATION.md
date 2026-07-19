@@ -221,6 +221,36 @@ To be implemented with the homepage; recorded here first.
 
 ---
 
+### 5.1 Search S0 — data layer (shipped)
+
+The search **data layer** is built and unit-tested; no UI and no user-facing
+page changed (verified: the only new build artifact is `/search-index.json`).
+
+- Registry extended with optional `aliases?` / `phrases?`, curated on ~24 of the
+  49 calculators (never forced onto every one).
+- `src/lib/search.ts` — pure `normalizeSearchText`, `tokenizeSearchText`,
+  `boundedEditDistance`, `buildSearchRecords`, `rankCalculators`,
+  `findClosestSuggestion`, `searchIndexVersion`. No DOM / fetch / localStorage /
+  analytics; returns text values only, never HTML.
+- `src/pages/search-index.json.ts` → `/search-index.json`: static, **live-only**
+  index (49 records, ~4.3 KB gzipped), content-versioned for cache-busting,
+  **excluded from the sitemap**.
+
+Record shape (`CalculatorSearchRecord`): `id, title, href, category,
+taskGroups[], blurb, keywords[], aliases[], phrases[], registryOrder,
+searchPriority?`. Task-group membership is the secondary classification signal
+(no new subcategory field).
+
+Ranking bands (strong → weak): exact title → title prefix → title contains →
+full title-token coverage → exact alias/phrase → alias/phrase token coverage →
+keyword coverage → category/task-group → bounded fuzzy. Tie-break: score →
+coverage → `searchPriority` → shorter title → `registryOrder`. `searchPriority`
+is a small curated tie-break nudge only — never affiliate, sponsorship or CPC.
+
+Fuzzy rules: 1-char none, 2-char prefix-only, 3+ bounded Damerau-Levenshtein
+(distance 1 short / 2 long), applied to titles + aliases after exact/token
+matches. S1 (component) and S2 (integration) remain pending approval.
+
 ## 6. Sequencing
 
 1. ✅ Scientific task-first (bespoke) + header tightening.

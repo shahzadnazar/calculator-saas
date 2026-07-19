@@ -42,6 +42,17 @@ export interface Calculator {
   readonly description: string;
   /** Target search terms; informs internal copy, not stuffed into markup. */
   readonly keywords: readonly string[];
+  /**
+   * Optional curated search aliases — alternative names and common
+   * abbreviations. Added ONLY where they improve discovery; never forced onto
+   * every calculator. Consumed by the search index (src/lib/search.ts).
+   */
+  readonly aliases?: readonly string[];
+  /**
+   * Optional natural-language phrases people actually type ("how old am i").
+   * Added ONLY where the phrasing differs from the title/keywords.
+   */
+  readonly phrases?: readonly string[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -101,6 +112,8 @@ export const CALCULATORS: readonly Calculator[] = [
     description:
       'Estimate your monthly mortgage payment including principal, interest, property tax, insurance and PMI, with a full amortization schedule.',
     keywords: ['mortgage calculator', 'monthly mortgage payment', 'home loan calculator', 'amortization schedule'],
+    aliases: ['home loan calculator', 'house loan calculator', 'home mortgage calculator'],
+    phrases: ['house loan', 'home loan', 'monthly house payment', 'buy a house', 'mortgage payment'],
   },
   {
     slug: 'loan-calculator',
@@ -119,6 +132,8 @@ export const CALCULATORS: readonly Calculator[] = [
     description:
       'Work out car payments including down payment, trade-in, sales tax and fees.',
     keywords: ['auto loan calculator', 'car payment calculator', 'car loan'],
+    aliases: ['car loan calculator', 'car payment calculator', 'vehicle loan calculator'],
+    phrases: ['car payment', 'car loan payment', 'finance a car', 'monthly car payment'],
   },
   {
     slug: 'amortization-calculator',
@@ -169,6 +184,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Model returns on a lump sum or recurring investments over time.',
     keywords: ['investment calculator', 'return on investment', 'future value'],
+    aliases: ['roi calculator'],
+    phrases: ['investment growth', 'how my investment grows', 'future value of investment'],
   },
   {
     slug: 'retirement-calculator',
@@ -177,6 +194,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Estimate whether your savings and contributions will fund your retirement goals.',
     keywords: ['retirement calculator', 'retirement savings', '401k'],
+    aliases: ['401k calculator', 'retirement savings calculator'],
+    phrases: ['can i retire', 'retirement planning', 'save for retirement'],
   },
   {
     slug: 'savings-calculator',
@@ -209,6 +228,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Find out how long it takes to clear a credit card balance and the interest it costs.',
     keywords: ['credit card payoff calculator', 'debt payoff'],
+    aliases: ['debt payoff calculator'],
+    phrases: ['pay off credit card', 'credit card debt', 'get out of debt'],
   },
   {
     slug: 'home-equity-loan-calculator',
@@ -217,6 +238,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Estimate borrowing power and payments against your home equity.',
     keywords: ['home equity loan calculator', 'HELOC'],
+    aliases: ['heloc calculator'],
+    phrases: ['borrow against my home', 'home equity'],
   },
   {
     slug: 'salary-calculator',
@@ -225,6 +248,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Convert between hourly, monthly and annual pay.',
     keywords: ['salary calculator', 'hourly to salary'],
+    aliases: ['pay calculator', 'wage calculator'],
+    phrases: ['hourly to salary', 'salary to hourly', 'annual salary', 'yearly income'],
   },
   {
     slug: 'sales-tax-calculator',
@@ -241,6 +266,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Estimate income tax owed based on brackets and deductions.',
     keywords: ['income tax calculator', 'tax estimate'],
+    aliases: ['tax calculator'],
+    phrases: ['how much tax will i pay', 'income tax owed'],
   },
 
   {
@@ -251,6 +278,8 @@ export const CALCULATORS: readonly Calculator[] = [
     description:
       'Calculate the tip and total on a bill, and split it evenly between any number of people.',
     keywords: ['tip calculator', 'gratuity calculator', 'split the bill', 'how much to tip'],
+    aliases: ['gratuity calculator'],
+    phrases: ['tip split', 'split the bill', 'how much to tip', 'restaurant tip'],
   },
 
   /* -- Health ------------------------------------------------------ */
@@ -262,6 +291,8 @@ export const CALCULATORS: readonly Calculator[] = [
     description:
       'Calculate your Body Mass Index (BMI) from height and weight, see your WHO weight category, and your healthy weight range.',
     keywords: ['bmi calculator', 'body mass index', 'healthy weight', 'bmi chart'],
+    aliases: ['body mass index calculator', 'check my bmi'],
+    phrases: ['body mass', 'am i overweight', 'healthy weight'],
   },
   {
     slug: 'bmr-calculator',
@@ -278,6 +309,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Find your daily calorie needs for maintaining, losing or gaining weight.',
     keywords: ['calorie calculator', 'daily calories', 'tdee'],
+    aliases: ['tdee calculator', 'maintenance calorie calculator'],
+    phrases: ['how many calories', 'daily calorie needs', 'calories to lose weight'],
   },
   {
     slug: 'body-fat-calculator',
@@ -294,6 +327,7 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Find a healthy target weight range for your height using established formulas.',
     keywords: ['ideal weight calculator', 'healthy weight range'],
+    phrases: ['what should i weigh', 'healthy weight range', 'ideal body weight'],
   },
   {
     slug: 'protein-calculator',
@@ -326,6 +360,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Calculate running pace, time or distance for training and races.',
     keywords: ['pace calculator', 'running pace'],
+    aliases: ['running pace calculator'],
+    phrases: ['running pace', 'race pace', 'minutes per mile'],
   },
   {
     slug: 'due-date-calculator',
@@ -334,6 +370,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Estimate a pregnancy due date from the last menstrual period.',
     keywords: ['due date calculator', 'pregnancy due date'],
+    aliases: ['pregnancy due date calculator'],
+    phrases: ['when is my baby due', 'baby due date'],
   },
   {
     slug: 'pregnancy-calculator',
@@ -353,6 +391,8 @@ export const CALCULATORS: readonly Calculator[] = [
     description:
       'A free online scientific calculator with trigonometry, logarithms, powers, roots, factorials, memory and constants — works on any device.',
     keywords: ['scientific calculator', 'online calculator', 'trigonometry calculator', 'log calculator'],
+    aliases: ['sci calc', 'advanced calculator'],
+    phrases: ['online calculator', 'trig calculator'],
   },
   {
     slug: 'percent-calculator',
@@ -361,6 +401,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Calculate percentages, percentage change and percent-of quickly.',
     keywords: ['percentage calculator', 'percent change', 'percent of'],
+    aliases: ['percent calculator'],
+    phrases: ['percent of a number', 'percentage change', 'what percent', 'percent increase'],
   },
   {
     slug: 'fraction-calculator',
@@ -378,6 +420,8 @@ export const CALCULATORS: readonly Calculator[] = [
     description:
       'Calculate mean, median, mode, range, variance, standard deviation and quartiles from a data set, with a full five-number summary.',
     keywords: ['statistics calculator', 'mean median mode calculator', 'descriptive statistics', 'mean median mode range'],
+    aliases: ['mean median mode calculator', 'average calculator'],
+    phrases: ['mean median mode', 'find the average'],
   },
   {
     slug: 'standard-deviation-calculator',
@@ -402,6 +446,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Generate random numbers within a range, with options for uniqueness.',
     keywords: ['random number generator', 'rng'],
+    aliases: ['rng', 'random number picker'],
+    phrases: ['pick a random number', 'roll a dice'],
   },
 
   {
@@ -431,6 +477,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Calculate exact age in years, months and days from a birth date.',
     keywords: ['age calculator', 'how old am i'],
+    aliases: ['birthday calculator'],
+    phrases: ['how old am i', 'calculate my age', 'age from date of birth'],
   },
   {
     slug: 'date-calculator',
@@ -455,6 +503,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Calculate hours worked between two times, minus breaks.',
     keywords: ['hours calculator', 'work hours'],
+    aliases: ['work hours calculator', 'timesheet calculator'],
+    phrases: ['hours worked', 'hours between two times'],
   },
   {
     slug: 'gpa-calculator',
@@ -463,6 +513,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Compute grade point average from course grades and credit hours.',
     keywords: ['gpa calculator', 'grade point average'],
+    aliases: ['grade point average calculator'],
+    phrases: ['calculate my gpa'],
   },
   {
     slug: 'grade-calculator',
@@ -471,6 +523,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Find the grade you need and your weighted course average.',
     keywords: ['grade calculator', 'final grade'],
+    aliases: ['final grade calculator'],
+    phrases: ['what grade do i need', 'weighted grade average'],
   },
   {
     slug: 'concrete-calculator',
@@ -487,6 +541,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Convert length, weight, volume, temperature and more.',
     keywords: ['conversion calculator', 'unit converter'],
+    aliases: ['unit converter', 'measurement converter'],
+    phrases: ['kg to pounds', 'kilograms to pounds', 'cm to inches', 'celsius to fahrenheit', 'miles to km', 'lbs to kg'],
   },
   {
     slug: 'password-generator',
@@ -495,6 +551,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Create strong, random passwords with configurable length and characters.',
     keywords: ['password generator', 'strong password'],
+    aliases: ['random password generator'],
+    phrases: ['create a strong password', 'generate a password'],
   },
   {
     slug: 'square-footage-calculator',
