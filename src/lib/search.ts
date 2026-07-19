@@ -53,19 +53,11 @@ export interface RankedCalculatorResult {
   readonly matchedOn: 'title' | 'alias' | 'phrase' | 'keyword' | 'category' | 'fuzzy';
 }
 
-/**
- * Manual search priority — a small curated nudge used ONLY for tie-breaking
- * (e.g. so a bare "calculator" surfaces the scientific calculator first).
- * Never derived from affiliate value, sponsorship, CPC or ad potential.
- */
-const SEARCH_PRIORITY: Readonly<Record<string, number>> = {
-  'math/scientific-calculator': 10,
-  'finance/mortgage-calculator': 6,
-  'health/bmi-calculator': 6,
-  'math/percent-calculator': 5,
-  'finance/loan-calculator': 4,
-  'everyday/age-calculator': 4,
-};
+// `searchPriority` is a RESERVED optional field on CalculatorSearchRecord. It is
+// intentionally left undefined for every calculator: search ranking must never
+// use affiliate value, ad value, sponsorship, CPC or commercial relationships.
+// It may only be populated later from a documented, objective source. Empty-
+// state popularity is a SEPARATE concern (see src/data/popular-calculators.ts).
 
 /* ------------------------------------------------------------------ */
 /* Index construction (live calculators only)                          */
@@ -83,7 +75,6 @@ export function buildSearchRecords(): CalculatorSearchRecord[] {
     const category = getCategory(c.category);
     const taskGroup = getTaskGroupForCalculator(c.category, c.slug);
     const id = `${c.category}/${c.slug}`;
-    const priority = SEARCH_PRIORITY[id];
     records.push({
       id,
       title: c.title,
@@ -95,20 +86,30 @@ export function buildSearchRecords(): CalculatorSearchRecord[] {
       aliases: c.aliases ? [...c.aliases] : [],
       phrases: c.phrases ? [...c.phrases] : [],
       registryOrder: i,
-      ...(priority !== undefined ? { searchPriority: priority } : {}),
+      // searchPriority intentionally omitted — reserved, always undefined.
     });
   });
   return records;
 }
 
 /**
- * Deterministic content version for the index (FNV-1a over the stable JSON).
- * Changes only when the index content changes, so the future loader can request
- * `/search-index.json?v=<version>` for deployment-safe cache invalidation
- * without any time- or random-based value. Pure.
+ * Deterministic content hash for the index (FNV-1a). Projects ONLY the fields
+ * that affect search or display — title, href, category, task groups, blurb,
+ * keywords, aliases, phrases — so the hash changes exactly when that content
+ * changes, and is stable against registryOrder-only churn. No time/random.
  */
 export function searchIndexVersion(records: CalculatorSearchRecord[]): string {
-  const json = JSON.stringify(records);
+  const projection = records.map((r) => [
+    r.title,
+    r.href,
+    r.category,
+    r.taskGroups,
+    r.blurb,
+    r.keywords,
+    r.aliases,
+    r.phrases,
+  ]);
+  const json = JSON.stringify(projection);
   let h = 0x811c9dc5;
   for (let i = 0; i < json.length; i++) {
     h ^= json.charCodeAt(i);
@@ -116,6 +117,16 @@ export function searchIndexVersion(records: CalculatorSearchRecord[]): string {
   }
   return (h >>> 0).toString(36);
 }
+
+/**
+ * The current index content hash and its fingerprinted URL, computed once at
+ * module load from the registry (pure). The build emits the index at exactly
+ * this path, and the future search component receives SEARCH_INDEX_URL as a
+ * build-time prop — so the URL changes whenever searchable content changes,
+ * giving deployment-safe cache invalidation without relying on CDN purge.
+ */
+export const SEARCH_INDEX_VERSION: string = searchIndexVersion(buildSearchRecords());
+export const SEARCH_INDEX_URL: string = `/search-index/${SEARCH_INDEX_VERSION}.json`;
 
 /* ------------------------------------------------------------------ */
 /* Normalization & tokenization (pure)                                 */
@@ -140,6 +151,28 @@ export function normalizeSearchText(value: string): string {
 export function tokenizeSearchText(value: string): string[] {
   const n = normalizeSearchText(value);
   return n ? n.split(' ').filter(Boolean) : [];
+}
+
+/**
+ * Broad "just a calculator" discovery queries. There is no dedicated Basic
+ * Calculator page yet, so these must NOT drive a relevance list (which would
+ * arbitrarily surface one calculator). The UI shows the curated popular set for
+ * them instead — keeping organic relevance and empty-state popularity separate.
+ */
+const BROAD_DISCOVERY_QUERIES: ReadonlySet<string> = new Set([
+  'calculator',
+  'calculators',
+  'online calculator',
+  'calc',
+  'calclator',
+  'calculater',
+  'calulator',
+  'a calculator',
+  'the calculator',
+]);
+
+export function isBroadDiscoveryQuery(query: string): boolean {
+  return BROAD_DISCOVERY_QUERIES.has(normalizeSearchText(query));
 }
 
 /* ------------------------------------------------------------------ */

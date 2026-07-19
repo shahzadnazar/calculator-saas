@@ -7,8 +7,12 @@ import {
   tokenizeSearchText,
   boundedEditDistance,
   searchIndexVersion,
+  isBroadDiscoveryQuery,
+  SEARCH_INDEX_VERSION,
+  SEARCH_INDEX_URL,
 } from './search';
 import { getLiveCalculators, CALCULATORS } from '@data/calculators';
+import { getPopularCalculatorIds, POPULAR_CALCULATOR_IDS } from '@data/popular-calculators';
 
 const RECORDS = buildSearchRecords();
 const results = (q: string) => rankCalculators(q, RECORDS);
@@ -164,15 +168,22 @@ describe('fuzzy matching', () => {
 /* Tie-breaking & determinism                                          */
 /* ------------------------------------------------------------------ */
 
-describe('tie-breaking', () => {
+describe('tie-breaking & broad discovery queries', () => {
   it('is deterministic across calls', () => {
     expect(titles('calculator')).toEqual(titles('calculator'));
   });
-  it('uses searchPriority to break an otherwise exact tie', () => {
-    // Every "X Calculator" title contains "calculator" → same band; priority wins.
-    expect(top('calculator')).toBe('Scientific Calculator');
-    // Fuzzy variant resolves the same way.
-    expect(top('calclator')).toBe('Scientific Calculator');
+  it('does NOT force Scientific first for a generic "calculator" query', () => {
+    // With searchPriority removed, generic queries resolve by relevance +
+    // shorter-title/registryOrder — never a manual push to Scientific.
+    expect(top('calculator')).not.toBe('Scientific Calculator');
+    expect(top('calclator')).not.toBe('Scientific Calculator');
+  });
+  it('flags broad discovery queries (the UI shows the popular set for these)', () => {
+    for (const q of ['calculator', 'calculators', 'online calculator', 'calc', 'calclator']) {
+      expect(isBroadDiscoveryQuery(q)).toBe(true);
+    }
+    expect(isBroadDiscoveryQuery('mortgage')).toBe(false);
+    expect(isBroadDiscoveryQuery('bmi')).toBe(false);
   });
 });
 
@@ -227,4 +238,62 @@ describe('required example queries', () => {
       expect(top(query)).toBe(expected);
     });
   }
+});
+
+/* ------------------------------------------------------------------ */
+/* S0.1 — fingerprinted index, priority removal, popular data          */
+/* ------------------------------------------------------------------ */
+
+describe('S0.1 corrections', () => {
+  it('exposes a fingerprinted index URL matching the content hash', () => {
+    expect(SEARCH_INDEX_VERSION).toBe(searchIndexVersion(RECORDS));
+    expect(SEARCH_INDEX_URL).toBe(`/search-index/${SEARCH_INDEX_VERSION}.json`);
+    expect(SEARCH_INDEX_URL).toMatch(/^\/search-index\/[a-z0-9]+\.json$/);
+  });
+
+  it('changes the version when searchable content changes', () => {
+    const base = searchIndexVersion(RECORDS);
+    const changedTitle = RECORDS.map((r, i) => (i === 0 ? { ...r, title: `${r.title} X` } : r));
+    const changedAlias = RECORDS.map((r, i) => (i === 0 ? { ...r, aliases: [...r.aliases, 'zzz'] } : r));
+    const changedBlurb = RECORDS.map((r, i) => (i === 0 ? { ...r, blurb: `${r.blurb}.` } : r));
+    expect(searchIndexVersion(changedTitle)).not.toBe(base);
+    expect(searchIndexVersion(changedAlias)).not.toBe(base);
+    expect(searchIndexVersion(changedBlurb)).not.toBe(base);
+  });
+
+  it('is stable when only non-content fields change', () => {
+    const base = searchIndexVersion(RECORDS);
+    const reordered = RECORDS.map((r) => ({ ...r, registryOrder: r.registryOrder + 100, searchPriority: 5 }));
+    expect(searchIndexVersion(reordered)).toBe(base);
+  });
+
+  it('emits exactly 49 live records', () => {
+    expect(RECORDS.length).toBe(49);
+    expect(RECORDS.length).toBe(getLiveCalculators().length);
+  });
+
+  it('has no searchPriority on any calculator', () => {
+    for (const r of RECORDS) expect(r.searchPriority).toBeUndefined();
+  });
+
+  it('keeps popular empty-state data separate from ranking metadata', () => {
+    const ids = getPopularCalculatorIds();
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.length).toBeLessThanOrEqual(POPULAR_CALCULATOR_IDS.length);
+    const validIds = new Set(RECORDS.map((r) => r.id));
+    for (const id of ids) expect(validIds.has(id)).toBe(true);
+    // Records must not carry any popularity signal — popularity is a separate config.
+    expect('popular' in RECORDS[0]).toBe(false);
+    expect('popularity' in RECORDS[0]).toBe(false);
+  });
+
+  it('lets relevance outrank a (future) priority tie-break', () => {
+    // The strong record wins on an exact title even though the weak one carries a
+    // high priority — score is compared before priority, so priority can never
+    // override genuine relevance.
+    const strong = { ...RECORDS[0], id: 'x/strong', title: 'Zeta Calculator', href: '/x/strong', taskGroups: [], keywords: [], aliases: [], phrases: [], searchPriority: undefined };
+    const weak = { ...RECORDS[0], id: 'x/weak', title: 'Something Else', href: '/x/weak', taskGroups: [], keywords: [], aliases: [], phrases: ['zeta calculator'], searchPriority: 999 };
+    const ranked = rankCalculators('zeta calculator', [weak, strong]);
+    expect(ranked[0].record.id).toBe('x/strong');
+  });
 });
