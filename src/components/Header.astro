@@ -1,12 +1,14 @@
 ---
 /**
- * Site header: brand, category navigation (derived from the registry) and a
- * theme toggle. The nav is a horizontally-scrollable row on small screens —
- * robust, no hamburger JS, and works with JavaScript disabled.
+ * Site header: brand, task-first navigation (derived from the task registry)
+ * and a theme toggle. The primary nav leads with what visitors want to DO, not
+ * the tool taxonomy — that lives in the footer as a secondary "browse by type"
+ * view. The nav is a horizontally-scrollable row on small screens — robust, no
+ * hamburger JS, and works with JavaScript disabled.
  */
 import Logo from '@components/Logo.astro';
 import Icon from '@components/Icon.astro';
-import { CATEGORIES_ORDERED, categoryPath } from '@data/calculators';
+import { TASK_GROUPS_ORDERED, taskPath } from '@data/tasks';
 
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 const isActive = (path: string) => currentPath === path || currentPath.startsWith(path + '/');
@@ -21,23 +23,24 @@ const isActive = (path: string) => currentPath === path || currentPath.startsWit
       <Logo />
     </a>
 
-    <nav aria-label="Calculator categories" class="min-w-0 flex-1">
+    <nav aria-label="Calculators by task" class="min-w-0 flex-1">
       <ul class="flex items-center gap-1 overflow-x-auto md:justify-center [scrollbar-width:none] [-ms-overflow-style:none]">
         {
-          CATEGORIES_ORDERED.map((cat) => (
+          TASK_GROUPS_ORDERED.map((group) => (
             <li class="shrink-0">
               <a
-                href={categoryPath(cat)}
-                class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
+                href={taskPath(group)}
+                class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold transition-colors"
                 style={
-                  isActive(categoryPath(cat))
+                  isActive(taskPath(group))
                     ? 'color: var(--color-brand-700); background: var(--color-brand-50)'
                     : 'color: var(--fg)'
                 }
-                aria-current={isActive(categoryPath(cat)) ? 'page' : undefined}
+                aria-current={isActive(taskPath(group)) ? 'page' : undefined}
+                title={group.question}
               >
-                <Icon name={cat.icon} size={16} />
-                <span>{cat.shortName}</span>
+                <Icon name={group.icon} size={16} />
+                <span>{group.shortName}</span>
               </a>
             </li>
           ))
@@ -47,19 +50,14 @@ const isActive = (path: string) => currentPath === path || currentPath.startsWit
 
     <div class="flex shrink-0 items-center gap-1">
       <a
-        href="/topics"
-        class="hidden rounded-lg px-3 py-2 text-sm font-semibold sm:inline-flex"
-        style={isActive('/topics') ? 'color: var(--color-brand-700)' : 'color: var(--fg)'}>Topics</a
-      >
-      <a
         href="/guides"
-        class="hidden rounded-lg px-3 py-2 text-sm font-semibold sm:inline-flex"
+        class="hidden rounded-lg px-3 py-2 text-sm font-semibold lg:inline-flex"
         style={isActive('/guides') ? 'color: var(--color-brand-700)' : 'color: var(--fg)'}>Guides</a
       >
       <a
         href="/calculators"
-        class="hidden rounded-lg px-3 py-2 text-sm font-semibold sm:inline-flex"
-        style="color: var(--fg)">All calculators</a
+        class="hidden rounded-lg px-3 py-2 text-sm font-semibold lg:inline-flex"
+        style="color: var(--fg)">All</a
       >
       <button
         type="button"
