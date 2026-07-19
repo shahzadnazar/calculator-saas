@@ -18,10 +18,7 @@ export function mount(root: Element): void {
   const mainEl = q<HTMLElement>('[data-calc-main]')!;
   const live = q<HTMLElement>('[data-calc-live]')!;
   const displayEl = q<HTMLElement>('[data-calc-display]')!;
-  const keypads = {
-    basic: q<HTMLElement>('[data-keypad="basic"]'),
-    scientific: q<HTMLElement>('[data-keypad="scientific"]'),
-  };
+  const sciPanel = q<HTMLElement>('[data-sci-panel]');
   const modeSwitch = q<HTMLElement>('[data-mode-switch]');
   const angleSwitch = q<HTMLElement>('[data-angle-switch]');
 
@@ -61,11 +58,12 @@ export function mount(root: Element): void {
   modeSwitch?.querySelectorAll<HTMLButtonElement>('.seg-btn').forEach((b) => {
     b.addEventListener('click', () => {
       const mode = (b.dataset.mode as Feature) ?? 'basic';
-      engine.setFeature(mode);
+      engine.setFeature(mode); // preserves expression/value/Ans/angle
       activate(modeSwitch, b);
-      if (keypads.basic) keypads.basic.hidden = mode !== 'basic';
-      if (keypads.scientific) keypads.scientific.hidden = mode !== 'scientific';
-      if (angleSwitch) angleSwitch.hidden = mode !== 'scientific';
+      // Reveal the function panel above the (unchanged, still-visible) Basic keypad.
+      if (sciPanel) sciPanel.hidden = mode !== 'scientific';
+      // Deg/Rad appears without shifting layout (visibility, reserved space).
+      if (angleSwitch) angleSwitch.classList.toggle('is-hidden', mode !== 'scientific');
       render();
     });
   });

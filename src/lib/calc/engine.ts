@@ -97,6 +97,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
   let justEvaluated = false; // display currently holds a computed result
   let repeat: { op: Op; operand: number } | null = null; // for repeated '='
   let announce: string | null = null;
+  let lastExprDisplay: string | null = null; // the "A op B =" line shown after equals
 
   const last = (): Tok | undefined => tokens[tokens.length - 1];
   const lastNum = (): NumTok | undefined => {
@@ -172,6 +173,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
   const startFresh = () => {
     tokens = [];
     justEvaluated = false;
+    lastExprDisplay = null;
   };
 
   const resetError = () => {
@@ -223,6 +225,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
     announce = null;
     justEvaluated = false;
     repeat = null;
+    lastExprDisplay = null;
     const l = last();
     if (!l) {
       // Leading operator: seed a zero so "− 5" etc. is well-defined.
@@ -270,6 +273,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
   function negate() {
     if (error) return;
     announce = null;
+    lastExprDisplay = null;
     const t = lastNum();
     // No-op if there is no current operand (e.g. right after an operator).
     if (!t || last()!.t !== 'num' || t.s === '') return;
@@ -286,6 +290,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
   function percent() {
     if (error) return;
     announce = null;
+    lastExprDisplay = null;
     const t = lastNum();
     if (!t || last()!.t !== 'num' || t.s === '' || t.pct) return;
     // Find the operator immediately before this operand.
@@ -313,8 +318,10 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
     if (error) return;
     try {
       let result: number;
+      let exprDisplay: string | null = null;
       const hasOp = tokens.some((t) => t.t === 'op') && last()?.t === 'num';
       if (hasOp) {
+        exprDisplay = tokens.map(renderTok).join('').trim();
         result = evalTokens();
         // Remember the last binary op + operand for repeated '='.
         let opIdx = -1;
@@ -328,10 +335,12 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
       } else if (tokens.length <= 1 && repeat) {
         // Repeated equals: apply the remembered op+operand to the current result.
         const base = tokens.length === 1 && tokens[0].t === 'num' ? numValue(tokens[0] as NumTok) : ans;
+        exprDisplay = `${formatDisplay(base)} ${OP_SYMBOL[repeat.op]} ${formatDisplay(repeat.operand)}`;
         result = applyOp(base, repeat.op, repeat.operand);
       } else if (tokens.length === 1 && tokens[0].t === 'num') {
-        result = numValue(tokens[0] as NumTok);
+        result = numValue(tokens[0] as NumTok); // just "n =" — no expression to show
       } else {
+        exprDisplay = tokens.map(renderTok).join('').trim();
         result = evalTokens();
       }
       ans = result;
@@ -339,6 +348,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
       tokens = [{ t: 'num', s: shown.replace(/^-/, ''), neg: shown.startsWith('-'), exact: result }];
       justEvaluated = true;
       announce = shown;
+      lastExprDisplay = exprDisplay ? `${exprDisplay} =` : null;
       error = null;
     } catch (err) {
       error =
@@ -352,6 +362,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
 
   function backspace() {
     announce = null;
+    lastExprDisplay = null;
     if (error) {
       resetError();
       return;
@@ -390,22 +401,26 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
     feature = next; // keypad visibility only; buffer/Ans/angle preserved
   }
 
+  /**
+   * Display contract (secondary must never duplicate the main value):
+   *   fresh        → sub "",            main "0"
+   *   entering N   → sub "",            main N
+   *   during expr  → sub "A op",        main <active operand> (or "0" awaiting it)
+   *   after equals → sub "A op B =",    main <result>
+   */
   function view(): View {
-    if (error) {
-      return { main: error, sub: '', error, announce, ans, angle };
+    if (error) return { main: error, sub: '', error, announce, ans, angle };
+    if (justEvaluated) {
+      return { main: renderTok(tokens[0]).trim() || '0', sub: lastExprDisplay ?? '', error: null, announce, ans, angle };
     }
-    const t = lastNum();
-    const typing = t && last()!.t === 'num';
-    const main = justEvaluated
-      ? renderTok(tokens[0]).trim()
-      : typing
-        ? (t!.s === '' ? '0' : renderTok(t!).trim())
-        : '0';
-    const subToks = justEvaluated ? tokens : typing ? tokens.slice(0, -1) : tokens;
-    const sub = justEvaluated
-      ? `${tokens.map(renderTok).join('').trim()}`
-      : subToks.map(renderTok).join('').trim();
-    return { main, sub, error: null, announce, ans, angle };
+    if (tokens.length === 0) return { main: '0', sub: '', error: null, announce, ans, angle };
+    const l = tokens[tokens.length - 1];
+    if (l.t === 'num') {
+      const before = tokens.slice(0, -1).map(renderTok).join('').trim();
+      return { main: renderTok(l).trim() || '0', sub: before, error: null, announce, ans, angle };
+    }
+    // Last token is an operator/function → awaiting the next operand.
+    return { main: '0', sub: tokens.map(renderTok).join('').trim(), error: null, announce, ans, angle };
   }
 
   return {

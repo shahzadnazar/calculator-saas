@@ -26,15 +26,21 @@ import PhysicalCalculator from '@components/calc/PhysicalCalculator.astro';
     <div class="mt-8 grid gap-10 lg:grid-cols-2">
       <div>
         <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
-          Basic + Scientific (mode switch)
+          Full — Basic + Scientific (mode switch)
         </h2>
-        <PhysicalCalculator id="demo-a" defaultMode="basic" showModeSwitch={true} />
+        <PhysicalCalculator id="demo-a" defaultMode="basic" showModeSwitch={true} size="full" />
       </div>
       <div>
         <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
-          Scientific (fixed) — second instance
+          Scientific (fixed) — function panel + shared Basic keypad
         </h2>
-        <PhysicalCalculator id="demo-b" defaultMode="scientific" showModeSwitch={false} />
+        <PhysicalCalculator id="demo-b" defaultMode="scientific" showModeSwitch={false} size="full" />
+      </div>
+      <div>
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
+          Compact (homepage variant) — Basic
+        </h2>
+        <PhysicalCalculator id="demo-c" defaultMode="basic" showModeSwitch={true} size="compact" />
       </div>
     </div>
   </div>

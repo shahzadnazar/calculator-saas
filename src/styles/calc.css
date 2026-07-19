@@ -1,8 +1,10 @@
 /* --------------------------------------------------------------------------
    Physical-calculator styles (scoped, imported by PhysicalCalculator).
-   Deliberately NOT in global.css during Phase 1 — the shared `.seg` control and
-   density promotion happen in a later, screenshot-validated pass. Uses existing
-   design tokens + color-mix so it adapts to light and dark automatically.
+   Not in global.css during Phase 1/1.1 — `.seg` promotion + density happen in a
+   later, screenshot-validated pass. Uses existing tokens + color-mix so it
+   adapts to light and dark automatically.
+   Semantic key colors: numbers neutral · ±/% neutral utility · operators
+   blue-tinted · equals solid blue · AC red · backspace neutral ghost.
    -------------------------------------------------------------------------- */
 
 .calc-shell {
@@ -16,6 +18,7 @@
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 12px 32px -20px rgb(15 23 42 / 0.28);
 }
 
+/* One stable control row: mode switch left, Deg/Rad right (reserved in Basic). */
 .calc-top {
   display: flex;
   align-items: center;
@@ -24,7 +27,7 @@
   min-height: 2.25rem;
   margin-bottom: 0.75rem;
 }
-.calc-angle[hidden] { display: none; }
+.calc-angle.is-hidden { visibility: hidden; } /* reserve space → no layout shift */
 
 /* Segmented control (generalized `.unit-btn`/`.mode-btn`). */
 .seg {
@@ -53,15 +56,22 @@
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
 }
 
-/* Display: running expression above, current value/result below + backspace. */
+/* Display: expression + restrained backspace (upper-right), then the big value. */
 .calc-display {
   background: var(--subtle);
   border: 1px solid var(--line);
   border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 0.7rem 1rem 0.75rem;
   margin-bottom: 0.75rem;
 }
+.calc-display-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .calc-sub {
+  flex: 1;
+  min-width: 0;
   min-height: 1.25rem;
   text-align: right;
   color: var(--muted);
@@ -70,15 +80,32 @@
   overflow-x: auto;
   white-space: nowrap;
 }
-.calc-main-row { display: flex; align-items: center; gap: 0.5rem; }
+.calc-back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem; /* ≥44px target, keyboard-accessible */
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  opacity: 0.6; /* restrained: no filled box, does not compete with the result */
+  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+.calc-back:hover {
+  opacity: 1;
+  color: var(--heading);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+.calc-back:focus-visible { opacity: 1; }
 .calc-main {
-  flex: 1;
-  min-width: 0;
   text-align: right;
   color: var(--heading);
   font-weight: 700;
   font-size: 2rem;
-  line-height: 1.2;
+  line-height: 1.25;
   font-variant-numeric: tabular-nums;
   overflow-x: auto;
   white-space: nowrap;
@@ -88,26 +115,17 @@
   font-size: 1.15rem;
   font-weight: 600;
 }
-.calc-back {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem; /* ≥44px target */
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
-  background: var(--card);
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.12s ease, border-color 0.12s ease;
-}
-.calc-back:hover { color: var(--heading); border-color: var(--color-brand-400); }
 
-/* Keypads. */
+/* Keypads. Basic renders in both modes; the Scientific panel sits above it. */
 .calc-keypads > [hidden] { display: none; }
+.sci-panel {
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--line); /* subtle divider from the Basic keypad */
+}
 .keypad { display: grid; gap: 0.5rem; }
 .keypad--basic { grid-template-columns: repeat(4, 1fr); }
-.keypad--scientific { grid-template-columns: repeat(5, 1fr); gap: 0.4rem; }
+.keypad--sci-fn { grid-template-columns: repeat(5, 1fr); gap: 0.4rem; }
 
 .calc-key {
   min-height: 3rem;
@@ -125,26 +143,39 @@
 }
 .calc-key:hover { border-color: var(--color-brand-300); }
 .calc-key:active { transform: translateY(1px); }
-.keypad--scientific .calc-key { min-height: 2.7rem; font-size: 1rem; }
 
-.calc-key--op {
+/* Semantic colors. */
+.calc-key--util { /* ± and % — neutral utility, NOT green */
+  background: var(--subtle);
+  color: var(--heading);
+}
+.calc-key--op { /* operators — blue-tinted */
   color: var(--color-brand-700);
   background: color-mix(in srgb, var(--color-brand-500) 10%, var(--card));
 }
-.calc-key--fn {
-  background: var(--subtle);
-  color: var(--fg);
-  font-size: 0.9rem;
-}
-.calc-key--accent { color: var(--color-accent-700); font-weight: 700; }
-.calc-key--danger { color: var(--color-danger); font-weight: 700; }
-.calc-key--primary {
+.calc-key--danger { color: var(--color-danger); font-weight: 700; } /* AC */
+.calc-key--primary { /* equals — solid primary blue */
   background: var(--color-brand-600);
   color: #fff;
   border-color: transparent;
   box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.16);
 }
 .calc-key--primary:hover { background: var(--color-brand-700); border-color: transparent; }
+.calc-key--fn { /* scientific functions */
+  background: var(--subtle);
+  color: var(--fg);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.keypad--sci-fn .calc-key { min-height: 2.7rem; }
+
+/* Compact (homepage) variant — ~8–12% shorter, targets stay ≥44px. */
+.calc-shell[data-size='compact'] { padding: 0.7rem; }
+.calc-shell[data-size='compact'] .calc-top { min-height: 2rem; margin-bottom: 0.55rem; }
+.calc-shell[data-size='compact'] .calc-display { padding: 0.55rem 0.85rem 0.6rem; margin-bottom: 0.55rem; }
+.calc-shell[data-size='compact'] .keypad { gap: 0.4rem; }
+.calc-shell[data-size='compact'] .calc-key { min-height: 2.75rem; } /* 44px */
+.calc-shell[data-size='compact'] .calc-main { font-size: 1.85rem; }
 
 @media (prefers-reduced-motion: reduce) {
   .calc-key, .calc-back, .seg-btn { transition: none; }
@@ -154,6 +185,6 @@
   .calc-shell { max-width: 100%; padding: 0.75rem; }
   .calc-main { font-size: 1.75rem; }
   .calc-key { min-height: 3.1rem; }
-  .keypad--scientific { gap: 0.3rem; }
-  .keypad--scientific .calc-key { min-height: 2.7rem; font-size: 0.85rem; }
+  .keypad--sci-fn { gap: 0.3rem; }
+  .keypad--sci-fn .calc-key { min-height: 2.7rem; font-size: 0.82rem; }
 }

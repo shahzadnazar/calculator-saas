@@ -27,6 +27,42 @@ function press(seq: string, feature: 'basic' | 'scientific' = 'basic') {
 }
 const main = (seq: string, f?: 'basic' | 'scientific') => press(seq, f).view().main;
 
+describe('display semantics (secondary never duplicates main)', () => {
+  it('fresh: secondary blank, main 0', () => {
+    const v = createEngine().view();
+    expect(v.sub).toBe('');
+    expect(v.main).toBe('0');
+  });
+  it('entering a number: secondary blank, main = number', () => {
+    const v = press('56').view();
+    expect(v.sub).toBe('');
+    expect(v.main).toBe('56');
+  });
+  it('pending operator: secondary "56 +", main awaits operand', () => {
+    const v = press('56+').view();
+    expect(v.sub).toBe('56 +');
+    expect(v.main).toBe('0');
+  });
+  it('during expression: secondary "56 +", main = active operand', () => {
+    const v = press('56+12').view();
+    expect(v.sub).toBe('56 +');
+    expect(v.main).toBe('12');
+  });
+  it('after equals: secondary "56 + 12 =", main = result, never duplicated', () => {
+    const v = press('56+12=').view();
+    expect(v.sub).toBe('56 + 12 =');
+    expect(v.main).toBe('68');
+    expect(v.sub).not.toContain(v.main); // no duplication of the result
+  });
+  it('repeated equals updates the secondary expression', () => {
+    const e = press('5+2=');
+    e.equals();
+    const v = e.view();
+    expect(v.sub).toBe('7 + 2 =');
+    expect(v.main).toBe('9');
+  });
+});
+
 describe('basic arithmetic', () => {
   it('adds, subtracts, multiplies, divides', () => {
     expect(main('12+3=')).toBe('15');
