@@ -140,11 +140,27 @@ validation patterns, responsive density tokens, and monetization boundaries.
 
 # Fleet audit against the doctrine (baseline)
 
+**Audited:** 2026-07-19 · **Source commit:** `0e4d61c`. Re-run this audit and
+refresh the date + commit whenever the fleet changes.
+
 Grounded in the island behavior audit (48 islands; see the family classification
-below). The fleet today is uniform: it **auto-calculates prefilled example
-values and shows a result that reads as the visitor's own**, with **no explicit
-primary action, no reset, and no result `aria-live`** on 45 of 48. These are the
-doctrine gaps R1–R7 close.
+below). **The current fleet is largely noncompliant with the doctrine in the
+same recurring ways** — it mostly **auto-calculates prefilled example values and
+shows a result that reads as the visitor's own**, with **no explicit primary
+action, no reset, and no result `aria-live`** on 45 of 48. It is not
+behaviorally identical: documented exceptions exist (see below), and each is
+tracked in the migration-status table. These recurring gaps are what R1–R7 close.
+
+## Migration status (per calculator)
+
+Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
+
+| Status | Calculators | Meaning |
+|---|---|---|
+| `migrated` | scientific-calculator | Fully doctrine-compliant (PhysicalCalculator; task-first page; legacy island retired in R0.5). |
+| `pilot` | bmi-calculator, percent-calculator, password-generator | Task-first page shipped; designated result-system pilots (R2–R4). Result semantics not yet migrated. |
+| `not-migrated` | the other 44 live calculators | Current recurring-gap behavior; scheduled by family wave. |
+| `approved-exception` | (none yet) | Reserved for deliberate, documented deviations (e.g. a complex-finance tool using a clearly-labelled Example). |
 
 ## Family classification (all 48)
 
