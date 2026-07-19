@@ -1,42 +1,20 @@
 ---
 /**
- * Scientific Calculator — dedicated live page.
+ * Scientific Calculator — task-first page on the shared CalculatorLayout.
  *
- * Task-first order: the calculator sits directly under the H1 (within the first
- * viewport); long explanatory/reference content follows below. Built on
- * BaseLayout (not the shared CalculatorLayout) so its ordering is page-specific
- * and no OTHER calculator page changes. The title, description, canonical,
- * OG image and JSON-LD (WebApplication + BreadcrumbList + FAQPage, plus the
- * site-wide Organization/WebSite) are reproduced exactly, so SEO is preserved.
+ * presentation="task-first" places the calculator directly under the one-line
+ * intro and moves trust signals into the layout's "About" block below. The
+ * Scientific-specific behavior (default Scientific mode, Deg/Rad visible, no
+ * Basic/Scientific switch) lives on the PhysicalCalculator in the default slot,
+ * so the shared layout stays generic. Title, description, canonical, OG image
+ * and JSON-LD (WebApplication + BreadcrumbList + FAQPage, plus site-wide
+ * Organization/WebSite) are all produced by the layout exactly as before.
  */
-import { getCollection } from 'astro:content';
-import BaseLayout from '@layouts/BaseLayout.astro';
-import Breadcrumbs from '@components/Breadcrumbs.astro';
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
 import PhysicalCalculator from '@components/calc/PhysicalCalculator.astro';
-import {
-  getCalculator,
-  getCategory,
-  getRelatedCalculators,
-  calculatorPath,
-  categoryPath,
-} from '@data/calculators';
-import { getTaskGroupForCalculator, taskPath } from '@data/tasks';
-import { calculatorSchema, breadcrumbSchema, faqSchema } from '@lib/schema';
+import { getCalculator } from '@data/calculators';
 
 const calc = getCalculator('math', 'scientific-calculator')!;
-const category = getCategory(calc.category)!;
-const taskGroup = getTaskGroupForCalculator(calc.category, calc.slug);
-const path = calculatorPath(calc);
-const related = getRelatedCalculators(calc);
-const reviewedOn = '2026-07-17';
-const reviewedDisplay = new Date(reviewedOn + 'T00:00:00Z').toLocaleDateString('en-US', {
-  year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
-});
-
-const calcRef = `${calc.category}/${calc.slug}`;
-const relatedGuides = (await getCollection('guides', ({ data }) => !data.draft)).filter((g) =>
-  g.data.relatedCalculators.includes(calcRef),
-);
 
 const faqs = [
   { question: 'Is this scientific calculator free to use?', answer: 'Yes. Every calculator on AllCalculators is completely free, works in your browser with no sign-up, and runs entirely on your device — nothing you type is sent to a server.' },
@@ -45,160 +23,58 @@ const faqs = [
   { question: 'Does it follow the correct order of operations?', answer: 'Yes. The calculator evaluates full expressions using standard order of operations (PEMDAS/BODMAS): parentheses first, then exponents, then multiplication and division, then addition and subtraction.' },
   { question: 'Can I use my keyboard?', answer: 'Absolutely. Type numbers and operators directly, press Enter or = to evaluate, Backspace to delete, and Escape to clear. The on-screen keypad and your keyboard stay in sync.' },
 ];
-
-const crumbs = [
-  { name: 'Home', path: '/' },
-  taskGroup ? { name: taskGroup.shortName, path: taskPath(taskGroup) } : { name: category.shortName, path: categoryPath(category) },
-  { name: calc.title, path },
-];
-
-const jsonLd = [
-  calculatorSchema({ name: calc.title, description: calc.description, path, dateModified: reviewedOn }),
-  breadcrumbSchema(crumbs),
-  faqSchema(faqs),
-];
 ---
 
-<BaseLayout
-  title={calc.title}
-  description={calc.description}
-  path={path}
-  ogImage={`/og/calc-${calc.slug}.png`}
-  jsonLd={jsonLd}
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Enter an expression and calculate trigonometry, logarithms, powers and roots."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-17' }}
 >
-  <div class="wrap py-8">
-    <Breadcrumbs crumbs={crumbs} />
+  <PhysicalCalculator id="scientific-calculator" defaultMode="scientific" showModeSwitch={false} size="full" />
 
-    <!--
-      Task-first header: one breadcrumb (above), H1, one short sentence, then the
-      calculator. No second category/task eyebrow, no review date, no reference
-      or methodology link above the tool — those live below it.
-    -->
-    <header class="mt-5 max-w-3xl">
-      <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Scientific Calculator</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">
-        Enter an expression and calculate trigonometry, logarithms, powers and roots.
-      </p>
-    </header>
+  <Fragment slot="content">
+    <h2>How to use the scientific calculator</h2>
+    <p>
+      Enter a complete expression — for example <strong>sin(45) + √2 × 3</strong> — and press
+      <strong>=</strong>. Unlike a basic calculator that computes each step as you go, this calculator
+      reads your whole expression and applies the correct order of operations, so you can build complex
+      formulas naturally and review them before evaluating. Type directly or tap the keypad; press
+      <strong>Deg</strong> or <strong>Rad</strong> to set the angle mode.
+    </p>
 
-    <!-- The calculator itself — first thing under the heading, no ad before or inside it. -->
-    <section class="mt-6" aria-label="Scientific calculator tool">
-      <PhysicalCalculator id="scientific-calculator" defaultMode="scientific" showModeSwitch={false} size="full" />
-    </section>
+    <h2>Supported functions and constants</h2>
+    <ul>
+      <li><strong>Trigonometry:</strong> sin, cos, tan and their inverses (sin⁻¹, cos⁻¹, tan⁻¹). Respects the Deg/Rad toggle.</li>
+      <li><strong>Logarithms:</strong> <strong>ln</strong> is the natural log (base e) and <strong>log</strong> is base 10.</li>
+      <li><strong>Powers &amp; roots:</strong> x², x³, xʸ, eˣ, 10ˣ, √ (square root) and ∛ (cube root).</li>
+      <li><strong>Factorial:</strong> <strong>n!</strong> multiplies all whole numbers up to n (5! = 120).</li>
+      <li><strong>Constants:</strong> <strong>π</strong> ≈ 3.14159 and <strong>e</strong> ≈ 2.71828.</li>
+      <li><strong>mod</strong> (modulo), <strong>EXP</strong> (scientific-notation exponent, ×10ˣ), <strong>Ans</strong> (previous answer) and <strong>1/x</strong> (reciprocal).</li>
+    </ul>
 
-    <!-- Related calculators -->
-    {
-      related.length > 0 && (
-        <section class="mt-14" aria-labelledby="related-heading">
-          <h2 id="related-heading" class="text-2xl font-bold">Related calculators</h2>
-          <ul class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {related.map((c) => (
-              <li>
-                <a href={calculatorPath(c)} class="card flex h-full flex-col gap-1 p-4 transition-shadow hover:shadow-lg">
-                  <span class="font-semibold" style="color: var(--heading)">{c.title}</span>
-                  <span class="text-sm" style="color: var(--muted)">{c.description}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )
-    }
+    <h2>Order of operations (PEMDAS)</h2>
+    <p>
+      The calculator follows the universal order of operations: <strong>P</strong>arentheses,
+      <strong>E</strong>xponents, <strong>M</strong>ultiplication and <strong>D</strong>ivision
+      (left to right), then <strong>A</strong>ddition and <strong>S</strong>ubtraction (left to right).
+      For instance, <strong>2 + 3 × 4</strong> equals <strong>14</strong>, not 20, because multiplication
+      is applied before addition.
+    </p>
 
-    <!-- Supporting content (below the calculator, crawlable) -->
-    <div class="prose mt-14">
-      <h2>How to use the scientific calculator</h2>
-      <p>
-        Enter a complete expression — for example <strong>sin(45) + √2 × 3</strong> — and press
-        <strong>=</strong>. Unlike a basic calculator that computes each step as you go, this calculator
-        reads your whole expression and applies the correct order of operations, so you can build complex
-        formulas naturally and review them before evaluating. Type directly or tap the keypad; press
-        <strong>Deg</strong> or <strong>Rad</strong> to set the angle mode.
-      </p>
+    <h2>Degrees vs. radians</h2>
+    <p>
+      Switch between <strong>Deg</strong> and <strong>Rad</strong> at the top of the keypad. Use degrees
+      for everyday geometry and navigation; use radians for calculus and most physics. In radian mode,
+      <strong>sin(π / 2)</strong> equals 1.
+    </p>
 
-      <h2>Supported functions and constants</h2>
-      <ul>
-        <li><strong>Trigonometry:</strong> sin, cos, tan and their inverses (sin⁻¹, cos⁻¹, tan⁻¹). Respects the Deg/Rad toggle.</li>
-        <li><strong>Logarithms:</strong> <strong>ln</strong> is the natural log (base e) and <strong>log</strong> is base 10.</li>
-        <li><strong>Powers &amp; roots:</strong> x², x³, xʸ, eˣ, 10ˣ, √ (square root) and ∛ (cube root).</li>
-        <li><strong>Factorial:</strong> <strong>n!</strong> multiplies all whole numbers up to n (5! = 120).</li>
-        <li><strong>Constants:</strong> <strong>π</strong> ≈ 3.14159 and <strong>e</strong> ≈ 2.71828.</li>
-        <li><strong>mod</strong> (modulo), <strong>EXP</strong> (scientific-notation exponent, ×10ˣ), <strong>Ans</strong> (previous answer) and <strong>1/x</strong> (reciprocal).</li>
-      </ul>
-
-      <h2>Order of operations (PEMDAS)</h2>
-      <p>
-        The calculator follows the universal order of operations: <strong>P</strong>arentheses,
-        <strong>E</strong>xponents, <strong>M</strong>ultiplication and <strong>D</strong>ivision
-        (left to right), then <strong>A</strong>ddition and <strong>S</strong>ubtraction (left to right).
-        For instance, <strong>2 + 3 × 4</strong> equals <strong>14</strong>, not 20, because multiplication
-        is applied before addition.
-      </p>
-
-      <h2>Degrees vs. radians</h2>
-      <p>
-        Switch between <strong>Deg</strong> and <strong>Rad</strong> at the top of the keypad. Use degrees
-        for everyday geometry and navigation; use radians for calculus and most physics. In radian mode,
-        <strong>sin(π / 2)</strong> equals 1.
-      </p>
-
-      <h2>Worked examples</h2>
-      <ul>
-        <li><strong>Compound growth:</strong> 1000 × (1 + 0.05)^10 estimates a balance after 10 years at 5%.</li>
-        <li><strong>Right-triangle side:</strong> √(3² + 4²) = 5.</li>
-        <li><strong>Probability:</strong> combinations use factorials, e.g. 10! / (3! × 7!).</li>
-      </ul>
-    </div>
-
-    <!-- FAQ -->
-    <section class="mt-14 max-w-3xl" aria-labelledby="faq-heading">
-      <h2 id="faq-heading" class="text-2xl font-bold">Frequently asked questions</h2>
-      <div class="mt-5 space-y-3">
-        {
-          faqs.map((f) => (
-            <details class="card group px-5 py-4">
-              <summary class="flex cursor-pointer items-center justify-between gap-4 font-semibold" style="color: var(--heading)">
-                {f.question}
-                <span class="shrink-0 transition-transform group-open:rotate-45" style="color: var(--color-brand-600)" aria-hidden="true">+</span>
-              </summary>
-              <p class="mt-3" style="color: var(--fg)">{f.answer}</p>
-            </details>
-          ))
-        }
-      </div>
-    </section>
-
-    <!-- References, guides & review information -->
-    <section class="mt-14 max-w-3xl border-t pt-8" style="border-color: var(--line)" aria-labelledby="about-heading">
-      <h2 id="about-heading" class="text-2xl font-bold">About this calculator</h2>
-      <p class="mt-3 inline-flex items-center gap-1.5 text-sm" style="color: var(--muted)">
-        <svg class="h-4 w-4" style="color: var(--color-accent-600)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        Method reviewed for accuracy on {reviewedDisplay}
-      </p>
-      <p class="mt-3 text-sm" style="color: var(--fg)">
-        Every expression is parsed and evaluated with a transparent, unit-tested engine that never uses
-        <code>eval()</code> — see <a href="/methodology" class="font-semibold hover:underline" style="color: var(--color-brand-600)">how we build our calculators</a>.
-        Calculations run entirely in your browser and never leave your device.
-      </p>
-      {
-        relatedGuides.length > 0 && (
-          <ul class="mt-5 space-y-3">
-            {relatedGuides.map((g) => (
-              <li>
-                <a href={`/guides/${g.id}`} class="card flex items-center justify-between gap-4 p-4 transition-shadow hover:shadow-lg">
-                  <span>
-                    <span class="font-semibold" style="color: var(--heading)">{g.data.title}</span>
-                    <span class="mt-0.5 block text-sm" style="color: var(--muted)">{g.data.description}</span>
-                  </span>
-                  <span aria-hidden="true" style="color: var(--color-brand-600)">→</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )
-      }
-    </section>
-  </div>
-</BaseLayout>
+    <h2>Worked examples</h2>
+    <ul>
+      <li><strong>Compound growth:</strong> 1000 × (1 + 0.05)^10 estimates a balance after 10 years at 5%.</li>
+      <li><strong>Right-triangle side:</strong> √(3² + 4²) = 5.</li>
+      <li><strong>Probability:</strong> combinations use factorials, e.g. 10! / (3! × 7!).</li>
+    </ul>
+  </Fragment>
+</CalculatorLayout>

@@ -1,0 +1,46 @@
+import { test, expect, type Page } from '@playwright/test';
+
+/**
+ * Task-first layout contract — asserted on every migrated pilot, one per
+ * interaction structure (keypad, form, equation, generator). Order must be:
+ * breadcrumb → H1 → short intro → calculator → supporting content →
+ * review/reference metadata. Nothing (eyebrow, review date, reference,
+ * methodology) may appear above the calculator.
+ */
+const PILOTS = [
+  { route: '/math/scientific-calculator', structure: 'keypad' },
+  { route: '/health/bmi-calculator', structure: 'form' },
+  { route: '/math/percent-calculator', structure: 'equation' },
+  { route: '/everyday/password-generator', structure: 'generator' },
+];
+
+const tool = (page: Page) => page.locator('section[aria-label$=" tool"]');
+
+for (const { route, structure } of PILOTS) {
+  test.describe(`task-first (${structure}): ${route}`, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.goto(route, { waitUntil: 'domcontentloaded' });
+    });
+
+    test('order: H1 → tool → About; tool within the first viewport', async ({ page }) => {
+      const h1 = await page.getByRole('heading', { level: 1 }).boundingBox();
+      const t = await tool(page).boundingBox();
+      const about = await page.getByRole('heading', { name: 'About this calculator' }).boundingBox();
+      expect(h1!.y).toBeLessThan(t!.y); // calculator sits below the heading/intro
+      expect(t!.y).toBeLessThan(about!.y); // review/reference metadata is below the tool
+      expect(t!.y).toBeLessThan(800); // the complete tool begins in the first desktop viewport
+    });
+
+    test('no eyebrow, review date, reference or methodology above the tool', async ({ page }) => {
+      // The page header holds only the H1 + one-sentence intro — no eyebrow links.
+      await expect(page.locator('header:has(h1) a')).toHaveCount(0);
+      const t = await tool(page).boundingBox();
+      // Review date renders in the "About" block, strictly below the tool.
+      const review = await page.getByText(/Method reviewed for accuracy on/).boundingBox();
+      expect(review!.y).toBeGreaterThan(t!.y);
+      // The methodology link is below the tool too.
+      const method = await page.getByRole('link', { name: /how we build our calculators/i }).boundingBox();
+      expect(method!.y).toBeGreaterThan(t!.y);
+    });
+  });
+}
