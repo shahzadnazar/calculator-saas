@@ -253,6 +253,18 @@ describe('scientific evaluation (delegated to the safe parser)', () => {
     e.inputToken('sin(', 'sin('); e.inputDigit('3'); e.inputDigit('0'); e.inputToken(')', ')'); e.equals();
     expect(Number(e.view().main)).toBeCloseTo(0.5, 10);
   });
+  it('never surfaces Infinity — x/0 in scientific mode reports divide-by-zero', () => {
+    const e = createEngine({ feature: 'scientific' });
+    e.inputDigit('5'); e.inputOp('/'); e.inputDigit('0'); e.equals();
+    expect(e.view().error).toBe('Cannot divide by zero');
+    expect(e.view().main).not.toMatch(/Infinity/);
+  });
+  it('resolves contextual percent correctly in scientific mode (no modulo mishap)', () => {
+    const e = createEngine({ feature: 'scientific' });
+    e.inputDigit('2'); e.inputDigit('0'); e.inputDigit('0'); e.inputOp('+'); e.inputDigit('1'); e.inputDigit('0'); e.percent(); e.equals();
+    expect(e.view().main).toBe('220');
+    expect(e.view().error).toBeNull();
+  });
 });
 
 describe('mode switch preserves state', () => {

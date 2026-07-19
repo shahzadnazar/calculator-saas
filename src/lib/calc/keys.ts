@@ -60,8 +60,8 @@ export const BASIC_KEYS: KeyDef[] = [
   { ...d('0'), span: 2 }, DOT, EQ,
 ];
 
-const ANS: KeyDef = { label: 'Ans', aria: 'answer', act: { kind: 'ans' }, kind: 'fn' };
-const RECIP: KeyDef = { label: '1/x', aria: 'reciprocal', act: { kind: 'reciprocal' }, kind: 'fn' };
+const ANS: KeyDef = { label: 'Ans', aria: 'Previous answer', act: { kind: 'ans' }, kind: 'fn' };
+const RECIP: KeyDef = { label: '1/x', aria: 'Reciprocal', act: { kind: 'reciprocal' }, kind: 'fn' };
 
 /**
  * Scientific FUNCTION panel, rendered above the Basic keypad.
@@ -84,7 +84,7 @@ export const SCI_GRID_KEYS: KeyDef[] = [
 ];
 
 export const SCI_FINAL_KEYS: KeyDef[] = [
-  fn('mod', 'mod', 'modulo', ' mod '), ANS, fn('EXP', '*10^', 'times ten to the power', '×10^'), RECIP,
+  fn('mod', 'mod', 'Modulo', ' mod '), ANS, fn('EXP', '*10^', 'Enter exponent in scientific notation', '×10^'), RECIP,
 ];
 
 /** Requested scientific keys NOT surfaced, and why (reported, never faked). */

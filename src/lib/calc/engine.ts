@@ -155,12 +155,29 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
     }
   }
 
+  /**
+   * Assemble an evaluator-ready string. Unlike the display, this substitutes a
+   * percent token's RESOLVED value and a result token's FULL-PRECISION value,
+   * and parenthesises negatives/results — so the safe parser gets correct maths
+   * even for "200 + 10%" or a continued high-precision result.
+   */
+  const evalString = (): string =>
+    tokens
+      .map((t) => {
+        if (t.t === 'op') return OP_SYMBOL[t.s];
+        if (t.t === 'sci') return t.display;
+        if (t.pct && t.resolved != null) return `(${t.resolved})`;
+        if (t.exact != null) return `(${t.exact})`;
+        const body = t.s === '' ? '0' : t.s;
+        return t.neg ? `(-${body})` : body;
+      })
+      .join('');
+
   /** Evaluate the whole buffer → number (throws CalculatorError on failure). */
   const evalTokens = (): number => {
     if (tokens.length === 0) throw new CalculatorError('Empty expression');
     if (hasSci() || feature === 'scientific') {
-      const expr = tokens.map(renderTok).join('');
-      return evaluate(expr, angle);
+      return evaluate(evalString(), angle);
     }
     const r = evalBasic(tokens);
     if (!Number.isFinite(r)) throw new CalculatorError('Result is not a number');
@@ -382,6 +399,9 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
         exprDisplay = tokens.map(renderTok).join('').trim();
         result = evalTokens();
       }
+      // The safe parser returns Infinity for x/0 (it only throws on NaN); in a
+      // calculator that reads as divide-by-zero. Never surface Infinity.
+      if (!Number.isFinite(result)) throw new CalculatorError('__divzero__');
       ans = result;
       const shown = formatDisplay(result);
       tokens = [{ t: 'num', s: shown.replace(/^-/, ''), neg: shown.startsWith('-'), exact: result }];

@@ -25,19 +25,12 @@ test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
-test('basic keypad calculation', async ({ page }) => {
-  await tap(page, 'demo-a', ['1', '2', 'add', '3', 'equals']);
-  expect((await mainText(page))?.trim()).toBe('15');
-});
+// NOTE: basic keypad calculation, hardware keyboard, reciprocal and
+// division-by-zero recovery are exercised on the live route in
+// scientific-page.spec.ts. This file keeps only behaviors that need Basic mode,
+// the mode switch, or multiple instances — not available on the live page yet.
 
-test('hardware-keyboard calculation', async ({ page }) => {
-  await page.locator('#demo-a [data-calc-display]').click(); // activate
-  await page.keyboard.type('9*9');
-  await page.keyboard.press('Enter');
-  expect((await mainText(page))?.trim()).toBe('81');
-});
-
-test('contextual percentage', async ({ page }) => {
+test('contextual percentage (basic mode)', async ({ page }) => {
   await tap(page, 'demo-a', ['2', '0', '0', 'add', '1', '0', 'percent', 'equals']);
   expect((await mainText(page))?.trim()).toBe('220');
 });
@@ -64,20 +57,6 @@ test('decimal restrictions', async ({ page }) => {
   expect((await mainText(page))?.trim()).toBe('7'); // no uncontrolled leading zeros
 });
 
-test('reciprocal (1/x)', async ({ page }) => {
-  await page.locator('#demo-a [data-mode-switch] button[data-mode="scientific"]').click();
-  await tap(page, 'demo-a', ['8']);
-  await fkey(page, 'demo-a', 'reciprocal').click();
-  expect((await mainText(page))?.trim()).toBe('0.125');
-});
-
-test('division-by-zero error and recovery', async ({ page }) => {
-  await tap(page, 'demo-a', ['5', 'divide', '0', 'equals']);
-  expect((await mainText(page))?.trim()).toBe('Cannot divide by zero');
-  await tap(page, 'demo-a', ['7']); // a digit begins a new calculation
-  expect((await mainText(page))?.trim()).toBe('7');
-});
-
 test('basic/scientific switching keeps the basic keypad present', async ({ page }) => {
   await expect(page.locator('#demo-a .sci-panel')).toBeHidden();
   await page.locator('#demo-a [data-mode-switch] button[data-mode="scientific"]').click();
@@ -102,7 +81,7 @@ test('expression, Ans and angle preservation across mode switch', async ({ page 
   await page.locator('#demo-a [data-mode-switch] button[data-mode="scientific"]').click();
   await expect(page.locator('#demo-a [data-angle-switch] button[data-angle="rad"]')).toHaveAttribute('aria-checked', 'true');
   await bkey(page, 'demo-a', 'all clear').click();
-  await fkey(page, 'demo-a', 'answer').click(); // Ans
+  await fkey(page, 'demo-a', 'Previous answer').click(); // Ans
   expect((await mainText(page))?.trim()).toBe('8');
 });
 
