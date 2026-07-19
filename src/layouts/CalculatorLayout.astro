@@ -2,12 +2,27 @@
 /**
  * CalculatorLayout — the shared skeleton for every calculator page.
  *
- * A page supplies its registry entry, FAQs and review date; this layout derives
- * SEO metadata, breadcrumbs, calculator + breadcrumb + FAQ structured data, and
- * lays out the tool, explainer content, FAQ and related calculators. New
- * calculators get all of this for free.
+ * A page supplies its registry entry, intro, FAQs and review metadata; this
+ * layout derives SEO metadata, breadcrumbs, calculator + breadcrumb + FAQ
+ * structured data, and lays out the tool, explainer content, FAQ and related
+ * calculators. New calculators get all of this for free.
  *
- * Slots: default = the interactive tool; "content" = long-form explainer prose.
+ * Presentation modes:
+ *   'legacy'     — original arrangement: category eyebrow + review metadata
+ *                  above the tool. This is the default, so un-migrated pages
+ *                  render exactly as before.
+ *   'task-first' — one breadcrumb, H1, one-sentence intro, then the calculator
+ *                  immediately; trust signals (review date, methodology,
+ *                  references) move into an "About" block below the tool.
+ *
+ * Slots:
+ *   default        — the interactive tool (standardized position).
+ *   "belowTool"    — optional region directly under the tool (result
+ *                    explanation, assumptions) — placed before the long content.
+ *   "content"      — free-form explainer prose; the page controls the order of
+ *                    how-to / formulas / examples / assumptions within it.
+ * The header and calculator order are standardized; lower educational content
+ * may vary per page via the "content" slot and the "belowTool" region.
  */
 import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
@@ -32,16 +47,48 @@ interface FAQ {
   answer: string;
 }
 
+/**
+ * Single source of truth for a calculator's trust signals. The layout decides
+ * WHERE these render from `presentation`; pages never hand-render review dates
+ * or reference links.
+ */
+export interface CalculatorReviewMetadata {
+  /** ISO date the method was last reviewed (EEAT signal). */
+  reviewedDate?: string;
+  /** Label shown beside the review date. Defaults to "Method reviewed for accuracy". */
+  methodLabel?: string;
+  /** Extra citations as {label, href}; internal reference-data pages are added automatically. */
+  references?: Array<{ label: string; href: string }>;
+}
+
 interface Props {
   calculator: Calculator;
-  /** Optional lead paragraph overriding the registry description. */
-  intro?: string;
+  /** One task-focused sentence stating exactly what the tool calculates. Required. */
+  intro: string;
   faqs?: FAQ[];
-  /** ISO date this calculator's method was last reviewed (EEAT signal). */
+  /** Presentation mode; defaults to 'legacy' so un-migrated pages are unchanged. */
+  presentation?: 'legacy' | 'task-first';
+  /** Structured trust signals (review date, method label, references). */
+  reviewMetadata?: CalculatorReviewMetadata;
+  /** Legacy shorthand for reviewMetadata.reviewedDate; still used by un-migrated pages. Prefer reviewMetadata on new/migrated pages. */
   reviewedOn?: string;
 }
 
-const { calculator, intro, faqs = [], reviewedOn } = Astro.props;
+const {
+  calculator,
+  intro,
+  faqs = [],
+  presentation = 'legacy',
+  reviewMetadata,
+  reviewedOn,
+} = Astro.props;
+
+const taskFirst = presentation === 'task-first';
+
+// Normalize trust signals to one shape (structured prop wins; legacy string is a fallback).
+const review = reviewMetadata ?? (reviewedOn ? { reviewedDate: reviewedOn } : undefined);
+const methodLabel = review?.methodLabel ?? 'Method reviewed for accuracy';
+
 const category = getCategory(calculator.category)!;
 const path = calculatorPath(calculator);
 const related = getRelatedCalculators(calculator);
@@ -66,19 +113,26 @@ const crumbs = [
 ];
 
 const jsonLd = [
-  calculatorSchema({ name: calculator.title, description: calculator.description, path, dateModified: reviewedOn }),
+  calculatorSchema({ name: calculator.title, description: calculator.description, path, dateModified: review?.reviewedDate }),
   breadcrumbSchema(crumbs),
   ...(faqs.length ? [faqSchema(faqs)] : []),
 ];
 
-const reviewedDisplay = reviewedOn
-  ? new Date(reviewedOn + 'T00:00:00Z').toLocaleDateString('en-US', {
+const reviewedDisplay = review?.reviewedDate
+  ? new Date(review.reviewedDate + 'T00:00:00Z').toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       timeZone: 'UTC',
     })
   : null;
+
+// Internal reference-data pages (registry) + any extra citations from metadata,
+// unified into one list for the task-first "About" block.
+const aboutReferences = [
+  ...references.map((r) => ({ label: r.shortName, href: referencePath(r) })),
+  ...(review?.references ?? []),
+];
 ---
 
 <BaseLayout
@@ -92,31 +146,35 @@ const reviewedDisplay = reviewedOn
     <Breadcrumbs crumbs={crumbs} />
 
     <header class="mt-5 max-w-3xl">
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
-        {
-          taskGroup ? (
-            <Fragment>
-              <Icon name={taskGroup.icon} size={16} />
-              <a href={taskPath(taskGroup)} class="hover:underline">{taskGroup.title}</a>
-              <span aria-hidden="true" style="color: var(--muted)">·</span>
-              <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
-            </Fragment>
-          ) : (
-            <Fragment>
-              <Icon name={category.icon} size={16} />
-              <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
-            </Fragment>
-          )
-        }
-      </div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
+      {
+        !taskFirst && (
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
+            {
+              taskGroup ? (
+                <Fragment>
+                  <Icon name={taskGroup.icon} size={16} />
+                  <a href={taskPath(taskGroup)} class="hover:underline">{taskGroup.title}</a>
+                  <span aria-hidden="true" style="color: var(--muted)">·</span>
+                  <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
+                </Fragment>
+              ) : (
+                <Fragment>
+                  <Icon name={category.icon} size={16} />
+                  <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
+                </Fragment>
+              )
+            }
+          </div>
+        )
+      }
+      <h1 class={taskFirst ? 'text-3xl font-extrabold tracking-tight sm:text-4xl' : 'mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl'}>
         {calculator.title}
       </h1>
       <p class="mt-3 text-lg" style="color: var(--muted)">
-        {intro ?? calculator.description}
+        {intro}
       </p>
       {
-        reviewedDisplay && (
+        !taskFirst && reviewedDisplay && (
           <p class="mt-3 inline-flex items-center gap-1.5 text-xs" style="color: var(--muted)">
             <svg class="h-4 w-4" style="color: var(--color-accent-600)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -126,7 +184,7 @@ const reviewedDisplay = reviewedOn
         )
       }
       {
-        references.length > 0 && (
+        !taskFirst && references.length > 0 && (
           <p class="mt-3 text-sm" style="color: var(--muted)">
             Reference:{' '}
             {references.map((r, i) => (
@@ -143,10 +201,11 @@ const reviewedDisplay = reviewedOn
     </header>
 
     <!-- Interactive tool -->
-    <section class="mt-8" aria-label={`${calculator.title} tool`}>
+    <section class={taskFirst ? 'mt-6' : 'mt-8'} aria-label={`${calculator.title} tool`}>
       <slot />
     </section>
-
+    {/* Optional region hugging the tool (result explanation, assumptions); emits nothing unless a page fills it. */}
+    {Astro.slots.has('belowTool') && <slot name="belowTool" />}
     <AdSlot placement="below-tool" class="mt-10 max-w-3xl" />
 
     <!-- Explainer content -->
@@ -217,6 +276,40 @@ const reviewedDisplay = reviewedOn
               </li>
             ))}
           </ul>
+        </section>
+      )
+    }
+
+    {/* Trust signals (task-first): review date, methodology and references, below the tool */}
+    {
+      taskFirst && (reviewedDisplay || aboutReferences.length > 0) && (
+        <section class="mt-16 max-w-3xl border-t pt-8" style="border-color: var(--line)" aria-labelledby="about-heading">
+          <h2 id="about-heading" class="text-2xl font-bold">About this calculator</h2>
+          {reviewedDisplay && (
+            <p class="mt-3 inline-flex items-center gap-1.5 text-sm" style="color: var(--muted)">
+              <svg class="h-4 w-4" style="color: var(--color-accent-600)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {methodLabel} on {reviewedDisplay}
+            </p>
+          )}
+          <p class="mt-3 text-sm" style="color: var(--fg)">
+            Built on transparent, unit-tested formulas that run entirely in your browser — see{' '}
+            <a href="/methodology" class="font-semibold hover:underline" style="color: var(--color-brand-600)">how we build our calculators</a>.
+          </p>
+          {aboutReferences.length > 0 && (
+            <p class="mt-3 text-sm" style="color: var(--muted)">
+              References:{' '}
+              {aboutReferences.map((r, i) => (
+                <Fragment>
+                  {i > 0 && ', '}
+                  <a href={r.href} class="font-semibold hover:underline" style="color: var(--color-brand-600)">
+                    {r.label}
+                  </a>
+                </Fragment>
+              ))}
+            </p>
+          )}
         </section>
       )
     }
