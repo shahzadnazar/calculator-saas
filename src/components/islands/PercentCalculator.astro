@@ -1,78 +1,240 @@
 ---
 /**
- * Percentage calculator island — three common questions in one view.
- * SSR defaults + live recompute via src/lib/calculators/percent.ts.
+ * Percentage calculator island (R3 — equation runtime pilot).
+ *
+ * Three INDEPENDENT natural-language equations, each its own `<form
+ * data-equation>` bound to a separate equation-runtime instance
+ * (@lib/result/equation-runtime) with the percentage bindings
+ * (@lib/calculators/percent-form). Task-first: operands start EMPTY, results
+ * empty, a task-specific Calculate per equation, live-after-first, per-equation
+ * Reset and announcement. Nothing an equation does can affect another.
  */
-import { percentOf, whatPercent, percentChange } from '@lib/calculators/percent';
-import { formatNumber } from '@lib/format';
-
-const d = { a1: 15, b1: 200, a2: 30, b2: 200, a3: 200, b3: 250 };
-const fmt = (v: number) => (Number.isNaN(v) ? '—' : formatNumber(v, 2));
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-4 sm:grid-cols-1" data-percent>
-  <!-- Mode 1 -->
-  <div class="card p-5" data-pc-row="of">
-    <p class="result-label">What is a percentage of a number?</p>
-    <div class="mt-3 flex flex-wrap items-center gap-2 text-lg">
+<div class="pct mx-auto grid w-full max-w-3xl gap-4" data-percent>
+  <!-- Equation 1 — What is X% of Y? -->
+  <form class="eq card" data-equation="percent-of" novalidate aria-label="What is a percentage of a number">
+    <p class="eq-q">What is a percentage of a number?</p>
+    <div class="eq-line">
       <span>What is</span>
-      <input class="field w-24" type="number" data-pc="p" value={d.a1} inputmode="decimal" aria-label="percent" />
-      <span>% of</span>
-      <input class="field w-32" type="number" data-pc="v" value={d.b1} inputmode="decimal" aria-label="value" />
-      <span>=</span>
-      <strong class="text-xl" style="color: var(--color-brand-700)" data-pc-out>{fmt(percentOf(d.a1, d.b1))}</strong>
+      <span class="eq-in">
+        <input id="pof-percent" name="percent" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="15" aria-label="percentage" aria-describedby="pof-percent-error" />
+        <span class="eq-suffix">%</span>
+      </span>
+      <span>of</span>
+      <input id="pof-value" name="value" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="200" aria-label="value" aria-describedby="pof-value-error" />
+      <span>?</span>
     </div>
-  </div>
-
-  <!-- Mode 2 -->
-  <div class="card p-5" data-pc-row="what">
-    <p class="result-label">A number is what percent of another?</p>
-    <div class="mt-3 flex flex-wrap items-center gap-2 text-lg">
-      <input class="field w-32" type="number" data-pc="part" value={d.a2} inputmode="decimal" aria-label="part" />
-      <span>is what % of</span>
-      <input class="field w-32" type="number" data-pc="whole" value={d.b2} inputmode="decimal" aria-label="whole" />
-      <span>=</span>
-      <strong class="text-xl" style="color: var(--color-brand-700)"><span data-pc-out>{fmt(whatPercent(d.a2, d.b2))}</span>%</strong>
+    <p class="eq-error" id="pof-percent-error" data-error-for="percent" hidden></p>
+    <p class="eq-error" id="pof-value-error" data-error-for="value" hidden></p>
+    <div class="eq-actions">
+      <button type="submit" class="btn btn-primary eq-btn">Calculate amount</button>
+      <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
+      <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
     </div>
-  </div>
+    <ResultShell density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Amount result" class="eq-result">
+      <EmptyResult message="Enter the values, then calculate the amount." />
+      <div data-result-when="valid">
+        <ResultSummary label="Amount">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+      </div>
+      <InvalidResult message="Enter both values to calculate." />
+      <ResultAnnouncement id="pof-live" />
+    </ResultShell>
+  </form>
 
-  <!-- Mode 3 -->
-  <div class="card p-5" data-pc-row="change">
-    <p class="result-label">Percentage increase or decrease</p>
-    <div class="mt-3 flex flex-wrap items-center gap-2 text-lg">
+  <!-- Equation 2 — X is what percentage of Y? -->
+  <form class="eq card" data-equation="what-percent" novalidate aria-label="A number is what percentage of another">
+    <p class="eq-q">A number is what percentage of another?</p>
+    <div class="eq-line">
+      <input id="wp-part" name="part" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="50" aria-label="value" aria-describedby="wp-part-error" />
+      <span>is what percent of</span>
+      <input id="wp-whole" name="whole" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="200" aria-label="total value" aria-describedby="wp-whole-error" />
+      <span>?</span>
+    </div>
+    <p class="eq-error" id="wp-part-error" data-error-for="part" hidden></p>
+    <p class="eq-error" id="wp-whole-error" data-error-for="whole" hidden></p>
+    <div class="eq-actions">
+      <button type="submit" class="btn btn-primary eq-btn">Calculate percentage</button>
+      <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
+      <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
+    </div>
+    <ResultShell density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Percentage result" class="eq-result">
+      <EmptyResult message="Enter both values, then calculate the percentage." />
+      <div data-result-when="valid">
+        <ResultSummary label="Percentage">
+          <ResultValue value="—" unit="%" size="text-3xl" />
+        </ResultSummary>
+      </div>
+      <InvalidResult message="Enter both values to calculate." />
+      <ResultAnnouncement id="wp-live" />
+    </ResultShell>
+  </form>
+
+  <!-- Equation 3 — Percentage change from X to Y? -->
+  <form class="eq card" data-equation="percent-change" novalidate aria-label="Percentage change from one value to another">
+    <p class="eq-q">What is the percentage change from one value to another?</p>
+    <div class="eq-line">
       <span>From</span>
-      <input class="field w-32" type="number" data-pc="from" value={d.a3} inputmode="decimal" aria-label="from" />
+      <input id="pc-from" name="from" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="80" aria-label="starting value" aria-describedby="pc-from-error" />
       <span>to</span>
-      <input class="field w-32" type="number" data-pc="to" value={d.b3} inputmode="decimal" aria-label="to" />
-      <span>=</span>
-      <strong class="text-xl" style="color: var(--color-brand-700)" data-pc-out>{fmt(percentChange(d.a3, d.b3))}%</strong>
-      <span class="text-sm" style="color: var(--muted)" data-pc-dir>increase</span>
+      <input id="pc-to" name="to" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="100" aria-label="ending value" aria-describedby="pc-to-error" />
+      <span>?</span>
     </div>
-  </div>
+    <p class="eq-error" id="pc-from-error" data-error-for="from" hidden></p>
+    <p class="eq-error" id="pc-to-error" data-error-for="to" hidden></p>
+    <div class="eq-actions">
+      <button type="submit" class="btn btn-primary eq-btn">Calculate percentage change</button>
+      <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
+      <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
+    </div>
+    <ResultShell density="compact" minHeight="6rem" placeholderAlignment="center" boxed={false} label="Percentage change result" class="eq-result">
+      <EmptyResult message="Enter both values, then calculate the change." />
+      <div data-result-when="valid">
+        <ResultSummary label="Percentage change">
+          <ResultValue value="—" unit="%" size="text-3xl" />
+        </ResultSummary>
+        <p class="eq-direction" data-eq-direction></p>
+      </div>
+      <InvalidResult message="Enter both values to calculate." />
+      <ResultAnnouncement id="pc-live" />
+    </ResultShell>
+  </form>
 </div>
 
-<script>
-  import { percentOf, whatPercent, percentChange } from '@lib/calculators/percent';
-  import { formatNumber } from '@lib/format';
-
-  const fmt = (v: number) => (Number.isNaN(v) ? '—' : formatNumber(v, 2));
-
-  document.querySelectorAll<HTMLElement>('[data-percent]').forEach((root) => {
-    const val = (row: string, key: string) => {
-      const el = root.querySelector<HTMLInputElement>(`[data-pc-row="${row}"] [data-pc="${key}"]`);
-      return el ? Number(el.value) : NaN;
-    };
-    const out = (row: string) => root.querySelector<HTMLElement>(`[data-pc-row="${row}"] [data-pc-out]`)!;
-
-    function recompute() {
-      out('of').textContent = fmt(percentOf(val('of', 'p'), val('of', 'v')));
-      out('what').textContent = fmt(whatPercent(val('what', 'part'), val('what', 'whole')));
-      const change = percentChange(val('change', 'from'), val('change', 'to'));
-      out('change').textContent = `${fmt(change)}%`;
-      const dir = root.querySelector<HTMLElement>('[data-pc-dir]')!;
-      dir.textContent = Number.isNaN(change) ? '' : change > 0 ? 'increase' : change < 0 ? 'decrease' : 'no change';
+<style>
+  .eq {
+    padding: 1.1rem 1.25rem;
+  }
+  .eq-q {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 0 0 0.75rem;
+  }
+  .eq-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.05rem;
+    color: var(--heading);
+  }
+  .eq-in {
+    display: inline-flex;
+    align-items: stretch;
+  }
+  .eq-field {
+    width: 6rem;
+    text-align: right;
+  }
+  .eq-in .eq-field {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .eq-suffix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.6rem;
+    border: 1px solid var(--line);
+    border-left: 0;
+    border-radius: 0 0.5rem 0.5rem 0;
+    background: var(--subtle);
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .eq-error {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .eq-error {
+      color: #fca5a5;
     }
-    root.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .eq-error {
+    color: #fca5a5;
+  }
+  .eq-actions {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+  .eq-btn {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+  }
+  .eq-live-note {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .eq-result {
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--line);
+  }
+  .eq-direction {
+    margin: 0.15rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .eq-direction[data-direction='increase'] {
+    color: #059669;
+  }
+  .eq-direction[data-direction='decrease'] {
+    color: #e11d48;
+  }
+  .eq-direction[data-direction='none'] {
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import {
+    mountEquationCalculator,
+    type EquationCalculatorBinding,
+  } from '@lib/result/equation-runtime';
+  import {
+    percentOfBinding,
+    whatPercentBinding,
+    percentChangeBinding,
+  } from '@lib/calculators/percent-form';
+
+  type EqKind = 'percent-of' | 'what-percent' | 'percent-change';
+  // A heterogeneous registry: each binding has its own operand type, so the
+  // registry value type is intentionally operand-agnostic (the runtime is
+  // generic and each is mounted against its own matching form).
+  const BINDINGS: Record<EqKind, EquationCalculatorBinding<unknown, number>> = {
+    'percent-of': percentOfBinding as EquationCalculatorBinding<unknown, number>,
+    'what-percent': whatPercentBinding as EquationCalculatorBinding<unknown, number>,
+    'percent-change': percentChangeBinding as EquationCalculatorBinding<unknown, number>,
+  };
+  const LABELS: Record<EqKind, string> = {
+    'percent-of': 'Calculate amount',
+    'what-percent': 'Calculate percentage',
+    'percent-change': 'Calculate percentage change',
+  };
+
+  document.querySelectorAll<HTMLFormElement>('form[data-equation]').forEach((form) => {
+    const kind = form.dataset.equation as EqKind;
+    const binding = BINDINGS[kind];
+    if (!binding) return;
+    mountEquationCalculator(form, binding, {
+      calculateButtonLabel: LABELS[kind],
+      recalculationMode: 'live-after-first',
+    });
   });
 </script>
