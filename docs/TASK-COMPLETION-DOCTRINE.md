@@ -157,8 +157,8 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 
 | Status | Calculators | Meaning |
 |---|---|---|
-| `migrated` | scientific-calculator; **bmi-calculator**; **percent-calculator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot (family: standard form). Accepted migration: R2 range `843d113..b7f9d44`, refined by R2.1 (imperial-height semantics; shared `placeholderAlignment` API).** **percent: equation runtime pilot (family: equation) — three INDEPENDENT equations, each its own form + runtime instance, empty initial state, task-specific Calculate + per-equation Reset, live-after-first, scoped validation/`aria-invalid`/`aria-live`/focus, direction as text. Accepted migration: R3 range `7460547..434ce1b`, refined by R3.1 (percentage-change starting value must be > 0; direction derived from comparing new vs start, not the percent sign).** |
-| `pilot` | password-generator | Task-first page shipped; designated result-system pilot (R4 generator). Result semantics not yet migrated. |
+| `migrated` | scientific-calculator; **bmi-calculator**; **percent-calculator**; **password-generator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot (family: standard form). Accepted migration: R2 range `843d113..b7f9d44`, refined by R2.1.** **percent: equation runtime pilot (family: equation) — three INDEPENDENT equations. Accepted migration: R3 range `7460547..434ce1b`, refined by R3.1 (positive start; direction from operands).** **password: explicit-output generator pilot (family: generator) — no output on load, explicit Generate, settings-change → stale (kept visible, Copy off, note), Copy gated on a fresh output, strength as text, crypto-only generation never announced/stored/logged/transmitted. Accepted migration: R4 commit `9c51c33`.** |
+| `pilot` | (none) | R1–R4 pilots migrated; further waves are family rollouts, not new pilots. |
 | `not-migrated` | the other 44 live calculators | Current recurring-gap behavior; scheduled by family wave. |
 | `approved-exception` | (none yet) | Reserved for deliberate, documented deviations (e.g. a complex-finance tool using a clearly-labelled Example). |
 
@@ -184,6 +184,19 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 > this single pilot; each remaining equation tool must be validated before
 > binding. The runtime reuses the shared result state machine + focus helpers;
 > the standard-form runtime (and BMI) are untouched.
+
+> **R4 note (2026-07-19):** Password is the first generator migration. The shared
+> generator runtime (`src/lib/result/generator-runtime.ts`) owns the
+> explicit-generation gate, stale-on-settings-change (kept visible, Copy off, no
+> silent regeneration), Copy availability and reset; `stale` is generator
+> metadata (`data-stale`) layered over `valid`, NOT a new global ResultState.
+> Announcements only ever carry `generated | stale | error | none` — never output
+> content; the password is read from the DOM at copy time and is never stored,
+> logged, put in a URL or transmitted. **Known limitations:** certified for
+> **explicit-output generators only** (settings → Generate → one output). The
+> **Random Number Generator and the wider generator family are NOT migrated** on
+> this single pilot. It reuses the shared state machine + focus helpers; the form
+> and equation runtimes (BMI, Percentage) are untouched.
 
 ## Family classification (all 48)
 

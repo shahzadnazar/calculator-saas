@@ -19,7 +19,7 @@ R0.5 work, which shipped.
 | R1 | Result state machine + shared result primitives | ✅ shipped |
 | **R2** | **Standard-form runtime + BMI pilot** | ✅ **shipped** (`843d113..b7f9d44`, +R2.1 `c18041c`) |
 | **R3** | **Equation runtime + Percentage pilot** | ✅ **shipped** (`7460547..434ce1b`, +R3.1 positive-start semantics) |
-| R4 | Generator runtime + Password pilot | ⏳ |
+| **R4** | **Generator runtime + Password pilot** | ✅ **shipped** (commit `9c51c33`) |
 | R5 | Monetization-region architecture (placeholders, off) | ⏳ |
 | R6 | CalculatorLayout monetization integration | ⏳ |
 | R7 | Full validation + docs | ⏳ |
@@ -222,3 +222,35 @@ viewport; backward-compat confirmed — only the Percentage page changed (plus t
 inert IslandBySlug scoped-CSS ripple on embed pages); homepage, search, guides,
 references, category/directory, monetization and BMI byte-identical.
 SEO/schema/FAQ/content on the Percentage page preserved.
+
+## R4 — shipped (Password generator pilot)
+
+The **generator runtime** (`src/lib/result/generator-runtime.ts`) implements the
+`GeneratorBinding` / `GeneratorOptions` contracts: pure `planGeneratorAction` +
+`mountGeneratorCalculator`. Explicit Generate is the only path to output; a
+settings change never silently regenerates — with `invalidateOutputOn
+SettingsChange` (default true) it marks the existing output **stale** (kept
+visible, Copy disabled, "Settings changed…" note) instead of losing it. Copy is
+available only for a fresh valid output. `stale` is generator metadata
+(`data-stale`) layered over `valid` — NOT a new global ResultState. The runtime
+never announces / stores / logs / transmits the output; announcements carry only
+`generated | stale | error | none`; the password is read from the DOM at copy
+time.
+
+The **password binding** (`src/lib/calculators/password-form.ts`) validates
+length + character types (min length ≥ class count → the selection can never be
+silently violated) and delegates generation to the reviewed secure generator
+(`crypto.getRandomValues`, one char per selected class, Fisher–Yates shuffle),
+unchanged. `describeOutput` is content-free.
+
+**Scope caveat:** certified for **explicit-output generators only** — NOT every
+generator/random-data tool. The Random Number Generator and the wider generator
+family are not certified by this one pilot.
+
+Verified: `astro check` 0 errors; 379 unit + 142 E2E pass; 173-page build; first
+viewport (1366×768) shows settings + Generate + output location; security E2E
+prove no password in aria-live / storage / URL / network / console (+ Copy
+success and failure). Backward-compat confirmed — homepage, search, guides,
+references, category/directory, monetization, BMI and Percentage byte-identical;
+only the Password page changed (+ inert IslandBySlug scoped-CSS ripple).
+SEO/schema/FAQ/content on the Password page preserved.
