@@ -144,13 +144,14 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   </form>
 
   <!-- Result -->
-  <!-- `flex flex-col justify-center` (shared Tailwind utilities — no bespoke
-       global CSS) reserves the valid height and vertically centres whichever
-       state is shown, so live editing never jumps and the empty/invalid
-       placeholders read as intentional rather than a void. -->
+  <!-- `!flex flex-col justify-center` (shared Tailwind utilities — no bespoke
+       global CSS; the `!` wins over the primitive's `.result-shell{display:block}`)
+       reserves the valid height and vertically centres whichever state is shown,
+       so live editing never jumps and the empty/invalid placeholders read as
+       intentional rather than a void. -->
   <ResultShell
     id="bmi-result"
-    class="flex flex-col justify-center"
+    class="!flex flex-col justify-center"
     state="empty"
     density="standard"
     label="Your BMI result"
