@@ -217,10 +217,10 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   // A heterogeneous registry: each binding has its own operand type, so the
   // registry value type is intentionally operand-agnostic (the runtime is
   // generic and each is mounted against its own matching form).
-  const BINDINGS: Record<EqKind, EquationCalculatorBinding<unknown, number>> = {
-    'percent-of': percentOfBinding as EquationCalculatorBinding<unknown, number>,
-    'what-percent': whatPercentBinding as EquationCalculatorBinding<unknown, number>,
-    'percent-change': percentChangeBinding as EquationCalculatorBinding<unknown, number>,
+  const BINDINGS: Record<EqKind, EquationCalculatorBinding<unknown, unknown>> = {
+    'percent-of': percentOfBinding as EquationCalculatorBinding<unknown, unknown>,
+    'what-percent': whatPercentBinding as EquationCalculatorBinding<unknown, unknown>,
+    'percent-change': percentChangeBinding as EquationCalculatorBinding<unknown, unknown>,
   };
   const LABELS: Record<EqKind, string> = {
     'percent-of': 'Calculate amount',

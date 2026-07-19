@@ -66,12 +66,17 @@ export function validateWhatPercent(o: WhatPercentOperands): ValidationResult {
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
 
-/** Equation 3 — "Change from X to Y?" X, Y present + finite; X (the start) ≠ 0. */
+/**
+ * Equation 3 — "Change from X to Y?" The starting value X must be present,
+ * finite and GREATER THAN ZERO (a non-positive start can invert the apparent
+ * direction and mislead). The new value Y must be present and finite; Y may be
+ * zero or negative.
+ */
 export function validatePercentChange(o: PercentChangeOperands): ValidationResult {
   const fieldErrors: Record<string, string> = {};
   const from = parseFinite(o.from);
   if (!isNum(from)) fieldErrors.from = 'Enter the starting value.';
-  else if (from === 0) fieldErrors.from = 'The starting value must not be zero.';
+  else if (from <= 0) fieldErrors.from = 'Enter a starting value greater than zero.';
   if (!isNum(parseFinite(o.to))) fieldErrors.to = 'Enter the ending value.';
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
@@ -87,16 +92,33 @@ export function describePercentage(pct: number): string {
   return `${formatNumber(pct, 2)} percent`;
 }
 export type ChangeDirection = 'increase' | 'decrease' | 'no change';
-export function changeDirection(change: number): ChangeDirection {
-  if (change > 0) return 'increase';
-  if (change < 0) return 'decrease';
+
+/**
+ * Direction is derived by comparing the NEW value with the STARTING value —
+ * NOT from the sign of the percentage result. With a positive start these agree,
+ * but deriving from the operands is unambiguous and avoids a misleading
+ * consumer result (e.g. a negative start could invert the apparent direction).
+ */
+export function changeDirection(from: number, to: number): ChangeDirection {
+  if (to > from) return 'increase';
+  if (to < from) return 'decrease';
   return 'no change';
 }
+
+export interface PercentChangeResult {
+  /** Signed percentage change ((to − from) / |from| × 100). */
+  percent: number;
+  direction: ChangeDirection;
+}
+
+export function computePercentChangeResult(from: number, to: number): PercentChangeResult {
+  return { percent: percentChange(from, to), direction: changeDirection(from, to) };
+}
+
 /** e.g. "25 percent increase", "10 percent decrease", "No change". */
-export function describePercentChange(change: number): string {
-  const dir = changeDirection(change);
-  if (dir === 'no change') return 'No change';
-  return `${formatNumber(Math.abs(change), 2)} percent ${dir}`;
+export function describePercentChange(result: PercentChangeResult): string {
+  if (result.direction === 'no change') return 'No change';
+  return `${formatNumber(Math.abs(result.percent), 2)} percent ${result.direction}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -154,21 +176,20 @@ export const whatPercentBinding: EquationCalculatorBinding<WhatPercentOperands, 
   },
 };
 
-export const percentChangeBinding: EquationCalculatorBinding<PercentChangeOperands, number> = {
+export const percentChangeBinding: EquationCalculatorBinding<PercentChangeOperands, PercentChangeResult> = {
   readOperands: (root) => ({ from: readField(root, 'from'), to: readField(root, 'to') }),
   validate: validatePercentChange,
-  compute: (o) => percentChange(Number(o.from), Number(o.to)),
-  resultValue: (r) => r,
+  compute: (o) => computePercentChangeResult(Number(o.from), Number(o.to)),
+  resultValue: (r) => r.percent,
   describeResult: describePercentChange,
   renderResult(result, ctx: EquationRenderContext) {
-    const dir = changeDirection(result);
-    const magnitude = dir === 'no change' ? formatNumber(0, 2) : formatNumber(Math.abs(result), 2);
+    const magnitude = result.direction === 'no change' ? formatNumber(0, 2) : formatNumber(Math.abs(result.percent), 2);
     setValue(ctx.result, magnitude, describePercentChange(result), PERCENT_UNIT);
-    // Direction as TEXT (never colour/arrow alone).
+    // Direction as TEXT (never colour/arrow alone), derived from the operands.
     const dirEl = ctx.result.querySelector<HTMLElement>('[data-eq-direction]');
     if (dirEl) {
-      dirEl.textContent = dir === 'no change' ? 'no change' : dir;
-      dirEl.dataset.direction = dir === 'no change' ? 'none' : dir;
+      dirEl.textContent = result.direction === 'no change' ? 'no change' : result.direction;
+      dirEl.dataset.direction = result.direction === 'no change' ? 'none' : result.direction;
     }
   },
   resetOperands(root) {

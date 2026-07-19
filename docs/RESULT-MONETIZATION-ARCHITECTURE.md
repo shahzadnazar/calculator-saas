@@ -18,7 +18,7 @@ R0.5 work, which shipped.
 | **R0.5** | **Retire the duplicate legacy Scientific island** | ✅ **shipped** |
 | R1 | Result state machine + shared result primitives | ✅ shipped |
 | **R2** | **Standard-form runtime + BMI pilot** | ✅ **shipped** (`843d113..b7f9d44`, +R2.1 `c18041c`) |
-| **R3** | **Equation runtime + Percentage pilot** | ✅ **shipped** (commit `7460547`) |
+| **R3** | **Equation runtime + Percentage pilot** | ✅ **shipped** (`7460547..434ce1b`, +R3.1 positive-start semantics) |
 | R4 | Generator runtime + Password pilot | ⏳ |
 | R5 | Monetization-region architecture (placeholders, off) | ⏳ |
 | R6 | CalculatorLayout monetization integration | ⏳ |

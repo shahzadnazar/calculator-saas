@@ -145,6 +145,24 @@ test('percentage change shows increase / decrease as words', async ({ page }) =>
   await expect(value(page, CHANGE)).toHaveText('20');
 });
 
+test('percentage change requires a starting value greater than zero (R3.1)', async ({ page }) => {
+  // Zero start is rejected.
+  await page.fill('#pc-from', '0');
+  await page.fill('#pc-to', '100');
+  await submitOf(page, CHANGE).click();
+  await expect(shell(page, CHANGE)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(page.locator(`${CHANGE} [data-error-for="from"]`)).toHaveText('Enter a starting value greater than zero.');
+  await expect(page.locator('#pc-from')).toBeFocused();
+  // A positive start with a negative new value is valid and reads as a decrease.
+  await page.fill('#pc-from', '100');
+  await page.fill('#pc-to', '-50');
+  await submitOf(page, CHANGE).click();
+  await expect(shell(page, CHANGE)).toHaveAttribute('data-result-state', 'valid');
+  await expect(value(page, CHANGE)).toHaveText('150');
+  await expect(page.locator(`${CHANGE} [data-eq-direction]`)).toHaveText('decrease');
+  await expect(liveOf(page, CHANGE)).toHaveText('150 percent decrease');
+});
+
 /* ---- Independent reset -------------------------------------------------- */
 
 test('reset clears only its own equation', async ({ page }) => {

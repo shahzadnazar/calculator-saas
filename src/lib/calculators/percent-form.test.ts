@@ -61,21 +61,24 @@ describe('validateWhatPercent ("X is what % of Y?")', () => {
   });
 });
 
-describe('validatePercentChange ("Change from X to Y?")', () => {
-  it('accepts finite X and Y, including negatives', () => {
-    expect(validatePercentChange({ from: '80', to: '100' })).toEqual({ ok: true });
-    expect(validatePercentChange({ from: '-80', to: '-100' })).toEqual({ ok: true });
+describe('validatePercentChange ("Change from X to Y?") — R3.1: positive start', () => {
+  it('accepts a positive start with any finite new value (zero or negative Y OK)', () => {
+    expect(validatePercentChange({ from: '100', to: '150' })).toEqual({ ok: true });
+    expect(validatePercentChange({ from: '100', to: '0' })).toEqual({ ok: true });
+    expect(validatePercentChange({ from: '100', to: '-50' })).toEqual({ ok: true });
   });
-  it('rejects a zero starting value', () => {
-    expect(validatePercentChange({ from: '0', to: '100' })).toMatchObject({
-      fieldErrors: { from: 'The starting value must not be zero.' },
-    });
+  it('rejects a zero or negative starting value (would invert apparent direction)', () => {
+    for (const from of ['0', '-100', '-0.5']) {
+      expect(validatePercentChange({ from, to: '100' })).toMatchObject({
+        fieldErrors: { from: 'Enter a starting value greater than zero.' },
+      });
+    }
   });
-  it('flags empty operands with distinct messages', () => {
+  it('flags empty / non-finite operands with distinct messages', () => {
     expect(validatePercentChange({ from: '', to: '100' })).toMatchObject({
       fieldErrors: { from: 'Enter the starting value.' },
     });
-    expect(validatePercentChange({ from: '80', to: '' })).toMatchObject({
+    expect(validatePercentChange({ from: '100', to: '' })).toMatchObject({
       fieldErrors: { to: 'Enter the ending value.' },
     });
   });
@@ -94,14 +97,16 @@ describe('binding.compute', () => {
     expect(whatPercentBinding.compute({ part: '50', whole: '200' })).toBe(25);
     expect(whatPercentBinding.compute({ part: '1', whole: '3' })).toBeCloseTo(33.333, 2);
   });
-  it('computes percentage increase and decrease with correct sign', () => {
-    expect(percentChangeBinding.compute({ from: '80', to: '100' })).toBe(25); // increase
-    expect(percentChangeBinding.compute({ from: '100', to: '80' })).toBe(-20); // decrease
-    expect(percentChangeBinding.compute({ from: '200', to: '200' })).toBe(0); // no change
+  it('computes percentage change with a direction derived from the operands', () => {
+    // R3.1 cases — direction from comparing new vs start, not the percent sign.
+    expect(percentChangeBinding.compute({ from: '100', to: '150' })).toEqual({ percent: 50, direction: 'increase' });
+    expect(percentChangeBinding.compute({ from: '100', to: '50' })).toEqual({ percent: -50, direction: 'decrease' });
+    expect(percentChangeBinding.compute({ from: '100', to: '100' })).toEqual({ percent: 0, direction: 'no change' });
+    expect(percentChangeBinding.compute({ from: '100', to: '-50' })).toEqual({ percent: -150, direction: 'decrease' });
   });
   it('exposes the primary value for the non-finite guard', () => {
     expect(percentOfBinding.resultValue(30)).toBe(30);
-    expect(percentChangeBinding.resultValue(-20)).toBe(-20);
+    expect(percentChangeBinding.resultValue({ percent: -20, direction: 'decrease' })).toBe(-20);
   });
 });
 
@@ -116,13 +121,15 @@ describe('descriptions', () => {
     expect(describePercentage(25)).toBe('25 percent');
   });
   it('describes a change with direction as words, not symbols', () => {
-    expect(describePercentChange(25)).toBe('25 percent increase');
-    expect(describePercentChange(-20)).toBe('20 percent decrease');
-    expect(describePercentChange(0)).toBe('No change');
+    expect(describePercentChange({ percent: 25, direction: 'increase' })).toBe('25 percent increase');
+    expect(describePercentChange({ percent: -20, direction: 'decrease' })).toBe('20 percent decrease');
+    expect(describePercentChange({ percent: -150, direction: 'decrease' })).toBe('150 percent decrease');
+    expect(describePercentChange({ percent: 0, direction: 'no change' })).toBe('No change');
   });
-  it('maps a signed change to a direction', () => {
-    expect(changeDirection(5)).toBe('increase');
-    expect(changeDirection(-5)).toBe('decrease');
-    expect(changeDirection(0)).toBe('no change');
+  it('derives direction from comparing the new value with the start', () => {
+    expect(changeDirection(100, 150)).toBe('increase');
+    expect(changeDirection(100, 50)).toBe('decrease');
+    expect(changeDirection(100, 100)).toBe('no change');
+    expect(changeDirection(100, -50)).toBe('decrease'); // new < start → decrease
   });
 });
