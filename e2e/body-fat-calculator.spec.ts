@@ -88,7 +88,7 @@ test('valid male metric result shows the dominant percentage, text category and 
   // The scale is an accessible table; the visitor's category is the highlighted row.
   await expect(bandsTable(page).locator('thead th[scope="col"]')).toHaveCount(2);
   await expect(bandsTable(page).locator('tbody th[scope="row"]')).toHaveCount(5);
-  await expect(currentBand(page).locator('th')).toHaveText('Fitness');
+  await expect(currentBand(page).locator('th')).toContainText('Fitness'); // + sr-only ownership marker
   // Percentage is visually DOMINANT over the scale cells.
   const primarySize = await primary(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   const cellSize = await page
@@ -104,7 +104,7 @@ test('valid female metric result uses hip and reports its category', async ({ pa
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
   await expect(primary(page)).toHaveText('26.4');
   await expect(category(page)).toHaveText('Average');
-  await expect(currentBand(page).locator('th')).toHaveText('Average');
+  await expect(currentBand(page).locator('th')).toContainText('Average'); // + sr-only ownership marker
 });
 
 test('valid male imperial result is finite and classified', async ({ page }) => {
@@ -142,14 +142,55 @@ test('the formula domain is enforced in plain language (waist must exceed neck)'
   await expect(err).not.toContainText(/logarithm|log10|argument/i);
 });
 
-test('a non-positive computed estimate is gated to the invalid state, never shown as a figure', async ({ page }) => {
+test('an out-of-range computed estimate is gated with the sanity message, never shown as a figure', async ({ page }) => {
   await page.fill('[name="heightCm"]', '180');
   await page.fill('[name="neckCm"]', '38');
   await page.fill('[name="waistCm"]', '39'); // waist barely above neck → negative % from the formula
   await submit(page).click();
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
   await expect(region(page, 'valid')).toBeHidden();
-  await expect(primary(page)).toHaveText('—'); // never rendered → no negative percentage surfaced
+  await expect(primary(page)).toHaveText('—'); // never rendered → no out-of-range percentage surfaced
+  await expect(page.locator('#bf-result [data-result-invalid-message]')).toHaveText(
+    'These measurements do not produce a realistic estimate. Check your measurements and try again.',
+  );
+});
+
+/* ---- Conditional hip semantics (R7C-2A.1) ------------------------------- */
+
+test('a not-applicable hip is disabled and is never focused', async ({ page }) => {
+  await expect(page.locator('[name="hipCm"]')).toBeDisabled(); // male default
+  await submit(page).click(); // empty explicit submit → first invalid (height) focused
+  await expect(page.locator('[name="heightCm"]')).toBeFocused();
+  await expect(page.locator('[name="hipCm"]')).not.toBeFocused();
+});
+
+test('preserves an entered hip value across an in-session sex switch (Female → Male → Female)', async ({ page }) => {
+  await page.check('[name="sex"][value="female"]');
+  await page.fill('[name="hipCm"]', '96');
+  await page.check('[name="sex"][value="male"]'); // hip hidden + disabled, value preserved
+  await expect(page.locator('[name="hipCm"]')).toBeHidden();
+  await expect(page.locator('[name="hipCm"]')).toBeDisabled();
+  await page.check('[name="sex"][value="female"]'); // back → enabled, value intact
+  await expect(page.locator('[name="hipCm"]')).toBeEnabled();
+  await expect(page.locator('[name="hipCm"]')).toHaveValue('96');
+});
+
+test('for women, an explicit submission with only the hip missing focuses the hip field', async ({ page }) => {
+  await page.check('[name="sex"][value="female"]');
+  await page.fill('[name="heightCm"]', '165');
+  await page.fill('[name="neckCm"]', '34');
+  await page.fill('[name="waistCm"]', '74'); // hip left empty
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(page.locator('[name="hipCm"]')).toBeFocused();
+  await expect(page.locator('[data-error-for="hipCm"]')).toHaveText('Enter your hip measurement.');
+});
+
+test('the selected category carries text ownership, not colour / aria-current alone', async ({ page }) => {
+  await calcMale(page);
+  await expect(page.locator('#bf-result .bf-class')).toContainText('Your category:');
+  await expect(page.locator('#bf-result .bf-class')).toContainText('Fitness');
+  await expect(currentBand(page)).toContainText(/your category/i); // sr-only row ownership marker
 });
 
 /* ---- Live-after-first --------------------------------------------------- */

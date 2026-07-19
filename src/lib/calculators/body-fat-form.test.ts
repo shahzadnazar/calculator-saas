@@ -5,6 +5,7 @@ import {
   computeBodyFat,
   describeBodyFatResult,
   requiredFields,
+  isRealisticBodyFat,
   bodyFatBinding,
   CATEGORY_BANDS,
   type BodyFatValues,
@@ -129,8 +130,19 @@ describe('computeBodyFat — preserved formula + classification', () => {
   });
 });
 
-describe('resultValue — finiteness + positivity gate', () => {
-  it('passes a normal positive estimate through', () => {
+describe('isRealisticBodyFat — result sanity boundary (0 < pct < 100)', () => {
+  it('accepts a finite estimate strictly between 0 and 100', () => {
+    for (const ok of [0.1, 5, 16.1, 50, 99.9]) expect(isRealisticBodyFat(ok)).toBe(true);
+  });
+  it('rejects every boundary: ≤ 0, = 100, > 100, NaN, ±Infinity', () => {
+    for (const bad of [-91.6, -0.1, 0, 100, 100.1, 150, NaN, Infinity, -Infinity]) {
+      expect(isRealisticBodyFat(bad)).toBe(false);
+    }
+  });
+});
+
+describe('resultValue + validate — sanity gate', () => {
+  it('passes a normal realistic estimate through', () => {
     expect(bodyFatBinding.resultValue(computeBodyFat(maleMetric('180', '38', '85')))).toBeCloseTo(16.1, 1);
   });
   it('gates a non-positive (finite) estimate to NaN so the invalid state shows', () => {
@@ -142,6 +154,17 @@ describe('resultValue — finiteness + positivity gate', () => {
   it('gates a NaN estimate to NaN', () => {
     const r = computeBodyFat(maleMetric('180', '40', '38')); // waist < neck → NaN from the module
     expect(Number.isNaN(bodyFatBinding.resultValue(r))).toBe(true);
+  });
+  it('validate rejects a realizable out-of-range estimate with the sanity message (no field error, no jargon)', () => {
+    const r = validateBodyFatValues(maleMetric('180', '38', '39')); // in-domain, but negative %
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.formError).toBe(
+        'These measurements do not produce a realistic estimate. Check your measurements and try again.',
+      );
+      expect(r.fieldErrors).toBeUndefined();
+      expect(r.formError).not.toMatch(/logarithm|NaN|Infinity|clamp/i);
+    }
   });
 });
 

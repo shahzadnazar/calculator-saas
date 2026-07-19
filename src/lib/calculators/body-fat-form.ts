@@ -83,6 +83,16 @@ export const CATEGORY_BANDS: Record<Sex, CategoryBand[]> = {
   ],
 };
 
+/** A REALISTIC body-fat estimate: finite, strictly above 0 and below 100 percent.
+ *  The reviewed Navy formula can return a non-positive (near-degenerate inputs) or
+ *  ≥100 / non-finite value; none of those is a usable percentage. */
+export function isRealisticBodyFat(pct: number): boolean {
+  return Number.isFinite(pct) && pct > 0 && pct < 100;
+}
+
+const BODY_FAT_SANITY_MESSAGE =
+  'These measurements do not produce a realistic estimate. Check your measurements and try again.';
+
 /* ------------------------------------------------------------------ */
 /* Parsing + validation (pure)                                         */
 /* ------------------------------------------------------------------ */
@@ -153,7 +163,14 @@ export function validateBodyFatValues(values: BodyFatValues): ValidationResult {
       fieldErrors[waistKey] = 'Your waist and hip together should be larger than your neck for this method.';
     }
   }
-  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+  if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
+
+  // Final sanity: the in-domain formula can still yield a non-realistic estimate
+  // (≤0, ≥100 or non-finite). Reject in plain language — no clamp, no internals.
+  if (!isRealisticBodyFat(computeBodyFat(values).bodyFatPct)) {
+    return { ok: false, formError: BODY_FAT_SANITY_MESSAGE };
+  }
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
@@ -245,10 +262,9 @@ export const bodyFatBinding: FormCalculatorBinding<BodyFatValues, BodyFatCompute
   compute: computeBodyFat,
 
   resultValue(result) {
-    // Gate: the reviewed formula returns NaN out of domain, and can return a
-    // non-positive (finite) percentage for near-degenerate inputs — both are
-    // invalid, so surface the invalid state rather than a nonsensical figure.
-    return result.bodyFatPct > 0 ? result.bodyFatPct : NaN;
+    // Backstop gate mirroring `validate`'s sanity check: a non-realistic estimate
+    // (≤0, ≥100, non-finite) surfaces the invalid state, never a nonsensical figure.
+    return isRealisticBodyFat(result.bodyFatPct) ? result.bodyFatPct : NaN;
   },
 
   describeResult: describeBodyFatResult,
@@ -275,13 +291,21 @@ export const bodyFatBinding: FormCalculatorBinding<BodyFatValues, BodyFatCompute
     }
 
     // Category scale: fill the sex-specific ranges, mark the visitor's category.
+    // Ownership is carried by TEXT ("Your category" above + an sr-only per-row
+    // marker), not by the highlight/`aria-current` alone.
     const bands = CATEGORY_BANDS[result.sex];
     scope.querySelectorAll<HTMLElement>('[data-bf-band]').forEach((row, i) => {
       const band = bands[i];
       const rangeCell = row.querySelector<HTMLElement>('[data-bf-band-range]');
       if (band && rangeCell) rangeCell.textContent = band.range;
-      if (band && band.category === result.category) row.setAttribute('aria-current', 'true');
-      else row.removeAttribute('aria-current');
+      const own = row.querySelector<HTMLElement>('[data-bf-own]');
+      if (band && band.category === result.category) {
+        row.setAttribute('aria-current', 'true');
+        if (own) own.textContent = ' — your category';
+      } else {
+        row.removeAttribute('aria-current');
+        if (own) own.textContent = '';
+      }
     });
   },
 
@@ -294,9 +318,12 @@ export const bodyFatBinding: FormCalculatorBinding<BodyFatValues, BodyFatCompute
     const female = root.querySelector<HTMLInputElement>('[name="sex"][value="female"]');
     if (male) male.checked = true;
     if (female) female.checked = false;
-    // Restore the conditional field set for the default sex (male → hip hidden).
-    root.querySelectorAll<HTMLElement>('[data-bf-hip]').forEach((el) => {
-      el.hidden = true;
+    // Restore the conditional field set for the default sex (male → hip hidden +
+    // disabled; its value was cleared above, satisfying "Reset clears Hip").
+    root.querySelectorAll<HTMLElement>('[data-bf-hip]').forEach((wrap) => {
+      wrap.hidden = true;
+      const inp = wrap.querySelector<HTMLInputElement>('input');
+      if (inp) inp.disabled = true;
     });
   },
 

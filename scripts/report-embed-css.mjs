@@ -20,6 +20,12 @@
  * only reports, so future migrations can show cumulative growth. Re-baseline with
  * `--write-baseline` after an accepted migration.
  *
+ * Warning thresholds (advisory only — printed, never a non-zero exit). Crossing
+ * either is the signal to open a code-splitting architecture review of the
+ * IslandBySlug bundle:
+ *   - unused calculator-scoped CSS  > 20 KB raw
+ *   - total embed CSS               > 15 KB gzip
+ *
  * Usage:
  *   node scripts/report-embed-css.mjs [relativeDistPage] [--write-baseline] [--label "<text>"]
  */
@@ -142,6 +148,24 @@ if (existsSync(BASELINE)) {
   console.log(`     total ${sign(d('totalCssBytes'))} B · gzip ${sign(d('gzippedCssBytes'))} B · scoped ${sign(d('scopedCssBytes'))} B · unused ${sign(d('unusedScopedBytes'))} B · scoped-selectors ${sign(d('unusedScopedSelectors'))}`);
 } else {
   console.log(`  (no baseline yet at ${BASELINE})`);
+}
+
+/* ---- advisory warning thresholds (never fails) -------------------------- */
+const UNUSED_RAW_WARN = 20 * 1024; // 20 KB raw unused calculator-scoped CSS
+const GZIP_WARN = 15 * 1024; // 15 KB gzip total embed CSS
+const warnings = [];
+if (unusedScopedBytes > UNUSED_RAW_WARN) {
+  warnings.push(`unused scoped CSS ${unusedScopedBytes} B > ${UNUSED_RAW_WARN} B (20 KB raw)`);
+}
+if (gzippedCssBytes > GZIP_WARN) {
+  warnings.push(`total gzipped CSS ${gzippedCssBytes} B > ${GZIP_WARN} B (15 KB gzip)`);
+}
+if (warnings.length) {
+  console.log(`  ⚠ WARNING: ${warnings.join('; ')} — open a code-splitting architecture review of IslandBySlug.`);
+} else {
+  console.log(
+    `  ✓ within thresholds (unused ${unusedScopedBytes}/${UNUSED_RAW_WARN} B raw · gzip ${gzippedCssBytes}/${GZIP_WARN} B).`,
+  );
 }
 
 if (flags.has('--write-baseline')) {

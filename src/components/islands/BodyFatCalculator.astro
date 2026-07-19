@@ -77,7 +77,7 @@ const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
         <div data-field="hipCm" data-bf-hip hidden>
           <label class="field-label" for="bf-hip-cm">Hip circumference</label>
           <div class="flex">
-            <input class="field rounded-r-none" id="bf-hip-cm" name="hipCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 96" aria-describedby="bf-hipCm-error" />
+            <input class="field rounded-r-none" id="bf-hip-cm" name="hipCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 96" aria-describedby="bf-hipCm-error" disabled />
             <span class="field-affix rounded-r-lg border-l-0">cm</span>
           </div>
           <p class="bf-field-error" id="bf-hipCm-error" data-error-for="hipCm" hidden></p>
@@ -113,7 +113,7 @@ const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
         <div data-field="hipIn" data-bf-hip hidden>
           <label class="field-label" for="bf-hip-in">Hip circumference</label>
           <div class="flex">
-            <input class="field rounded-r-none" id="bf-hip-in" name="hipIn" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 38" aria-describedby="bf-hipIn-error" />
+            <input class="field rounded-r-none" id="bf-hip-in" name="hipIn" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 38" aria-describedby="bf-hipIn-error" disabled />
             <span class="field-affix rounded-r-lg border-l-0">in</span>
           </div>
           <p class="bf-field-error" id="bf-hipIn-error" data-error-for="hipIn" hidden></p>
@@ -143,7 +143,7 @@ const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
       <ResultSummary label="Estimated body fat">
         <ResultValue value="—" unit="%" />
       </ResultSummary>
-      <p class="bf-class">Category: <strong data-bf-category>—</strong></p>
+      <p class="bf-class">Your category: <strong data-bf-category>—</strong></p>
       <ResultInterpretation>
         <span data-bf-interpretation></span>
       </ResultInterpretation>
@@ -155,7 +155,7 @@ const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
           </thead>
           <tbody>
             {BANDS.map((name) => (
-              <tr data-bf-band><th scope="row">{name}</th><td class="bf-num" data-bf-band-range>—</td></tr>
+              <tr data-bf-band><th scope="row">{name}<span class="sr-only" data-bf-own></span></th><td class="bf-num" data-bf-band-range>—</td></tr>
             ))}
           </tbody>
         </table>
@@ -319,14 +319,27 @@ const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
       calculateButtonLabel: 'Calculate Body Fat',
     });
 
-    // Conditional field: the hip measurement is only for women. Keep its
-    // visibility in sync with the sex selection (before AND after the first
-    // calculation — the runtime owns recompute/validation, not field visibility).
-    // The binding re-hides it on reset and excludes it from validation for men.
+    // Conditional field: the hip measurement is only for women. Keep it in sync
+    // with the sex selection (before AND after the first calculation — the runtime
+    // owns recompute/validation, not field visibility). When not applicable the
+    // row is hidden AND its input disabled (so it leaves the keyboard + a11y order
+    // and is never submitted), and any stale hip error is cleared; the entered
+    // VALUE is preserved for an in-session switch back. The binding re-hides +
+    // disables + clears it on reset and excludes it from validation for men.
     const syncHip = () => {
       const female = root.querySelector<HTMLInputElement>('[name="sex"][value="female"]')?.checked ?? false;
-      root.querySelectorAll<HTMLElement>('[data-bf-hip]').forEach((el) => {
-        el.hidden = !female;
+      root.querySelectorAll<HTMLElement>('[data-bf-hip]').forEach((wrap) => {
+        wrap.hidden = !female;
+        const inp = wrap.querySelector<HTMLInputElement>('input');
+        if (inp) inp.disabled = !female;
+        if (!female) {
+          inp?.removeAttribute('aria-invalid');
+          const err = wrap.querySelector<HTMLElement>('[data-error-for]');
+          if (err) {
+            err.textContent = '';
+            err.hidden = true;
+          }
+        }
       });
     };
     root.addEventListener('input', syncHip);
