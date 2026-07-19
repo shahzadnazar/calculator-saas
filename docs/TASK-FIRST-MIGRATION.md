@@ -193,71 +193,110 @@ referencing it.
 
 ---
 
-## 5. Global calculator search — locked contract (pre-homepage)
+## 5. Global calculator search — architecture (embedded, never a page)
 
-To be implemented with the homepage; recorded here first.
+Search is a **task-first embedded behavior**, not a destination. There is **no
+public standalone Search page**. `/dev/search` is an internal component test
+route only (noindex + nofollow, sitemap-excluded, `/dev` prelaunch guard) and is
+**deleted before launch** — it must never become public.
 
-- **Live matching results render directly below the input** as the user types.
-- Match against **title, slug, aliases, keywords, phrases, and typos**
-  (fuzzy/typo-tolerant).
-- **Relevance ranking** (exact/prefix title > alias/keyword > fuzzy).
-- **Maximum 10** results in the dropdown, plus a **"View all X matching
-  calculators"** row linking to the full filtered list.
-- Results are **real semantic links** (`<a href>` to the calculator), crawlable
-  and keyboard-activatable — not JS-only handlers.
-- **Keyboard:** ArrowUp/ArrowDown move the active option, **Enter** navigates to
-  it, **Escape** closes and clears the active option.
-- **Accessible combobox/listbox semantics**: input `role="combobox"`
-  `aria-expanded` `aria-controls` `aria-activedescendant`; list `role="listbox"`;
-  each result `role="option"`.
-- **Mobile:** full-width tappable result rows (≥44px targets).
-- **No network request per keystroke** — the index is a static, prebuilt JSON
-  loaded once and filtered in memory.
-- **Static crawlable homepage/category links stay separate** from search — the
-  directory of `<a>` links remains in the DOM for crawling and JS-off use.
-- **`/calculators?q=` filtered states must not become duplicate indexable
-  pages** — query-filtered views are `noindex` (or canonicalized to
-  `/calculators`), so search never spawns thin duplicate URLs.
+### 5.1 Public behavior
 
----
+As the user types into **any** calculator-search input:
+- matching calculators appear directly **below that same input**;
+- **no page reload**, and **no navigation to a separate Search page**;
+- selecting a result **opens the calculator directly**;
+- every surface uses the **same index and `rankCalculators` engine**.
 
-### 5.1 Search S0 — data layer (shipped)
+### 5.2 Surfaces — one shared system (no per-page search logic)
 
-The search **data layer** is built and unit-tested; no UI and no user-facing
-page changed (verified: the only new build artifact is `/search-index.json`).
+1. **Homepage** — global scope, dropdown, ≤10 results, descriptions + recent + popular.
+2. **Header** — global scope, compact dropdown, ~5–6 visible results.
+3. **`/calculators` directory** — global scope, **inline filter** of the directory (same `rankCalculators`).
+4. **Category pages** — **category scope**, inline filter of that category's calculators (same ranking).
+5. **Any future calculator-finder input** — same component.
 
-- Registry extended with optional `aliases?` / `phrases?`, curated on ~24 of the
-  49 calculators (never forced onto every one).
-- `src/lib/search.ts` — pure `normalizeSearchText`, `tokenizeSearchText`,
-  `boundedEditDistance`, `buildSearchRecords`, `rankCalculators`,
-  `findClosestSuggestion`, `searchIndexVersion`. No DOM / fetch / localStorage /
-  analytics; returns text values only, never HTML.
-- `src/pages/search-index.json.ts` → `/search-index.json`: static, **live-only**
-  index (49 records, ~4.3 KB gzipped), content-versioned for cache-busting,
-  **excluded from the sitemap**.
+### 5.3 Extended component contract (target — realized at S2)
+
+```ts
+interface CalculatorSearchProps {
+  indexUrl: string;
+  variant?: 'homepage' | 'header' | 'directory' | 'category';
+  scope?: 'global' | 'category';
+  categoryId?: string;
+  display?: 'dropdown' | 'inline-filter';
+  loadStrategy?: 'eager' | 'idle' | 'interaction';
+  maxVisibleResults?: number;
+  showRecent?: boolean;
+  showPopular?: boolean;
+  fallbackAction?: string; // GET target; defaults to /calculators
+}
+```
+
+- `display: 'dropdown'` → results below the input (homepage/header).
+- `display: 'inline-filter'` → filter the existing directory/category list in place.
+- `scope: 'category'` + `categoryId` → restrict to that category, **same ranking**.
+
+The **S1** component ships `variant: 'full' | 'compact'` with the dropdown; it is
+**extended to this contract at S2** (inline-filter + category scope are the
+directory/category surfaces, so they land with those integrations — not before).
+
+### 5.4 `/calculators?q=` — fallback directory only
+
+Keep the query URL **only** for: no-JavaScript form submission, the "View all X
+matching calculators →" link, complete filtered-directory results, and a
+shareable filtered state. It is **not** the normal live-search destination
+(live search never navigates). Query-filtered views stay non-indexable — the
+canonical is `/calculators`, and the static build never mints a per-query page.
+
+### 5.5 Submit control
+
+Because results are instant, the form does **not** depend on a large primary
+Search button — it keeps a **compact/secondary** submit for progressive
+fallback. **Enter** opens the active result when one is selected, otherwise
+submits to `/calculators?q=<encoded query>`.
+
+### 5.6 Shipped so far
+
+- **S0 (data)** — registry `aliases?`/`phrases?` (curated on ~24/49); pure
+  `src/lib/search-core.ts` (`normalizeSearchText`, `tokenizeSearchText`,
+  `boundedEditDistance`, `rankCalculators`, `findClosestSuggestion`,
+  `isBroadDiscoveryQuery`, `searchIndexVersion`) — no DOM/fetch/localStorage/
+  analytics, text-only. `src/lib/search.ts` builds the index + re-exports core.
+- **S0.1** — `searchPriority` removed (reserved, always undefined; never
+  affiliate/CPC); broad "calculator" queries → curated popular set (separate
+  `src/data/popular-calculators.ts`, delivered as `popularIds`); **fingerprinted**
+  `/search-index/<hash>.json` via `SEARCH_INDEX_URL` (changes only on searchable-
+  content change), sitemap-excluded. `/math/basic-calculator` to be added before S2.
+- **S1** — `src/components/search/CalculatorSearch.astro` + client, isolated on
+  `/dev/search`: accessible combobox/listbox, one shared cached fetch per index
+  URL (multi-instance → one request), safe DOM text rendering, recent = ids only,
+  resilient failed-index fallback, 52px mobile rows. No live surface touched.
 
 Record shape (`CalculatorSearchRecord`): `id, title, href, category,
 taskGroups[], blurb, keywords[], aliases[], phrases[], registryOrder,
-searchPriority?`. Task-group membership is the secondary classification signal
-(no new subcategory field).
-
-Ranking bands (strong → weak): exact title → title prefix → title contains →
-full title-token coverage → exact alias/phrase → alias/phrase token coverage →
-keyword coverage → category/task-group → bounded fuzzy. Tie-break: score →
-coverage → `searchPriority` → shorter title → `registryOrder`. `searchPriority`
-is a small curated tie-break nudge only — never affiliate, sponsorship or CPC.
-
-Fuzzy rules: 1-char none, 2-char prefix-only, 3+ bounded Damerau-Levenshtein
-(distance 1 short / 2 long), applied to titles + aliases after exact/token
-matches. S1 (component) and S2 (integration) remain pending approval.
+searchPriority?`. Ranking bands (strong→weak): exact title → title prefix →
+title contains → full title-token coverage → exact alias/phrase → alias/phrase
+coverage → keyword coverage → category/task-group → bounded fuzzy. Tie-break:
+score → coverage → searchPriority → shorter title → registryOrder.
 
 ## 6. Sequencing
 
 1. ✅ Scientific task-first (bespoke) + header tightening.
 2. ✅ `CalculatorLayout` task-first extension (backward-compatible).
 3. ✅ Four pilots (keypad/form/equation/generator) + DOM-order & legacy-guard tests.
-4. ⏳ **Pilot sign-off** → category-wide migration waves (§4).
-5. ⏳ Homepage calculator (§1) + global search (§5) — separate approval.
+4. ✅ Search **S0 → S0.1 → S1** — data, fingerprinted index, and the isolated
+   accessible component on `/dev/search`.
+5. ⏳ **Shared result & monetization architecture** phase (before S2).
+6. ⏳ **S2 (search integration)** — separate approval. Order:
+   (a) replace the homepage search form with `CalculatorSearch`;
+   (b) add the homepage Basic/Scientific calculator (§1);
+   (c) add the compact Header search;
+   (d) unify `/calculators` filtering with `rankCalculators`;
+   (e) add category-scoped search only where a search input is useful;
+   (f) delete `/dev/search` after every live surface is covered (repoint E2E to
+   the live surfaces first; keep the production `/dev` guard).
+7. ⏳ **Pilot sign-off** → category-wide task-first migration waves (§4).
 
-Homepage and the remaining calculator pages are not modified until their step is
-reached and approved.
+Homepage, Header, `/calculators`, category pages and the remaining calculator
+pages are not modified until their step is reached and separately approved.
