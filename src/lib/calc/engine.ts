@@ -183,6 +183,12 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
     repeat = null;
   };
 
+  const fail = (msg: string) => {
+    error = msg;
+    announce = msg; // errors are announced (allowed by the SR contract)
+    justEvaluated = false;
+  };
+
   /* --------------------------------------------------------------- actions */
 
   function inputDigit(d: string) {
@@ -314,6 +320,39 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
     t.resolved = resolved; // display keeps "b%", evaluation uses the resolved value
   }
 
+  /**
+   * Reciprocal (1/x). Applies to the active numeric operand (preserving any
+   * preceding expression) or, when the buffer ends in a completed expression
+   * like ")", to that expression's value. Never uses text replacement.
+   */
+  function reciprocal() {
+    if (error) return;
+    announce = null;
+    lastExprDisplay = null;
+    const l = last();
+    if (l && l.t === 'num') {
+      const v = numValue(l as NumTok);
+      if (v === 0) return fail('Cannot divide by zero');
+      const r = 1 / v;
+      const shown = formatDisplay(r);
+      tokens[tokens.length - 1] = { t: 'num', s: shown.replace(/^-/, ''), neg: shown.startsWith('-'), exact: r };
+      justEvaluated = tokens.length === 1; // standalone → behaves like a result
+    } else if (l && l.t === 'sci' && l.s !== '(') {
+      // Completed expression (e.g. "(2 + 3)") → reciprocal of its value.
+      try {
+        const base = evalTokens();
+        if (base === 0) return fail('Cannot divide by zero');
+        const r = 1 / base;
+        const shown = formatDisplay(r);
+        tokens = [{ t: 'num', s: shown.replace(/^-/, ''), neg: shown.startsWith('-'), exact: r }];
+        justEvaluated = true;
+      } catch (err) {
+        fail(err instanceof CalculatorError && err.message === '__divzero__' ? 'Cannot divide by zero' : friendlyError(err));
+      }
+    }
+    // else: pending operator / fresh buffer → no-op
+  }
+
   function equals() {
     if (error) return;
     try {
@@ -431,6 +470,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
     recallAns,
     negate,
     percent,
+    reciprocal,
     equals,
     backspace,
     clear,

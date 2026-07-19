@@ -119,13 +119,24 @@
 /* Keypads. Basic renders in both modes; the Scientific panel sits above it. */
 .calc-keypads > [hidden] { display: none; }
 .sci-panel {
+  --sci-gap: 0.4rem;
   margin-bottom: 0.6rem;
   padding-bottom: 0.65rem;
   border-bottom: 1px solid var(--line); /* subtle divider from the Basic keypad */
 }
 .keypad { display: grid; gap: 0.5rem; }
 .keypad--basic { grid-template-columns: repeat(4, 1fr); }
-.keypad--sci-fn { grid-template-columns: repeat(5, 1fr); gap: 0.4rem; }
+.keypad--sci-fn { grid-template-columns: repeat(5, 1fr); gap: var(--sci-gap); }
+/* Final control row (mod, Ans, EXP, 1/x) centered; keys match one grid cell. */
+.keypad--sci-fn-final {
+  display: flex;
+  justify-content: center;
+  gap: var(--sci-gap);
+  margin-top: var(--sci-gap);
+}
+.keypad--sci-fn-final .calc-key {
+  flex: 0 0 calc((100% - 4 * var(--sci-gap)) / 5);
+}
 
 .calc-key {
   min-height: 3rem;
@@ -167,7 +178,8 @@
   font-size: 0.9rem;
   font-weight: 600;
 }
-.keypad--sci-fn .calc-key { min-height: 2.7rem; }
+.keypad--sci-fn .calc-key,
+.keypad--sci-fn-final .calc-key { min-height: 2.7rem; }
 
 /* Compact (homepage) variant — ~8–12% shorter, targets stay ≥44px. */
 .calc-shell[data-size='compact'] { padding: 0.7rem; }
@@ -185,6 +197,7 @@
   .calc-shell { max-width: 100%; padding: 0.75rem; }
   .calc-main { font-size: 1.75rem; }
   .calc-key { min-height: 3.1rem; }
-  .keypad--sci-fn { gap: 0.3rem; }
-  .keypad--sci-fn .calc-key { min-height: 2.7rem; font-size: 0.82rem; }
+  .sci-panel { --sci-gap: 0.3rem; }
+  .keypad--sci-fn .calc-key,
+  .keypad--sci-fn-final .calc-key { min-height: 2.7rem; font-size: 0.82rem; }
 }

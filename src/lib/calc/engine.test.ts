@@ -20,6 +20,9 @@ function press(seq: string, feature: 'basic' | 'scientific' = 'basic') {
     else if (ch === '=') e.equals();
     else if (ch === '%') e.percent();
     else if (ch === '~') e.negate();
+    else if (ch === 'r') e.reciprocal();
+    else if (ch === '(') e.inputToken('(', '(');
+    else if (ch === ')') e.inputToken(')', ')');
     else if (ch === 'C') e.clear();
     else if (ch === 'B') e.backspace();
   }
@@ -112,6 +115,35 @@ describe('contextual percent (basic)', () => {
     const e = press('200+10%');
     expect(e.view().main).toBe('10%'); // operand shown as "10%", not its derived 20/0.1
     expect(e.view().sub).toBe('200 +');
+  });
+});
+
+describe('reciprocal (1/x)', () => {
+  it('reciprocates a standalone value', () => {
+    expect(main('8r')).toBe('0.125');
+  });
+  it('reports divide-by-zero for 0', () => {
+    const e = press('0r');
+    expect(e.view().error).toBe('Cannot divide by zero');
+    expect(e.view().main).not.toMatch(/Infinity|NaN/);
+  });
+  it('preserves sign', () => {
+    expect(main('4~r')).toBe('-0.25'); // -4 → -0.25
+  });
+  it('applies to the active operand, retaining the expression', () => {
+    const e = press('2+8r');
+    expect(e.view().sub).toBe('2 +');
+    expect(e.view().main).toBe('0.125'); // 2 + 0.125
+    e.equals();
+    expect(e.view().main).toBe('2.125');
+  });
+  it('reciprocates a completed parenthesized expression', () => {
+    expect(main('(2+3)r')).toBe('0.2'); // 1/(2+3)
+  });
+  it('keeps full precision for a continued calculation', () => {
+    const e = press('3r'); // 0.333333333333
+    e.inputOp('*'); e.inputDigit('3'); e.equals();
+    expect(e.view().main).toBe('1'); // used 1/3 exactly, not the shown value
   });
 });
 

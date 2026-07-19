@@ -1,18 +1,30 @@
 ---
 /**
- * Scientific FUNCTION panel — five columns of evaluator-supported functions,
- * rendered ABOVE the shared Basic keypad in Scientific mode. Same `data-act`
- * contract as the keypad, so the controller stays layout-agnostic.
+ * Scientific FUNCTION panel — a five-column grid of evaluator-supported
+ * functions, plus a CENTERED final row (mod, Ans, EXP, 1/x) so there are no
+ * empty trailing cells. Rendered above the shared Basic keypad in Scientific
+ * mode. Same `data-act` contract as the keypad.
  */
-import { SCI_FUNCTION_KEYS } from '@lib/calc/keys';
+import { SCI_GRID_KEYS, SCI_FINAL_KEYS } from '@lib/calc/keys';
 ---
 
-<div class="keypad keypad--sci-fn" role="group" aria-label="Scientific functions">
-  {
-    SCI_FUNCTION_KEYS.map((k) => (
-      <button type="button" class={`calc-key calc-key--${k.kind}`} data-act={JSON.stringify(k.act)} aria-label={k.aria}>
-        <span set:html={k.label} />
-      </button>
-    ))
-  }
+<div class="sci-fn-wrap" role="group" aria-label="Scientific functions">
+  <div class="keypad keypad--sci-fn">
+    {
+      SCI_GRID_KEYS.map((k) => (
+        <button type="button" class={`calc-key calc-key--${k.kind}`} data-act={JSON.stringify(k.act)} aria-label={k.aria}>
+          <span set:html={k.label} />
+        </button>
+      ))
+    }
+  </div>
+  <div class="keypad--sci-fn-final">
+    {
+      SCI_FINAL_KEYS.map((k) => (
+        <button type="button" class={`calc-key calc-key--${k.kind}`} data-act={JSON.stringify(k.act)} aria-label={k.aria}>
+          <span set:html={k.label} />
+        </button>
+      ))
+    }
+  </div>
 </div>

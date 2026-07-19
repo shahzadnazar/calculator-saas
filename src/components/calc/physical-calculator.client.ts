@@ -31,14 +31,13 @@ export function mount(root: Element): void {
     live.textContent = v.announce ?? '';
   }
 
-  // Keypad clicks (delegated) → engine action.
-  root.querySelectorAll('.keypad').forEach((kp) => {
-    kp.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.calc-key');
-      if (!btn?.dataset.act) return;
-      applyAct(engine, JSON.parse(btn.dataset.act) as KeyAct);
-      render();
-    });
+  // Keypad clicks (single delegated listener covers every keypad + the centered
+  // final row). Only `.calc-key` buttons carry a `data-act`; seg/backspace don't.
+  root.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.calc-key');
+    if (!btn?.dataset.act) return;
+    applyAct(engine, JSON.parse(btn.dataset.act) as KeyAct);
+    render();
   });
 
   // Backspace beside the display.

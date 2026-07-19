@@ -17,6 +17,7 @@ export type KeyAct =
   | { kind: 'clear' }
   | { kind: 'negate' }
   | { kind: 'percent' }
+  | { kind: 'reciprocal' }
   | { kind: 'ans' };
 
 export type KeyKind = 'num' | 'op' | 'fn' | 'primary' | 'danger' | 'util';
@@ -59,28 +60,34 @@ export const BASIC_KEYS: KeyDef[] = [
   { ...d('0'), span: 2 }, DOT, EQ,
 ];
 
+const ANS: KeyDef = { label: 'Ans', aria: 'answer', act: { kind: 'ans' }, kind: 'fn' };
+const RECIP: KeyDef = { label: '1/x', aria: 'reciprocal', act: { kind: 'reciprocal' }, kind: 'fn' };
+
 /**
- * Scientific FUNCTION panel (5 columns) rendered above the Basic keypad.
- * Only functions the safe evaluator actually supports are included.
+ * Scientific FUNCTION panel, rendered above the Basic keypad.
+ * The first four rows are a 5-column grid; the final four controls render as a
+ * CENTERED row (no empty trailing cells):
  *   sin  cos  tan  ln  log
  *   sin⁻¹ cos⁻¹ tan⁻¹ eˣ 10ˣ
  *   x²   x³   xʸ   √   ∛
  *   π    e    (    )   n!
- *   mod  Ans  EXP
+ *        mod  Ans  EXP  1/x            ← centered
  *
  * EXP is implemented as ×10^ (a supported composition), NOT a faked function.
- * 1/x and Rand are intentionally OMITTED — see UNSUPPORTED_SCI below.
+ * 1/x is a real engine reciprocal operation. Rand stays out of scope.
  */
-export const SCI_FUNCTION_KEYS: KeyDef[] = [
+export const SCI_GRID_KEYS: KeyDef[] = [
   fn('sin', 'sin(', 'sine'), fn('cos', 'cos(', 'cosine'), fn('tan', 'tan(', 'tangent'), fn('ln', 'ln(', 'natural log'), fn('log', 'log(', 'log base 10'),
   fn('sin⁻¹', 'asin(', 'inverse sine'), fn('cos⁻¹', 'acos(', 'inverse cosine'), fn('tan⁻¹', 'atan(', 'inverse tangent'), fn('eˣ', 'exp(', 'e to the power x'), fn('10ˣ', '10^', 'ten to the power x'),
   fn('x²', '^2', 'square'), fn('x³', '^3', 'cube'), { label: 'xʸ', aria: 'power', act: { kind: 'op', value: '^' }, kind: 'fn' }, fn('√', 'sqrt(', 'square root'), fn('∛', 'cbrt(', 'cube root'),
   fn('π', 'π', 'pi'), fn('e', 'e', "euler's number"), fn('(', '(', 'open parenthesis'), fn(')', ')', 'close parenthesis'), fn('n!', '!', 'factorial'),
-  fn('mod', 'mod', 'modulo', ' mod '), { label: 'Ans', aria: 'answer', act: { kind: 'ans' }, kind: 'fn' }, fn('EXP', '*10^', 'times ten to the power', '×10^'),
+];
+
+export const SCI_FINAL_KEYS: KeyDef[] = [
+  fn('mod', 'mod', 'modulo', ' mod '), ANS, fn('EXP', '*10^', 'times ten to the power', '×10^'), RECIP,
 ];
 
 /** Requested scientific keys NOT surfaced, and why (reported, never faked). */
 export const UNSUPPORTED_SCI = [
-  { key: '1/x', reason: 'The safe evaluator has no reciprocal; a correct 1/x must reciprocate the current value, which needs an engine operation (deferred, not faked).' },
-  { key: 'Rand', reason: 'The safe evaluator has no random-number function; adding one is a non-deterministic engine input (deferred).' },
+  { key: 'Rand', reason: 'The safe evaluator has no random-number function; adding one is a non-deterministic engine input (out of scope this phase).' },
 ] as const;

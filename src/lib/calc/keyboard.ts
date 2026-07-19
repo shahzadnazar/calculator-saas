@@ -43,6 +43,7 @@ export function applyAct(engine: Engine, act: KeyAct | { kind: 'back' }): void {
     case 'clear': engine.clear(); break;
     case 'negate': engine.negate(); break;
     case 'percent': engine.percent(); break;
+    case 'reciprocal': engine.reciprocal(); break;
     case 'ans': engine.recallAns(); break;
     case 'back': engine.backspace(); break;
   }
