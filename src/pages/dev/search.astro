@@ -1,0 +1,64 @@
+---
+/**
+ * INTERNAL DEV DEMO — calculator search component validation.
+ * noindex + nofollow, excluded from the sitemap, no public links to it.
+ * MUST be deleted before production launch (CI prelaunch-no-dev guard enforces).
+ *
+ * Three instances share ONE index URL, so the module-level cache is exercised:
+ * multiple search boxes must fetch the index only once.
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+import CalculatorSearch from '@components/search/CalculatorSearch.astro';
+import { SEARCH_INDEX_URL } from '@lib/search';
+---
+
+<BaseLayout
+  title="Calculator Search — Dev Demo"
+  description="Internal component demo (noindex)."
+  path="/dev/search"
+  noindex={true}
+>
+  <div class="wrap py-8">
+    <p class="text-sm" style="color: var(--muted)">
+      Internal demo route — noindex, excluded from sitemap, removed before launch.
+      Index: <code>{SEARCH_INDEX_URL}</code>
+    </p>
+    <h1 class="mt-2 text-2xl font-bold">Calculator Search — component demo</h1>
+
+    <div class="mt-8 grid gap-10 lg:grid-cols-2">
+      <section aria-label="Full search, load on interaction">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
+          Full — load on interaction
+        </h2>
+        <div id="demo-a">
+          <CalculatorSearch id="search-a" indexUrl={SEARCH_INDEX_URL} loadStrategy="interaction" />
+        </div>
+      </section>
+
+      <section aria-label="Compact search, load on interaction">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
+          Compact — load on interaction
+        </h2>
+        <div id="demo-b">
+          <CalculatorSearch id="search-b" indexUrl={SEARCH_INDEX_URL} loadStrategy="interaction" variant="compact" />
+        </div>
+      </section>
+
+      <section aria-label="Full search, eager load">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
+          Full — eager load (shares the same one fetch)
+        </h2>
+        <div id="demo-c">
+          <CalculatorSearch id="search-c" indexUrl={SEARCH_INDEX_URL} loadStrategy="eager" />
+        </div>
+      </section>
+    </div>
+
+    <p class="mt-10 text-sm" style="color: var(--muted)">
+      Try: <code>mortgage</code>, <code>body mass</code>, <code>car payment</code>,
+      <code>kg to pounds</code>, <code>scientfic</code>, <code>mortage</code>,
+      <code>calculator</code> (popular), <code>zzzz</code> (no results). Empty focus shows
+      recent then popular.
+    </p>
+  </div>
+</BaseLayout>
