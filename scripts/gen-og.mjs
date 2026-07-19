@@ -16,6 +16,7 @@ import { Resvg } from '@resvg/resvg-js';
 import { CATEGORIES, getLiveCalculators, getCategory } from '../src/data/calculators.ts';
 import { REFERENCES } from '../src/data/reference.ts';
 import { CLUSTERS } from '../src/data/clusters.ts';
+import { TASK_GROUPS } from '../src/data/tasks.ts';
 
 const F = 'node_modules/@fontsource/inter/files';
 const fonts = [
@@ -73,6 +74,8 @@ for (const c of getLiveCalculators()) jobs.push([`calc-${c.slug}`, { title: c.ti
 for (const r of REFERENCES) jobs.push([`ref-${r.slug}`, { title: r.shortName, subtitle: truncate(r.description, 120), label: 'Reference table' }]);
 // Clusters (topic hubs)
 for (const cl of CLUSTERS) jobs.push([`topic-${cl.slug}`, { title: cl.title, subtitle: truncate(cl.description, 120), label: 'Topic' }]);
+// Task hubs (primary IA) — lead with the intent question.
+for (const t of TASK_GROUPS) jobs.push([`task-${t.slug}`, { title: t.question, subtitle: t.title, label: 'Calculators by task' }]);
 // Guides — read frontmatter title from the MDX files
 for (const file of readdirSync('src/content/guides').filter((f) => f.endsWith('.mdx'))) {
   const src = readFileSync(`src/content/guides/${file}`, 'utf8');
