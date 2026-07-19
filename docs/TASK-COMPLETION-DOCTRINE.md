@@ -150,13 +150,13 @@ the date, commit and counts whenever the fleet changes.
 | Metric | Value |
 |---|---|
 | Total live calculators | **49** |
-| Migrated (task-first + shared runtime) | **7** — scientific, bmi, **bmr**, **ideal-weight**, **protein**, percent, password-generator |
-| Not migrated (legacy) | **42** |
+| Migrated (task-first + shared runtime) | **8** — scientific, bmi, **bmr**, **ideal-weight**, **protein**, **body-fat**, percent, password-generator |
+| Not migrated (legacy) | **41** |
 | Approved exceptions | **0** |
 | Distinct Astro islands | **47** — statistics + standard-deviation share `StatisticsCalculator` via a `primary` prop; **scientific uses `PhysicalCalculator`** (`components/calc/`, not an island) |
 | Embed exposure | **all 49** — every calculator is served by the dynamic route `src/pages/embed/[category]/[slug].astro` (`getLiveCalculators()` → `IslandBySlug`); no per-slug embed files exist |
 
-**The 42 legacy calculators are noncompliant with the doctrine in the same
+**The 41 legacy calculators are noncompliant with the doctrine in the same
 recurring ways** — each **auto-calculates prefilled example values and shows a
 result that reads as the visitor's own**, with **no explicit primary action, no
 Reset, and no result `aria-live`** (the lone `aria-live` exception among the
@@ -171,9 +171,10 @@ what the R1–R7 program closes.
 | R7B.1 | shared health-domain modules (`activity-levels`, `body-measurements`) | `309ec75` |
 | R7C-1 #1 | ideal-weight-calculator | `d28917e` |
 | R7C-1 #2 | protein-calculator | `2648aa0` |
-| R7C-1.1 | ideal-weight announcement hardening + embed-CSS report (no calculator migrated) | *(this R7C-1.1 commit)* |
+| R7C-1.1 | ideal-weight announcement hardening + embed-CSS report (no calculator migrated) | `d0e5fbe` |
+| R7C-2A | body-fat-calculator (first conditional-input migration) | *(this R7C-2A commit)* |
 
-**Fleet after R7C-1 / R7C-1.1:** 49 total · **7 migrated** · **42 legacy** · **0 approved exceptions.**
+**Fleet after R7C-2A:** 49 total · **8 migrated** · **41 legacy** · **0 approved exceptions.**
 
 ## Embed CSS baseline (dynamic IslandBySlug ripple)
 
@@ -188,6 +189,12 @@ Re-baseline (`--write-baseline`) after each accepted migration so future
 migrations show cumulative growth. This is a measurement only — **not** a failing
 CI budget, and **IslandBySlug is unchanged**.
 
+**Cumulative since baseline:** R7C-2A (body-fat) added **+3,289 B total / +215 B
+gzip** (all of it scoped `.bf-*` CSS, all inert on unrelated embed pages — the
+body-fat cid is bundled but rendered on no other page) → mortgage embed now
+**60,033 B total / 10,857 B gzip**. The baseline stays pinned at `2648aa0` so the
+delta accrues across the R7C-2 wave.
+
 ## Migration status (per calculator)
 
 Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
@@ -199,7 +206,8 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 | `migrated` (R7B, `a4c6c6f`; hardened R7B.1) | **bmr-calculator** | **First standard-form GENERALIZATION beyond BMI** (family: standard form). Task-first; empty inputs → explicit **Calculate BMR** → live-after-first; **Reset**; field-level validation + first-invalid focus; concise result `aria-live`; Metric/Imperial with in-place conversion; dominant BMR figure + a **secondary "Estimated daily calorie needs" (TDEE) table** (BMR × the shared `ACTIVITY_LEVELS`, labelled as daily calorie needs, not more BMR values). The shared standard-form runtime was used **UNCHANGED** (no runtime extension). Sex is a native fieldset/legend radio group so its changes flow through the runtime's `input` path. **R7B.1:** the activity multipliers moved to `@lib/health/activity-levels` and the Metric/Imperial conversions + imperial-height classification to `@lib/health/body-measurements`; **BMI and BMR both consume these shared primitives with no behaviour change** (BMI + Calorie pages byte-identical). Accepted implementation: R7B `a4c6c6f`. |
 | `migrated` (R7C-1) | **ideal-weight-calculator** | Standard-form wave, calculator #1 (runtime UNCHANGED). Task-first; height-only; empty → **Calculate Ideal Weight** → live-after-first; **Reset**; field-level validation + focus; concise `aria-live` announcing the RANGE only. **Multi-formula policy:** the DOMINANT result is the healthy-BMI weight range (the defensible primary the copy frames as the target); Robinson/Miller/Devine/Hamwi are shown as a SECONDARY accessible comparison table (col + row `scope` headers) — **no average is invented and no single formula is made authoritative**. Reuses the R7B.1 shared `@lib/health/body-measurements` primitives; formulas preserved in `ideal-weight.ts`. One guide (`healthy-weight-for-your-height`) embeds the island and updates accordingly. **R7C-1.1:** after the first result, changing sex moves the (sex-dependent) formula estimates while the height-only BMI range stays identical — a range-only announcement would be byte-identical and deduped (left silent), so the binding announces a distinct concise message (*"Healthy-weight range: X to Y … Formula estimates updated for [sex]."*) without moving focus, never speaking the formula rows. Decision logic is the pure `idealWeightAnnouncement`. |
 | `migrated` (R7C-1) | **protein-calculator** | Standard-form wave, calculator #2 (runtime UNCHANGED). Task-first; body weight + goal/activity select; empty → **Calculate Protein Needs** → live-after-first; **Reset** (restores the default goal); field-level validation (weight never `Number()\|\|0`) + focus; concise `aria-live` announcing the PRIMARY daily target only. **Single-value policy:** the reviewed `calculateProtein` returns ONE gram value per goal (not a range), so the DOMINANT result is the selected goal's `N g/day`; every goal's g/kg factor + grams are shown as a SECONDARY accessible comparison table (col + row `scope` headers) with the **selected goal highlighted (`aria-current`)** — grams delegated verbatim to `protein.ts` (factors preserved). Reuses the R7B.1 shared `@lib/health/body-measurements` weight conversions. One guide (`how-much-protein-do-you-need`) embeds the island and updates accordingly. |
-| `not-migrated` | the other **42** live calculators | Current recurring-gap behavior; scheduled by family wave. |
+| `migrated` (R7C-2A) | **body-fat-calculator** | Standard-form wave, calculator #3 — the **first CONDITIONAL-input migration** (runtime UNCHANGED). U.S. Navy circumference method: men need height/neck/waist, women additionally need **hip**. Task-first; empty → **Calculate Body Fat** → live-after-first; **Reset** (restores male + hidden hip). The hip row is shown only for women (island DOM helper) and the binding's required-field SET excludes it for men, so the runtime's own validate→invalid/valid transitions do the right thing: switching sex to one needing an empty measurement invalidates (never shows the stale result) without stealing focus; switching to one needing fewer recomputes automatically. Explicit presence/positivity validation + **plain-language formula-domain checks** (men: waist > neck; women: waist + hip > neck — never "logarithm argument…"); a finiteness+positivity gate turns the formula's out-of-domain NaN/negative into the invalid state. DOMINANT percentage + **TEXT** classification (colour-coded pills dropped — no colour-only meaning, no diagnostic implication) + a SECONDARY accessible category scale (col + row `scope` headers, sex-specific ranges, visitor's category `aria-current`). Concise `aria-live` (`"…18.4 percent, classified as [category]."`). Formula + classification preserved in `body-fat.ts`; conversions reuse the shared `@lib/health/body-measurements` primitives. One guide (`body-fat-percentage-explained`) embeds the island and updates accordingly. |
+| `not-migrated` | the other **41** live calculators | Current recurring-gap behavior; scheduled by family wave. |
 | `approved-exception` | (none yet) | Reserved for deliberate, documented deviations. Requires a documented user-task reason, tests and explicit matrix approval (see Ratified product decisions #7) — legacy compatibility alone is never a valid reason. |
 
 > **R2 / R2.1 note (2026-07-19):** BMI is the first standard-form migration. The
@@ -268,7 +276,7 @@ family-safe extension · **D** new family runtime required. **Test coverage:**
 | Family | n | Calculators (fit; coverage) |
 |---|---|---|
 | physical/keypad | 1 | scientific ✅done (dedicated) |
-| standard form | 15 | **health (9):** bmi ✅done · bmr ✅done *(R7B — generalization pilot; runtime unchanged)* · ideal-weight ✅done *(R7C-1 — multi-formula; runtime unchanged)* · protein ✅done *(R7C-1 — single-value per goal; runtime unchanged)* · body-fat, calorie, fat-intake *(all B)*, target-heart-rate *(B; **missing** test)*, pace *(B/C — deferred, decision 5)* · **geometry (3):** triangle *(**C** — multi-output + triangle-inequality; batch)*, square-footage *(B; batch)*, concrete *(B; batch)* · **finance-simple (3):** simple-interest *(B; dedicated)*, inflation *(B; dedicated)*, tip *(B; batch)* |
+| standard form | 15 | **health (9):** bmi ✅done · bmr ✅done *(R7B — generalization pilot; runtime unchanged)* · ideal-weight ✅done *(R7C-1 — multi-formula; runtime unchanged)* · protein ✅done *(R7C-1 — single-value per goal; runtime unchanged)* · body-fat ✅done *(R7C-2A — first CONDITIONAL inputs: hip women-only; runtime unchanged)* · calorie, fat-intake *(all B)*, target-heart-rate *(B; **missing** test)*, pace *(B/C — deferred, decision 5)* · **geometry (3):** triangle *(**C** — multi-output + triangle-inequality; batch)*, square-footage *(B; batch)*, concrete *(B; batch)* · **finance-simple (3):** simple-interest *(B; dedicated)*, inflation *(B; dedicated)*, tip *(B; batch)* |
 | complex form | 7 | income-tax *(brackets + filing-status parameter; batch)*, interest *(dual simple-vs-compound; **indirect**)*, interest-rate *(iterative solver; batch)*, investment *(proportion bar; dedicated)*, retirement *(multi-metric report; dedicated)*, auto-loan *(collapsible groups; dedicated)*, home-equity-loan *(LTV advisory; batch)* — all **C** |
 | shape selector | 2 | area, volume — **D** *(shape `<select>` rebuilds the input-field schema at runtime; the certified standard-form runtime assumes fixed fields; **indirect** via `gaps.test.ts`)* |
 | equation | 2 | percent ✅done (dedicated) · fraction *(**C** — operator-select operand + tri-format output; dedicated)* |
@@ -335,9 +343,9 @@ Legend: ✅ meets · ⚠️ partial · ❌ gap.
 | Monetization boundary | ✅ off/below | ✅ off/below | ✅ off/below | ✅ off/below | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Keyboard + mobile path | ✅ | ⚠️ native inputs; no focus mgmt | ⚠️ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ |
 
-¹ 7 calculator pages are task-first (scientific, bmi, bmr, ideal-weight,
-protein, percent, password); the other 42 render the category eyebrow + review
-metadata above the tool (legacy `CalculatorLayout` mode). ² Age/GPA/Pregnancy SSR `—`; DueDate partial.
+¹ 8 calculator pages are task-first (scientific, bmi, bmr, ideal-weight,
+protein, body-fat, percent, password); the other 41 render the category eyebrow +
+review metadata above the tool (legacy `CalculatorLayout` mode). ² Age/GPA/Pregnancy SSR `—`; DueDate partial.
 ³ Inline *warnings* exist on triangle, home-equity-loan, grade, payment,
 body-fat (not field-level error association). ⁴ credit-card-payoff & payment
 render "Never" for non-finite payoff.

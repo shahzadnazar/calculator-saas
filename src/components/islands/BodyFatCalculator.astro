@@ -1,97 +1,335 @@
 ---
-import { calculateBodyFat, type BodyFatCategory } from '@lib/calculators/body-fat';
-import { formatNumber } from '@lib/format';
+/**
+ * Body fat calculator island (R7C-2A — standard-form wave, calculator #3).
+ *
+ * The FIRST standard-form migration with CONDITIONAL inputs: the U.S. Navy
+ * method needs a hip measurement for women that men don't provide. Task-first,
+ * direct-intent: all measurements start EMPTY, the result is empty (an
+ * instruction, no sample percentage / category), and the visitor presses
+ * "Calculate Body Fat" for the first result. Live-after-first afterwards. All
+ * interaction, validation, state, announcement and focus are owned by the shared
+ * runtime (UNCHANGED); this island is markup + the body-fat binding
+ * (@lib/calculators/body-fat-form) + one small conditional-visibility helper the
+ * runtime deliberately does not own.
+ *
+ * Sex is a native fieldset/legend radio group (its changes flow through the
+ * runtime's `input` path); Metric/Imperial is the runtime's `[data-unit]`
+ * selector. The hip row (`[data-bf-hip]`, one per unit group) is shown only for
+ * women — the binding excludes it from validation for men and re-hides it on
+ * reset. The PRIMARY result is the dominant percentage; the classification is
+ * conveyed as TEXT (never colour alone) with a SECONDARY, accessible category
+ * scale (sex-specific ranges, the visitor's category highlighted).
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
-const r = calculateBodyFat({ sex: 'male', system: 'metric', heightCm: 180, neckCm: 38, waistCm: 85 });
-const catColor: Record<BodyFatCategory, string> = {
-  'Essential fat': '#3b82f6', Athletes: '#059669', Fitness: '#10b981', Average: '#f59e0b', Obese: '#e11d48',
-};
-const show = (v: number) => (Number.isNaN(v) ? '—' : `${formatNumber(v, 1)}%`);
+const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-bodyfat>
-  <form class="card p-5 sm:p-6" data-bf-form novalidate>
+<div class="bodyfat mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-bodyfat>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Body fat calculator">
     <div class="flex flex-wrap gap-3">
-      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Sex" style="border-color: var(--line)">
-        <button type="button" class="seg-btn is-active" data-sex="male" role="radio" aria-checked="true">Male</button>
-        <button type="button" class="seg-btn" data-sex="female" role="radio" aria-checked="false">Female</button>
-      </div>
-      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Units" style="border-color: var(--line)">
+      <fieldset class="seg-group">
+        <legend class="sr-only">Sex</legend>
+        <label class="seg"><input type="radio" name="sex" value="male" checked /><span>Male</span></label>
+        <label class="seg"><input type="radio" name="sex" value="female" /><span>Female</span></label>
+      </fieldset>
+      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Unit system" style="border-color: var(--line)">
         <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
-        <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial</button>
+        <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial (US)</button>
       </div>
     </div>
-    <div class="mt-5 space-y-4">
-      <div>
-        <label class="field-label" for="bf-height">Height</label>
-        <div class="flex"><input class="field rounded-r-none" id="bf-height" name="height" type="number" min="0" value="180" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0" data-bf-unit>cm</span></div>
+
+    <div class="mt-5">
+      <!-- Metric -->
+      <div class="space-y-4" data-group="metric">
+        <div data-field="heightCm">
+          <label class="field-label" for="bf-height-cm">Height</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="bf-height-cm" name="heightCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 180" aria-describedby="bf-heightCm-error" />
+            <span class="field-affix rounded-r-lg border-l-0">cm</span>
+          </div>
+          <p class="bf-field-error" id="bf-heightCm-error" data-error-for="heightCm" hidden></p>
+        </div>
+        <div data-field="neckCm">
+          <label class="field-label" for="bf-neck-cm">Neck circumference</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="bf-neck-cm" name="neckCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 38" aria-describedby="bf-neckCm-error" />
+            <span class="field-affix rounded-r-lg border-l-0">cm</span>
+          </div>
+          <p class="bf-field-error" id="bf-neckCm-error" data-error-for="neckCm" hidden></p>
+        </div>
+        <div data-field="waistCm">
+          <label class="field-label" for="bf-waist-cm">Waist circumference</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="bf-waist-cm" name="waistCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 85" aria-describedby="bf-waistCm-error" />
+            <span class="field-affix rounded-r-lg border-l-0">cm</span>
+          </div>
+          <p class="bf-field-error" id="bf-waistCm-error" data-error-for="waistCm" hidden></p>
+        </div>
+        <div data-field="hipCm" data-bf-hip hidden>
+          <label class="field-label" for="bf-hip-cm">Hip circumference</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="bf-hip-cm" name="hipCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 96" aria-describedby="bf-hipCm-error" />
+            <span class="field-affix rounded-r-lg border-l-0">cm</span>
+          </div>
+          <p class="bf-field-error" id="bf-hipCm-error" data-error-for="hipCm" hidden></p>
+        </div>
       </div>
-      <div>
-        <label class="field-label" for="bf-neck">Neck circumference</label>
-        <div class="flex"><input class="field rounded-r-none" id="bf-neck" name="neck" type="number" min="0" value="38" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0" data-bf-unit>cm</span></div>
-      </div>
-      <div>
-        <label class="field-label" for="bf-waist">Waist circumference</label>
-        <div class="flex"><input class="field rounded-r-none" id="bf-waist" name="waist" type="number" min="0" value="85" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0" data-bf-unit>cm</span></div>
-      </div>
-      <div data-bf-hip hidden>
-        <label class="field-label" for="bf-hip">Hip circumference</label>
-        <div class="flex"><input class="field rounded-r-none" id="bf-hip" name="hip" type="number" min="0" value="96" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0" data-bf-unit>cm</span></div>
+
+      <!-- Imperial -->
+      <div class="space-y-4" data-group="imperial" hidden>
+        <div data-field="heightIn">
+          <label class="field-label" for="bf-height-in">Height</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="bf-height-in" name="heightIn" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 71" aria-describedby="bf-heightIn-error" />
+            <span class="field-affix rounded-r-lg border-l-0">in</span>
+          </div>
+          <p class="bf-field-error" id="bf-heightIn-error" data-error-for="heightIn" hidden></p>
+        </div>
+        <div data-field="neckIn">
+          <label class="field-label" for="bf-neck-in">Neck circumference</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="bf-neck-in" name="neckIn" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 15" aria-describedby="bf-neckIn-error" />
+            <span class="field-affix rounded-r-lg border-l-0">in</span>
+          </div>
+          <p class="bf-field-error" id="bf-neckIn-error" data-error-for="neckIn" hidden></p>
+        </div>
+        <div data-field="waistIn">
+          <label class="field-label" for="bf-waist-in">Waist circumference</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="bf-waist-in" name="waistIn" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 34" aria-describedby="bf-waistIn-error" />
+            <span class="field-affix rounded-r-lg border-l-0">in</span>
+          </div>
+          <p class="bf-field-error" id="bf-waistIn-error" data-error-for="waistIn" hidden></p>
+        </div>
+        <div data-field="hipIn" data-bf-hip hidden>
+          <label class="field-label" for="bf-hip-in">Hip circumference</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="bf-hip-in" name="hipIn" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 38" aria-describedby="bf-hipIn-error" />
+            <span class="field-affix rounded-r-lg border-l-0">in</span>
+          </div>
+          <p class="bf-field-error" id="bf-hipIn-error" data-error-for="hipIn" hidden></p>
+        </div>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Body Fat</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="bf-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="result-label">Estimated body fat</p>
-    <p class="mt-2 text-5xl result-value" data-bf-value>{show(r.bodyFatPct)}</p>
-    <p class="mt-3"><span class="rounded-full px-3 py-1 text-sm font-bold text-white" style={`background:${catColor[r.category]}`} data-bf-cat>{r.category}</span></p>
-    <p class="mt-4 text-sm" style="color: var(--muted)">Based on the U.S. Navy circumference method. Measure at the navel (waist) and just below the larynx (neck).</p>
-  </div>
+  <!-- Result -->
+  <ResultShell
+    id="bf-result"
+    state="empty"
+    density="standard"
+    label="Your body fat result"
+    minHeight="24rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter your measurements, then calculate your estimated body-fat percentage." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Estimated body fat">
+        <ResultValue value="—" unit="%" />
+      </ResultSummary>
+      <p class="bf-class">Category: <strong data-bf-category>—</strong></p>
+      <ResultInterpretation>
+        <span data-bf-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Body-fat categories">
+        <table class="bf-bands">
+          <thead>
+            <tr><th scope="col">Category</th><th scope="col" class="bf-num">Range</th></tr>
+          </thead>
+          <tbody>
+            {BANDS.map((name) => (
+              <tr data-bf-band><th scope="row">{name}</th><td class="bf-num" data-bf-band-range>—</td></tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="bf-note">
+          U.S. Navy circumference method. Category ranges differ by sex — a general estimate, not a medical diagnosis.
+        </p>
+      </ResultBreakdown>
+    </div>
+
+    <InvalidResult title="Check your measurements" message="Enter your height, neck and waist — plus hip for women — to estimate your body fat." />
+
+    <ResultAnnouncement id="bf-live" />
+  </ResultShell>
 </div>
 
 <style>
-  .seg-btn, .unit-btn { padding: 0.35rem 0.9rem; border-radius: 0.45rem; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; }
-  .seg-btn.is-active, .unit-btn.is-active { background: var(--color-brand-600); color: #fff; }
+  .seg-group {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    padding: 0.125rem;
+  }
+  .seg {
+    position: relative;
+    display: inline-flex;
+  }
+  .seg input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+  .seg span {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .seg:has(input:checked) span {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+  .seg:has(input:focus-visible) span {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  .unit-btn {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .unit-btn.is-active {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+
+  .bf-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .bf-field-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .bf-field-error {
+    color: #fca5a5;
+  }
+
+  .bf-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* Classification — text-forward, never colour alone. */
+  .bf-class {
+    margin: 0.6rem 0 0;
+    font-size: 1rem;
+    color: var(--fg);
+  }
+  .bf-class strong {
+    color: var(--heading);
+    font-weight: 700;
+  }
+
+  /* Secondary category scale — clearly subordinate to the dominant percentage. */
+  .bf-bands {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .bf-bands th,
+  .bf-bands td {
+    padding: 0.4rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  .bf-bands thead th {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .bf-bands tbody th {
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .bf-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  /* Visitor's category — a neutral brand highlight (no health-coded colours, so
+     no colour-only meaning and no diagnostic implication); the category name is
+     the signal, this only ties the scale row to the figure above. */
+  .bf-bands tbody tr[aria-current='true'] {
+    background: color-mix(in srgb, var(--color-brand-500) 10%, transparent);
+  }
+  .bf-bands tbody tr[aria-current='true'] th,
+  .bf-bands tbody tr[aria-current='true'] td {
+    color: var(--color-brand-700);
+    font-weight: 700;
+  }
+  :root[data-theme='dark'] .bf-bands tbody tr[aria-current='true'] th,
+  :root[data-theme='dark'] .bf-bands tbody tr[aria-current='true'] td {
+    color: var(--color-brand-300);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .bf-bands tbody tr[aria-current='true'] th,
+    :root:not([data-theme='light']) .bf-bands tbody tr[aria-current='true'] td {
+      color: var(--color-brand-300);
+    }
+  }
+  .bf-note {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
 </style>
 
 <script>
-  import { calculateBodyFat, type Sex, type UnitSystem, type BodyFatCategory } from '@lib/calculators/body-fat';
-  const catColor: Record<BodyFatCategory, string> = {
-    'Essential fat': '#3b82f6', Athletes: '#059669', Fitness: '#10b981', Average: '#f59e0b', Obese: '#e11d48',
-  };
-  const show = (v: number) => (Number.isNaN(v) ? '—' : `${v.toFixed(1)}%`);
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { bodyFatBinding } from '@lib/calculators/body-fat-form';
 
   document.querySelectorAll<HTMLElement>('[data-bodyfat]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-bf-form]')!;
-    let sex: Sex = 'male';
-    let system: UnitSystem = 'metric';
-    const hipRow = root.querySelector<HTMLElement>('[data-bf-hip]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
+    mountFormCalculator(root, bodyFatBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Body Fat',
+    });
 
-    function recompute() {
-      const dims = system === 'metric'
-        ? { heightCm: num('height'), neckCm: num('neck'), waistCm: num('waist'), hipCm: num('hip') }
-        : { heightIn: num('height'), neckIn: num('neck'), waistIn: num('waist'), hipIn: num('hip') };
-      const r = calculateBodyFat({ sex, system, ...dims });
-      const valueEl = root.querySelector<HTMLElement>('[data-bf-value]')!;
-      const catEl = root.querySelector<HTMLElement>('[data-bf-cat]')!;
-      valueEl.textContent = show(r.bodyFatPct);
-      if (Number.isNaN(r.bodyFatPct)) { catEl.textContent = 'Check measurements'; catEl.style.background = 'var(--muted)'; }
-      else { catEl.textContent = r.category; catEl.style.background = catColor[r.category]; }
-    }
-    root.querySelectorAll<HTMLButtonElement>('.seg-btn').forEach((b) => b.addEventListener('click', () => {
-      sex = (b.dataset.sex as Sex) ?? 'male';
-      root.querySelectorAll('.seg-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
-      hipRow.hidden = sex !== 'female';
-      recompute();
-    }));
-    root.querySelectorAll<HTMLButtonElement>('.unit-btn').forEach((b) => b.addEventListener('click', () => {
-      system = (b.dataset.unit as UnitSystem) ?? 'metric';
-      root.querySelectorAll('.unit-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
-      root.querySelectorAll('[data-bf-unit]').forEach((el) => (el.textContent = system === 'metric' ? 'cm' : 'in'));
-      recompute();
-    }));
-    form.addEventListener('input', recompute);
-    recompute();
+    // Conditional field: the hip measurement is only for women. Keep its
+    // visibility in sync with the sex selection (before AND after the first
+    // calculation — the runtime owns recompute/validation, not field visibility).
+    // The binding re-hides it on reset and excludes it from validation for men.
+    const syncHip = () => {
+      const female = root.querySelector<HTMLInputElement>('[name="sex"][value="female"]')?.checked ?? false;
+      root.querySelectorAll<HTMLElement>('[data-bf-hip]').forEach((el) => {
+        el.hidden = !female;
+      });
+    };
+    root.addEventListener('input', syncHip);
+    syncHip();
   });
 </script>
