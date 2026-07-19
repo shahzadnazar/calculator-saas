@@ -1,0 +1,252 @@
+/**
+ * Shared result primitives — scoped styles (NOT part of global.css).
+ *
+ * Owns the visual language of the "answer" region every calculator shows: the
+ * dominant value, its interpretation, secondary breakdown/assumptions, the
+ * empty / example / invalid states, and the transient just-updated highlight.
+ * Theme-aware through the site's design tokens (light/dark flip via CSS vars);
+ * a few result-only danger/example tints are defined here so global.css stays
+ * lean. No monetization, no calculator-specific markup lives here.
+ */
+
+/* Result-only semantic tints. Kept local (not global) — they exist purely to
+   color the invalid + example states and mirror the site's light/dark flip. */
+.result-shell {
+  --result-danger-fg: #b91c1c;
+  --result-danger-bg: #fef2f2;
+  --result-danger-line: #fecaca;
+  --result-example-fg: #92400e;
+  --result-example-bg: #fffbeb;
+  --result-example-line: #fde68a;
+
+  /* Per-density reservation defaults. Overridable per instance via
+     --result-min-h (see the `minHeight` prop) — no single global hardcode. */
+  --result-min-h-default: 11rem;
+}
+.result-shell[data-density='compact'] {
+  --result-min-h-default: 7rem;
+}
+.result-shell[data-density='complex'] {
+  --result-min-h-default: 16rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .result-shell {
+    --result-danger-fg: #fca5a5;
+    --result-danger-bg: color-mix(in srgb, #7f1d1d 22%, var(--card));
+    --result-danger-line: color-mix(in srgb, #f87171 30%, var(--line));
+    --result-example-fg: #fcd34d;
+    --result-example-bg: color-mix(in srgb, #78350f 20%, var(--card));
+    --result-example-line: color-mix(in srgb, #f59e0b 30%, var(--line));
+  }
+}
+:root[data-theme='dark'] .result-shell {
+  --result-danger-fg: #fca5a5;
+  --result-danger-bg: color-mix(in srgb, #7f1d1d 22%, var(--card));
+  --result-danger-line: color-mix(in srgb, #f87171 30%, var(--line));
+  --result-example-fg: #fcd34d;
+  --result-example-bg: color-mix(in srgb, #78350f 20%, var(--card));
+  --result-example-line: color-mix(in srgb, #f59e0b 30%, var(--line));
+}
+
+/* ---- Shell -------------------------------------------------------------- */
+.result-shell {
+  position: relative;
+  display: block;
+  /* Reserve height so switching empty ↔ valid ↔ invalid never shifts the page.
+     Consumers tune it with the `minHeight` prop; auto-collapses if set to 0. */
+  min-height: var(--result-min-h, var(--result-min-h-default));
+}
+.result-shell[data-boxed='true'] {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
+  padding: 1.25rem;
+}
+@media (min-width: 640px) {
+  .result-shell[data-boxed='true'] {
+    padding: 1.5rem;
+  }
+}
+
+/* ---- State switching ---------------------------------------------------- */
+/* A region is shown only when the shell's content state matches one of the
+   whitelisted states in its `data-result-when` token list. Hidden regions are
+   display:none, so they leave the accessibility tree too — only the live
+   region (which carries no data-result-when) is always present. */
+[data-result-when] {
+  display: none;
+}
+.result-shell[data-result-state='empty'] [data-result-when~='empty'],
+.result-shell[data-result-state='example'] [data-result-when~='example'],
+.result-shell[data-result-state='valid'] [data-result-when~='valid'],
+.result-shell[data-result-state='invalid'] [data-result-when~='invalid'] {
+  display: block;
+}
+
+/* ---- Summary (the dominant answer) -------------------------------------- */
+.result-summary__value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.25rem;
+}
+.result-value-group {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.result-unit {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+}
+.result-shell[data-density='compact'] .result-unit {
+  font-size: 1rem;
+}
+
+/* ---- Interpretation ----------------------------------------------------- */
+.result-interpretation {
+  margin-top: 0.75rem;
+  color: var(--fg);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.result-shell[data-density='compact'] .result-interpretation {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+/* ---- Secondary sections (breakdown / assumptions) ----------------------- */
+.result-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+.result-breakdown,
+.result-assumptions {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.result-assumptions {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+/* Breakdown rows: a label/value grid the consumer fills via <div class="result-row">. */
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0;
+  font-size: 0.9375rem;
+}
+.result-row > dt,
+.result-row > .result-row__label {
+  color: var(--muted);
+}
+.result-row > dd,
+.result-row > .result-row__value {
+  color: var(--heading);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* ---- Actions ------------------------------------------------------------ */
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+/* ---- Empty state -------------------------------------------------------- */
+/* The shell already reserves height via --result-min-h; the hint just flows
+   normally at the top so it never forces the shell taller than the reservation
+   (which would defeat the no-layout-shift goal). */
+.result-empty__hint {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ---- Example state (clearly labelled, never the visitor's own result) --- */
+.result-example {
+  border: 1px dashed var(--result-example-line);
+  background: var(--result-example-bg);
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem;
+}
+.result-example__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--result-example-fg);
+  margin: 0 0 0.5rem;
+}
+.result-example__body {
+  color: var(--fg);
+}
+
+/* ---- Invalid state ------------------------------------------------------ */
+/* Visual only — the single restrained announcement is made by the live region,
+   so this is deliberately NOT role="alert" (no double announcement). */
+.result-invalid {
+  border: 1px solid var(--result-danger-line);
+  background: var(--result-danger-bg);
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem;
+}
+.result-invalid__title {
+  font-weight: 700;
+  color: var(--result-danger-fg);
+  margin: 0 0 0.25rem;
+}
+.result-invalid__message {
+  color: var(--result-danger-fg);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* ---- Transient activity ------------------------------------------------- */
+/* just-updated: a brief, restrained emphasis on the value so a live change is
+   perceptible without stealing focus. calculating: a subtle dimming while a
+   perceptible compute is in flight. Both respect reduced-motion. */
+.result-shell[data-result-activity='just-updated'] .result-value {
+  animation: result-value-pop 0.6s ease;
+}
+.result-shell[data-result-activity='calculating'] .result-summary__value {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+@keyframes result-value-pop {
+  0% {
+    color: var(--color-brand-600);
+  }
+  100% {
+    color: var(--heading);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-shell[data-result-activity='just-updated'] .result-value {
+    animation: none;
+  }
+  .result-shell[data-result-activity='calculating'] .result-summary__value {
+    transition: none;
+  }
+}

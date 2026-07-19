@@ -1,0 +1,37 @@
+---
+/**
+ * ResultValue — the emphasized figure, with an accessible combined name.
+ *
+ * Accessibility: the visual value + abbreviated unit are `aria-hidden` (a
+ * screen reader mangles notation like "kg/m²"), and a single sr-only combined
+ * name — built by `accessibleResultName` — is what actually gets read. This
+ * avoids double-reading the number while never leaving the unit silent.
+ *
+ * Non-finite guard: `presentResultValue` turns null/undefined/NaN/Infinity into
+ * a dash, so the UI can never surface "NaN" or "Infinity".
+ */
+import { presentResultValue, accessibleResultName } from '@lib/result/state';
+
+export interface Props {
+  value: number | string | null | undefined;
+  /** Abbreviated unit shown next to the value, e.g. "kg/m²", "%", "/mo". */
+  unit?: string;
+  /** Emphasis tier utility, e.g. "text-4xl", "text-5xl". */
+  size?: string;
+  dash?: string;
+  class?: string;
+}
+const { value, unit, size = 'text-5xl', dash = '—', class: className = '' } = Astro.props;
+
+const shown = presentResultValue(value, dash);
+const spoken = accessibleResultName(shown, unit);
+---
+
+<span class:list={['result-value-group', className]} data-result-value-group>
+  <span aria-hidden="true">
+    <span class:list={['result-value', size]} data-result-value>{shown}</span>{
+      unit && <span class="result-unit" data-result-unit>{unit}</span>
+    }
+  </span>
+  <span class="sr-only" data-result-value-a11y>{spoken}</span>
+</span>

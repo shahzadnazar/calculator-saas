@@ -1,0 +1,26 @@
+---
+/**
+ * ResultAnnouncement — the single shared live region for the result.
+ *
+ * It carries NO `data-result-when`, so it is never toggled by state switching
+ * and always stays in the accessibility tree. A controller writes exactly one
+ * message here per completed result or error (see `resultAnnouncement` in
+ * @lib/result/state) — screen readers are not spammed on every keystroke.
+ *
+ * `<output>` is the semantically correct element for a calculation result;
+ * `aria-atomic` makes the whole message read on each change.
+ */
+export interface Props {
+  id?: string;
+  class?: string;
+}
+const { id, class: className = '' } = Astro.props;
+---
+
+<output
+  id={id}
+  class:list={['sr-only', className]}
+  role="status"
+  aria-live="polite"
+  aria-atomic="true"
+  data-result-live></output>

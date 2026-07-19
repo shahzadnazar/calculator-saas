@@ -1,0 +1,16 @@
+---
+/**
+ * EmptyResult — the initial, direct-intent state: no sample result in the
+ * visitor's panel, just a short instruction telling them what to enter. Shown
+ * only while the shell's state is `empty` (via `data-result-when`).
+ */
+export interface Props {
+  message?: string;
+  class?: string;
+}
+const { message = 'Enter your values to see the result.', class: className = '' } = Astro.props;
+---
+
+<div class:list={['result-empty', className]} data-result-when="empty">
+  <p class="result-empty__hint"><slot>{message}</slot></p>
+</div>

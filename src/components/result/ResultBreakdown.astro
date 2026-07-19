@@ -1,0 +1,20 @@
+---
+/**
+ * ResultBreakdown — a secondary, labelled section for the supporting detail
+ * behind the headline answer (component figures, sub-totals, a mini schedule).
+ * Rendered visually subordinate to the summary. Fill the slot with rows, e.g.
+ * `<div class="result-row"><dt>…</dt><dd>…</dd></div>` inside a <dl>.
+ */
+export interface Props {
+  title?: string;
+  class?: string;
+}
+const { title = 'Breakdown', class: className = '' } = Astro.props;
+---
+
+<section class:list={['result-breakdown', className]} aria-label={title}>
+  {title && <h3 class="result-section-title">{title}</h3>}
+  <div class="result-breakdown__body">
+    <slot />
+  </div>
+</section>

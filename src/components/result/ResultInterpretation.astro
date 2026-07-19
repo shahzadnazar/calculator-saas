@@ -1,0 +1,15 @@
+---
+/**
+ * ResultInterpretation — the plain-language "what this means" line that follows
+ * the value (e.g. "Normal weight", "You'll pay it off in 3 years 2 months").
+ * Kept secondary to the value but above breakdown/assumptions.
+ */
+export interface Props {
+  class?: string;
+}
+const { class: className = '' } = Astro.props;
+---
+
+<p class:list={['result-interpretation', className]} data-result-interpretation>
+  <slot />
+</p>

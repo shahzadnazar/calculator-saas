@@ -1,0 +1,20 @@
+---
+/**
+ * ResultSummary — the dominant answer block: a small muted label above the
+ * emphasized value. Kept as its own primitive so the main result always reads
+ * as primary and breakdown/assumptions stay visually secondary.
+ */
+export interface Props {
+  /** Small label above the value, e.g. "Your BMI", "Monthly payment". */
+  label?: string;
+  class?: string;
+}
+const { label, class: className = '' } = Astro.props;
+---
+
+<div class:list={['result-summary', className]}>
+  {label && <p class="result-label" data-result-summary-label>{label}</p>}
+  <div class="result-summary__value">
+    <slot />
+  </div>
+</div>
