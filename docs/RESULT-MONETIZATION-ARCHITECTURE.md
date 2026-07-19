@@ -17,8 +17,8 @@ R0.5 work, which shipped.
 | R0 | Audit + contracts | ✅ approved |
 | **R0.5** | **Retire the duplicate legacy Scientific island** | ✅ **shipped** |
 | R1 | Result state machine + shared result primitives | ✅ shipped |
-| **R2** | **Standard-form runtime + BMI pilot** | ✅ **shipped** (commit `843d113`) |
-| R3 | Equation runtime + Percentage pilot | ⏳ |
+| **R2** | **Standard-form runtime + BMI pilot** | ✅ **shipped** (`843d113..b7f9d44`, +R2.1 `c18041c`) |
+| **R3** | **Equation runtime + Percentage pilot** | ✅ **shipped** (commit `7460547`) |
 | R4 | Generator runtime + Password pilot | ⏳ |
 | R5 | Monetization-region architecture (placeholders, off) | ⏳ |
 | R6 | CalculatorLayout monetization integration | ⏳ |
@@ -193,3 +193,32 @@ result; backward-compat confirmed — homepage, search, reference, category and
 all non-BMI calculator pages byte-identical (embed pages carry only inert BMI
 scoped-CSS ripple; two BMI-embedding guides show the migrated tool, prose
 unchanged). SEO/schema/FAQ/content on the BMI page preserved.
+
+## R3 — shipped (Percentage equation pilot)
+
+The **equation runtime** (`src/lib/result/equation-runtime.ts`) implements the
+`EquationCalculatorBinding` / `EquationCalculatorOptions` contracts: pure
+`planEquationAction` + `mountEquationCalculator`, mounting **one instance per
+`<form data-equation>`** so each equation is fully independent (its own
+operands, result/activity state, Calculate, Reset, live-after-first, validation,
+`aria-live` and focus — no shared/root listener). It reuses the shared result
+state machine + focus helpers; the standard-form runtime and BMI are untouched.
+
+The **Percentage bindings** (`src/lib/calculators/percent-form.ts`) are three
+independent bindings over the reviewed `percentOf`/`whatPercent`/`percentChange`,
+with explicit presence+finiteness validation (never `Number(v) || 0`),
+zero-denominator/zero-start guards, preserved negative semantics, and
+direction as words (never colour/arrow alone). The island rebuilds the tool as
+three compact task units with a per-equation compact reservation (5–6rem).
+
+**Scope caveat:** certified for **independent natural-language equations only** —
+NOT multi-mode forms, converters, date calculators, dynamic-row tools, financial
+schedules or specialized reports. The Fraction calculator and the wider equation
+family are not certified by this one pilot.
+
+Verified: `astro check` 0 errors; 356 unit + 127 E2E pass; 173-page build; the
+first equation (sentence + Calculate + result) sits in the 1366×768 first
+viewport; backward-compat confirmed — only the Percentage page changed (plus the
+inert IslandBySlug scoped-CSS ripple on embed pages); homepage, search, guides,
+references, category/directory, monetization and BMI byte-identical.
+SEO/schema/FAQ/content on the Percentage page preserved.

@@ -157,8 +157,8 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 
 | Status | Calculators | Meaning |
 |---|---|---|
-| `migrated` | scientific-calculator; **bmi-calculator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot — empty initial state, Calculate BMI + Reset, live-after-first, field validation + `aria-invalid`, single result `aria-live`, focus rules. Behavior family: standard form. Accepted migration: R2 range `843d113..b7f9d44`, refined by R2.1 (precise imperial-height semantics; shared `ResultShell` `placeholderAlignment` API replacing the BMI `!flex` override).** |
-| `pilot` | percent-calculator, password-generator | Task-first page shipped; designated result-system pilots (R3 equation, R4 generator). Result semantics not yet migrated. |
+| `migrated` | scientific-calculator; **bmi-calculator**; **percent-calculator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot (family: standard form). Accepted migration: R2 range `843d113..b7f9d44`, refined by R2.1 (imperial-height semantics; shared `placeholderAlignment` API).** **percent: equation runtime pilot (family: equation) — three INDEPENDENT equations, each its own form + runtime instance, empty initial state, task-specific Calculate + per-equation Reset, live-after-first, scoped validation/`aria-invalid`/`aria-live`/focus, direction as text. Accepted migration: R3 commit `7460547`.** |
+| `pilot` | password-generator | Task-first page shipped; designated result-system pilot (R4 generator). Result semantics not yet migrated. |
 | `not-migrated` | the other 44 live calculators | Current recurring-gap behavior; scheduled by family wave. |
 | `approved-exception` | (none yet) | Reserved for deliberate, documented deviations (e.g. a complex-finance tool using a clearly-labelled Example). |
 
@@ -173,6 +173,17 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 > reusable `ResultShell` `placeholderAlignment: 'start' | 'center'` prop (shared
 > `result.css`) so no calculator needs a bespoke display override. Two
 > BMI-embedding guides show the migrated tool (same component); prose unchanged.
+
+> **R3 note (2026-07-19):** Percentage is the first equation migration. The shared
+> equation runtime (`src/lib/result/equation-runtime.ts`) mounts one instance per
+> `<form data-equation>`, so equations are fully independent (no shared listener).
+> **Known limitations:** certified for **independent natural-language equations
+> only** — it does NOT certify multi-mode forms, converters, date calculators,
+> dynamic-row tools, financial schedules or specialized reports. The **Fraction
+> Calculator and the wider equation family are NOT migrated** on the strength of
+> this single pilot; each remaining equation tool must be validated before
+> binding. The runtime reuses the shared result state machine + focus helpers;
+> the standard-form runtime (and BMI) are untouched.
 
 ## Family classification (all 48)
 
