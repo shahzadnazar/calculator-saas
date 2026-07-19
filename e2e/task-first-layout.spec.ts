@@ -11,6 +11,7 @@ const PILOTS = [
   { route: '/math/scientific-calculator', structure: 'keypad' },
   { route: '/health/bmi-calculator', structure: 'form' },
   { route: '/health/bmr-calculator', structure: 'form (generalization pilot)' },
+  { route: '/health/ideal-weight-calculator', structure: 'form (multi-formula)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];
