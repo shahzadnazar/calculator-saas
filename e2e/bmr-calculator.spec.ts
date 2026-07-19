@@ -85,12 +85,24 @@ test('valid imperial result computes from feet/inches/pounds', async ({ page }) 
   await expect(activity(page)).toHaveCount(5);
 });
 
-test('the sex selector changes the result (male vs female)', async ({ page }) => {
+test('changing sex after the first calc recalculates live, keeps focus, announces concisely', async ({ page }) => {
   await calcMetric(page, '30', '180', '80');
   await expect(value(page)).toHaveText('1,780');
-  await page.check('[name="sex"][value="female"]');
+  const female = page.locator('[name="sex"][value="female"]');
+  await female.focus();
+  await female.check(); // native radio → fires the form `input` event
   await page.waitForTimeout(DEBOUNCE);
   await expect(value(page)).toHaveText('1,614'); // base 1775 − 161
+  await expect(female).toBeFocused(); // live update never steals focus
+  await expect(liveRegion(page)).toHaveText('Your estimated basal metabolic rate is 1,614 kilocalories per day.');
+  await expect(liveRegion(page)).not.toContainText(/sedentary|kcal|1,937/i); // never the activity table
+});
+
+test('the sex selector is a semantic fieldset/legend radio group', async ({ page }) => {
+  const group = page.locator('form[data-form] fieldset:has([name="sex"])');
+  await expect(group).toHaveCount(1);
+  await expect(group.locator('legend')).toHaveText('Sex');
+  await expect(group.locator('input[type="radio"][name="sex"]')).toHaveCount(2);
 });
 
 test('exposes the value to assistive tech and never leaks NaN/∞/undefined', async ({ page }) => {

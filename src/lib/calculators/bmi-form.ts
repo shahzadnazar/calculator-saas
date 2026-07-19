@@ -7,6 +7,15 @@
  * All numeric computation delegates to the reviewed pure `calculateBmi`.
  */
 import { calculateBmi, type BmiInput, type BmiResult, type BmiSeverity } from './bmi';
+import {
+  round1,
+  kilogramsToPounds,
+  poundsToKilograms,
+  centimetresToTotalInches,
+  totalInchesToCentimetres,
+  totalInchesToFeetAndInches,
+  classifyImperialHeight,
+} from '@lib/health/body-measurements';
 import { formatNumber } from '@lib/format';
 import { accessibleResultName, accessibleUnit } from '@lib/result/state';
 import type {
@@ -16,8 +25,6 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-const LB_PER_KG = 2.2046226218;
-const CM_PER_IN = 2.54;
 const BMI_UNIT = 'kg/m²';
 
 /** Raw string values as read from the form (empty ≠ zero ≠ invalid). */
@@ -46,21 +53,19 @@ function parsePositive(raw: string): PositiveParse {
  * 0 ≤ inches < 12 — 12+ is an error, NOT silently normalized. Total must be > 0.
  */
 function validateImperialHeight(ftRaw: string, inRaw: string): string | null {
-  const ft = ftRaw.trim();
-  const inch = inRaw.trim();
-  if (ft === '' && inch === '') return 'Enter your height.';
-
-  const ftNum = ft === '' ? 0 : Number(ft);
-  const inNum = inch === '' ? 0 : Number(inch);
-
-  const inchesBad = inch !== '' && (!Number.isFinite(inNum) || inNum < 0 || inNum >= 12);
-  if (inchesBad) return 'Enter inches from 0 to 11.';
-
-  const feetBad = ft !== '' && (!Number.isFinite(ftNum) || ftNum < 0 || !Number.isInteger(ftNum));
-  if (feetBad) return 'Enter feet as a whole number.';
-
-  if (ftNum * 12 + inNum <= 0) return 'Enter a height greater than zero.';
-  return null;
+  // Shared classification (@lib/health/body-measurements); the MESSAGES stay here.
+  switch (classifyImperialHeight(ftRaw, inRaw)) {
+    case 'ok':
+      return null;
+    case 'empty':
+      return 'Enter your height.';
+    case 'inches-out-of-range':
+      return 'Enter inches from 0 to 11.';
+    case 'feet-not-integer':
+      return 'Enter feet as a whole number.';
+    case 'nonpositive':
+      return 'Enter a height greater than zero.';
+  }
 }
 
 /**
@@ -130,8 +135,6 @@ export function describeBmiResult(result: BmiResult): string {
 /* Unit conversion (pure)                                              */
 /* ------------------------------------------------------------------ */
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
-
 export interface MetricNumbers {
   heightCm: number | null;
   weightKg: number | null;
@@ -143,15 +146,16 @@ export interface ImperialNumbers {
 }
 
 /** Convert metric numbers to imperial. Empty (null) or non-positive values stay
- *  null so the runtime never fabricates a default from an empty field. */
+ *  null so the runtime never fabricates a default from an empty field. Built on
+ *  the shared body-measurement primitives (behaviour unchanged). */
 export function metricToImperial(m: MetricNumbers): ImperialNumbers {
   const out: ImperialNumbers = { heightFt: null, heightIn: null, weightLb: null };
   if (m.heightCm !== null && m.heightCm > 0) {
-    const totalIn = Math.round(m.heightCm / CM_PER_IN);
-    out.heightFt = Math.floor(totalIn / 12);
-    out.heightIn = totalIn % 12;
+    const { feet, inches } = totalInchesToFeetAndInches(centimetresToTotalInches(m.heightCm));
+    out.heightFt = feet;
+    out.heightIn = inches;
   }
-  if (m.weightKg !== null && m.weightKg > 0) out.weightLb = round1(m.weightKg * LB_PER_KG);
+  if (m.weightKg !== null && m.weightKg > 0) out.weightLb = round1(kilogramsToPounds(m.weightKg));
   return out;
 }
 
@@ -161,9 +165,9 @@ export function imperialToMetric(i: ImperialNumbers): MetricNumbers {
   const out: MetricNumbers = { heightCm: null, weightKg: null };
   if (i.heightFt !== null || i.heightIn !== null) {
     const total = (i.heightFt ?? 0) * 12 + (i.heightIn ?? 0);
-    if (total > 0) out.heightCm = round1(total * CM_PER_IN);
+    if (total > 0) out.heightCm = round1(totalInchesToCentimetres(total));
   }
-  if (i.weightLb !== null && i.weightLb > 0) out.weightKg = round1(i.weightLb / LB_PER_KG);
+  if (i.weightLb !== null && i.weightLb > 0) out.weightKg = round1(poundsToKilograms(i.weightLb));
   return out;
 }
 

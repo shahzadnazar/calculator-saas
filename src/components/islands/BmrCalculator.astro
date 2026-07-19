@@ -135,7 +135,10 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         The calories your body burns at complete rest each day — the baseline for planning nutrition.
       </ResultInterpretation>
 
-      <ResultBreakdown title="Daily calories by activity level">
+      <ResultBreakdown title="Estimated daily calorie needs">
+        <p class="bmr-activity-lead">
+          Your BMR multiplied by an activity factor — an estimate of the total calories you burn per day (TDEE). These are daily calorie needs, not additional BMR values.
+        </p>
         <dl class="bmr-activity">
           <div class="bmr-act-row"><dt>Sedentary <span>little or no exercise</span></dt><dd data-bmr-activity>—</dd></div>
           <div class="bmr-act-row"><dt>Light <span>exercise 1–3 days/week</span></dt><dd data-bmr-activity>—</dd></div>
@@ -144,7 +147,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           <div class="bmr-act-row"><dt>Very active <span>hard exercise / physical job</span></dt><dd data-bmr-activity>—</dd></div>
         </dl>
         <p class="bmr-activity-note">
-          BMR × activity factor. For weight-loss and weight-gain targets, use the
+          For weight-loss and weight-gain targets, use the
           <a href="/health/calorie-calculator">calorie calculator</a>.
         </p>
       </ResultBreakdown>
@@ -231,6 +234,11 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   }
 
   /* Activity estimates: clearly secondary to the dominant BMR figure above. */
+  .bmr-activity-lead {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
   .bmr-activity {
     margin: 0;
     display: grid;

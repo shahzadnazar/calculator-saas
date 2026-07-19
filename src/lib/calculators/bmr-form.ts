@@ -9,12 +9,12 @@
  * dominant BMR figure + the secondary activity-based daily-calorie estimates, the
  * accessible result description, and resetting BMR fields.
  *
- * The activity estimates reuse the canonical `ACTIVITY_LEVELS` from the calorie
- * module (BMR × level = TDEE) — no medical semantics are invented, and the
- * calorie calculator is not modified. Body-metric parsing, validation and unit
- * conversion MIRROR BMI's accepted semantics and are replicated here (not
- * imported) so the BMI binding stays byte-for-byte untouched; a later standard-
- * form wave should extract them into a shared body-metrics module.
+ * The activity estimates reuse the canonical `ACTIVITY_LEVELS` from the shared
+ * health-domain module (`@lib/health/activity-levels`) — `BMR × level` is an
+ * ESTIMATED DAILY CALORIE NEED (TDEE), never another BMR. Metric/Imperial
+ * conversion + imperial-height classification come from the shared
+ * `@lib/health/body-measurements` primitives (also used by BMI); the field-error
+ * MESSAGES stay here per calculator (R7B.1).
  *
  * Pure parts (`validateBmrValues`, `metricToImperial`, `imperialToMetric`,
  * `bmrActivityEstimates`, `describeBmrResult`) are unit-tested directly; the DOM
@@ -22,7 +22,16 @@
  * exercised end-to-end.
  */
 import { calculateBmr, type BmrInput, type Sex } from './bmr';
-import { ACTIVITY_LEVELS } from './calorie';
+import { ACTIVITY_LEVELS } from '@lib/health/activity-levels';
+import {
+  round1,
+  kilogramsToPounds,
+  poundsToKilograms,
+  centimetresToTotalInches,
+  totalInchesToCentimetres,
+  totalInchesToFeetAndInches,
+  classifyImperialHeight,
+} from '@lib/health/body-measurements';
 import { formatNumber } from '@lib/format';
 import { accessibleResultName } from '@lib/result/state';
 import type {
@@ -32,8 +41,6 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-const LB_PER_KG = 2.2046226218;
-const CM_PER_IN = 2.54;
 const BMR_UNIT = 'kcal/day';
 
 /** Raw string values as read from the form (empty ≠ zero ≠ invalid). Sex + age
@@ -64,21 +71,19 @@ function parsePositive(raw: string): PositiveParse {
  * Identical to BMI's accepted imperial-height semantics.
  */
 function validateImperialHeight(ftRaw: string, inRaw: string): string | null {
-  const ft = ftRaw.trim();
-  const inch = inRaw.trim();
-  if (ft === '' && inch === '') return 'Enter your height.';
-
-  const ftNum = ft === '' ? 0 : Number(ft);
-  const inNum = inch === '' ? 0 : Number(inch);
-
-  const inchesBad = inch !== '' && (!Number.isFinite(inNum) || inNum < 0 || inNum >= 12);
-  if (inchesBad) return 'Enter inches from 0 to 11.';
-
-  const feetBad = ft !== '' && (!Number.isFinite(ftNum) || ftNum < 0 || !Number.isInteger(ftNum));
-  if (feetBad) return 'Enter feet as a whole number.';
-
-  if (ftNum * 12 + inNum <= 0) return 'Enter a height greater than zero.';
-  return null;
+  // Shared classification (BMI-accepted semantics); the MESSAGES stay here.
+  switch (classifyImperialHeight(ftRaw, inRaw)) {
+    case 'ok':
+      return null;
+    case 'empty':
+      return 'Enter your height.';
+    case 'inches-out-of-range':
+      return 'Enter inches from 0 to 11.';
+    case 'feet-not-integer':
+      return 'Enter feet as a whole number.';
+    case 'nonpositive':
+      return 'Enter a height greater than zero.';
+  }
 }
 
 /**
@@ -166,10 +171,8 @@ export function describeBmrResult(result: BmrComputed): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Unit conversion (pure) — mirrors BMI's accepted semantics           */
+/* Unit conversion (pure) — built on the shared body-measurement utils */
 /* ------------------------------------------------------------------ */
-
-const round1 = (n: number) => Math.round(n * 10) / 10;
 
 export interface MetricBody {
   heightCm: number | null;
@@ -186,11 +189,11 @@ export interface ImperialBody {
 export function metricToImperial(m: MetricBody): ImperialBody {
   const out: ImperialBody = { heightFt: null, heightIn: null, weightLb: null };
   if (m.heightCm !== null && m.heightCm > 0) {
-    const totalIn = Math.round(m.heightCm / CM_PER_IN);
-    out.heightFt = Math.floor(totalIn / 12);
-    out.heightIn = totalIn % 12;
+    const { feet, inches } = totalInchesToFeetAndInches(centimetresToTotalInches(m.heightCm));
+    out.heightFt = feet;
+    out.heightIn = inches;
   }
-  if (m.weightKg !== null && m.weightKg > 0) out.weightLb = round1(m.weightKg * LB_PER_KG);
+  if (m.weightKg !== null && m.weightKg > 0) out.weightLb = round1(kilogramsToPounds(m.weightKg));
   return out;
 }
 
@@ -200,9 +203,9 @@ export function imperialToMetric(i: ImperialBody): MetricBody {
   const out: MetricBody = { heightCm: null, weightKg: null };
   if (i.heightFt !== null || i.heightIn !== null) {
     const total = (i.heightFt ?? 0) * 12 + (i.heightIn ?? 0);
-    if (total > 0) out.heightCm = round1(total * CM_PER_IN);
+    if (total > 0) out.heightCm = round1(totalInchesToCentimetres(total));
   }
-  if (i.weightLb !== null && i.weightLb > 0) out.weightKg = round1(i.weightLb / LB_PER_KG);
+  if (i.weightLb !== null && i.weightLb > 0) out.weightKg = round1(poundsToKilograms(i.weightLb));
   return out;
 }
 

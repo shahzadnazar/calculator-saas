@@ -28,13 +28,10 @@ export interface CalorieResult {
   gain: number; // +500
 }
 
-export const ACTIVITY_LEVELS = [
-  { value: 1.2, label: 'Sedentary (little or no exercise)' },
-  { value: 1.375, label: 'Light (exercise 1–3 days/week)' },
-  { value: 1.55, label: 'Moderate (exercise 3–5 days/week)' },
-  { value: 1.725, label: 'Active (exercise 6–7 days/week)' },
-  { value: 1.9, label: 'Very active (hard exercise / physical job)' },
-] as const;
+// The activity multipliers are a shared health-domain constant (R7B.1). Re-exported
+// here so existing `@lib/calculators/calorie` importers are unchanged; the values,
+// labels and output are identical.
+export { ACTIVITY_LEVELS, type ActivityLevel } from '../health/activity-levels';
 
 export function calculateCalories(input: CalorieInput): CalorieResult {
   const { kg, cm } = toMetricBody(input);
