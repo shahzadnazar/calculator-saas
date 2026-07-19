@@ -1,0 +1,27 @@
+---
+/**
+ * Calculator display: a small running-expression line (`sub`) above the large
+ * current value / result (`main`), with the backspace control beside it.
+ *
+ * Accessibility: `main` and `sub` are readable but are NOT live regions, so a
+ * screen reader is not spammed on every keypress. A separate visually-hidden
+ * polite live region announces only the final result (after =) or an error —
+ * the client writes to it. Backspace is a real 44×44 button.
+ */
+interface Props { id: string }
+const { id } = Astro.props;
+---
+
+<div class="calc-display" data-calc-display data-display-state="empty">
+  <div class="calc-sub" data-calc-sub id={`${id}-sub`}>&nbsp;</div>
+  <div class="calc-main-row">
+    <div class="calc-main" data-calc-main aria-label="Result" role="status">0</div>
+    <button type="button" class="calc-back" data-calc-back aria-label="Backspace">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 4H8l-7 8 7 8h13a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1Z"></path>
+        <path d="m15 9-6 6M9 9l6 6"></path>
+      </svg>
+    </button>
+  </div>
+  <output class="sr-only" data-calc-live aria-live="polite"></output>
+</div>

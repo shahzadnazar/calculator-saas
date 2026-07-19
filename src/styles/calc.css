@@ -1,0 +1,159 @@
+/* --------------------------------------------------------------------------
+   Physical-calculator styles (scoped, imported by PhysicalCalculator).
+   Deliberately NOT in global.css during Phase 1 — the shared `.seg` control and
+   density promotion happen in a later, screenshot-validated pass. Uses existing
+   design tokens + color-mix so it adapts to light and dark automatically.
+   -------------------------------------------------------------------------- */
+
+.calc-shell {
+  width: 100%;
+  max-width: 30rem;
+  margin-inline: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.9rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 12px 32px -20px rgb(15 23 42 / 0.28);
+}
+
+.calc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  margin-bottom: 0.75rem;
+}
+.calc-angle[hidden] { display: none; }
+
+/* Segmented control (generalized `.unit-btn`/`.mode-btn`). */
+.seg {
+  display: inline-flex;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  background: var(--subtle);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+}
+.seg-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.85rem;
+  min-height: 2rem;
+  border-radius: 0.45rem;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.seg-btn.is-active {
+  background: var(--card);
+  color: var(--heading);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+}
+
+/* Display: running expression above, current value/result below + backspace. */
+.calc-display {
+  background: var(--subtle);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.calc-sub {
+  min-height: 1.25rem;
+  text-align: right;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.calc-main-row { display: flex; align-items: center; gap: 0.5rem; }
+.calc-main {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  color: var(--heading);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.calc-display[data-display-state='error'] .calc-main {
+  color: var(--color-danger);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.calc-back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem; /* ≥44px target */
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.calc-back:hover { color: var(--heading); border-color: var(--color-brand-400); }
+
+/* Keypads. */
+.calc-keypads > [hidden] { display: none; }
+.keypad { display: grid; gap: 0.5rem; }
+.keypad--basic { grid-template-columns: repeat(4, 1fr); }
+.keypad--scientific { grid-template-columns: repeat(5, 1fr); gap: 0.4rem; }
+
+.calc-key {
+  min-height: 3rem;
+  min-width: 44px; /* accessible target */
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--card);
+  color: var(--heading);
+  font-size: 1.15rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
+}
+.calc-key:hover { border-color: var(--color-brand-300); }
+.calc-key:active { transform: translateY(1px); }
+.keypad--scientific .calc-key { min-height: 2.7rem; font-size: 1rem; }
+
+.calc-key--op {
+  color: var(--color-brand-700);
+  background: color-mix(in srgb, var(--color-brand-500) 10%, var(--card));
+}
+.calc-key--fn {
+  background: var(--subtle);
+  color: var(--fg);
+  font-size: 0.9rem;
+}
+.calc-key--accent { color: var(--color-accent-700); font-weight: 700; }
+.calc-key--danger { color: var(--color-danger); font-weight: 700; }
+.calc-key--primary {
+  background: var(--color-brand-600);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.16);
+}
+.calc-key--primary:hover { background: var(--color-brand-700); border-color: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .calc-key, .calc-back, .seg-btn { transition: none; }
+}
+
+@media (max-width: 480px) {
+  .calc-shell { max-width: 100%; padding: 0.75rem; }
+  .calc-main { font-size: 1.75rem; }
+  .calc-key { min-height: 3.1rem; }
+  .keypad--scientific { gap: 0.3rem; }
+  .keypad--scientific .calc-key { min-height: 2.7rem; font-size: 0.85rem; }
+}

@@ -1,0 +1,47 @@
+---
+/**
+ * PhysicalCalculator — composes the mode switch, display, and the Basic/
+ * Scientific keypads over one shared engine. Reusable on the homepage (with the
+ * mode switch) and on the dedicated Basic/Scientific pages (fixed mode). Only
+ * the visible keypad changes on switch; engine state is preserved by the client.
+ */
+import CalculatorDisplay from './CalculatorDisplay.astro';
+import BasicKeypad from './BasicKeypad.astro';
+import ScientificKeypad from './ScientificKeypad.astro';
+import ModeSwitch from './ModeSwitch.astro';
+import '@styles/calc.css';
+
+interface Props {
+  id?: string;
+  defaultMode?: 'basic' | 'scientific';
+  showModeSwitch?: boolean;
+}
+const { id = 'calc', defaultMode = 'basic', showModeSwitch = true } = Astro.props;
+---
+
+<section class="calc-shell" data-physical-calculator data-default-mode={defaultMode} id={id} aria-label="Calculator">
+  <div class="calc-top">
+    {showModeSwitch ? <ModeSwitch default={defaultMode} /> : <span></span>}
+    <div
+      class="seg calc-angle"
+      role="radiogroup"
+      aria-label="Angle mode"
+      data-angle-switch
+      hidden={defaultMode !== 'scientific'}
+    >
+      <button type="button" class="seg-btn is-active" role="radio" aria-checked="true" data-angle="deg">Deg</button>
+      <button type="button" class="seg-btn" role="radio" aria-checked="false" data-angle="rad">Rad</button>
+    </div>
+  </div>
+
+  <CalculatorDisplay id={id} />
+
+  <div class="calc-keypads">
+    <div data-keypad="basic" hidden={defaultMode !== 'basic'}><BasicKeypad /></div>
+    <div data-keypad="scientific" hidden={defaultMode !== 'scientific'}><ScientificKeypad /></div>
+  </div>
+</section>
+
+<script>
+  import './physical-calculator.client';
+</script>
