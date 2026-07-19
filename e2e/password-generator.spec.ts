@@ -161,6 +161,26 @@ test('the password never leaks to storage, URL, network or console', async ({ pa
   expect(page.url()).not.toContain(pw);
   expect(requests.some((r) => r.includes(pw))).toBe(false);
   expect(logs.some((l) => l.includes(pw))).toBe(false);
+
+  // The password must not appear in any accessibility attribute or announcement
+  // (aria-label / aria-describedby target text / title / live region).
+  const a11yText = await page.evaluate(() => {
+    const parts: string[] = [];
+    for (const el of Array.from(document.querySelectorAll('*'))) {
+      const label = el.getAttribute('aria-label');
+      const title = el.getAttribute('title');
+      if (label) parts.push(label);
+      if (title) parts.push(title);
+      const describedby = el.getAttribute('aria-describedby');
+      if (describedby)
+        for (const id of describedby.split(/\s+/)) parts.push(document.getElementById(id)?.textContent ?? '');
+      if (el.getAttribute('aria-live') || el.getAttribute('role') === 'status') parts.push(el.textContent ?? '');
+    }
+    return parts.join(' ');
+  });
+  expect(a11yText).not.toContain(pw);
+  // Also confirm the output value stays out of trust/validation copy.
+  expect(await page.locator('.pg-trust').textContent()).not.toContain(pw);
 });
 
 /* ---- Workspace / responsive / theme ------------------------------------ */
