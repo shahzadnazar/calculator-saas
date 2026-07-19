@@ -20,8 +20,8 @@ R0.5 work, which shipped.
 | **R2** | **Standard-form runtime + BMI pilot** | ✅ **shipped** (`843d113..b7f9d44`, +R2.1 `c18041c`) |
 | **R3** | **Equation runtime + Percentage pilot** | ✅ **shipped** (`7460547..45e432f`, incl. R3.1 positive-start semantics) |
 | **R4** | **Generator runtime + Password pilot** | ✅ **shipped** (impl `9c51c33`, docs/status `45f5e56`) |
-| R5 | Monetization-region architecture (placeholders, off) | ⏳ |
-| R6 | CalculatorLayout monetization integration | ⏳ |
+| **R5** | **Monetization-region architecture (placeholders, off)** | ✅ **shipped** (architecture only; all placements disabled) |
+| R6 | CalculatorLayout monetization integration | ⏳ (belongs here — R5 does NOT integrate) |
 | R7 | Full validation + docs | ⏳ |
 
 Do not build the form, equation and generator runtimes together in R1.
@@ -254,3 +254,43 @@ success and failure). Backward-compat confirmed — homepage, search, guides,
 references, category/directory, monetization, BMI and Percentage byte-identical;
 only the Password page changed (+ inert IslandBySlug scoped-CSS ripple).
 SEO/schema/FAQ/content on the Password page preserved.
+
+## R5 — shipped (monetization-region architecture, off)
+
+**Architecture only — no live integration.** R5 builds the orchestration + the
+internal `/dev/monetization` demo with placeholders. No `CalculatorLayout` or
+live page is touched; every placement stays disabled; no real ad/affiliate/
+analytics/consent provider, script, tracker or network request is added.
+
+- **Policy (`src/lib/monetization/policy.ts`)** — pure resolvers: types
+  (`MonetizationPlacement`, `RevenueModuleKind`, `MonetizationSlotState`,
+  `ConsentState`, `PlacementConfiguration`, `MonetizationConfig`),
+  `resolvePlacement` (global/placement enable, category/slug allowlists +
+  exclusions, result-state gating, **stale-result blocking**, sidebar
+  eligibility, consent), `noFillCollapses` / `reservesDimensions` (per-module
+  CLS policy — visible reserved ad retains, lazy-unseen collapses, static
+  modules collapse fully), `sidebarFitsContainer` (~1040/600px), `disclosureLabel`,
+  and `monetizationEvent` / `isSafeEventPayload` (events carry only placement/
+  module/state — never input/result/query/password data).
+- **Config (`src/config/monetization.ts`)** — `MONETIZATION_CONFIG`: central,
+  `enabled: false` globally and per placement, documenting the intended module +
+  reservation/consent per placement. `AdSlot` / `RelatedOffers` / `EmbedBox`
+  keep their responsibilities.
+- **`MonetizationRegion` + `RevenueModule`** — the orchestrator resolves policy
+  → labelled `complementary` region + disclosure → the specialized module
+  (distinct per kind, never one generic card), as a SIBLING of the result (never
+  inside `ResultShell`). A permitted static module renders immediately; a
+  permitted ad reserves first; not-permitted → renders nothing.
+- **Consent** — vendor-neutral `ConsentState`, default all denied; each placement
+  declares its `requiresConsent`; no CMP integrated (deferred).
+- **Result gating** — `calculator-post-result` renders only for `valid` &
+  `!stale`; blocked for empty/example/invalid and stale generator output.
+
+**Verified:** `astro check` 0 errors; 396 unit (+17 policy) + 156 E2E (+14
+monetization) pass; 174-page build; `/dev/monetization` noindex + sitemap-
+excluded + dev-guarded; no live page renders a region (only the demo);
+no third-party/analytics request; no sensitive data in region attributes/events.
+
+**Deferred to later phases:** CalculatorLayout integration (R6); homepage
+monetization (after its future complete dashboard); a real consent vendor and ad/
+affiliate providers (undecided); full validation (R7).

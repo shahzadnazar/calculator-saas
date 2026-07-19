@@ -64,3 +64,30 @@ Revenue = Traffic × RPM. We grow both sides without dark patterns:
 5. **Later:** **membership**, **public API**, **SaaS**.
 
 Everything above is a config flip away — by design.
+
+---
+
+## Monetization-region architecture (R5 — architecture only, all off)
+
+A higher-level orchestrator now sits above the specialized modules. It does NOT
+replace `AdSlot`, `RelatedOffers` or `EmbedBox` — they keep their
+responsibilities — and it is NOT wired into any live layout (that is R6).
+
+- **`src/config/monetization.ts` → `MONETIZATION_CONFIG`** — the single source of
+  placement decisions. `enabled: false` globally and per placement; each
+  placement documents its intended module + reservation + consent requirement.
+- **`src/lib/monetization/policy.ts`** — pure resolvers (`resolvePlacement`,
+  no-fill/CLS + static-collapse policy, sidebar container eligibility, disclosure
+  selection, consent, and safe-event helpers that never carry input/result/query
+  data).
+- **`src/components/monetization/MonetizationRegion.astro`** — resolves the
+  config → a labelled `complementary` region + disclosure → the specialized
+  module (distinct per kind), rendered as a SIBLING of the result, never inside a
+  result primitive. Not-permitted → renders nothing (no space, no request).
+- **`/dev/monetization`** — internal, noindex, sitemap-excluded demo of every
+  state / module / gate with placeholders only.
+
+**Status:** every placement is disabled. No AdSense/affiliate/analytics/consent
+provider or script is integrated. A vendor-neutral `ConsentState` defaults to all
+denied; a real CMP + providers remain deferred. `CalculatorLayout` integration
+and homepage monetization (after its future dashboard) are later phases.

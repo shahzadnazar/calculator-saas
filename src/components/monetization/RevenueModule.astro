@@ -1,0 +1,191 @@
+---
+/**
+ * RevenueModule (R5) — the placeholder revenue module for each kind.
+ *
+ * Each kind renders DISTINCT markup (never one generic card): `ad` is a reserved
+ * advertisement slot, `affiliate` a disclosed offer list, `sponsored` a labelled
+ * resource, `premium`/`api`/`embed` clearly-labelled internal product prompts,
+ * and `lead` a request-a-quote placeholder. R5 ships placeholders only; at live
+ * integration (R6) `ad`/`affiliate`/`embed` delegate to the existing `AdSlot`,
+ * `RelatedOffers` and `EmbedBox`, and each block here becomes its specialized
+ * component (SponsoredResource, PremiumFeaturePrompt, ApiPromotion,
+ * LeadGenerationModule). Nothing here loads a provider, script or tracker.
+ *
+ * Modules are visually + semantically distinct from calculator controls: no
+ * field/Calculate/result styling, disclosures are explicit, internal promotions
+ * are labelled as products (never as independent recommendations).
+ */
+import type { RevenueModuleKind } from '@lib/monetization/policy';
+
+interface Props {
+  kind: RevenueModuleKind;
+  disclosure: string;
+}
+const { kind, disclosure } = Astro.props;
+---
+
+<div class="mon-module" data-revenue-module={kind}>
+  {
+    kind === 'ad' && (
+      <div class="mon-ad">
+        <span class="mon-tag">Advertisement</span>
+        <p class="mon-ad__body">Ad creative appears here once a network is connected.</p>
+      </div>
+    )
+  }
+
+  {
+    kind === 'affiliate' && (
+      <div class="mon-affiliate">
+        <p class="mon-note">{disclosure}</p>
+        <ul class="mon-offers">
+          <li class="mon-offer"><span class="mon-offer__name">Partner service A</span><span class="mon-offer__cta">Learn more →</span></li>
+          <li class="mon-offer"><span class="mon-offer__name">Partner service B</span><span class="mon-offer__cta">Learn more →</span></li>
+        </ul>
+      </div>
+    )
+  }
+
+  {
+    kind === 'sponsored' && (
+      <div class="mon-sponsored">
+        <span class="mon-tag mon-tag--sponsored">Sponsored</span>
+        <p class="mon-sponsored__title">A sponsored resource, clearly labelled</p>
+        <p class="mon-sponsored__desc">Sponsored placements are disclosed and never affect calculators or rankings.</p>
+      </div>
+    )
+  }
+
+  {
+    kind === 'premium' && (
+      <div class="mon-promo mon-promo--premium">
+        <span class="mon-tag mon-tag--product">AllCalculators Plus</span>
+        <p class="mon-promo__title">Save your calculations and export to PDF</p>
+        <span class="mon-promo__cta">Learn about Plus</span>
+      </div>
+    )
+  }
+
+  {
+    kind === 'embed' && (
+      <div class="mon-promo mon-promo--embed">
+        <span class="mon-tag mon-tag--product">Embed this tool</span>
+        <p class="mon-promo__title">Put this calculator on your own site</p>
+        <span class="mon-promo__cta">Get the embed code</span>
+      </div>
+    )
+  }
+
+  {
+    kind === 'api' && (
+      <div class="mon-promo mon-promo--api">
+        <span class="mon-tag mon-tag--product">AllCalculators API</span>
+        <p class="mon-promo__title">Use our calculators programmatically</p>
+        <span class="mon-promo__cta">Read the API docs</span>
+      </div>
+    )
+  }
+
+  {
+    kind === 'lead' && (
+      <div class="mon-lead">
+        <span class="mon-tag mon-tag--product">Get a quote</span>
+        <p class="mon-lead__title">Request a personalized quote</p>
+        <p class="mon-lead__note">A lead form would render here once a provider and consent are configured.</p>
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .mon-module {
+    width: 100%;
+  }
+  .mon-tag {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    background: var(--subtle);
+    border-radius: 0.35rem;
+    padding: 0.1rem 0.45rem;
+  }
+  .mon-tag--sponsored,
+  .mon-tag--product {
+    color: var(--color-brand-700);
+    background: color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+  }
+  .mon-note {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin: 0 0 0.5rem;
+  }
+  /* Ad: a plainly-marked slot, never mimicking a result card. */
+  .mon-ad {
+    display: grid;
+    place-items: center;
+    gap: 0.4rem;
+    min-height: 90px;
+    border: 1px dashed var(--line);
+    border-radius: 0.5rem;
+    text-align: center;
+    padding: 0.75rem;
+  }
+  .mon-ad__body {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 0;
+  }
+  /* Affiliate: a disclosed offer list. */
+  .mon-offers {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.4rem;
+  }
+  .mon-offer {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.85rem;
+  }
+  .mon-offer__cta {
+    color: var(--color-brand-600);
+    font-weight: 600;
+  }
+  /* Sponsored / promos share a bordered, non-result look. */
+  .mon-sponsored,
+  .mon-promo,
+  .mon-lead {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.75rem 0.9rem;
+  }
+  .mon-sponsored__title,
+  .mon-promo__title,
+  .mon-lead__title {
+    font-weight: 700;
+    margin: 0.4rem 0 0.2rem;
+    color: var(--heading);
+    font-size: 0.95rem;
+  }
+  .mon-sponsored__desc,
+  .mon-lead__note {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 0;
+  }
+  .mon-promo__cta {
+    display: inline-block;
+    margin-top: 0.3rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-brand-600);
+  }
+</style>

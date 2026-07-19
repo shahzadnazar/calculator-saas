@@ -1,0 +1,160 @@
+import { test, expect, type Page } from '@playwright/test';
+
+/**
+ * Monetization-region architecture (R5), on the internal /dev/monetization demo.
+ *
+ * Placeholders only: these tests confirm the orchestrator's gating (state,
+ * consent, result-state, sidebar), the per-module distinctions + disclosures,
+ * the no-fill/CLS reservation behaviour, and — importantly — that nothing here
+ * makes a third-party/analytics request or leaks sensitive data.
+ */
+const ROUTE = '/dev/monetization';
+
+const cell = (page: Page, demo: string) => page.locator(`[data-demo="${demo}"]`);
+const region = (page: Page, demo: string) => cell(page, demo).locator('[data-mon-region]');
+
+test.beforeEach(async ({ page }) => {
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+});
+
+/* ---- Slot states -------------------------------------------------------- */
+
+test('disabled renders no region and occupies no region element', async ({ page }) => {
+  await expect(region(page, 'state-disabled')).toHaveCount(0);
+});
+
+test('reserved and loading render a region with stable reserved dimensions', async ({ page }) => {
+  for (const demo of ['state-reserved', 'state-loading']) {
+    const r = region(page, demo);
+    await expect(r).toHaveCount(1);
+    const box = await r.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(80); // reserved dimensions held
+  }
+});
+
+test('filled shows the module with an explicit disclosure', async ({ page }) => {
+  const r = region(page, 'state-filled');
+  await expect(r).toHaveAttribute('data-mon-state', 'filled');
+  await expect(r).toContainText('Advertisement');
+});
+
+test('a visible no-fill retains its reservation; an unseen lazy no-fill collapses', async ({ page }) => {
+  const seen = region(page, 'state-nofill-seen');
+  await expect(seen).toHaveCount(1);
+  expect((await seen.boundingBox())!.height).toBeGreaterThanOrEqual(80); // retained
+  await expect(region(page, 'state-nofill-unseen')).toHaveCount(0); // collapsed
+});
+
+test('failed retains the reservation while visible', async ({ page }) => {
+  await expect(region(page, 'state-failed')).toHaveCount(1);
+});
+
+/* ---- Module kinds + disclosures ----------------------------------------- */
+
+test('each module kind renders a distinct, correctly-labelled placeholder', async ({ page }) => {
+  await expect(region(page, 'module-ad')).toContainText('Advertisement');
+  await expect(region(page, 'module-affiliate')).toContainText(/partner links|commission/i);
+  await expect(region(page, 'module-sponsored')).toContainText('Sponsored');
+  await expect(region(page, 'module-premium')).toContainText('AllCalculators Plus');
+  await expect(region(page, 'module-embed')).toContainText('Embed this tool');
+  await expect(region(page, 'module-api')).toContainText('AllCalculators API');
+  await expect(region(page, 'module-lead')).toContainText(/quote/i);
+  // Distinct module identity is exposed for each.
+  await expect(region(page, 'module-sponsored')).toHaveAttribute('data-mon-module', 'sponsored');
+  await expect(region(page, 'module-premium')).toHaveAttribute('data-mon-module', 'premium');
+});
+
+test('every rendered region is a labelled complementary landmark', async ({ page }) => {
+  const regions = page.locator('[data-mon-region]');
+  const n = await regions.count();
+  expect(n).toBeGreaterThan(0);
+  for (let i = 0; i < n; i++) {
+    await expect(regions.nth(i)).toHaveAttribute('role', 'complementary');
+    expect((await regions.nth(i).getAttribute('aria-label'))?.length).toBeGreaterThan(0);
+  }
+});
+
+/* ---- Result-state gating ------------------------------------------------ */
+
+test('post-result renders only for a fresh valid result', async ({ page }) => {
+  await expect(region(page, 'gate-valid')).toHaveCount(1);
+  await expect(region(page, 'gate-stale')).toHaveCount(0);
+  await expect(region(page, 'gate-invalid')).toHaveCount(0);
+  await expect(region(page, 'gate-empty')).toHaveCount(0);
+});
+
+/* ---- Consent ------------------------------------------------------------ */
+
+test('consent gates restricted modules; placeholders only when granted', async ({ page }) => {
+  await expect(region(page, 'consent-denied')).toHaveCount(0); // lead, no consent
+  await expect(region(page, 'consent-granted')).toHaveCount(1); // lead, consent granted
+  await expect(region(page, 'consent-ad-denied')).toHaveCount(0); // ad, no advertising consent
+});
+
+/* ---- Sidebar eligibility ------------------------------------------------ */
+
+test('an eligible wide workspace shows the sidebar; a narrow one hides it (core not compressed)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  const wideSide = cell(page, 'sidebar-eligible').locator('.mon-side');
+  const narrowSide = cell(page, 'sidebar-ineligible').locator('.mon-side');
+  await expect(wideSide).toBeVisible();
+  await expect(narrowSide).toBeHidden();
+  // The narrow core keeps its width (never compressed by a sidebar).
+  const core = cell(page, 'sidebar-ineligible').locator('.mon-core');
+  expect((await core.boundingBox())!.width).toBeGreaterThan(0);
+});
+
+/* ---- Responsive / theme ------------------------------------------------- */
+
+test('mobile: the sidebar column drops below the core and nothing overflows', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await expect(cell(page, 'sidebar-eligible').locator('.mon-side')).toBeHidden(); // container too narrow
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test('renders in dark scheme', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(region(page, 'module-sponsored')).toBeVisible();
+});
+
+/* ---- No focus trap / autofocus ------------------------------------------ */
+
+test('does not autofocus a monetization region on load', async ({ page }) => {
+  const active = await page.evaluate(() => document.activeElement?.tagName ?? 'BODY');
+  expect(['BODY', 'HTML']).toContain(active);
+});
+
+/* ---- Privacy: no third-party / analytics / sensitive data --------------- */
+
+test('makes no third-party or analytics requests and leaks no sensitive data', async ({ page }) => {
+  const external: string[] = [];
+  page.on('request', (r) => {
+    const url = new URL(r.url());
+    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') external.push(r.url());
+  });
+  await page.goto(ROUTE, { waitUntil: 'networkidle' });
+
+  expect(external, `unexpected external requests: ${external.join(', ')}`).toEqual([]);
+
+  // Regions carry only placement/state/module metadata — no input/result/query data.
+  const attrs = await page.evaluate(() => {
+    const out: string[] = [];
+    for (const el of Array.from(document.querySelectorAll('[data-mon-region] *, [data-mon-region]'))) {
+      for (const a of Array.from(el.attributes)) out.push(`${a.name}=${a.value}`);
+    }
+    return out.join('\n');
+  });
+  expect(attrs).not.toMatch(/password|heightCm|weightKg|data-value|inputmode|result-value/i);
+  // No analytics/tracking script tags present.
+  const scripts = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('script[src]')).map((s) => s.getAttribute('src') ?? ''),
+  );
+  expect(scripts.some((s) => /google-analytics|googletagmanager|gtag|plausible|segment|doubleclick|adsbygoogle/i.test(s))).toBe(
+    false,
+  );
+});
