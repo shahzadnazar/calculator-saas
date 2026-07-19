@@ -144,18 +144,16 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   </form>
 
   <!-- Result -->
-  <!-- `!flex flex-col justify-center` (shared Tailwind utilities — no bespoke
-       global CSS; the `!` wins over the primitive's `.result-shell{display:block}`)
-       reserves the valid height and vertically centres whichever state is shown,
-       so live editing never jumps and the empty/invalid placeholders read as
-       intentional rather than a void. -->
+  <!-- Reserve the valid-state height so live editing never jumps; the shared
+       `placeholderAlignment="center"` prop vertically centres the short
+       empty/invalid placeholders so the reserved card reads as intentional. -->
   <ResultShell
     id="bmi-result"
-    class="!flex flex-col justify-center"
     state="empty"
     density="standard"
     label="Your BMI result"
     minHeight="22rem"
+    placeholderAlignment="center"
   >
     <EmptyResult message="Enter your height and weight, then calculate your BMI." />
 

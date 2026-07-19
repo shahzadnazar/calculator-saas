@@ -157,18 +157,22 @@ Status values: `not-migrated` · `pilot` · `migrated` · `approved-exception`.
 
 | Status | Calculators | Meaning |
 |---|---|---|
-| `migrated` | scientific-calculator; **bmi-calculator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot, migrated in R2 — empty initial state, Calculate BMI + Reset, live-after-first, field validation + `aria-invalid`, single result `aria-live`, focus rules. Behavior family: standard form. Commit `843d113`.** |
+| `migrated` | scientific-calculator; **bmi-calculator** | scientific: PhysicalCalculator, legacy island retired (R0.5). **bmi: standard-form runtime pilot — empty initial state, Calculate BMI + Reset, live-after-first, field validation + `aria-invalid`, single result `aria-live`, focus rules. Behavior family: standard form. Accepted migration: R2 range `843d113..b7f9d44`, refined by R2.1 (precise imperial-height semantics; shared `ResultShell` `placeholderAlignment` API replacing the BMI `!flex` override).** |
 | `pilot` | percent-calculator, password-generator | Task-first page shipped; designated result-system pilots (R3 equation, R4 generator). Result semantics not yet migrated. |
 | `not-migrated` | the other 44 live calculators | Current recurring-gap behavior; scheduled by family wave. |
 | `approved-exception` | (none yet) | Reserved for deliberate, documented deviations (e.g. a complex-finance tool using a clearly-labelled Example). |
 
-> **R2 note (2026-07-19):** BMI is the first standard-form migration. The shared
-> standard-form runtime (`src/lib/result/form-runtime.ts`) is validated for
+> **R2 / R2.1 note (2026-07-19):** BMI is the first standard-form migration. The
+> shared standard-form runtime (`src/lib/result/form-runtime.ts`) is validated for
 > **standard one-form calculators only**; the rest of the standard-form family
 > (converters, date/duration, dynamic-row, multi-mode, financial schedules,
 > specialized reports) is **not** certified by this single pilot and must be
-> validated per subfamily before binding. Two BMI-embedding guides show the
-> migrated tool (same component); their prose is unchanged.
+> validated per subfamily before binding. R2.1 tightened imperial-height
+> validation (feet = non-negative integer; inches finite and `0 ≤ in < 12` with
+> "Enter inches from 0 to 11."; total > 0; no silent normalization) and added a
+> reusable `ResultShell` `placeholderAlignment: 'start' | 'center'` prop (shared
+> `result.css`) so no calculator needs a bespoke display override. Two
+> BMI-embedding guides show the migrated tool (same component); prose unchanged.
 
 ## Family classification (all 48)
 

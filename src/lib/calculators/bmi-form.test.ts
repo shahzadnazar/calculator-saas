@@ -53,24 +53,45 @@ describe('validateBmiValues — metric', () => {
   });
 });
 
-describe('validateBmiValues — imperial', () => {
-  it('accepts feet + inches', () => {
+describe('validateBmiValues — imperial (R2.1 height semantics)', () => {
+  it('accepts feet + inches, feet-only, inches-only, and boundary parts', () => {
     expect(validateBmiValues(imperial('5', '9', '154'))).toEqual({ ok: true });
+    expect(validateBmiValues(imperial('5', '', '154'))).toEqual({ ok: true }); // feet-only
+    expect(validateBmiValues(imperial('', '8', '154'))).toEqual({ ok: true }); // inches-only
+    expect(validateBmiValues(imperial('5', '0', '154'))).toEqual({ ok: true }); // 5 ft 0 in
+    expect(validateBmiValues(imperial('0', '8', '154'))).toEqual({ ok: true }); // 0 ft 8 in
+    expect(validateBmiValues(imperial('6', '11', '154'))).toEqual({ ok: true }); // inches at the max
   });
-  it('accepts inches-only (empty feet counts as zero feet)', () => {
-    expect(validateBmiValues(imperial('', '9', '154'))).toEqual({ ok: true });
-  });
-  it('flags an empty height and a zero total height differently', () => {
-    expect(validateBmiValues(imperial('', '', '154'))).toMatchObject({
-      fieldErrors: { height: 'Enter your height.' },
-    });
+  it('rejects a zero total height', () => {
     expect(validateBmiValues(imperial('0', '0', '154'))).toMatchObject({
       fieldErrors: { height: 'Enter a height greater than zero.' },
     });
+    expect(validateBmiValues(imperial('', '', '154'))).toMatchObject({
+      fieldErrors: { height: 'Enter your height.' },
+    });
   });
-  it('flags a negative part as non-positive height', () => {
+  it('rejects 12+ inches without silently normalizing (5 ft 14 in is an error)', () => {
+    expect(validateBmiValues(imperial('5', '14', '154'))).toMatchObject({
+      fieldErrors: { height: 'Enter inches from 0 to 11.' },
+    });
+    expect(validateBmiValues(imperial('5', '12', '154'))).toMatchObject({
+      fieldErrors: { height: 'Enter inches from 0 to 11.' },
+    });
+  });
+  it('rejects negative and non-finite inches with the inches message', () => {
     expect(validateBmiValues(imperial('5', '-3', '154'))).toMatchObject({
-      fieldErrors: { height: 'Enter a height greater than zero.' },
+      fieldErrors: { height: 'Enter inches from 0 to 11.' },
+    });
+    expect(validateBmiValues(imperial('5', 'abc', '154'))).toMatchObject({
+      fieldErrors: { height: 'Enter inches from 0 to 11.' },
+    });
+  });
+  it('rejects negative and non-integer feet', () => {
+    expect(validateBmiValues(imperial('-1', '', '154'))).toMatchObject({
+      fieldErrors: { height: 'Enter feet as a whole number.' },
+    });
+    expect(validateBmiValues(imperial('5.5', '0', '154'))).toMatchObject({
+      fieldErrors: { height: 'Enter feet as a whole number.' },
     });
   });
   it('flags a missing weight', () => {
@@ -135,6 +156,21 @@ describe('imperialToMetric', () => {
     const back = imperialToMetric(imp);
     expect(back.heightCm).toBeCloseTo(180, 0);
     expect(back.weightKg).toBeCloseTo(75, 0);
+  });
+});
+
+describe('conversion round-trips stay within reasonable tolerance (R2.1)', () => {
+  it('metric → imperial → metric height holds to ~1 cm', () => {
+    for (const cm of [152, 165, 175, 183, 198]) {
+      const back = imperialToMetric(metricToImperial({ heightCm: cm, weightKg: null }));
+      expect(Math.abs((back.heightCm ?? 0) - cm)).toBeLessThanOrEqual(1.5);
+    }
+  });
+  it('kg → lb → kg weight holds to ~0.5 kg', () => {
+    for (const kg of [50, 63.5, 70, 88, 120]) {
+      const back = imperialToMetric(metricToImperial({ heightCm: null, weightKg: kg }));
+      expect(Math.abs((back.weightKg ?? 0) - kg)).toBeLessThanOrEqual(0.5);
+    }
   });
 });
 

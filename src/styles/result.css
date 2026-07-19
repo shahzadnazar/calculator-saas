@@ -85,6 +85,21 @@
   display: block;
 }
 
+/* ---- Placeholder alignment (empty / invalid states) --------------------- */
+/* Opt-in via `placeholderAlignment="center"`. The shell becomes a flex column
+   (the higher-specificity selector beats `.result-shell { display:block }`
+   without !important) and the SHORT placeholder states are vertically centred
+   in the reserved height. The valid result keeps normal top-aligned layout —
+   it has no auto margin, so it sits at flex-start. */
+.result-shell[data-placeholder-align='center'] {
+  display: flex;
+  flex-direction: column;
+}
+.result-shell[data-placeholder-align='center'] [data-result-when~='empty'],
+.result-shell[data-placeholder-align='center'] [data-result-when~='invalid'] {
+  margin-block: auto;
+}
+
 /* ---- Summary (the dominant answer) -------------------------------------- */
 .result-summary__value {
   display: flex;

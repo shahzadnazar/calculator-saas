@@ -15,6 +15,15 @@
 import '@styles/result.css';
 import type { ResultState, ResultActivity } from '@lib/result/state';
 
+/**
+ * Vertical alignment of the SHORT placeholder states (empty / invalid) within
+ * the reserved height. `'start'` (default) keeps them at the top; `'center'`
+ * vertically centres them so a tall reservation reads as an intentional
+ * "your result appears here" surface rather than a void. The valid result
+ * always keeps normal top-aligned result layout regardless of this setting.
+ */
+export type PlaceholderAlignment = 'start' | 'center';
+
 export interface Props {
   state?: ResultState;
   activity?: ResultActivity;
@@ -25,6 +34,8 @@ export interface Props {
   minHeight?: string;
   /** Card chrome (border/background/padding). Off to embed inside another card. */
   boxed?: boolean;
+  /** Vertical alignment of the empty/invalid placeholders (default 'start'). */
+  placeholderAlignment?: PlaceholderAlignment;
   id?: string;
   class?: string;
 }
@@ -36,6 +47,7 @@ const {
   label = 'Result',
   minHeight,
   boxed = true,
+  placeholderAlignment,
   id,
   class: className = '',
 } = Astro.props;
@@ -53,6 +65,7 @@ const style = minHeight != null ? `--result-min-h:${minHeight}` : undefined;
   data-result-activity={activity}
   data-density={density}
   data-boxed={String(boxed)}
+  data-placeholder-align={placeholderAlignment}
   style={style}
 >
   <slot />

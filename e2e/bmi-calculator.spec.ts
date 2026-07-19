@@ -99,6 +99,17 @@ test('a zero value is rejected with distinct guidance and no NaN', async ({ page
   await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
 });
 
+test('imperial rejects 12+ inches without normalizing (R2.1 semantics)', async ({ page }) => {
+  await page.click('[data-unit="imperial"]');
+  await page.fill('[name="heightFt"]', '5');
+  await page.fill('[name="heightIn"]', '14');
+  await page.fill('[name="weightLb"]', '154');
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(page.locator('[data-error-for="height"]')).toHaveText('Enter inches from 0 to 11.');
+  await expect(page.locator('[name="heightFt"]')).toBeFocused(); // first invalid field in the height group
+});
+
 /* ---- Live-after-first --------------------------------------------------- */
 
 test('updates automatically after the first success, without moving focus', async ({ page }) => {

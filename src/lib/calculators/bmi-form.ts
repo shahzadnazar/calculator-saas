@@ -30,7 +30,6 @@ export type BmiValues =
 /* ------------------------------------------------------------------ */
 
 type PositiveParse = 'empty' | 'nonpositive' | number;
-type NonNegativeParse = 'empty' | 'invalid' | number;
 
 function parsePositive(raw: string): PositiveParse {
   const t = raw.trim();
@@ -40,12 +39,28 @@ function parsePositive(raw: string): PositiveParse {
   return n;
 }
 
-function parseNonNegative(raw: string): NonNegativeParse {
-  const t = raw.trim();
-  if (t === '') return 'empty';
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) return 'invalid';
-  return n;
+/**
+ * Validate the imperial height pair into a single field message (both parts
+ * share one `data-field="height"` slot). Feet: optional/zero valid, else a
+ * finite non-negative integer. Inches: optional/zero valid, else finite and
+ * 0 ≤ inches < 12 — 12+ is an error, NOT silently normalized. Total must be > 0.
+ */
+function validateImperialHeight(ftRaw: string, inRaw: string): string | null {
+  const ft = ftRaw.trim();
+  const inch = inRaw.trim();
+  if (ft === '' && inch === '') return 'Enter your height.';
+
+  const ftNum = ft === '' ? 0 : Number(ft);
+  const inNum = inch === '' ? 0 : Number(inch);
+
+  const inchesBad = inch !== '' && (!Number.isFinite(inNum) || inNum < 0 || inNum >= 12);
+  if (inchesBad) return 'Enter inches from 0 to 11.';
+
+  const feetBad = ft !== '' && (!Number.isFinite(ftNum) || ftNum < 0 || !Number.isInteger(ftNum));
+  if (feetBad) return 'Enter feet as a whole number.';
+
+  if (ftNum * 12 + inNum <= 0) return 'Enter a height greater than zero.';
+  return null;
 }
 
 /**
@@ -66,16 +81,8 @@ export function validateBmiValues(values: BmiValues): ValidationResult {
     if (w === 'empty') fieldErrors.weightKg = 'Enter your weight.';
     else if (w === 'nonpositive') fieldErrors.weightKg = 'Enter a weight greater than zero.';
   } else {
-    const ft = parseNonNegative(values.heightFt);
-    const inch = parseNonNegative(values.heightIn);
-    if (ft === 'empty' && inch === 'empty') {
-      fieldErrors.height = 'Enter your height.';
-    } else if (ft === 'invalid' || inch === 'invalid') {
-      fieldErrors.height = 'Enter a height greater than zero.';
-    } else {
-      const total = (ft === 'empty' ? 0 : ft) * 12 + (inch === 'empty' ? 0 : inch);
-      if (total <= 0) fieldErrors.height = 'Enter a height greater than zero.';
-    }
+    const heightError = validateImperialHeight(values.heightFt, values.heightIn);
+    if (heightError) fieldErrors.height = heightError;
 
     const w = parsePositive(values.weightLb);
     if (w === 'empty') fieldErrors.weightLb = 'Enter your weight.';
