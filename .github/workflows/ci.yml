@@ -16,6 +16,8 @@ jobs:
       - run: npm ci
       - name: Type check
         run: npm run check
+      - name: Assert generated embed pages are current (no drift from the registry)
+        run: npm run assert:embed-pages-current
       - name: Unit tests
         run: npm test
       - name: Production build

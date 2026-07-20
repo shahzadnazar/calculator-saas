@@ -154,7 +154,7 @@ the date, commit and counts whenever the fleet changes.
 | Not migrated (legacy) | **40** |
 | Approved exceptions | **0** |
 | Distinct Astro islands | **47** — statistics + standard-deviation share `StatisticsCalculator` via a `primary` prop; **scientific uses `PhysicalCalculator`** (`components/calc/`, not an island) |
-| Embed exposure | **all 49** — every calculator is served by the dynamic route `src/pages/embed/[category]/[slug].astro` (`getLiveCalculators()` → `IslandBySlug`); no per-slug embed files exist |
+| Embed exposure | **all 49** — each calculator is served by a **generated per-slug static page** `src/pages/embed/<category>/<slug>.astro` (R7D1; the dynamic `IslandBySlug` route was retired). Same public URLs; each page bundles only its own island's scoped CSS |
 
 **The 40 legacy calculators are noncompliant with the doctrine in the same
 recurring ways** — each **auto-calculates prefilled example values and shows a
@@ -175,35 +175,76 @@ what the R1–R7 program closes.
 | R7C-2A | body-fat-calculator (first conditional-input migration) | `140f3f7` |
 | R7C-2A.1 | body-fat hardening: sanity boundary, hip disable/preserve, category ownership, embed-CSS thresholds (no calculator migrated) | `fa9c318` |
 | R7C-2B | calorie-calculator (activity + goal; goal selector picks an existing figure) | `4c5a126` |
-| R7C-2B.1 | calorie hardening: non-positive comparison "Not available" + goal-scenario labels (no calculator migrated) | *(this R7C-2B.1 commit)* |
+| R7C-2B.1 | calorie hardening: non-positive comparison "Not available" + goal-scenario labels (no calculator migrated) | `430229b` |
+| R7D1 | per-slug public-embed code splitting (retire dynamic IslandBySlug; no calculator migrated) | *(this R7D1 commit)* |
 
-**Fleet after R7C-2B / R7C-2B.1:** 49 total · **9 migrated** · **40 legacy** · **0 approved exceptions.**
+**Fleet after R7D1:** 49 total · **9 migrated** · **40 legacy** · **0 approved exceptions** (R7D1 migrates no calculator — it is an embed-infrastructure change only).
 
-## Embed CSS baseline (dynamic IslandBySlug ripple)
+## Embed architecture — per-slug code splitting (R7D1)
 
-The embed route bundles **every** island's scoped CSS onto **every** `/embed/*`
-page, so each migration that adds scoped CSS grows that shared bundle (the
-accepted "inert IslandBySlug ripple"). `npm run report:embed-css` (READ-ONLY,
-non-failing) measures an unrelated embed page and reports the delta vs
-`docs/embed-css-baseline.json`. **Baseline** (mortgage embed, commit `2648aa0`):
-total **56,744 B** / gzip **10,642 B** / island-scoped **16,563 B (29.2%)**, of
-which **15,864 B across 138 selectors (17 non-rendered islands)** is inert ripple.
-Re-baseline (`--write-baseline`) after each accepted migration so future
-migrations show cumulative growth. This is a measurement only — **not** a failing
-CI budget, and **IslandBySlug is unchanged**.
+**The old ripple (retired).** Public embeds were served by one dynamic route
+`src/pages/embed/[category]/[slug].astro` rendering `IslandBySlug`, which
+**statically imported all 47 islands** into a `Record<slug, Component>` map and
+rendered `const Island = ISLANDS[slug]; <Island/>`. Because `Island` was a runtime
+variable, Astro/Vite could not statically determine the component per generated
+path, so CSS bundling (per-**file**, from the static import graph) emitted **every**
+island's scoped `<style>` onto **every** `/embed/*` page — the rendered island
+pruned the HTML, not the CSS. (JS did not ripple: hoisted island scripts follow the
+render tree.) By R7C-2B every embed page carried **~24 KB scoped CSS, of which
+~18–23 KB (16–17 non-rendered islands) was dead** — crossing the 20 KB-raw advisory
+threshold. An `import.meta.glob` spike confirmed glob does **not** fix this (it
+expands statically to all matches within the one route file → same graph).
 
-**Cumulative since baseline:** R7C-2A (body-fat) added **+3,289 B total / +215 B
-gzip** (all of it scoped `.bf-*` CSS, all inert on unrelated embed pages — the
-body-fat cid is bundled but rendered on no other page) → mortgage embed now
-**60,033 B total / 10,857 B gzip**. The baseline stays pinned at `2648aa0` so the
-delta accrues across the R7C-2 wave.
+**The fix (direct static imports).** Each public embed is now a **generated
+per-slug static page** `src/pages/embed/<category>/<slug>.astro` with a **literal
+static import of exactly one island** + the shared `EmbedPageShell` (which forwards
+to the unchanged `EmbedLayout`). A literal import lets Astro emit only that island's
+scoped CSS. `IslandBySlug` and the dynamic route are deleted.
 
-**Advisory warning thresholds (R7C-2A.1)** — `report:embed-css` prints (never
-fails) a warning when either is crossed; crossing one is the trigger to open a
-**code-splitting architecture review** of the IslandBySlug bundle (do not change
-IslandBySlug pre-emptively):
-- unused calculator-scoped CSS **> 20 KB raw**;
-- total embed CSS **> 15 KB gzip**.
+**How generation works.**
+- **Canonical source:** `src/data/embed-components.json` (+ typed
+  `embed-components.ts`) — serializable `slug → { category, componentPath, props? }`
+  (path strings + JSON-safe props only, so a pure-Node generator needs no TS
+  loader). The **registry** (`@data/calculators`) stays the authority on which
+  calculators are live; a coverage test asserts the map matches it EXACTLY.
+- **Generator:** `npm run gen:embed-pages` (`scripts/gen-embed-pages.mjs`) writes
+  one deterministic page per live calculator (sorted slugs, LF newlines, forward-
+  slash paths, sorted prop keys). `--only a,b` limits to a subset.
+- **Drift gate:** `npm run assert:embed-pages-current` (`--check`) regenerates in
+  memory and fails on any missing / stale / orphaned page. **Wired into the required
+  CI `build-and-test` job** (after `check`). Generated pages are committed.
+- **Special cases** (in the map): scientific →
+  `@components/calc/ScientificCalculatorEmbed.astro`; statistics →
+  `StatisticsCalculator`; **standard-deviation → `StatisticsCalculator` with
+  `props: { primary: 'sd' }`** (rendered `primary="sd"`); password-generator →
+  `PasswordGeneratorCalculator`.
+
+**Before → after (per embed page, raw / gzip CSS; unrelated scoped raw):**
+
+| Embed | Before total | After total | Before gzip | After gzip | Unrelated scoped: before → after |
+|---|---|---|---|---|---|
+| mortgage | 64,190 B | **32,007 B** | 11,334 B | **7,122 B** | 23,226 B → **0** |
+| bmi | 64,190 B | **37,860 B** | 11,334 B | **8,274 B** | 21,919 B → **0** |
+| calorie | 64,190 B | **40,987 B** | 11,334 B | **8,487 B** | 18,827 B → **0** |
+| tip | 64,190 B | **32,007 B** | 11,334 B | **7,122 B** | 23,226 B → **0** |
+| scientific | 64,190 B | **36,033 B** | 11,334 B | **7,863 B** | ~23 KB → **0** |
+| standard-deviation | 64,190 B | **32,007 B** | 11,334 B | **7,122 B** | ~23 KB → **0** |
+
+Every embed page now carries **0 B unrelated calculator-scoped CSS** (only the
+shared `EmbedLayout` shell cid `r4tsmomu` + the one rendered island). Every public
+embed URL, the rendered island HTML/behavior, hydration, per-island JS, and all
+non-embed pages are unchanged (backward-compat: **only `/embed/*` pages differ**).
+
+**Baseline + thresholds.** `docs/embed-css-baseline.json` re-baselined to the
+post-R7D1 mortgage embed (total **32,007 B** / gzip **7,122 B** / **0** unused
+scoped). `report:embed-css` stays READ-ONLY, non-failing, with the advisory
+warnings (unused scoped **> 20 KB raw**; total **> 15 KB gzip**) — now structurally
+impossible to trip from unrelated islands, since each embed only bundles its own.
+
+**Rollback (bounded).** Restore `src/pages/embed/[category]/[slug].astro` +
+`src/components/IslandBySlug.astro`, delete `src/pages/embed/<category>/<slug>.astro`
++ the generator/map/shell + the drift gate + coverage/route tests, and restore the
+previous baseline. One tightly-bounded change; no calculator migration is entangled.
 
 **⚠ THRESHOLD CROSSED at R7C-2B.** Calorie added **+4,157 B** scoped CSS; the
 cumulative delta vs `2648aa0` is now **+7,446 B total / +692 B gzip**, and unused

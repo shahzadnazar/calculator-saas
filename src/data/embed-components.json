@@ -1,0 +1,201 @@
+{
+  "age-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/AgeCalculator.astro"
+  },
+  "amortization-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/AmortizationCalculator.astro"
+  },
+  "area-calculator": {
+    "category": "math",
+    "componentPath": "@components/islands/AreaCalculator.astro"
+  },
+  "auto-loan-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/AutoLoanCalculator.astro"
+  },
+  "bmi-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/BmiCalculator.astro"
+  },
+  "bmr-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/BmrCalculator.astro"
+  },
+  "body-fat-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/BodyFatCalculator.astro"
+  },
+  "calorie-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/CalorieCalculator.astro"
+  },
+  "compound-interest-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/CompoundInterestCalculator.astro"
+  },
+  "concrete-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/ConcreteCalculator.astro"
+  },
+  "conversion-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/ConversionCalculator.astro"
+  },
+  "credit-card-payoff-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/CreditCardPayoffCalculator.astro"
+  },
+  "date-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/DateCalculator.astro"
+  },
+  "due-date-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/DueDateCalculator.astro"
+  },
+  "fat-intake-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/FatIntakeCalculator.astro"
+  },
+  "fraction-calculator": {
+    "category": "math",
+    "componentPath": "@components/islands/FractionCalculator.astro"
+  },
+  "gpa-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/GpaCalculator.astro"
+  },
+  "grade-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/GradeCalculator.astro"
+  },
+  "home-equity-loan-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/HomeEquityLoanCalculator.astro"
+  },
+  "hours-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/HoursCalculator.astro"
+  },
+  "ideal-weight-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/IdealWeightCalculator.astro"
+  },
+  "income-tax-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/IncomeTaxCalculator.astro"
+  },
+  "inflation-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/InflationCalculator.astro"
+  },
+  "interest-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/InterestCalculator.astro"
+  },
+  "interest-rate-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/InterestRateCalculator.astro"
+  },
+  "investment-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/InvestmentCalculator.astro"
+  },
+  "loan-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/LoanCalculator.astro"
+  },
+  "mortgage-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/MortgageCalculator.astro"
+  },
+  "pace-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/PaceCalculator.astro"
+  },
+  "password-generator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/PasswordGeneratorCalculator.astro"
+  },
+  "payment-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/PaymentCalculator.astro"
+  },
+  "percent-calculator": {
+    "category": "math",
+    "componentPath": "@components/islands/PercentCalculator.astro"
+  },
+  "pregnancy-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/PregnancyCalculator.astro"
+  },
+  "protein-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/ProteinCalculator.astro"
+  },
+  "random-number-generator": {
+    "category": "math",
+    "componentPath": "@components/islands/RandomNumberGenerator.astro"
+  },
+  "retirement-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/RetirementCalculator.astro"
+  },
+  "salary-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/SalaryCalculator.astro"
+  },
+  "sales-tax-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/SalesTaxCalculator.astro"
+  },
+  "savings-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/SavingsCalculator.astro"
+  },
+  "scientific-calculator": {
+    "category": "math",
+    "componentPath": "@components/calc/ScientificCalculatorEmbed.astro"
+  },
+  "simple-interest-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/SimpleInterestCalculator.astro"
+  },
+  "square-footage-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/SquareFootageCalculator.astro"
+  },
+  "standard-deviation-calculator": {
+    "category": "math",
+    "componentPath": "@components/islands/StatisticsCalculator.astro",
+    "props": {
+      "primary": "sd"
+    }
+  },
+  "statistics-calculator": {
+    "category": "math",
+    "componentPath": "@components/islands/StatisticsCalculator.astro"
+  },
+  "target-heart-rate-calculator": {
+    "category": "health",
+    "componentPath": "@components/islands/TargetHeartRateCalculator.astro"
+  },
+  "time-calculator": {
+    "category": "everyday",
+    "componentPath": "@components/islands/TimeCalculator.astro"
+  },
+  "tip-calculator": {
+    "category": "finance",
+    "componentPath": "@components/islands/TipCalculator.astro"
+  },
+  "triangle-calculator": {
+    "category": "math",
+    "componentPath": "@components/islands/TriangleCalculator.astro"
+  },
+  "volume-calculator": {
+    "category": "math",
+    "componentPath": "@components/islands/VolumeCalculator.astro"
+  }
+}
