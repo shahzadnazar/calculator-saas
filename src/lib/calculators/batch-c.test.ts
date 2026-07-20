@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { calculateFatIntake } from './fat-intake';
 import { computePace, predictTime, formatDuration } from './pace';
 import { dueDateFromLMP, gestationalAge } from './due-date';
 import { pregnancyInfo } from './pregnancy';
@@ -7,15 +6,8 @@ import { toISODateUTC } from './date-duration';
 
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));
 
-describe('fat intake', () => {
-  it('computes the AMDR range from calories', () => {
-    const r = calculateFatIntake(2000);
-    expect(r.minGrams).toBe(44); // 20% of 2000 / 9
-    expect(r.maxGrams).toBe(78); // 35% of 2000 / 9
-    expect(r.moderateGrams).toBeGreaterThan(r.minGrams);
-    expect(r.moderateGrams).toBeLessThan(r.maxGrams);
-  });
-});
+// Fat-intake coverage now lives in the dedicated characterization suite
+// `fat-intake.test.ts` (R7C-2D).
 
 // Target-heart-rate coverage now lives in the dedicated characterization suite
 // `target-heart-rate.test.ts` (R7C-2C).
