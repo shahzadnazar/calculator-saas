@@ -22,6 +22,8 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Assert public embeds stay isolated (0 unrelated calculator-scoped CSS)
+        run: npm run assert:embed-isolation
       - name: Assert monetization stays off (no region/landmark/reserved space/CSS/bridge JS on any live page)
         run: npm run assert:mon-off
       - name: Install Playwright browser

@@ -1,19 +1,31 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
- * R7D1 — the public embed routes are now generated per-slug STATIC pages (the
- * dynamic IslandBySlug route is gone). Prove every live calculator still serves a
- * 200 static embed with the shared shell, that an unknown slug 404s, and that the
- * one props special case (standard-deviation → StatisticsCalculator primary='sd')
- * renders. Deep per-calculator behavior is covered by each calculator's own spec
- * (which also mounts its embed route); the embed page renders the identical island.
+ * R7D1 / R7D1.1 — the public embed routes are generated per-slug STATIC pages (the
+ * dynamic IslandBySlug route is gone), and the embed manifest no longer carries a
+ * category (the calculator registry is the sole route authority). Derive the route
+ * list from the generated page tree itself — the filesystem truth for "which embed
+ * routes exist" — and prove every one serves a 200 static embed with the shared
+ * shell, that an unknown slug 404s, and that the one props special case
+ * (standard-deviation → StatisticsCalculator primary='sd') renders. Deep behavior is
+ * covered by each calculator's own spec; the embed renders the identical island.
+ * (Registry↔manifest↔generated-page coverage is owned by embed-components.test.ts.)
  */
-const MAP = JSON.parse(readFileSync('src/data/embed-components.json', 'utf8')) as Record<
-  string,
-  { category: string }
->;
-const routes = Object.entries(MAP).map(([slug, d]) => ({ slug, url: `/embed/${d.category}/${slug}` }));
+const PAGES = 'src/pages/embed';
+// Non-calculator entries under src/pages/embed: the reference/[slug] route, the
+// gallery index, and the embed landing page.
+const RESERVED = new Set(['reference', 'gallery.astro', 'index.astro']);
+const routes: { slug: string; url: string }[] = [];
+for (const category of readdirSync(PAGES)) {
+  if (RESERVED.has(category) || category.startsWith('[') || category.endsWith('.astro')) continue;
+  for (const file of readdirSync(resolve(PAGES, category))) {
+    if (!file.endsWith('.astro') || file.startsWith('[')) continue;
+    const slug = file.replace(/\.astro$/, '');
+    routes.push({ slug, url: `/embed/${category}/${slug}` });
+  }
+}
 
 test('all 49 generated embed routes serve a 200 static page with the shared shell', async ({ page }) => {
   expect(routes.length).toBe(49);

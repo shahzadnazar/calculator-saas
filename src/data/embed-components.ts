@@ -1,23 +1,21 @@
 /**
- * Canonical embed-component identity (R7D1).
+ * Embed COMPONENT IDENTITY manifest (R7D1 · source-of-truth hardened R7D1.1).
  *
- * Serializable slug → { category, componentPath, props? } that GENERATES the
- * per-slug public embed pages (`scripts/gen-embed-pages.mjs`). It replaces the old
- * dynamic `IslandBySlug` component map: because it is serializable (aliased path
- * strings + JSON-safe props only — never an imported Astro component), a plain
- * Node generator and drift gate can read `embed-components.json` without a
- * TypeScript loader, and each generated page ends up with a LITERAL static import
- * of exactly one island (so Astro emits only that island's scoped CSS).
+ * `slug → { componentPath, props? }` — component identity ONLY. It carries NO
+ * category / title / status: the calculator REGISTRY (`@data/calculators`) is the
+ * single authority on which calculators are live and their category, and the
+ * generated embed ROUTE PATHS are derived from it (see `scripts/gen-embed-pages.mjs`).
  *
- * The registry (`@data/calculators`) stays the authority on which calculators are
- * live and their category; a coverage test asserts this map matches the live
- * registry EXACTLY (same slugs, same categories) so the two never drift.
+ * It is deliberately serializable (aliased path strings + JSON-safe props only —
+ * never an imported Astro component), so the plain-Node generator and drift/
+ * isolation gates read `embed-components.json` without a TypeScript loader, and
+ * each generated page ends up with a LITERAL static import of exactly one island
+ * (so Astro emits only that island's scoped CSS). A coverage test asserts this
+ * manifest's slug set matches the live registry EXACTLY, so the two never drift.
  */
 import raw from './embed-components.json';
 
 export interface EmbedComponentDefinition {
-  /** Category slug — namespaces the generated route `/embed/<category>/<slug>`. */
-  readonly category: string;
   /** Aliased path to the embed component, e.g. `@components/islands/BmiCalculator.astro`. */
   readonly componentPath: string;
   /** Serializable props passed to the component (e.g. `{ primary: 'sd' }`). */

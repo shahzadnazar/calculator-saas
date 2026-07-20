@@ -176,9 +176,10 @@ what the R1–R7 program closes.
 | R7C-2A.1 | body-fat hardening: sanity boundary, hip disable/preserve, category ownership, embed-CSS thresholds (no calculator migrated) | `fa9c318` |
 | R7C-2B | calorie-calculator (activity + goal; goal selector picks an existing figure) | `4c5a126` |
 | R7C-2B.1 | calorie hardening: non-positive comparison "Not available" + goal-scenario labels (no calculator migrated) | `430229b` |
-| R7D1 | per-slug public-embed code splitting (retire dynamic IslandBySlug; no calculator migrated) | *(this R7D1 commit)* |
+| R7D1 | per-slug public-embed code splitting (retire dynamic IslandBySlug; no calculator migrated) | `c0bbb01` |
+| R7D1.1 | embed hardening: failing isolation gate + source-of-truth contract + generated-page contract test (no calculator migrated) | *(this R7D1.1 commit)* |
 
-**Fleet after R7D1:** 49 total · **9 migrated** · **40 legacy** · **0 approved exceptions** (R7D1 migrates no calculator — it is an embed-infrastructure change only).
+**Fleet after R7D1 / R7D1.1:** 49 total · **9 migrated** · **40 legacy** · **0 approved exceptions** (embed-infrastructure changes only; no calculator migrated). **Embed architecture:** 49 generated static calculator routes · 0 dynamic calculator embed routes · **0 unrelated calculator-scoped CSS per embed** (enforced).
 
 ## Embed architecture — per-slug code splitting (R7D1)
 
@@ -202,17 +203,36 @@ to the unchanged `EmbedLayout`). A literal import lets Astro emit only that isla
 scoped CSS. `IslandBySlug` and the dynamic route are deleted.
 
 **How generation works.**
-- **Canonical source:** `src/data/embed-components.json` (+ typed
-  `embed-components.ts`) — serializable `slug → { category, componentPath, props? }`
-  (path strings + JSON-safe props only, so a pure-Node generator needs no TS
-  loader). The **registry** (`@data/calculators`) stays the authority on which
-  calculators are live; a coverage test asserts the map matches it EXACTLY.
+- **Canonical source (R7D1.1 source-of-truth contract):** the **registry**
+  (`@data/calculators`) is the SOLE authority on the live set **and** each
+  calculator's `category` — hence its route. `src/data/embed-components.json`
+  (+ typed `embed-components.ts`) carries **component identity ONLY** — serializable
+  `slug → { componentPath, props? }` (path strings + JSON-safe props, so a pure-Node
+  generator needs no TS loader). The manifest no longer duplicates
+  `category`/`title`/`status`, so there is no projection to drift; the generator
+  parses the registry for each slug's category. A coverage test asserts the map
+  matches the live registry EXACTLY **and** that every entry is component identity
+  only (keys ⊆ `{componentPath, props}`).
 - **Generator:** `npm run gen:embed-pages` (`scripts/gen-embed-pages.mjs`) writes
   one deterministic page per live calculator (sorted slugs, LF newlines, forward-
   slash paths, sorted prop keys). `--only a,b` limits to a subset.
 - **Drift gate:** `npm run assert:embed-pages-current` (`--check`) regenerates in
   memory and fails on any missing / stale / orphaned page. **Wired into the required
   CI `build-and-test` job** (after `check`). Generated pages are committed.
+- **Isolation gate (R7D1.1):** `npm run assert:embed-isolation`
+  (`scripts/assert-embed-isolation.mjs`) is a FAILING architectural gate with **no
+  byte budget**, run **after `npm run build`** in CI. It fails if the legacy dynamic
+  renderer returns (`IslandBySlug.astro` / `[category]/[slug].astro`), if any
+  generated page uses a component map / `import.meta.glob` / runtime dynamic import /
+  `<script>` loader / ≠ 1 island import, or if any built embed's CSS carries a scoped
+  rule for a `data-astro-cid` **not rendered** on that page (unrelated
+  calculator-scoped CSS / ownership). Asserts all 49 embeds; verified 0 unrelated.
+  `report:embed-css` stays informational alongside it.
+- **Generated-page contract test:** `embed-components.test.ts` asserts each generated
+  page is exactly **one literal island import** + one shared `EmbedPageShell` + a
+  **registry-derived** `getCalculator('<category>', '<slug>')`, the AUTO-GENERATED
+  header, the expected props, no map / glob / dynamic-lookup / runtime request, and
+  deterministic output (LF newlines, trailing newline).
 - **Special cases** (in the map): scientific →
   `@components/calc/ScientificCalculatorEmbed.astro`; statistics →
   `StatisticsCalculator`; **standard-deviation → `StatisticsCalculator` with
@@ -243,8 +263,9 @@ impossible to trip from unrelated islands, since each embed only bundles its own
 
 **Rollback (bounded).** Restore `src/pages/embed/[category]/[slug].astro` +
 `src/components/IslandBySlug.astro`, delete `src/pages/embed/<category>/<slug>.astro`
-+ the generator/map/shell + the drift gate + coverage/route tests, and restore the
-previous baseline. One tightly-bounded change; no calculator migration is entangled.
++ the generator/map/shell + the drift gate + the R7D1.1 isolation gate +
+coverage/route/contract tests, and restore the previous baseline. One
+tightly-bounded change; no calculator migration is entangled.
 
 **⚠ THRESHOLD CROSSED at R7C-2B.** Calorie added **+4,157 B** scoped CSS; the
 cumulative delta vs `2648aa0` is now **+7,446 B total / +692 B gzip**, and unused

@@ -18,7 +18,8 @@
     "assert:mon-off": "node scripts/assert-monetization-off.mjs",
     "report:embed-css": "node scripts/report-embed-css.mjs",
     "gen:embed-pages": "node scripts/gen-embed-pages.mjs",
-    "assert:embed-pages-current": "node scripts/gen-embed-pages.mjs --check"
+    "assert:embed-pages-current": "node scripts/gen-embed-pages.mjs --check",
+    "assert:embed-isolation": "node scripts/assert-embed-isolation.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.3.14",
