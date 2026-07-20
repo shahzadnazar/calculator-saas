@@ -11,7 +11,7 @@ import { test, expect, type Page } from '@playwright/test';
  */
 const LEGACY = [
   { route: '/finance/mortgage-calculator', category: 'finance' },
-  { route: '/health/calorie-calculator', category: 'health' },
+  { route: '/health/target-heart-rate-calculator', category: 'health' }, // calorie migrated in R7C-2B; this stays legacy
   { route: '/math/area-calculator', category: 'math' },
   { route: '/everyday/age-calculator', category: 'everyday' },
 ];
