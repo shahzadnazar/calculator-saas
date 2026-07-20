@@ -119,7 +119,7 @@ test('changing goal after the first result re-targets the primary, keeps mainten
   await page.waitForTimeout(DEBOUNCE);
   await expect(primary(page)).toHaveText('2,259'); // the loss target is now dominant…
   await expect(maintenance(page)).toHaveText('2,759'); // …maintenance stays the reference
-  await expect(goalLabel(page)).toHaveText('Weight loss (~0.5 kg/wk)');
+  await expect(goalLabel(page)).toHaveText('Weight loss (−500 kcal/day)');
   await expect(currentRow(page).locator('th')).toContainText('Weight loss');
   // focus stays on the changed control (the runtime never moves focus on a live update)
   expect(await page.evaluate(() => document.activeElement?.getAttribute('name'))).toBe('goalKey');
@@ -202,6 +202,43 @@ test('renders no non-positive calorie value anywhere in the result', async ({ pa
   for (const key of ['maintain', 'mild-loss', 'loss', 'mild-gain', 'gain']) {
     await expect(goalVal(page, key)).toHaveText(/^[\d,]+$/); // every goal value is a positive number
   }
+});
+
+/* ---- Non-positive comparison handling (R7C-2B.1) ------------------------ */
+
+// Tiny-but-valid inputs: maintenance is positive, but the −500 loss goal is
+// non-positive. age 80 / 100 cm / 10 kg @ sedentary → maintenance ≈ 396, loss < 0.
+const fillEdge = async (page: Page) => {
+  await page.fill('[name="age"]', '80');
+  await page.fill('[name="heightCm"]', '100');
+  await page.fill('[name="weightKg"]', '10');
+  await page.selectOption('[name="activity"]', '1.2');
+};
+
+test('an unselected non-positive goal shows "Not available" (never a dash/zero/negative) with an accessible explanation', async ({ page }) => {
+  await fillEdge(page); // goal stays maintain (positive) → valid result
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(primary(page)).toHaveText(/^[\d,]+$/); // the selected maintain target is a positive number
+  const lossCell = page.locator('#cal-result [data-cal-row="loss"] [data-cal-goalval]');
+  await expect(lossCell).toHaveText('Not available');
+  // The accessible explanation is inside the same cell.
+  await expect(page.locator('#cal-result [data-cal-row="loss"]')).toContainText(
+    'This goal does not produce a usable positive calorie estimate for these inputs.',
+  );
+  // No dash, zero or negative surfaced in the comparison.
+  await expect(lossCell).not.toHaveText('—');
+});
+
+test('selecting the non-positive goal makes the result invalid, not another goal shown as the result', async ({ page }) => {
+  await fillEdge(page);
+  await page.selectOption('[name="goalKey"]', 'loss'); // the underwater goal
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(region(page, 'valid')).toBeHidden();
+  await expect(page.locator('#cal-result [data-result-invalid-message]')).toContainText(
+    'These details do not produce a usable calorie estimate. Check your entries and try again.',
+  );
 });
 
 /* ---- Responsive / theme / embed / monetization ------------------------- */

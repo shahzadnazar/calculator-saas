@@ -106,7 +106,7 @@ describe('computeCalorie — preserved figures, goal picks an existing value', (
     const r = computeCalorie(mImperial({ goalKey: 'loss' }));
     expect(Number.isFinite(r.target)).toBe(true);
     expect(r.target).toBeGreaterThan(0);
-    expect(r.goalLabel).toBe('Weight loss (~0.5 kg/wk)');
+    expect(r.goalLabel).toBe('Weight loss (−500 kcal/day)');
     expect(r.goalAnnounce).toBe('for weight loss');
   });
 
@@ -153,11 +153,41 @@ describe('describeCalorieResult', () => {
   });
 });
 
-describe('CALORIE_GOALS defaults', () => {
+describe('CALORIE_GOALS defaults + scenario labels (R7C-2B.1)', () => {
   it('has five goals, defaults to maintain, and the default activity is Moderate (1.55)', () => {
     expect(CALORIE_GOALS.map((g) => g.key)).toEqual(['maintain', 'mild-loss', 'loss', 'mild-gain', 'gain']);
     expect(DEFAULT_GOAL_KEY).toBe('maintain');
     expect(DEFAULT_ACTIVITY).toBe(1.55);
     expect(ACTIVITY_LEVELS.some((a) => a.value === DEFAULT_ACTIVITY)).toBe(true);
+  });
+  it('labels the loss/gain scenarios with their exact kcal adjustments', () => {
+    expect(CALORIE_GOALS.map((g) => g.label)).toEqual([
+      'Maintain weight',
+      'Mild weight loss (−250 kcal/day)',
+      'Weight loss (−500 kcal/day)',
+      'Mild weight gain (+250 kcal/day)',
+      'Weight gain (+500 kcal/day)',
+    ]);
+    // Every interpretation frames the result as a calculation scenario.
+    for (const g of CALORIE_GOALS) expect(g.note).toMatch(/selected calculation scenario/i);
+  });
+});
+
+describe('non-positive comparison handling (R7C-2B.1)', () => {
+  // Tiny-but-valid inputs: maintenance is positive but the −500 loss goal is negative.
+  const edge = (goalKey = 'maintain') => mMetric({ age: '80', heightCm: '100', weightKg: '10', activity: '1.2', goalKey });
+
+  it('produces a positive maintenance while an unselected goal is non-positive', () => {
+    const r = computeCalorie(edge('maintain'));
+    expect(r.maintenance).toBeGreaterThan(0);
+    expect(r.loss).toBeLessThanOrEqual(0); // −500 goal underwater for these inputs
+    expect(isUsableCalories(r.target)).toBe(true); // selected (maintain) is fine
+  });
+
+  it('selecting the non-positive goal makes the result invalid (not another goal shown as selected)', () => {
+    const r = validateCalorieValues(edge('loss'));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.formError).toContain('usable calorie estimate');
+    expect(Number.isNaN(calorieBinding.resultValue(computeCalorie(edge('loss'))))).toBe(true);
   });
 });

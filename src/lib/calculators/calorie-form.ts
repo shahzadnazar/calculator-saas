@@ -75,35 +75,35 @@ export const CALORIE_GOALS: readonly CalorieGoal[] = [
     key: 'maintain',
     label: 'Maintain weight',
     announce: 'for maintaining weight',
-    note: 'Eat around this to keep your weight stable at your activity level.',
+    note: 'Based on the selected calculation scenario — eating around your maintenance (TDEE).',
     field: 'maintenance',
   },
   {
     key: 'mild-loss',
-    label: 'Mild weight loss (~0.25 kg/wk)',
+    label: 'Mild weight loss (−250 kcal/day)',
     announce: 'for mild weight loss',
-    note: 'About 250 kcal below maintenance — roughly 0.25 kg (½ lb) a week.',
+    note: 'Based on the selected calculation scenario — 250 kcal/day below maintenance.',
     field: 'mildLoss',
   },
   {
     key: 'loss',
-    label: 'Weight loss (~0.5 kg/wk)',
+    label: 'Weight loss (−500 kcal/day)',
     announce: 'for weight loss',
-    note: 'About 500 kcal below maintenance — roughly 0.5 kg (1 lb) a week.',
+    note: 'Based on the selected calculation scenario — 500 kcal/day below maintenance.',
     field: 'loss',
   },
   {
     key: 'mild-gain',
-    label: 'Mild weight gain',
+    label: 'Mild weight gain (+250 kcal/day)',
     announce: 'for mild weight gain',
-    note: 'About 250 kcal above maintenance — gradual gain.',
+    note: 'Based on the selected calculation scenario — 250 kcal/day above maintenance.',
     field: 'mildGain',
   },
   {
     key: 'gain',
-    label: 'Weight gain',
+    label: 'Weight gain (+500 kcal/day)',
     announce: 'for weight gain',
-    note: 'About 500 kcal above maintenance — steady gain, ideally with resistance training.',
+    note: 'Based on the selected calculation scenario — 500 kcal/day above maintenance.',
     field: 'gain',
   },
 ] as const;
@@ -330,12 +330,24 @@ export const calorieBinding: FormCalculatorBinding<CalorieValues, CalorieCompute
     if (bmr) bmr.textContent = formatCalories(result.bmr);
 
     // Goal comparison: fill each goal's value, mark the selected row (text
-    // ownership, not colour / aria-current alone).
+    // ownership, not colour / aria-current alone). A non-positive goal value is
+    // shown as "Not available" (never a dash, zero or negative) with an accessible
+    // explanation inside the same cell.
     scope.querySelectorAll<HTMLElement>('[data-cal-row]').forEach((row) => {
       const key = row.dataset.calRow;
       const goal = CALORIE_GOALS.find((g) => g.key === key);
-      const cell = row.querySelector<HTMLElement>('[data-cal-goalval]');
-      if (goal && cell) cell.textContent = formatCalories(result[goal.field]);
+      const valEl = row.querySelector<HTMLElement>('[data-cal-goalval]');
+      const noteEl = row.querySelector<HTMLElement>('[data-cal-goalnote]');
+      if (goal && valEl) {
+        const v = result[goal.field];
+        if (isUsableCalories(v)) {
+          valEl.textContent = formatCalories(v);
+          if (noteEl) noteEl.textContent = '';
+        } else {
+          valEl.textContent = 'Not available';
+          if (noteEl) noteEl.textContent = ' This goal does not produce a usable positive calorie estimate for these inputs.';
+        }
+      }
       const own = row.querySelector<HTMLElement>('[data-cal-own]');
       if (key === result.goalKey) {
         row.setAttribute('aria-current', 'true');

@@ -160,7 +160,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
             {CALORIE_GOALS.map((g) => (
               <tr data-cal-row={g.key}>
                 <th scope="row">{g.label}<span class="sr-only" data-cal-own></span></th>
-                <td class="cal-num" data-cal-goalval>—</td>
+                <td class="cal-num"><span data-cal-goalval>—</span><span class="sr-only" data-cal-goalnote></span></td>
               </tr>
             ))}
           </tbody>
