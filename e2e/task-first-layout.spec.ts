@@ -16,6 +16,7 @@ const PILOTS = [
   { route: '/health/body-fat-calculator', structure: 'form (conditional inputs)' },
   { route: '/health/calorie-calculator', structure: 'form (activity + goal)' },
   { route: '/health/target-heart-rate-calculator', structure: 'form (optional field + zones)' },
+  { route: '/health/fat-intake-calculator', structure: 'form (single input → range)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];

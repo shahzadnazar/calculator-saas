@@ -1,42 +1,196 @@
 ---
-import { calculateFatIntake } from '@lib/calculators/fat-intake';
-
-const d = { calories: 2000 };
-const r = calculateFatIntake(d.calories);
+/**
+ * Fat-intake calculator island (R7C-2D — standard-form wave, calculator #11).
+ *
+ * Task-first, direct-intent: the calorie field starts EMPTY, the result is empty (an
+ * instruction, not a prefilled 2,000-kcal sample), and the visitor presses "Calculate
+ * Fat Intake" for the first result. Live-after-first afterwards. All interaction,
+ * validation, state, announcement and focus are owned by the shared runtime
+ * (UNCHANGED); this island is markup + the fat-intake binding
+ * (@lib/calculators/fat-intake-form).
+ *
+ * The PRIMARY result is the reviewed daily fat RANGE (min 20% – max 35%), never
+ * collapsed to one average; the AMDR proportion breakdown (lower / moderate / upper)
+ * is an accessible subordinate reference. No number is fabricated here.
+ */
+import { FAT_BANDS } from '@lib/calculators/fat-intake-form';
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-fatintake>
-  <form class="card p-5 sm:p-6" data-fi-form novalidate>
-    <div>
+<div class="fatintake mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-fatintake>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Fat intake calculator">
+    <div data-field="calories">
       <label class="field-label" for="fi-cal">Daily calorie target</label>
-      <div class="flex"><input class="field rounded-r-none" id="fi-cal" name="calories" type="number" min="0" step="50" value={d.calories} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">kcal</span></div>
+      <div class="flex">
+        <input
+          class="field rounded-r-none"
+          id="fi-cal"
+          name="calories"
+          type="number"
+          min="0"
+          step="50"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="e.g. 2000"
+          aria-describedby="fi-cal-hint fi-calories-error"
+        />
+        <span class="field-affix rounded-r-lg border-l-0">kcal</span>
+      </div>
+      <p class="fi-hint" id="fi-cal-hint">
+        Not sure of your daily calories? Estimate them with the
+        <a href="/health/calorie-calculator">calorie calculator</a>.
+      </p>
+      <p class="fi-field-error" id="fi-calories-error" data-error-for="calories" hidden></p>
     </div>
-    <p class="mt-3 text-xs" style="color: var(--muted)">Not sure of your daily calories? Estimate them with the <a href="/health/calorie-calculator" style="color: var(--color-brand-600)">calorie calculator</a>.</p>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Fat Intake</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="fi-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Recommended daily fat</p>
-    <p class="mt-1 text-4xl result-value"><span data-fi-min>{r.minGrams}</span>–<span data-fi-max>{r.maxGrams}</span> <span class="text-2xl" style="color: var(--muted)">g</span></p>
-    <p class="mt-1 text-sm" style="color: var(--muted)">based on 20–35% of calories from fat</p>
-    <div class="mt-5 space-y-2 text-sm">
-      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><span>Lower (20%)</span><strong data-fi-min2>{r.minGrams} g</strong></div>
-      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><span>Moderate (27.5%)</span><strong data-fi-mod>{r.moderateGrams} g</strong></div>
-      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><span>Upper (35%)</span><strong data-fi-max2>{r.maxGrams} g</strong></div>
+  <!-- Result -->
+  <ResultShell
+    id="fi-result"
+    state="empty"
+    density="standard"
+    label="Your daily fat intake"
+    minHeight="22rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter your details, then calculate your estimated daily fat intake." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Estimated daily fat intake">
+        <ResultValue value="—" unit="g/day" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-fi-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="By proportion of calories">
+        <table class="fi-bands">
+          <thead>
+            <tr>
+              <th scope="col">Proportion</th>
+              <th scope="col" class="fi-num">Fat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              FAT_BANDS.map((b) => (
+                <tr data-fi-band={b.key}>
+                  <th scope="row">{b.label}</th>
+                  <td class="fi-num">
+                    <span data-fi-band-value>—</span>
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+        <p class="fi-note">
+          The Acceptable Macronutrient Distribution Range puts fat at 20–35% of daily calories, at 9 kcal per
+          gram. A general estimate, not medical or dietary advice.
+        </p>
+      </ResultBreakdown>
     </div>
-  </div>
+
+    <InvalidResult title="Check your details" message="Enter your daily calorie target to estimate your fat range." />
+
+    <ResultAnnouncement id="fi-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { calculateFatIntake } from '@lib/calculators/fat-intake';
-  document.querySelectorAll<HTMLElement>('[data-fatintake]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-fi-form]')!;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const r = calculateFatIntake(Number((form.elements.namedItem('calories') as HTMLInputElement).value) || 0);
-      set('[data-fi-min]', String(r.minGrams)); set('[data-fi-max]', String(r.maxGrams));
-      set('[data-fi-min2]', `${r.minGrams} g`); set('[data-fi-mod]', `${r.moderateGrams} g`); set('[data-fi-max2]', `${r.maxGrams} g`);
+<style>
+  .fi-hint {
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .fi-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .fi-field-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
-  });
+  }
+  :root[data-theme='dark'] .fi-field-error {
+    color: #fca5a5;
+  }
+
+  .fi-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* AMDR proportion breakdown */
+  .fi-bands {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .fi-bands th,
+  .fi-bands td {
+    padding: 0.4rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  .fi-bands thead th {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .fi-bands tbody th {
+    font-weight: 600;
+    color: var(--fg);
+    text-align: left;
+  }
+  .fi-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--heading);
+    font-weight: 700;
+  }
+  .fi-bands thead th.fi-num {
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .fi-note {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { fatIntakeBinding } from '@lib/calculators/fat-intake-form';
+
+  document.querySelectorAll<HTMLElement>('[data-fatintake]').forEach((root) =>
+    mountFormCalculator(root, fatIntakeBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Fat Intake',
+    }),
+  );
 </script>
