@@ -1,54 +1,233 @@
 ---
-import { calculateTargetHeartRate } from '@lib/calculators/target-heart-rate';
-
-const d = { age: 30, restingHr: 0 };
-const r = calculateTargetHeartRate(d.age, d.restingHr);
+/**
+ * Target heart-rate calculator island (R7C-2C — standard-form wave, calculator #10).
+ *
+ * Task-first, direct-intent: the age field starts EMPTY, the result is empty (an
+ * instruction, not a sample), and the visitor presses "Calculate Heart Rate Zones"
+ * for the first result. Live-after-first afterwards. All interaction, validation,
+ * state, announcement and focus are owned by the shared runtime (UNCHANGED); this
+ * island is markup + the target-heart-rate binding
+ * (@lib/calculators/target-heart-rate-form).
+ *
+ * The PRIMARY result is the estimated maximum heart rate; the five training zones
+ * are an accessible comparison table (row = zone, columns = intensity band + bpm
+ * range). A resting heart rate is optional and switches the reviewed function to
+ * the Karvonen (heart-rate reserve) method. No number is fabricated here.
+ */
+import { HEART_RATE_ZONES } from '@lib/calculators/target-heart-rate-form';
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-thr>
-  <form class="card p-5 sm:p-6" data-thr-form novalidate>
+<div class="thr mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-thr>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Target heart rate calculator">
     <div class="space-y-4">
-      <div>
+      <div data-field="age">
         <label class="field-label" for="thr-age">Age</label>
-        <input class="field" id="thr-age" name="age" type="number" min="1" max="120" value={d.age} inputmode="decimal" />
+        <div class="flex">
+          <input
+            class="field rounded-r-none"
+            id="thr-age"
+            name="age"
+            type="number"
+            min="1"
+            max="120"
+            step="1"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="e.g. 30"
+            aria-describedby="thr-age-error"
+          />
+          <span class="field-affix rounded-r-lg border-l-0">years</span>
+        </div>
+        <p class="thr-field-error" id="thr-age-error" data-error-for="age" hidden></p>
       </div>
-      <div>
-        <label class="field-label" for="thr-rest">Resting heart rate <span style="color: var(--muted)">(optional)</span></label>
-        <div class="flex"><input class="field rounded-r-none" id="thr-rest" name="restingHr" type="number" min="0" max="150" value={d.restingHr} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">bpm</span></div>
-        <p class="mt-1 text-xs" style="color: var(--muted)">Add your resting rate for more accurate zones (Karvonen method).</p>
+
+      <div data-field="restingHr">
+        <label class="field-label" for="thr-rest">
+          Resting heart rate <span class="thr-optional">(optional)</span>
+        </label>
+        <div class="flex">
+          <input
+            class="field rounded-r-none"
+            id="thr-rest"
+            name="restingHr"
+            type="number"
+            min="1"
+            step="1"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="e.g. 60"
+            aria-describedby="thr-rest-hint thr-restingHr-error"
+          />
+          <span class="field-affix rounded-r-lg border-l-0">bpm</span>
+        </div>
+        <p class="thr-hint" id="thr-rest-hint">
+          Add your resting rate for more accurate, personalised zones (the Karvonen method).
+        </p>
+        <p class="thr-field-error" id="thr-restingHr-error" data-error-for="restingHr" hidden></p>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Heart Rate Zones</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="thr-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Maximum heart rate</p>
-    <p class="mt-1 text-3xl font-extrabold" style="color: var(--heading)"><span data-thr-max>{r.maxHr}</span> <span class="text-lg" style="color: var(--muted)">bpm</span></p>
-    <table class="mt-4 w-full text-sm">
-      <tbody data-thr-table>
-        {r.zones.map((z) => (
-          <tr class="border-t" style="border-color: var(--line)">
-            <td class="py-2" style="color: var(--muted)">{z.name} <span class="text-xs">({z.lowPct}–{z.highPct}%)</span></td>
-            <td class="py-2 text-right font-semibold" style="color: var(--heading)">{z.low}–{z.high} bpm</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
+  <!-- Result -->
+  <ResultShell
+    id="thr-result"
+    state="empty"
+    density="standard"
+    label="Your heart-rate zones"
+    minHeight="26rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter your age, then calculate your maximum heart rate and training zones." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Estimated maximum heart rate">
+        <ResultValue value="—" unit="bpm" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-thr-method></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Your five training zones">
+        <table class="thr-zones">
+          <thead>
+            <tr>
+              <th scope="col">Zone</th>
+              <th scope="col" class="thr-num">Intensity</th>
+              <th scope="col" class="thr-num">Heart rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              HEART_RATE_ZONES.map((z, i) => (
+                <tr data-thr-zone={i}>
+                  <th scope="row">{z.name}</th>
+                  <td class="thr-num">
+                    {z.lowPct}–{z.highPct}%
+                  </td>
+                  <td class="thr-num">
+                    <span data-thr-range>—</span> bpm
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+        <p class="thr-note">
+          Zones are percentages of your maximum heart rate (220 − age); adding a resting rate uses the
+          Karvonen method. General information for training, not medical advice — consult a doctor before
+          starting intense exercise.
+        </p>
+      </ResultBreakdown>
+    </div>
+
+    <InvalidResult title="Check your details" message="Enter your age to calculate your heart-rate zones." />
+
+    <ResultAnnouncement id="thr-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { calculateTargetHeartRate } from '@lib/calculators/target-heart-rate';
-  document.querySelectorAll<HTMLElement>('[data-thr]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-thr-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    function recompute() {
-      const r = calculateTargetHeartRate(num('age'), num('restingHr'));
-      const maxEl = root.querySelector<HTMLElement>('[data-thr-max]')!; maxEl.textContent = String(r.maxHr);
-      root.querySelector<HTMLElement>('[data-thr-table]')!.innerHTML = r.zones
-        .map((z) => `<tr class="border-t" style="border-color: var(--line)"><td class="py-2" style="color: var(--muted)">${z.name} <span class="text-xs">(${z.lowPct}–${z.highPct}%)</span></td><td class="py-2 text-right font-semibold" style="color: var(--heading)">${z.low}–${z.high} bpm</td></tr>`)
-        .join('');
+<style>
+  .thr-optional {
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .thr-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .thr-field-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
-  });
+  }
+  :root[data-theme='dark'] .thr-field-error {
+    color: #fca5a5;
+  }
+
+  .thr-hint {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .thr-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* Zone comparison table */
+  .thr-zones {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .thr-zones th,
+  .thr-zones td {
+    padding: 0.4rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  .thr-zones thead th {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .thr-zones tbody th {
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .thr-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--heading);
+    font-weight: 700;
+  }
+  .thr-zones thead th.thr-num {
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .thr-zones tbody th {
+    text-align: left;
+  }
+
+  .thr-note {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { targetHeartRateBinding } from '@lib/calculators/target-heart-rate-form';
+
+  document.querySelectorAll<HTMLElement>('[data-thr]').forEach((root) =>
+    mountFormCalculator(root, targetHeartRateBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Heart Rate Zones',
+    }),
+  );
 </script>

@@ -11,7 +11,13 @@ const faqs = [
   { question: 'What are heart rate zones for?', answer: 'Different intensities train different systems. Lower zones (60–70%) build endurance and use fat for fuel; higher zones (80–90%) improve cardiovascular fitness and speed. Training across zones is more effective than always working at one intensity.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Find your maximum heart rate and personalised training zones for warm-up, fat burn, aerobic, anaerobic and maximum-effort exercise." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Find your maximum heart rate and personalised training zones for warm-up, fat burn, aerobic, anaerobic and maximum-effort exercise."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-18' }}
+>
   <TargetHeartRateCalculator />
   <Fragment slot="content">
     <h2>Training by heart rate</h2>

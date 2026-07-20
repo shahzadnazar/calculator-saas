@@ -15,6 +15,7 @@ const PILOTS = [
   { route: '/health/protein-calculator', structure: 'form (weight + goal)' },
   { route: '/health/body-fat-calculator', structure: 'form (conditional inputs)' },
   { route: '/health/calorie-calculator', structure: 'form (activity + goal)' },
+  { route: '/health/target-heart-rate-calculator', structure: 'form (optional field + zones)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];
