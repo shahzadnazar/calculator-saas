@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { calculateFatIntake } from './fat-intake';
-import { calculateTargetHeartRate } from './target-heart-rate';
 import { computePace, predictTime, formatDuration } from './pace';
 import { dueDateFromLMP, gestationalAge } from './due-date';
 import { pregnancyInfo } from './pregnancy';
@@ -18,18 +17,8 @@ describe('fat intake', () => {
   });
 });
 
-describe('target heart rate', () => {
-  it('computes max HR and simple-percentage zones', () => {
-    const r = calculateTargetHeartRate(30);
-    expect(r.maxHr).toBe(190);
-    expect(r.zones[0].low).toBe(95); // 50% of 190
-  });
-  it('uses Karvonen when a resting HR is given', () => {
-    const r = calculateTargetHeartRate(30, 60);
-    // 50% zone: (190-60)*0.5 + 60 = 125
-    expect(r.zones[0].low).toBe(125);
-  });
-});
+// Target-heart-rate coverage now lives in the dedicated characterization suite
+// `target-heart-rate.test.ts` (R7C-2C).
 
 describe('pace', () => {
   it('computes pace and speed from distance and time', () => {
