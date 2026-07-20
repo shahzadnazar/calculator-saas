@@ -38,7 +38,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
             name="age"
             type="number"
             min="1"
-            max="120"
+            max="219"
             step="1"
             inputmode="numeric"
             autocomplete="off"
@@ -98,12 +98,14 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       <ResultSummary label="Estimated maximum heart rate">
         <ResultValue value="—" unit="bpm" />
       </ResultSummary>
+      <p class="thr-method-id"><span class="thr-method-key">Method:</span> <span data-thr-method-id>—</span></p>
       <ResultInterpretation>
         <span data-thr-method></span>
       </ResultInterpretation>
 
       <ResultBreakdown title="Your five training zones">
         <table class="thr-zones">
+          <caption class="thr-caption">Estimated heart-rate zones based on the selected calculation method.</caption>
           <thead>
             <tr>
               <th scope="col">Zone</th>
@@ -170,6 +172,26 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   .thr-live-note {
     margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* Method identity — names the calculation method used for the shown zones. */
+  .thr-method-id {
+    margin: 0.5rem 0 0;
+    font-size: 0.95rem;
+    color: var(--heading);
+    font-weight: 600;
+  }
+  .thr-method-key {
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .thr-caption {
+    caption-side: top;
+    text-align: left;
+    margin-bottom: 0.4rem;
     font-size: 0.8rem;
     color: var(--muted);
   }

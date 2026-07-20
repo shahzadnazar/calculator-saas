@@ -1,23 +1,26 @@
 /**
- * Target heart-rate form binding (R7C-2C — standard-form wave, calculator #10).
+ * Target heart-rate form binding (R7C-2C — standard-form wave, calculator #10;
+ * hardened in R7C-2C.1).
  *
  * The runtime (@lib/result/form-runtime) is used UNCHANGED. This binding owns the
  * heart-rate specifics: reading age + an optional resting heart rate, validating
  * them, calling the reviewed pure `calculateTargetHeartRate`, and rendering the
  * estimated maximum heart rate (dominant) with the five training zones as an
- * accessible comparison table.
+ * accessible comparison table plus a visible identification of the calculation
+ * method.
  *
  * The pure `calculateTargetHeartRate` is UNCHANGED and its behaviour is frozen by
  * the characterization suite (target-heart-rate.test.ts). Everything this binding
- * adds is at the VALIDATION boundary — it stops the two legacy input gaps from ever
- * reaching the formula:
- *   - a missing / non-whole / out-of-range age (the legacy island let an empty age
- *     become 0 → a misleading maxHr of 220);
- *   - a resting heart rate at or above the maximum (which inverts the zones), which
- *     the legacy island never guarded.
+ * adds is at the VALIDATION and PRESENTATION boundary:
+ *   - age is required, whole, > 0 and < 220 (an age of 220+ estimates a maximum of
+ *     0). No narrower arbitrary cap — the source documents none.
+ *   - a resting heart rate is OPTIONAL only when empty; if entered it must be whole,
+ *     > 0 and strictly below the estimated maximum (equal or above inverts the
+ *     zones). An entered 0 is invalid and is NEVER treated the same as empty.
  * When a resting heart rate is supplied the pure function uses the Karvonen
- * (heart-rate reserve) method; otherwise a simple percentage of the maximum. This
- * binding fabricates no number — every bpm figure comes from the reviewed function.
+ * (heart-rate reserve) method; otherwise a simple percentage of the maximum. The
+ * result visibly names which method it used, and switching methods after the first
+ * result speaks one concise method-change announcement (never the whole table).
  */
 import {
   calculateTargetHeartRate,
@@ -31,10 +34,23 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-/** Sane physiological age bounds — matches the legacy input's min/max hints and
- *  keeps the estimated maximum heart rate (220 − age) positive and meaningful. */
-export const AGE_MIN = 1;
-export const AGE_MAX = 120;
+/** An age of 220 or more estimates a maximum heart rate of 0 (220 − age). This is
+ *  the only age bound the source semantics justify — there is no narrower cap. */
+export const MAX_AGE_EXCLUSIVE = 220;
+
+export type ThrMethod = 'karvonen' | 'simple';
+
+/** The visible method identity shown in the result. */
+export const METHOD_IDENTITY: Record<ThrMethod, string> = {
+  karvonen: 'Karvonen heart-rate-reserve method',
+  simple: 'Percentage of estimated maximum heart rate',
+};
+
+/** The concise announcement spoken when the method SWITCHES after a first result. */
+export const METHOD_CHANGE_ANNOUNCEMENT: Record<ThrMethod, string> = {
+  karvonen: 'Target heart-rate zones updated using the Karvonen heart-rate-reserve method.',
+  simple: 'Target heart-rate zones updated using the percentage of maximum heart rate method.',
+};
 
 export interface TargetHeartRateValues {
   age: string;
@@ -48,47 +64,58 @@ export interface TargetHeartRateComputed extends TargetHeartRateResult {
   restingHr: number | null;
 }
 
+export function methodOf(result: TargetHeartRateComputed): ThrMethod {
+  return result.usedKarvonen ? 'karvonen' : 'simple';
+}
+
 /* ------------------------------------------------------------------ */
 /* Parsing + validation (pure)                                         */
 /* ------------------------------------------------------------------ */
 
-type WholeParse = 'empty' | 'invalid' | number;
-/** Parse a whole, strictly-positive number; distinguish empty from invalid. */
-function parseWholePositive(raw: string): WholeParse {
+type WholeParse = 'empty' | 'not-whole' | 'nonpositive' | number;
+/** Parse a whole number, distinguishing empty, non-whole and non-positive so each
+ *  gets precise guidance — and so empty (allowed for resting HR) is never conflated
+ *  with an entered 0 (invalid). */
+function parseWhole(raw: string): WholeParse {
   const t = raw.trim();
   if (t === '') return 'empty';
   const n = Number(t);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) return 'invalid';
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return 'not-whole';
+  if (n <= 0) return 'nonpositive';
   return n;
 }
 
 /**
- * Validate the heart-rate inputs. Presence + wholeness + range are explicit (never
- * `Number(value) || 0`). Age is required; the resting heart rate is optional, but
- * when present it must be whole, positive and BELOW the estimated maximum so the
- * Karvonen reserve is positive and the zones stay correctly ordered.
+ * Validate the heart-rate inputs. Presence + wholeness + positivity + range are
+ * explicit (never `Number(value) || 0`). Age is required (whole, > 0, < 220). The
+ * resting heart rate is optional ONLY when empty; an entered value must be whole,
+ * > 0 and strictly below the estimated maximum (equal or above would invert the
+ * Karvonen zones). Empty and 0 are deliberately NOT equivalent.
  */
 export function validateTargetHeartRateValues(values: TargetHeartRateValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
 
-  const age = parseWholePositive(values.age);
-  if (age === 'empty') fieldErrors.age = 'Enter your age.';
-  else if (age === 'invalid') fieldErrors.age = 'Enter your age in whole years.';
-  else if (age < AGE_MIN || age > AGE_MAX) fieldErrors.age = `Enter an age from ${AGE_MIN} to ${AGE_MAX} years.`;
+  const ageParse = parseWhole(values.age);
+  let validAge: number | null = null;
+  if (ageParse === 'empty') fieldErrors.age = 'Enter your age.';
+  else if (ageParse === 'not-whole') fieldErrors.age = 'Enter your age in whole years.';
+  else if (ageParse === 'nonpositive') fieldErrors.age = 'Enter an age greater than zero.';
+  else if (ageParse >= MAX_AGE_EXCLUSIVE) fieldErrors.age = `Enter an age below ${MAX_AGE_EXCLUSIVE} years.`;
+  else validAge = ageParse;
 
-  const resting = parseWholePositive(values.restingHr);
-  if (resting === 'invalid') {
-    fieldErrors.restingHr =
-      'Enter your resting heart rate in whole beats per minute, or leave it blank.';
-  }
-
-  // Cross-field: a resting heart rate at or above the maximum inverts the zones.
-  if (typeof age === 'number' && age >= AGE_MIN && age <= AGE_MAX && typeof resting === 'number') {
-    const maxHr = 220 - age;
-    if (resting >= maxHr) {
+  const restingParse = parseWhole(values.restingHr);
+  if (restingParse === 'not-whole') {
+    fieldErrors.restingHr = 'Enter your resting heart rate in whole beats per minute, or leave it blank.';
+  } else if (restingParse === 'nonpositive') {
+    fieldErrors.restingHr = 'Enter a resting heart rate greater than zero, or leave it blank.';
+  } else if (typeof restingParse === 'number' && validAge !== null) {
+    // Cross-field: a resting heart rate at or above the maximum inverts the zones.
+    const maxHr = MAX_AGE_EXCLUSIVE - validAge; // 220 − age
+    if (restingParse >= maxHr) {
       fieldErrors.restingHr = `Enter a resting heart rate below your maximum of ${maxHr} bpm.`;
     }
   }
+  // restingParse === 'empty' is valid — it selects the simple-percentage method.
 
   if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
   return { ok: true };
@@ -106,8 +133,8 @@ export function computeTargetHeartRate(values: TargetHeartRateValues): TargetHea
   return { ...base, usedKarvonen: resting > 0, restingHr: resting > 0 ? resting : null };
 }
 
-/** Concise announcement — the maximum plus the overall training span and method. */
-export function describeTargetHeartRateResult(result: TargetHeartRateComputed): string {
+/** The standard announcement — max HR + the overall training span + the method. */
+function standardAnnouncement(result: TargetHeartRateComputed): string {
   const low = result.zones[0]?.low ?? result.maxHr;
   const high = result.zones[result.zones.length - 1]?.high ?? result.maxHr;
   const method = result.usedKarvonen
@@ -116,11 +143,25 @@ export function describeTargetHeartRateResult(result: TargetHeartRateComputed): 
   return `Your estimated maximum heart rate is ${result.maxHr} beats per minute. Training zones span ${low} to ${high} beats per minute${method}.`;
 }
 
-/** The interpretation line under the headline figure. */
+/**
+ * Pure announcement. A method SWITCH after a first result (previousMethod set and
+ * different) speaks the concise method-change line; an initial result or a
+ * same-method update speaks the standard max-HR + span line. Never the full table.
+ */
+export function targetHeartRateAnnouncement(
+  result: TargetHeartRateComputed,
+  previousMethod: ThrMethod | null,
+): string {
+  const method = methodOf(result);
+  if (previousMethod !== null && previousMethod !== method) return METHOD_CHANGE_ANNOUNCEMENT[method];
+  return standardAnnouncement(result);
+}
+
+/** The interpretation line under the headline figure (context, not identity). */
 function interpretation(result: TargetHeartRateComputed): string {
   return result.usedKarvonen
-    ? `Personalised with the Karvonen method using your resting heart rate of ${result.restingHr} bpm.`
-    : 'Each zone is a percentage of your maximum heart rate (220 − age). Add a resting heart rate for personalised zones.';
+    ? `Personalised using your resting heart rate of ${result.restingHr} bpm.`
+    : 'Add a resting heart rate for personalised zones (the Karvonen method).';
 }
 
 const formatRange = (z: HeartRateZone): string => `${z.low}–${z.high}`;
@@ -130,6 +171,11 @@ const formatRange = (z: HeartRateZone): string => `${z.low}–${z.high}`;
 /* ------------------------------------------------------------------ */
 
 const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+
+/** The last ANNOUNCED method — so a live switch (add / clear resting HR) speaks the
+ *  method-change line exactly once. Module-level (one THR island per page, as with
+ *  the ideal-weight announcement); cleared on reset. */
+let lastAnnouncedMethod: ThrMethod | null = null;
 
 export const targetHeartRateBinding: FormCalculatorBinding<
   TargetHeartRateValues,
@@ -151,7 +197,11 @@ export const targetHeartRateBinding: FormCalculatorBinding<
     return result.maxHr;
   },
 
-  describeResult: describeTargetHeartRateResult,
+  describeResult(result) {
+    const text = targetHeartRateAnnouncement(result, lastAnnouncedMethod);
+    lastAnnouncedMethod = methodOf(result);
+    return text;
+  },
 
   renderResult(result, context: FormRenderContext) {
     const scope = context.result;
@@ -164,7 +214,11 @@ export const targetHeartRateBinding: FormCalculatorBinding<
     if (valueEl) valueEl.textContent = maxText;
     if (a11yEl) a11yEl.textContent = `${maxText} beats per minute`;
 
-    // Method interpretation.
+    // Visible method identity (never describe a simple-percentage result as Karvonen).
+    const methodIdEl = q('[data-thr-method-id]');
+    if (methodIdEl) methodIdEl.textContent = METHOD_IDENTITY[methodOf(result)];
+
+    // Interpretation (context).
     const methodEl = q('[data-thr-method]');
     if (methodEl) methodEl.textContent = interpretation(result);
 
@@ -177,6 +231,7 @@ export const targetHeartRateBinding: FormCalculatorBinding<
   },
 
   resetValues(root, _mode: ResetMode) {
+    lastAnnouncedMethod = null;
     for (const name of ['age', 'restingHr']) {
       const el = input(root, name);
       if (el) el.value = '';
