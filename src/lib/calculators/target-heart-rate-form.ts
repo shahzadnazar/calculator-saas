@@ -31,6 +31,7 @@ import type {
   FormCalculatorBinding,
   FormRenderContext,
   ResetMode,
+  ResultDescriptionContext,
   ValidationResult,
 } from '@lib/result/form-runtime';
 
@@ -172,11 +173,6 @@ const formatRange = (z: HeartRateZone): string => `${z.low}–${z.high}`;
 
 const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
 
-/** The last ANNOUNCED method — so a live switch (add / clear resting HR) speaks the
- *  method-change line exactly once. Module-level (one THR island per page, as with
- *  the ideal-weight announcement); cleared on reset. */
-let lastAnnouncedMethod: ThrMethod | null = null;
-
 export const targetHeartRateBinding: FormCalculatorBinding<
   TargetHeartRateValues,
   TargetHeartRateComputed
@@ -197,10 +193,9 @@ export const targetHeartRateBinding: FormCalculatorBinding<
     return result.maxHr;
   },
 
-  describeResult(result) {
-    const text = targetHeartRateAnnouncement(result, lastAnnouncedMethod);
-    lastAnnouncedMethod = methodOf(result);
-    return text;
+  describeResult(result, context: ResultDescriptionContext<TargetHeartRateComputed>) {
+    const previousMethod = context.previousResult ? methodOf(context.previousResult) : null;
+    return targetHeartRateAnnouncement(result, previousMethod);
   },
 
   renderResult(result, context: FormRenderContext) {
@@ -231,7 +226,6 @@ export const targetHeartRateBinding: FormCalculatorBinding<
   },
 
   resetValues(root, _mode: ResetMode) {
-    lastAnnouncedMethod = null;
     for (const name of ['age', 'restingHr']) {
       const el = input(root, name);
       if (el) el.value = '';

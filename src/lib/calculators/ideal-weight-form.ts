@@ -30,6 +30,7 @@ import type {
   FormCalculatorBinding,
   FormRenderContext,
   ResetMode,
+  ResultDescriptionContext,
   ValidationResult,
 } from '@lib/result/form-runtime';
 
@@ -171,14 +172,6 @@ const fmtWeight = (v: number, unit: string): string => (Number.isFinite(v) ? `${
 
 /* ---- the binding -------------------------------------------------------- */
 
-/**
- * The last announced range, so `describeResult` can tell a range change from a
- * formula-only change (see `idealWeightAnnouncement`). One Ideal Weight island
- * mounts per page, so this single module-level cell is safe; `resetValues` clears
- * it, and the pure decision lives in `idealWeightAnnouncement` for testability.
- */
-let lastAnnouncedRange: { bmiMin: number; bmiMax: number } | null = null;
-
 export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealWeightComputed> = {
   readValues(root) {
     const active = root.querySelector<HTMLElement>('[data-unit].is-active, [data-unit][aria-checked="true"]');
@@ -203,10 +196,11 @@ export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealW
     return result.bmiMin; // finiteness sentinel — finite whenever height is valid
   },
 
-  describeResult(result) {
-    const message = idealWeightAnnouncement(result, lastAnnouncedRange);
-    lastAnnouncedRange = { bmiMin: result.bmiMin, bmiMax: result.bmiMax };
-    return message;
+  describeResult(result, context: ResultDescriptionContext<IdealWeightComputed>) {
+    const previous = context.previousResult
+      ? { bmiMin: context.previousResult.bmiMin, bmiMax: context.previousResult.bmiMax }
+      : null;
+    return idealWeightAnnouncement(result, previous);
   },
 
   renderResult(result, context: FormRenderContext) {
@@ -246,7 +240,8 @@ export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealW
     const female = root.querySelector<HTMLInputElement>('[name="sex"][value="female"]');
     if (male) male.checked = true;
     if (female) female.checked = false;
-    lastAnnouncedRange = null; // next calculation announces as a first result
+    // The runtime's per-instance tracker forgets the previous result on reset, so the
+    // next calculation announces as a first result — no module state to clear here.
   },
 
   convertValues(root, fromUnit, toUnit) {

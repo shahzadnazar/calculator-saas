@@ -69,11 +69,24 @@ describe('fat-intake-form — announcement (range only)', () => {
 });
 
 describe('fat-intake-form — AMDR bands for the breakdown skeleton', () => {
-  it('exposes the three proportion bands mapped to the reviewed fields', () => {
+  it('labels the bands as range positions (midpoint, not a recommendation)', () => {
     expect(FAT_BANDS).toEqual([
-      { key: 'min', label: 'Lower (20%)', field: 'minGrams' },
-      { key: 'mod', label: 'Moderate (27.5%)', field: 'moderateGrams' },
-      { key: 'max', label: 'Upper (35%)', field: 'maxGrams' },
+      { key: 'min', label: 'Lower end of range (20%)', field: 'minGrams' },
+      { key: 'mod', label: 'Midpoint of range (27.5%)', field: 'moderateGrams' },
+      { key: 'max', label: 'Upper end of range (35%)', field: 'maxGrams' },
     ]);
+    // 27.5% must never be framed as a separate recommendation.
+    for (const b of FAT_BANDS) expect(b.label).not.toMatch(/recommended|ideal|optimal|required|moderate/i);
+  });
+});
+
+describe('fat-intake-form — describeResult ignores the transition context (non-transition binding)', () => {
+  it('produces the same range announcement regardless of phase / previous result', () => {
+    const r = computeFatIntake(values('2000'));
+    const other = computeFatIntake(values('2500'));
+    const first = fatIntakeBinding.describeResult(r, { phase: 'first-result' });
+    const live = fatIntakeBinding.describeResult(r, { phase: 'live-update', previousResult: other });
+    expect(first).toBe('Your estimated daily fat intake is 44 to 78 grams per day.');
+    expect(live).toBe(first);
   });
 });

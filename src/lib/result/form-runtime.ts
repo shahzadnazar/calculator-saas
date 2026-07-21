@@ -45,6 +45,49 @@ export interface FormRenderContext {
   result: HTMLElement;
 }
 
+/**
+ * Transition-aware result-description context (R7C-2D.1). Passed to
+ * `describeResult` so a binding can compare the new result against the previous
+ * valid one WITHOUT any module-global state. The previous-result cell lives in each
+ * mounted instance's closure (see `createResultDescriptionTracker`), so two mounted
+ * copies of the same calculator never share announcement state.
+ */
+export interface ResultDescriptionContext<R> {
+  /** `first-result` for the first valid result since mount or reset; else `live-update`. */
+  phase: 'first-result' | 'live-update';
+  /** The previous valid computed result — absent on the first result. */
+  previousResult?: R;
+}
+
+/** Per-instance tracker of the previous valid result, for transition-aware
+ *  descriptions. One is created per `mountFormCalculator` call, so its state is
+ *  never shared between mounted instances. */
+export interface ResultDescriptionTracker<R> {
+  /** The context to describe the next result, given what has been committed so far. */
+  context(): ResultDescriptionContext<R>;
+  /** Record a valid result as the new previous (after a successful compute). */
+  commit(result: R): void;
+  /** Forget the previous result (on reset). */
+  reset(): void;
+}
+
+export function createResultDescriptionTracker<R>(): ResultDescriptionTracker<R> {
+  let previousResult: R | null = null;
+  return {
+    context() {
+      return previousResult === null
+        ? { phase: 'first-result' }
+        : { phase: 'live-update', previousResult };
+    },
+    commit(result: R) {
+      previousResult = result;
+    },
+    reset() {
+      previousResult = null;
+    },
+  };
+}
+
 export interface FormCalculatorBinding<V, R> {
   /** Read the current raw field values from the DOM. */
   readValues(root: HTMLElement): V;
@@ -54,8 +97,11 @@ export interface FormCalculatorBinding<V, R> {
   compute(values: V): R;
   /** Fill the valid-region DOM with the result (format at this boundary). */
   renderResult(result: R, context: FormRenderContext): void;
-  /** Accessible one-line announcement for a completed valid result. Pure. */
-  describeResult(result: R): string;
+  /** Accessible one-line announcement for a completed valid result. Pure. The
+   *  context carries the phase + previous valid result so transition-aware
+   *  calculators (ideal-weight sex change, target-heart-rate method change) need no
+   *  module state. Bindings that ignore transitions may take just `(result)`. */
+  describeResult(result: R, context: ResultDescriptionContext<R>): string;
   /** The primary magnitude the runtime guards for finiteness (never NaN/∞). Pure. */
   resultValue(result: R): number;
   /** Clear personal values (`personal`) or everything incl. structure (`all`). */
@@ -301,6 +347,9 @@ export function mountFormCalculator<V, R>(
   let settleTimer = 0;
   let debounceTimer = 0;
   let lastAnnounced = '';
+  // Per-instance previous-result tracker — transition-aware descriptions with no
+  // module-global state, so two mounted copies stay isolated.
+  const description = createResultDescriptionTracker<R>();
 
   /* -- unit (structural) state -------------------------------------- */
 
@@ -423,13 +472,22 @@ export function mountFormCalculator<V, R>(
     // 4. Commit the state to the shell.
     setStatus(plan.next.status);
 
-    // 5. Announce (exactly once per distinct message).
-    if (effects.announce === 'value' && result != null) announce(binding.describeResult(result));
-    else if (effects.announce === 'error' && probe) announce(firstErrorText(probe.validation));
-    else if (trigger.kind === 'reset') {
+    // 5. Announce (exactly once per distinct message). The description context is
+    //    read BEFORE committing this result, so a transition-aware binding compares
+    //    against the correct previous valid result.
+    if (effects.announce === 'value' && result != null) {
+      announce(binding.describeResult(result, description.context()));
+    } else if (effects.announce === 'error' && probe) {
+      announce(firstErrorText(probe.validation));
+    } else if (trigger.kind === 'reset') {
       lastAnnounced = '';
       if (live) live.textContent = '';
     }
+
+    // 5b. Track the previous valid result per instance. Reset forgets it; an invalid
+    //     update leaves the last valid result intact (never a false transition).
+    if (trigger.kind === 'reset') description.reset();
+    else if (effects.compute && result != null) description.commit(result);
 
     // 6. Live note.
     if (note) note.hidden = !effects.liveNote;

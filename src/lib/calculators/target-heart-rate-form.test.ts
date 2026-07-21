@@ -148,6 +148,34 @@ describe('target-heart-rate-form — announcement (pure)', () => {
   });
 });
 
+describe('target-heart-rate-form — describeResult uses per-instance context (no module state)', () => {
+  const simple = computeTargetHeartRate(values('30'));
+  const karvonen = computeTargetHeartRate(values('30', '60'));
+  const b = targetHeartRateBinding;
+
+  it('a first-result context speaks the standard line', () => {
+    expect(b.describeResult(simple, { phase: 'first-result' })).toContain(
+      'Your estimated maximum heart rate is 190',
+    );
+  });
+
+  it('a live method switch (previous result had the other method) speaks the method-change line', () => {
+    expect(b.describeResult(karvonen, { phase: 'live-update', previousResult: simple })).toBe(
+      METHOD_CHANGE_ANNOUNCEMENT.karvonen,
+    );
+    expect(b.describeResult(simple, { phase: 'live-update', previousResult: karvonen })).toBe(
+      METHOD_CHANGE_ANNOUNCEMENT.simple,
+    );
+  });
+
+  it('is stateless — interleaving calls (as two instances would) never drifts the output', () => {
+    const first = b.describeResult(simple, { phase: 'first-result' });
+    // A different "instance" describing a switch in between must not change this one.
+    b.describeResult(karvonen, { phase: 'live-update', previousResult: simple });
+    expect(b.describeResult(simple, { phase: 'first-result' })).toBe(first);
+  });
+});
+
 describe('target-heart-rate-form — zone identity for the static skeleton', () => {
   it('exposes the five documented zones (age-invariant), matching the pure module', () => {
     expect(HEART_RATE_ZONES).toEqual([

@@ -30,9 +30,9 @@ export interface FatBand {
   field: keyof FatIntakeResult;
 }
 export const FAT_BANDS: readonly FatBand[] = [
-  { key: 'min', label: 'Lower (20%)', field: 'minGrams' },
-  { key: 'mod', label: 'Moderate (27.5%)', field: 'moderateGrams' },
-  { key: 'max', label: 'Upper (35%)', field: 'maxGrams' },
+  { key: 'min', label: 'Lower end of range (20%)', field: 'minGrams' },
+  { key: 'mod', label: 'Midpoint of range (27.5%)', field: 'moderateGrams' },
+  { key: 'max', label: 'Upper end of range (35%)', field: 'maxGrams' },
 ] as const;
 
 export interface FatIntakeValues {

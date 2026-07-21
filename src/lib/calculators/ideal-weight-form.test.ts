@@ -3,6 +3,7 @@ import {
   validateIdealWeightValues,
   computeIdealWeight,
   idealWeightAnnouncement,
+  idealWeightBinding,
   metricHeightToImperial,
   imperialHeightToMetric,
   type IdealWeightValues,
@@ -113,6 +114,38 @@ describe('idealWeightAnnouncement', () => {
       const s = idealWeightAnnouncement(female, prev);
       expect(s).not.toMatch(/robinson|miller|devine|hamwi/i);
     }
+  });
+});
+
+describe('ideal-weight-form — describeResult uses per-instance context (no module state)', () => {
+  const male = computeIdealWeight(metric('175', 'male'));
+  const female = computeIdealWeight(metric('175', 'female'));
+  const taller = computeIdealWeight(metric('185', 'male'));
+  const b = idealWeightBinding;
+
+  it('a first-result context speaks the plain range', () => {
+    expect(b.describeResult(male, { phase: 'first-result' })).toBe(
+      'Your healthy-weight range is approximately 56.7 to 76.3 kilograms.',
+    );
+  });
+
+  it('a sex change (same range, previous result supplied) names the sex', () => {
+    expect(b.describeResult(female, { phase: 'live-update', previousResult: male })).toBe(
+      'Healthy-weight range: 56.7 to 76.3 kilograms. Formula estimates updated for female.',
+    );
+  });
+
+  it('a genuine range change falls back to the plain range', () => {
+    expect(b.describeResult(taller, { phase: 'live-update', previousResult: male })).toMatch(
+      /^Your healthy-weight range is approximately /,
+    );
+  });
+
+  it('is stateless — interleaving calls (as two instances would) never drifts the output', () => {
+    const first = b.describeResult(male, { phase: 'first-result' });
+    // A different "instance" describing a sex change in between must not change this one.
+    b.describeResult(female, { phase: 'live-update', previousResult: male });
+    expect(b.describeResult(male, { phase: 'first-result' })).toBe(first);
   });
 });
 

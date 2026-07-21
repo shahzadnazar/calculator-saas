@@ -140,6 +140,35 @@ test('clearing the resting HR after a Karvonen result switches back to simple, a
   );
 });
 
+test('an invalid update announces the error, not a method change; the next valid switch compares against the last valid result', async ({ page }) => {
+  await calcSimple(page); // simple result committed
+  const rest = page.locator('[name="restingHr"]');
+  await rest.focus();
+  await rest.fill('190'); // resting ≥ max 190 → live update becomes invalid (no method-change)
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(liveRegion(page)).not.toContainText('updated using');
+  // A valid resting HR now switches to Karvonen, comparing against the last VALID (simple).
+  await rest.fill('60');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(liveRegion(page)).toHaveText(
+    'Target heart-rate zones updated using the Karvonen heart-rate-reserve method.',
+  );
+});
+
+test('the first result after Reset uses the first-result announcement, not a method-change line', async ({ page }) => {
+  await page.fill('[name="age"]', '30');
+  await page.fill('[name="restingHr"]', '60');
+  await submit(page).click(); // Karvonen
+  await page.click('[data-reset]');
+  await calcSimple(page); // a fresh simple calculation after reset
+  await expect(liveRegion(page)).toHaveText(
+    'Your estimated maximum heart rate is 190 beats per minute. Training zones span 95 to 190 beats per minute.',
+  );
+  await expect(liveRegion(page)).not.toContainText('updated using');
+});
+
 /* ---- Announcement ------------------------------------------------------- */
 
 test('announces the max HR and span concisely, not the full table', async ({ page }) => {

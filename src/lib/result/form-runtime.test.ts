@@ -3,6 +3,7 @@ import {
   planFormAction,
   isLiveActive,
   INITIAL_FORM_STATE,
+  createResultDescriptionTracker,
   type FormMachineState,
   type FormProbe,
   type RecalculationMode,
@@ -182,5 +183,53 @@ describe('planFormAction — reset', () => {
     expect(plan.effects.liveNote).toBe(false);
     expect(plan.effects.announce).toBe('none');
     expect(plan.effects.compute).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Per-instance result-description tracker (R7C-2D.1)                   */
+/* ------------------------------------------------------------------ */
+
+describe('createResultDescriptionTracker', () => {
+  it('the first result is a first-result phase with no previous result', () => {
+    const t = createResultDescriptionTracker<number>();
+    expect(t.context()).toEqual({ phase: 'first-result' });
+  });
+
+  it('after a committed result, subsequent contexts are live-update with that previous result', () => {
+    const t = createResultDescriptionTracker<number>();
+    t.commit(10);
+    expect(t.context()).toEqual({ phase: 'live-update', previousResult: 10 });
+    t.commit(20);
+    expect(t.context()).toEqual({ phase: 'live-update', previousResult: 20 });
+  });
+
+  it('reset forgets the previous result — the next result is a first result again', () => {
+    const t = createResultDescriptionTracker<number>();
+    t.commit(10);
+    t.reset();
+    expect(t.context()).toEqual({ phase: 'first-result' });
+  });
+
+  it('two trackers are fully isolated — commit/reset on one never affects the other', () => {
+    const a = createResultDescriptionTracker<number>();
+    const b = createResultDescriptionTracker<number>();
+    a.commit(1);
+    // b is untouched by a's commit…
+    expect(b.context()).toEqual({ phase: 'first-result' });
+    b.commit(2);
+    expect(a.context()).toEqual({ phase: 'live-update', previousResult: 1 });
+    // …and resetting one leaves the other intact.
+    a.reset();
+    expect(a.context()).toEqual({ phase: 'first-result' });
+    expect(b.context()).toEqual({ phase: 'live-update', previousResult: 2 });
+  });
+
+  it('an invalid update (no commit) leaves the last valid previous result intact', () => {
+    const t = createResultDescriptionTracker<number>();
+    t.commit(42);
+    // A subsequent invalid update simply does not call commit — the previous is kept.
+    expect(t.context()).toEqual({ phase: 'live-update', previousResult: 42 });
+    expect(t.context()).toEqual({ phase: 'live-update', previousResult: 42 });
   });
 });

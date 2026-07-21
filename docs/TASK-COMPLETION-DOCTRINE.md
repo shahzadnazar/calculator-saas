@@ -182,9 +182,12 @@ what the R1–R7 program closes.
 | R7C-2C | target-heart-rate-calculator (optional resting HR → Karvonen/simple; accessible zone table) | `1df53ed` |
 | R7C-2C.1 | target-heart-rate hardening: visible method identity + stateful method-change announcement + age<220 semantics + resting 0≠empty + zone caption (no calculator migrated) | `92ad566` |
 | R7C-2D chars | fat-intake formula characterization suite (parity net; no formula change) | `1f2cad2` |
-| R7C-2D | fat-intake-calculator (single calorie target → AMDR fat range 20–35%; range preserved) | *(this R7C-2D migration commit)* |
+| R7C-2D | fat-intake-calculator (single calorie target → AMDR fat range 20–35%; range preserved) | `9e6f798` |
+| R7C-2D.1 | standard-form runtime: **per-instance** result-description context (retires the ideal-weight + target-heart-rate module-global announcement cells); fat-intake midpoint relabel (no calculator migrated) | *(this R7C-2D.1 commit)* |
 
-**Fleet after R7C-2D:** 49 total · **11 migrated** · **38 legacy** · **0 approved exceptions**. **Embed architecture:** 49 generated static calculator routes · 0 dynamic calculator embed routes · **0 unrelated calculator-scoped CSS per embed** (enforced).
+**Fleet after R7C-2D / R7C-2D.1:** 49 total · **11 migrated** · **38 legacy** · **0 approved exceptions**. **Embed architecture:** 49 generated static calculator routes · 0 dynamic calculator embed routes · **0 unrelated calculator-scoped CSS per embed** (enforced).
+
+**Documented runtime extension (R7C-2D.1).** The standard-form runtime gained a small, backward-compatible contract: `describeResult(result, context)` where `context: ResultDescriptionContext<R>` carries `{ phase: 'first-result' | 'live-update', previousResult? }`. Each `mountFormCalculator` call owns a `createResultDescriptionTracker` (previous-result cell in the closure), so **two mounted copies of a calculator never share announcement state** and Reset clears only that instance. Transition-aware bindings (ideal-weight sex change, target-heart-rate method change) consume the context and hold **no module-global state**; the six non-transition form bindings ignore the context unchanged (a 1-arg `describeResult` still satisfies the interface). This is the runtime's only extension since R2 — every calculator migration remains "runtime unchanged."
 
 ## Embed architecture — per-slug code splitting (R7D1)
 

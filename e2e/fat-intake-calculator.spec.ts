@@ -71,6 +71,15 @@ test('renders no NaN / Infinity / negative / reversed value anywhere', async ({ 
   await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined|-\d/);
 });
 
+test('labels the 27.5% as the range midpoint (a reference, not a recommendation)', async ({ page }) => {
+  await calc(page, '2000');
+  await expect(page.locator('#fi-result [data-fi-band="mod"] th')).toHaveText('Midpoint of range (27.5%)');
+  await expect(shell(page)).toContainText(
+    'The midpoint is a calculation reference within the displayed 20–35% range, not a separate recommendation.',
+  );
+  await expect(shell(page)).not.toContainText(/recommended|optimal|ideal fat|required fat/i);
+});
+
 /* ---- Validation, focus, aria -------------------------------------------- */
 
 test('an empty explicit submission focuses the calorie field and associates the error', async ({ page }) => {
