@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { computePace, predictTime, formatDuration } from './pace';
 import { dueDateFromLMP, gestationalAge } from './due-date';
 import { pregnancyInfo } from './pregnancy';
 import { toISODateUTC } from './date-duration';
@@ -12,18 +11,7 @@ const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d))
 // Target-heart-rate coverage now lives in the dedicated characterization suite
 // `target-heart-rate.test.ts` (R7C-2C).
 
-describe('pace', () => {
-  it('computes pace and speed from distance and time', () => {
-    const r = computePace({ distance: 10, unit: 'km', timeSeconds: 3000 }); // 50:00 for 10K
-    expect(r.secPerKm).toBeCloseTo(300, 6); // 5:00/km
-    expect(r.kmh).toBeCloseTo(12, 6);
-  });
-  it('predicts race times and formats durations', () => {
-    expect(predictTime(300, 5)).toBe(1500);
-    expect(formatDuration(1500)).toBe('25:00');
-    expect(formatDuration(3661)).toBe('1:01:01');
-  });
-});
+// Pace coverage now lives in the dedicated characterization suite `pace.test.ts` (R7C-2E1).
 
 describe('due date', () => {
   it('applies Naegele\'s rule (LMP + 280 days)', () => {
