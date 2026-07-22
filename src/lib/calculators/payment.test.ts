@@ -166,10 +166,10 @@ describe('payoff duration presentation — RAW floor/round/ceil arithmetic', () 
   //   raw whole years    = Math.floor(months / 12)
   //   raw residual       = Math.round(months % 12)   (can round up to a full 12)
   //   paymentCount       = Math.ceil(months)          (UNCHANGED; = the payment count)
-  // The DISPLAYED duration is NOT this raw residual: the R8B1.1 presenter
-  // (presentDuration / payoffParts in payment-form.ts) carries a residual of 12 into
-  // the next year, so "4 years, 12 months" is shown as "5 years" — see
-  // payment-form.test.ts. The payment count (ceil) is never touched by that carry.
+  // The DISPLAYED duration is NOT this raw residual: the shared presenter
+  // (presentDuration / payoffParts in @lib/format, characterized in format.test.ts)
+  // carries a residual of 12 into the next year, so "4 years, 12 months" is shown as
+  // "5 years". The payment count (ceil) is never touched by that carry.
   const rawArithmetic = (months: number) => ({
     years: Math.floor(months / 12),
     residualMonths: Math.round(months % 12),

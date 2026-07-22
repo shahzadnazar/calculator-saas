@@ -22,7 +22,7 @@
  * Inputs are parsed strictly — never `Number(value) || 0`.
  */
 import { loanPayment, solveMonths } from './payment';
-import { formatCurrency } from '@lib/format';
+import { formatCurrency, presentDuration } from '@lib/format';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -143,51 +143,6 @@ export function isUsablePayment(result: PaymentComputed): boolean {
 /* ------------------------------------------------------------------ */
 /* Presentation (pure)                                                 */
 /* ------------------------------------------------------------------ */
-
-export interface DurationParts {
-  years: number;
-  months: number;
-}
-
-/**
- * The whole-year / residual-month split for the payoff DISPLAY, NORMALIZED (R8B1.1).
- * years = floor(rawMonths / 12); residual = round(rawMonths % 12) — and when the residual
- * rounds up to a full 12, it carries into the next year, so a boundary like 59.5 raw
- * months reads as "5 years", never "4 years, 12 months". This is presentation only: the
- * raw payoff month value and the payment count (`ceil(rawMonths)`) are never altered.
- */
-export function payoffParts(rawMonths: number): DurationParts {
-  let years = Math.floor(rawMonths / 12);
-  let months = Math.round(rawMonths % 12);
-  if (months === 12) {
-    years += 1;
-    months = 0;
-  }
-  return { years, months };
-}
-
-const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-/**
- * Pure duration presenter (R8B1.1): a raw payoff month value → the VISIBLE and
- * ACCESSIBLE duration wording. Contains NO loan-formula logic. Correct singular/plural;
- * never "0 years", never a trailing "0 months", never "12 months" after a year component
- * (payoffParts carries it), never terse "4y 10m", never a fractional month. A positive
- * sub-month payoff reads "Less than 1 month". A non-finite or negative input — never a
- * real payoff, since the impossible "never" outcome is handled separately as "Never" —
- * yields the neutral dash, so no result ever surfaces "NaN"/"Infinity"/"undefined".
- */
-export function presentDuration(rawMonths: number): { display: string; spoken: string } {
-  if (!Number.isFinite(rawMonths) || rawMonths < 0) {
-    return { display: '—', spoken: '' };
-  }
-  const { years, months } = payoffParts(rawMonths);
-  const parts: string[] = [];
-  if (years > 0) parts.push(unit(years, 'year'));
-  if (months > 0) parts.push(unit(months, 'month'));
-  if (parts.length === 0) return { display: 'Less than 1 month', spoken: 'less than 1 month' };
-  return { display: parts.join(', '), spoken: parts.join(' and ') };
-}
 
 /** The secondary "N monthly payments" line (singular at 1). */
 export function paymentsLabel(count: number): string {
