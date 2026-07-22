@@ -18,6 +18,7 @@ const PILOTS = [
   { route: '/health/target-heart-rate-calculator', structure: 'form (optional field + zones)' },
   { route: '/health/fat-intake-calculator', structure: 'form (single input → range)' },
   { route: '/health/pace-calculator', structure: 'form (composite time + converting unit)' },
+  { route: '/finance/sales-tax-calculator', structure: 'form (multi-mode: add/remove tax)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];
