@@ -117,6 +117,29 @@ test('a payment just above the monthly interest is a finite payoff, not "Never"'
   await expect(detail(page)).toContainText('monthly payments');
 });
 
+/* ---- Duration normalization (R8B1.1) ------------------------------------ */
+
+test('a payoff whose residual rounds to 12 shows the carried year, never "12 months"', async ({ page }) => {
+  await calcPayment(page, '11600', '0', '1000'); // interest-free → exactly 11.6 months
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(primary(page)).toHaveText('1 year'); // NOT "0 years, 12 months"
+  await expect(primary(page)).not.toContainText('12 months');
+  await expect(detail(page)).toHaveText('12 monthly payments'); // payment count is unchanged (ceil)
+  await expect(liveRegion(page)).toHaveText('Your estimated payoff time is 1 year.');
+});
+
+test('live recalculation into a year boundary uses normalized wording (display + announcement)', async ({ page }) => {
+  await calcPayment(page, '59500', '0', '2000'); // 29.75 months → "2 years, 6 months"
+  await expect(primary(page)).toHaveText('2 years, 6 months');
+  // Live edit into the carry boundary: 59,500 / 1,000 = 59.5 months → "5 years".
+  await page.fill('[name="payment"]', '1000');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(primary(page)).toHaveText('5 years'); // NOT "4 years, 12 months"
+  await expect(primary(page)).not.toContainText('12 months');
+  await expect(detail(page)).toHaveText('60 monthly payments');
+  await expect(liveRegion(page)).toHaveText('Your estimated payoff time is 5 years.');
+});
+
 /* ---- Mode switching + conditional field --------------------------------- */
 
 test('switching mode before the first calc swaps the field + label, does not calculate, preserves entries', async ({ page }) => {

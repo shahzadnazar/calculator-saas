@@ -4,8 +4,7 @@ import {
   computePayment,
   describePaymentResult,
   isUsablePayment,
-  formatDuration,
-  spokenDuration,
+  presentDuration,
   payoffParts,
   paymentsLabel,
   spokenUSD,
@@ -184,6 +183,14 @@ describe('payment-form — announcement', () => {
     expect(describePaymentResult(r)).toBe('Your estimated payoff time is 4 years and 8 months.');
   });
 
+  it('the announcement uses the SAME normalized wording as the display (year carry)', () => {
+    // 11.6 raw months → residual rounds to 12 → carries to "1 year"; the spoken
+    // announcement must never say "12 months" either.
+    const r: PaymentComputed = { status: 'payoff', mode: 'payment', months: 11.6, paymentCount: 12 };
+    expect(describePaymentResult(r)).toBe('Your estimated payoff time is 1 year.');
+    expect(describePaymentResult(r)).not.toMatch(/12 months/);
+  });
+
   it('the "never" announcement explains the cause without formula language', () => {
     const r: PaymentComputed = { status: 'never', mode: 'payment', reason: 'payment-does-not-cover-interest' };
     expect(describePaymentResult(r)).toBe(
@@ -197,32 +204,64 @@ describe('payment-form — announcement', () => {
 /* Duration presentation — preserves the characterized floor/round     */
 /* ------------------------------------------------------------------ */
 
-describe('payment-form — duration presentation', () => {
-  it('payoffParts splits with floor(years) / round(residual), artifacts preserved', () => {
-    expect(payoffParts(56.3)).toEqual({ years: 4, months: 8 });
+describe('payment-form — duration presentation (R8B1.1 normalized)', () => {
+  it('payoffParts carries a residual that rounds to 12 into the next year', () => {
+    expect(payoffParts(56.3)).toEqual({ years: 4, months: 8 }); // ordinary, no carry
     expect(payoffParts(12)).toEqual({ years: 1, months: 0 });
-    expect(payoffParts(11.6)).toEqual({ years: 0, months: 12 }); // round-up artifact preserved
-    expect(payoffParts(59.5)).toEqual({ years: 4, months: 12 });
+    expect(payoffParts(11.4)).toEqual({ years: 0, months: 11 }); // rounds to 11 — no carry
+    expect(payoffParts(11.6)).toEqual({ years: 1, months: 0 }); // residual 12 → carry (was 0y 12m)
+    expect(payoffParts(59.5)).toEqual({ years: 5, months: 0 }); // multi-year boundary carry
   });
 
-  it('formatDuration reads naturally with correct pluralization', () => {
-    expect(formatDuration(56.3)).toBe('4 years, 8 months');
-    expect(formatDuration(12)).toBe('1 year');
-    expect(formatDuration(24)).toBe('2 years');
-    expect(formatDuration(1)).toBe('1 month');
-    expect(formatDuration(11.6)).toBe('12 months'); // artifact preserved, not silently fixed
+  it('presentDuration reads naturally across the accepted shapes', () => {
+    expect(presentDuration(0.25)).toEqual({ display: 'Less than 1 month', spoken: 'less than 1 month' });
+    expect(presentDuration(1)).toEqual({ display: '1 month', spoken: '1 month' });
+    expect(presentDuration(8)).toEqual({ display: '8 months', spoken: '8 months' });
+    expect(presentDuration(12)).toEqual({ display: '1 year', spoken: '1 year' });
+    expect(presentDuration(13)).toEqual({ display: '1 year, 1 month', spoken: '1 year and 1 month' });
+    expect(presentDuration(30)).toEqual({ display: '2 years, 6 months', spoken: '2 years and 6 months' });
+    expect(presentDuration(11.4)).toEqual({ display: '11 months', spoken: '11 months' }); // rounds to 11
   });
 
-  it('a sub-month payoff reads "Less than 1 month", never "0 months"', () => {
-    expect(formatDuration(0.25)).toBe('Less than 1 month');
-    expect(formatDuration(0)).toBe('Less than 1 month');
+  it('presentDuration carries a 12-residual into the next year (never "12 months" after a year)', () => {
+    expect(presentDuration(11.6)).toEqual({ display: '1 year', spoken: '1 year' });
+    expect(presentDuration(59.5)).toEqual({ display: '5 years', spoken: '5 years' });
+    expect(presentDuration(23.6)).toEqual({ display: '2 years', spoken: '2 years' });
   });
 
-  it('spokenDuration mirrors formatDuration with "and" joining', () => {
-    expect(spokenDuration(56.3)).toBe('4 years and 8 months');
-    expect(spokenDuration(12)).toBe('1 year');
-    expect(spokenDuration(1)).toBe('1 month');
-    expect(spokenDuration(0.25)).toBe('less than 1 month');
+  it('presentDuration never emits "12 months", "0 years", a trailing "0 months", or terse text', () => {
+    for (const m of [0.6, 11.5, 11.6, 12, 23.6, 24, 59.5, 120, 359.9]) {
+      const { display, spoken } = presentDuration(m);
+      for (const s of [display, spoken]) {
+        expect(s).not.toMatch(/12 months/);
+        expect(s).not.toMatch(/\b0 (years|months)\b/);
+        expect(s).not.toMatch(/\d+y\b/); // no terse "4y"
+        expect(s).not.toMatch(/\d+m\b/); // no terse "10m"
+      }
+    }
+  });
+
+  it('zero raw months uses the accepted sub-month display policy', () => {
+    expect(presentDuration(0)).toEqual({ display: 'Less than 1 month', spoken: 'less than 1 month' });
+  });
+
+  it('non-finite and negative inputs yield the neutral dash — never NaN/Infinity/undefined', () => {
+    for (const bad of [NaN, Infinity, -Infinity, -5]) {
+      const { display, spoken } = presentDuration(bad);
+      expect(display).toBe('—');
+      expect(spoken).toBe('');
+      expect(display).not.toMatch(/NaN|Infinity|undefined/);
+    }
+  });
+
+  it('locks the distinction: raw months vs displayed duration vs payment count', () => {
+    // 59,500 at 0% paying 1,000/mo → raw 59.5 months. The DISPLAY carries to "5 years";
+    // the payment COUNT is ceil(raw) = 60. Three distinct concepts, never conflated.
+    const r = computePayment(pay({ principal: '59500', annualRatePct: '0', payment: '1000' }));
+    if (r.status !== 'payoff') throw new Error('expected payoff');
+    expect(r.months).toBeCloseTo(59.5, 6); // raw formula months — unchanged
+    expect(r.paymentCount).toBe(60); // payment count = ceil(raw) — unchanged
+    expect(presentDuration(r.months).display).toBe('5 years'); // displayed duration — normalized
   });
 
   it('paymentsLabel pluralizes (1 is singular)', () => {

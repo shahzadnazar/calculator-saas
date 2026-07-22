@@ -150,33 +150,43 @@ export interface DurationParts {
 }
 
 /**
- * The floor(years) / round(residual months) split the payoff display preserves —
- * frozen by the characterization suite, INCLUDING its round-up edge cases (a residual
- * that rounds to 12). Presentation formatting varies; this arithmetic does not.
+ * The whole-year / residual-month split for the payoff DISPLAY, NORMALIZED (R8B1.1).
+ * years = floor(rawMonths / 12); residual = round(rawMonths % 12) — and when the residual
+ * rounds up to a full 12, it carries into the next year, so a boundary like 59.5 raw
+ * months reads as "5 years", never "4 years, 12 months". This is presentation only: the
+ * raw payoff month value and the payment count (`ceil(rawMonths)`) are never altered.
  */
-export function payoffParts(totalMonths: number): DurationParts {
-  return { years: Math.floor(totalMonths / 12), months: Math.round(totalMonths % 12) };
+export function payoffParts(rawMonths: number): DurationParts {
+  let years = Math.floor(rawMonths / 12);
+  let months = Math.round(rawMonths % 12);
+  if (months === 12) {
+    years += 1;
+    months = 0;
+  }
+  return { years, months };
 }
 
 const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** Display duration, e.g. "4 years, 8 months", "1 year", "12 months". A payoff that
- *  rounds below a month reads "Less than 1 month" rather than a bare "0 months". */
-export function formatDuration(totalMonths: number): string {
-  const { years, months } = payoffParts(totalMonths);
+/**
+ * Pure duration presenter (R8B1.1): a raw payoff month value → the VISIBLE and
+ * ACCESSIBLE duration wording. Contains NO loan-formula logic. Correct singular/plural;
+ * never "0 years", never a trailing "0 months", never "12 months" after a year component
+ * (payoffParts carries it), never terse "4y 10m", never a fractional month. A positive
+ * sub-month payoff reads "Less than 1 month". A non-finite or negative input — never a
+ * real payoff, since the impossible "never" outcome is handled separately as "Never" —
+ * yields the neutral dash, so no result ever surfaces "NaN"/"Infinity"/"undefined".
+ */
+export function presentDuration(rawMonths: number): { display: string; spoken: string } {
+  if (!Number.isFinite(rawMonths) || rawMonths < 0) {
+    return { display: '—', spoken: '' };
+  }
+  const { years, months } = payoffParts(rawMonths);
   const parts: string[] = [];
   if (years > 0) parts.push(unit(years, 'year'));
   if (months > 0) parts.push(unit(months, 'month'));
-  return parts.length ? parts.join(', ') : 'Less than 1 month';
-}
-
-/** Spoken duration for the live announcement, e.g. "4 years and 8 months". */
-export function spokenDuration(totalMonths: number): string {
-  const { years, months } = payoffParts(totalMonths);
-  const parts: string[] = [];
-  if (years > 0) parts.push(unit(years, 'year'));
-  if (months > 0) parts.push(unit(months, 'month'));
-  return parts.length ? parts.join(' and ') : 'less than 1 month';
+  if (parts.length === 0) return { display: 'Less than 1 month', spoken: 'less than 1 month' };
+  return { display: parts.join(', '), spoken: parts.join(' and ') };
 }
 
 /** The secondary "N monthly payments" line (singular at 1). */
@@ -199,7 +209,7 @@ export function describePaymentResult(result: PaymentComputed): string {
     return `Your estimated monthly payment is ${spokenUSD(result.monthlyPayment)}.`;
   }
   if (result.status === 'payoff') {
-    return `Your estimated payoff time is ${spokenDuration(result.months)}.`;
+    return `Your estimated payoff time is ${presentDuration(result.months).spoken}.`;
   }
   return 'At this payment amount, the loan will never be paid off because the payment does not cover the monthly interest.';
 }
@@ -264,7 +274,8 @@ export const paymentBinding: FormCalculatorBinding<PaymentValues, PaymentCompute
       setDetail(paymentsLabel(result.paymentCount));
     } else if (result.status === 'payoff') {
       setLabel('Estimated payoff time');
-      setValue(formatDuration(result.months), spokenDuration(result.months));
+      const { display, spoken } = presentDuration(result.months);
+      setValue(display, spoken);
       setDetail(paymentsLabel(result.paymentCount));
     } else {
       // 'never' — a VALID informational outcome (Decision A). No invalid styling, no

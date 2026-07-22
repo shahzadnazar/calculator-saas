@@ -160,32 +160,35 @@ describe('cross-mode consistency — loanPayment and solveMonths are inverses', 
   });
 });
 
-describe('payoff duration presentation — floor/round/ceil/pluralization', () => {
-  // The island derives the payoff display from a raw month count with:
-  //   years          = Math.floor(months / 12)
-  //   residualMonths = Math.round(months % 12)
-  //   paymentCount   = Math.ceil(months)
-  // The migration MUST preserve this exact arithmetic. Expected integers below
-  // are hard-coded goldens (not re-derived from the same expressions), and they
-  // deliberately include the round-up artifacts the current code produces.
-  const rounding = (months: number) => ({
+describe('payoff duration presentation — RAW floor/round/ceil arithmetic', () => {
+  // This block characterizes the RAW arithmetic that FEEDS the payoff display and the
+  // payment count — three separate concepts the migration keeps distinct:
+  //   raw whole years    = Math.floor(months / 12)
+  //   raw residual       = Math.round(months % 12)   (can round up to a full 12)
+  //   paymentCount       = Math.ceil(months)          (UNCHANGED; = the payment count)
+  // The DISPLAYED duration is NOT this raw residual: the R8B1.1 presenter
+  // (presentDuration / payoffParts in payment-form.ts) carries a residual of 12 into
+  // the next year, so "4 years, 12 months" is shown as "5 years" — see
+  // payment-form.test.ts. The payment count (ceil) is never touched by that carry.
+  const rawArithmetic = (months: number) => ({
     years: Math.floor(months / 12),
     residualMonths: Math.round(months % 12),
     paymentCount: Math.ceil(months),
   });
 
-  it('splits whole and fractional month counts as the island does', () => {
-    expect(rounding(56.3)).toEqual({ years: 4, residualMonths: 8, paymentCount: 57 });
-    expect(rounding(12)).toEqual({ years: 1, residualMonths: 0, paymentCount: 12 });
-    expect(rounding(0.4)).toEqual({ years: 0, residualMonths: 0, paymentCount: 1 });
-    expect(rounding(360)).toEqual({ years: 30, residualMonths: 0, paymentCount: 360 });
+  it('splits whole and fractional month counts (raw)', () => {
+    expect(rawArithmetic(56.3)).toEqual({ years: 4, residualMonths: 8, paymentCount: 57 });
+    expect(rawArithmetic(12)).toEqual({ years: 1, residualMonths: 0, paymentCount: 12 });
+    expect(rawArithmetic(0.4)).toEqual({ years: 0, residualMonths: 0, paymentCount: 1 });
+    expect(rawArithmetic(360)).toEqual({ years: 30, residualMonths: 0, paymentCount: 360 });
   });
 
-  it('preserves the residual-month round-up artifacts (e.g. "12 months")', () => {
-    // 11.6 % 12 = 11.6 → round → 12; 59.5 % 12 = 11.5 → round → 12.
-    // These are the current outputs and must not silently change.
-    expect(rounding(11.6)).toEqual({ years: 0, residualMonths: 12, paymentCount: 12 });
-    expect(rounding(59.5)).toEqual({ years: 4, residualMonths: 12, paymentCount: 60 });
+  it('the raw residual can round to a full 12 — the display presenter carries it (R8B1.1)', () => {
+    // 11.6 % 12 = 11.6 → round → 12; 59.5 % 12 = 11.5 → round → 12. The RAW residual is
+    // 12 here; presentDuration carries it to "1 year" / "5 years" for display. The
+    // payment count (ceil) is unaffected by the display carry.
+    expect(rawArithmetic(11.6)).toEqual({ years: 0, residualMonths: 12, paymentCount: 12 });
+    expect(rawArithmetic(59.5)).toEqual({ years: 4, residualMonths: 12, paymentCount: 60 });
   });
 
   it('payment-count pluralization rule: 1 is singular, everything else plural', () => {
