@@ -218,7 +218,7 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Payment Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Solve for the payment, term or amount on a fixed loan.',
+    description: 'Calculate the monthly payment or payoff term for a fixed loan.',
     keywords: ['payment calculator', 'loan payment'],
   },
   {
