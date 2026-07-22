@@ -226,7 +226,7 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Credit Card Payoff Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Find out how long it takes to clear a credit card balance and the interest it costs.',
+    description: 'Calculate how long it will take to pay off a credit card and the interest cost, or find the monthly payment needed to clear it by a target date.',
     keywords: ['credit card payoff calculator', 'debt payoff'],
     aliases: ['debt payoff calculator'],
     phrases: ['pay off credit card', 'credit card debt', 'get out of debt'],

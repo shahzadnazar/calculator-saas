@@ -20,6 +20,7 @@ const PILOTS = [
   { route: '/health/pace-calculator', structure: 'form (composite time + converting unit)' },
   { route: '/finance/sales-tax-calculator', structure: 'form (multi-mode: add/remove tax)' },
   { route: '/finance/payment-calculator', structure: 'form (multi-mode: payment/payoff time)' },
+  { route: '/finance/credit-card-payoff-calculator', structure: 'form (multi-mode: payoff/required payment + breakdown)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];
