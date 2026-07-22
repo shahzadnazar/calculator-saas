@@ -102,8 +102,17 @@ export interface FormCalculatorBinding<V, R> {
    *  calculators (ideal-weight sex change, target-heart-rate method change) need no
    *  module state. Bindings that ignore transitions may take just `(result)`. */
   describeResult(result: R, context: ResultDescriptionContext<R>): string;
-  /** The primary magnitude the runtime guards for finiteness (never NaN/∞). Pure. */
+  /** The primary magnitude the runtime guards for finiteness (never NaN/∞). Pure.
+   *  Consulted only under the DEFAULT usability gate — a binding that provides
+   *  `isUsableResult` takes over the gate and `resultValue` is not probed. */
   resultValue(result: R): number;
+  /** Optional widening of the success gate. By DEFAULT the runtime treats a result
+   *  as usable iff `resultValue(result)` is a finite number, so a non-finite value
+   *  renders as an input error. A calculator whose meaningful result is deliberately
+   *  non-numeric — e.g. an "impossible" informational outcome — may override this to
+   *  mark such results usable, so the shell renders them in the VALID region instead.
+   *  Malformed / uncomputable results must still return `false`. Pure — no DOM. */
+  isUsableResult?(result: R): boolean;
   /** Clear personal values (`personal`) or everything incl. structure (`all`). */
   resetValues(root: HTMLElement, mode: ResetMode): void;
   /** Convert entered values in place on a unit change. Optional. */
@@ -115,6 +124,19 @@ export interface FormCalculatorOptions {
   /** Task-specific primary label, e.g. "Calculate BMI". */
   calculateButtonLabel: string;
   persistStructuralPreferences?: boolean;
+}
+
+/**
+ * The usability gate for a computed result: a binding's `isUsableResult` when it
+ * provides one, else the DEFAULT guard that the primary `resultValue` is finite.
+ * Pure and shared by the DOM executor, so the widening is unit-testable without a
+ * DOM. The default is exactly the historical behaviour — every binding that does
+ * not implement the hook keeps the finite-number guard unchanged.
+ */
+export function isResultUsable<V, R>(binding: FormCalculatorBinding<V, R>, result: R): boolean {
+  return binding.isUsableResult
+    ? binding.isUsableResult(result)
+    : sanitizeResultNumber(binding.resultValue(result)) !== null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -140,8 +162,11 @@ export type FormTrigger =
 
 export interface FormProbe {
   validation: ValidationResult;
-  /** Whether the computed primary value is finite. Only meaningful when valid. */
-  resultFinite: boolean;
+  /** Whether the computed result passed the usability gate — a finite primary
+   *  value by default, or whatever a binding's `isUsableResult` accepts (which may
+   *  include a deliberately non-finite informational result). Only meaningful when
+   *  valid. */
+  resultUsable: boolean;
 }
 
 export interface FormEffects {
@@ -215,7 +240,7 @@ export function planFormAction(
 
     case 'submit': {
       if (!probe) return noop(state, noteAfterCalc(state.hasCalculated));
-      const success = probe.validation.ok && probe.resultFinite;
+      const success = probe.validation.ok && probe.resultUsable;
       if (success) {
         return {
           next: {
@@ -263,7 +288,7 @@ export function planFormAction(
       }
       if (!probe) return noop(state, noteAfterCalc(state.hasCalculated));
 
-      const success = probe.validation.ok && probe.resultFinite;
+      const success = probe.validation.ok && probe.resultUsable;
       if (success) {
         // valid → valid is a live update; recovering invalid/empty → valid uses
         // calculate semantics (liveUpdate is ignored unless already valid).
@@ -440,12 +465,14 @@ export function mountFormCalculator<V, R>(
     if (trigger.kind !== 'reset') {
       const values = binding.readValues(root);
       const validation = binding.validate(values);
-      let resultFinite = false;
+      let resultUsable = false;
       if (validation.ok) {
         result = binding.compute(values);
-        resultFinite = sanitizeResultNumber(binding.resultValue(result)) !== null;
+        // Default gate: the primary value must be finite. A binding may widen it
+        // (isUsableResult) to accept a deliberately non-numeric informational result.
+        resultUsable = isResultUsable(binding, result);
       }
-      probe = { validation, resultFinite };
+      probe = { validation, resultUsable };
     }
 
     const plan = planFormAction(state, trigger, probe, { recalculationMode: mode });

@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   planFormAction,
   isLiveActive,
+  isResultUsable,
   INITIAL_FORM_STATE,
   createResultDescriptionTracker,
   type FormMachineState,
   type FormProbe,
+  type FormCalculatorBinding,
   type RecalculationMode,
 } from './form-runtime';
 
@@ -23,11 +25,11 @@ const S = (
   hasCalculated: boolean,
 ): FormMachineState => ({ status: { state, activity }, hasCalculated });
 
-const OK: FormProbe = { validation: { ok: true }, resultFinite: true };
-const NON_FINITE: FormProbe = { validation: { ok: true }, resultFinite: false };
+const OK: FormProbe = { validation: { ok: true }, resultUsable: true };
+const NON_FINITE: FormProbe = { validation: { ok: true }, resultUsable: false };
 const INVALID: FormProbe = {
   validation: { ok: false, fieldErrors: { heightCm: 'Enter your height.' } },
-  resultFinite: false,
+  resultUsable: false,
 };
 const opts = (recalculationMode: RecalculationMode) => ({ recalculationMode });
 
@@ -231,5 +233,53 @@ describe('createResultDescriptionTracker', () => {
     // A subsequent invalid update simply does not call commit — the previous is kept.
     expect(t.context()).toEqual({ phase: 'live-update', previousResult: 42 });
     expect(t.context()).toEqual({ phase: 'live-update', previousResult: 42 });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Usability gate — valid non-numeric result extension (R8B1)          */
+/* ------------------------------------------------------------------ */
+
+// A minimal binding whose only members the gate consults are `resultValue`
+// (here the identity of the computed number) and the optional `isUsableResult`.
+// Everything else is a trivial stub — the gate never touches it.
+const gateBinding = (
+  isUsableResult?: (r: number) => boolean,
+): FormCalculatorBinding<Record<string, never>, number> => ({
+  readValues: () => ({}),
+  validate: () => ({ ok: true }),
+  compute: () => 0,
+  renderResult: () => {},
+  describeResult: () => '',
+  resultValue: (r) => r,
+  ...(isUsableResult ? { isUsableResult } : {}),
+  resetValues: () => {},
+});
+
+describe('isResultUsable — the usability gate', () => {
+  it('default gate (no hook): a finite primary value is usable, including zero', () => {
+    expect(isResultUsable(gateBinding(), 386.66)).toBe(true);
+    expect(isResultUsable(gateBinding(), 0)).toBe(true); // zero is a real result, not "empty"
+  });
+
+  it('default gate (no hook): a non-finite primary value is NOT usable (historical behaviour)', () => {
+    expect(isResultUsable(gateBinding(), NaN)).toBe(false);
+    expect(isResultUsable(gateBinding(), Infinity)).toBe(false);
+    expect(isResultUsable(gateBinding(), -Infinity)).toBe(false);
+  });
+
+  it('a binding may WIDEN the gate to accept a deliberately non-finite informational result', () => {
+    // The Payment "Never" outcome: the primary magnitude is Infinity, yet the
+    // result is a meaningful informational answer the binding marks usable.
+    expect(isResultUsable(gateBinding(() => true), Infinity)).toBe(true);
+  });
+
+  it('a binding may NARROW the gate to reject a malformed result even when finite', () => {
+    expect(isResultUsable(gateBinding(() => false), 42)).toBe(false);
+  });
+
+  it('the hook fully overrides the default finite guard in both directions', () => {
+    expect(isResultUsable(gateBinding(() => true), NaN)).toBe(true); // hook true wins over NaN
+    expect(isResultUsable(gateBinding(() => false), 123)).toBe(false); // hook false wins over finite
   });
 });
