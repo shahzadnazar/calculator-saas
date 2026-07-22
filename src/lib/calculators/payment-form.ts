@@ -22,7 +22,8 @@
  * Inputs are parsed strictly — never `Number(value) || 0`.
  */
 import { loanPayment, solveMonths } from './payment';
-import { formatCurrency, presentDuration } from '@lib/format';
+import { formatCurrency } from '@lib/format';
+import { presentDuration } from '@lib/format-duration';
 import type {
   FormCalculatorBinding,
   FormRenderContext,

@@ -10,7 +10,7 @@ import {
   type PaymentValues,
   type PaymentComputed,
 } from './payment-form';
-import { presentDuration } from '@lib/format';
+import { presentDuration } from '@lib/format-duration';
 
 const term = (over: Partial<PaymentValues> = {}): PaymentValues => ({
   mode: 'term',
