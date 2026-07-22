@@ -358,7 +358,7 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Pace Calculator',
     category: 'health',
     status: 'live',
-    description: 'Calculate running pace, time or distance for training and races.',
+    description: 'Calculate running pace and speed from distance and elapsed time, with equivalent finish times for common race distances.',
     keywords: ['pace calculator', 'running pace'],
     aliases: ['running pace calculator'],
     phrases: ['running pace', 'race pace', 'minutes per mile'],

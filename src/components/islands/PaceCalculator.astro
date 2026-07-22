@@ -1,69 +1,291 @@
 ---
-import { computePace, predictTime, formatDuration, RACE_DISTANCES, type DistanceUnit } from '@lib/calculators/pace';
-
-const d = { distance: 5, unit: 'km' as DistanceUnit, h: 0, m: 25, s: 0 };
-const timeSeconds = d.h * 3600 + d.m * 60 + d.s;
-const r = computePace({ distance: d.distance, unit: d.unit, timeSeconds });
+/**
+ * Pace calculator island (R7C-2E1 — standard-form wave, calculator #12).
+ *
+ * Task-first, direct-intent, SINGLE-MODE: distance + a composite h:m:s elapsed time
+ * → the SELECTED-UNIT pace (dominant) with secondary pace/speed conversions and
+ * equivalent finish times. All fields start EMPTY, the result is empty (an
+ * instruction, not the legacy 5 km / 25:00 sample), and the visitor presses
+ * "Calculate Pace" for the first result. Live-after-first afterwards. All
+ * interaction, validation, state, announcement and focus are owned by the shared
+ * runtime (UNCHANGED); this island is markup + the pace binding
+ * (@lib/calculators/pace-form).
+ *
+ * The km/mi control is the runtime's `[data-unit]` selector — switching it CONVERTS
+ * the entered distance in place (via the binding's convertValues). There is no
+ * solve-for-time / solve-for-distance mode.
+ */
+import { RACE_DISTANCES } from '@lib/calculators/pace-form';
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-pace>
-  <form class="card p-5 sm:p-6" data-pc-form novalidate>
-    <div class="space-y-4">
-      <div>
+<div class="pace mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-pace>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Pace calculator">
+    <div class="space-y-5">
+      <div data-field="distance">
         <label class="field-label" for="pc-dist">Distance</label>
-        <div class="flex">
-          <input class="field rounded-r-none" id="pc-dist" name="distance" type="number" min="0" step="0.1" value={d.distance} inputmode="decimal" />
-          <select class="field w-24 rounded-l-none" name="unit" aria-label="Distance unit">
-            <option value="km" selected={d.unit === 'km'}>km</option>
-            <option value="mi" selected={d.unit === 'mi'}>miles</option>
-          </select>
+        <div class="flex items-stretch gap-2">
+          <input
+            class="field flex-1"
+            id="pc-dist"
+            name="distance"
+            type="number"
+            min="0"
+            step="0.1"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 5"
+            aria-describedby="pc-distance-error"
+          />
+          <div class="pc-units" role="radiogroup" aria-label="Distance unit">
+            <button type="button" class="unit-btn is-active" data-unit="km" role="radio" aria-checked="true">km</button>
+            <button type="button" class="unit-btn" data-unit="mi" role="radio" aria-checked="false">miles</button>
+          </div>
         </div>
+        <p class="pc-field-error" id="pc-distance-error" data-error-for="distance" hidden></p>
       </div>
-      <div>
-        <label class="field-label">Time (h : m : s)</label>
+
+      <fieldset class="pc-time" data-field="time">
+        <legend class="field-label">Elapsed time</legend>
         <div class="grid grid-cols-3 gap-2">
-          <input class="field text-center" name="h" type="number" min="0" value={d.h} aria-label="hours" inputmode="numeric" />
-          <input class="field text-center" name="m" type="number" min="0" max="59" value={d.m} aria-label="minutes" inputmode="numeric" />
-          <input class="field text-center" name="s" type="number" min="0" max="59" value={d.s} aria-label="seconds" inputmode="numeric" />
+          <div>
+            <label class="pc-sub-label" for="pc-h">Hours</label>
+            <input class="field text-center" id="pc-h" name="h" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="pc-h-error pc-time-error" />
+          </div>
+          <div>
+            <label class="pc-sub-label" for="pc-m">Minutes</label>
+            <input class="field text-center" id="pc-m" name="m" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="pc-m-error" />
+          </div>
+          <div>
+            <label class="pc-sub-label" for="pc-s">Seconds</label>
+            <input class="field text-center" id="pc-s" name="s" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="pc-s-error" />
+          </div>
         </div>
-      </div>
+        <p class="pc-field-error" id="pc-h-error" data-error-for="h" hidden></p>
+        <p class="pc-field-error" id="pc-m-error" data-error-for="m" hidden></p>
+        <p class="pc-field-error" id="pc-s-error" data-error-for="s" hidden></p>
+        <p class="pc-field-error" id="pc-time-error" data-error-for="time" hidden></p>
+      </fieldset>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Pace</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="pc-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <div class="grid grid-cols-2 gap-3 text-center">
-      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Pace / km</p><p class="mt-1 text-xl font-bold" data-pc-km>{formatDuration(r.secPerKm)}</p></div>
-      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Pace / mile</p><p class="mt-1 text-xl font-bold" data-pc-mi>{formatDuration(r.secPerMi)}</p></div>
-      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Speed</p><p class="mt-1 text-xl font-bold"><span data-pc-kmh>{Number.isNaN(r.kmh) ? '—' : r.kmh.toFixed(1)}</span> km/h</p></div>
-      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Speed</p><p class="mt-1 text-xl font-bold"><span data-pc-mph>{Number.isNaN(r.mph) ? '—' : r.mph.toFixed(1)}</span> mph</p></div>
+  <!-- Result -->
+  <ResultShell
+    id="pc-result"
+    state="empty"
+    density="standard"
+    label="Your pace"
+    minHeight="24rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter a distance and elapsed time, then calculate your pace." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Estimated pace">
+        <ResultValue value="—" unit="/km" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-pc-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Pace and speed">
+        <dl class="pc-metrics">
+          <div><dt data-pc-otherpace-label>—</dt><dd data-pc-otherpace>—</dd></div>
+          <div><dt data-pc-speed1-label>—</dt><dd data-pc-speed1>—</dd></div>
+          <div><dt data-pc-speed2-label>—</dt><dd data-pc-speed2>—</dd></div>
+        </dl>
+      </ResultBreakdown>
+
+      <ResultBreakdown title="Equivalent finish times at the same pace">
+        <table class="pc-races">
+          <caption class="pc-caption">Equivalent times if you hold this pace for the full distance.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Distance</th>
+              <th scope="col" class="pc-num">Equivalent time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              RACE_DISTANCES.map((race, i) => (
+                <tr data-pc-race={i}>
+                  <th scope="row">{race.name}</th>
+                  <td class="pc-num">
+                    <span data-pc-race-time>—</span>
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+        <p class="pc-note">
+          Assumes the same pace is maintained for the full distance; these are not performance predictions.
+        </p>
+      </ResultBreakdown>
     </div>
-    <h3 class="mt-5 text-sm font-bold" style="color: var(--heading)">Predicted finish times at this pace</h3>
-    <table class="mt-2 w-full text-sm"><tbody data-pc-races>
-      {RACE_DISTANCES.map((race) => (
-        <tr class="border-t" style="border-color: var(--line)"><td class="py-1.5" style="color: var(--muted)">{race.name}</td><td class="py-1.5 text-right font-semibold">{formatDuration(predictTime(r.secPerKm, race.km))}</td></tr>
-      ))}
-    </tbody></table>
-  </div>
+
+    <InvalidResult title="Check your details" message="Enter a distance and elapsed time to calculate your pace." />
+
+    <ResultAnnouncement id="pc-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { computePace, predictTime, formatDuration, RACE_DISTANCES, type DistanceUnit } from '@lib/calculators/pace';
-  document.querySelectorAll<HTMLElement>('[data-pace]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-pc-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const timeSeconds = num('h') * 3600 + num('m') * 60 + num('s');
-      const r = computePace({ distance: num('distance'), unit: (form.elements.namedItem('unit') as HTMLSelectElement).value as DistanceUnit, timeSeconds });
-      set('[data-pc-km]', formatDuration(r.secPerKm));
-      set('[data-pc-mi]', formatDuration(r.secPerMi));
-      set('[data-pc-kmh]', Number.isNaN(r.kmh) ? '—' : r.kmh.toFixed(1));
-      set('[data-pc-mph]', Number.isNaN(r.mph) ? '—' : r.mph.toFixed(1));
-      root.querySelector<HTMLElement>('[data-pc-races]')!.innerHTML = RACE_DISTANCES
-        .map((race) => `<tr class="border-t" style="border-color: var(--line)"><td class="py-1.5" style="color: var(--muted)">${race.name}</td><td class="py-1.5 text-right font-semibold">${formatDuration(predictTime(r.secPerKm, race.km))}</td></tr>`)
-        .join('');
+<style>
+  .pc-units {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    padding: 0.125rem;
+    align-items: center;
+  }
+  .unit-btn {
+    padding: 0.35rem 0.7rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .unit-btn.is-active {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+
+  .pc-time {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+  }
+  .pc-sub-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 0.2rem;
+  }
+
+  .pc-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .pc-field-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
-  });
+  }
+  :root[data-theme='dark'] .pc-field-error {
+    color: #fca5a5;
+  }
+
+  .pc-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* Secondary pace + speed */
+  .pc-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .pc-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.9rem;
+  }
+  .pc-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .pc-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* Equivalent finish times */
+  .pc-races {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .pc-caption {
+    caption-side: top;
+    text-align: left;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .pc-races th,
+  .pc-races td {
+    padding: 0.4rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  .pc-races thead th {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .pc-races tbody th {
+    font-weight: 600;
+    color: var(--fg);
+    text-align: left;
+  }
+  .pc-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--heading);
+    font-weight: 700;
+  }
+  .pc-races thead th.pc-num {
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .pc-note {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { paceBinding } from '@lib/calculators/pace-form';
+
+  document.querySelectorAll<HTMLElement>('[data-pace]').forEach((root) =>
+    mountFormCalculator(root, paceBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Pace',
+    }),
+  );
 </script>
