@@ -1,63 +1,283 @@
 ---
-import { calculateTip } from '@lib/calculators/tip';
-import { formatCurrency } from '@lib/format';
+/**
+ * Tip calculator island (R9B1 — standard-form wave, calculator #18; product family FINANCE-SIMPLE,
+ * on the standard-form runtime UNCHANGED — no isUsableResult).
+ *
+ * Task-first, direct-intent: a single mode. Bill + tip percentage start EMPTY, the number of people
+ * defaults to 1 (a neutral structural default), no preset is selected, and the result is empty (an
+ * instruction, not the legacy $50 / 18% / precomputed sample). The visitor presses "Calculate Tip"
+ * for the first result; live-after-first afterwards. Compute, validation, state, the single
+ * announcement, focus and Reset are owned by the shared runtime (UNCHANGED) + the tip binding
+ * (@lib/calculators/tip-form).
+ *
+ * The tip-percentage PRESET buttons are ISLAND-owned quick-set controls, NOT a runtime abstraction:
+ * an accessible toggle group (aria-pressed + a non-colour selected state) that writes into the tip
+ * field and dispatches its normal input event, so the runtime recomputes through the SAME path as
+ * typing. The numeric tip field is the source of truth; a typed value that matches a preset presses
+ * it, any other value (including 0) clears every preset. Reset clears the pressed state.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
-const d = { bill: 50, tipPct: 18, people: 1 };
-const r = calculateTip(d);
 const presets = [10, 15, 18, 20, 25];
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-tip>
-  <form class="card p-5 sm:p-6" data-tp-form novalidate>
+<div class="tip mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-tip>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Tip calculator">
     <div class="space-y-4">
-      <div>
-        <label class="field-label" for="tp-bill">Bill amount</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="tp-bill" name="bill" type="number" min="0" step="0.01" value={d.bill} inputmode="decimal" /></div>
-      </div>
-      <div>
-        <label class="field-label" for="tp-tip">Tip percentage</label>
-        <div class="flex"><input class="field rounded-r-none" id="tp-tip" name="tipPct" type="number" min="0" step="1" value={d.tipPct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
-        <div class="mt-2 flex flex-wrap gap-2">
-          {presets.map((p) => (<button type="button" class="rounded-lg border px-3 py-1 text-sm font-semibold" style="border-color: var(--line); color: var(--color-brand-700)" data-tp-preset={p}>{p}%</button>))}
+      <div data-field="bill">
+        <label class="field-label" for="tp-bill">Bill amount in USD</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input
+            class="field rounded-l-none"
+            id="tp-bill"
+            name="bill"
+            type="number"
+            min="0"
+            step="0.01"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 50"
+            aria-describedby="tp-bill-error"
+          />
         </div>
+        <p class="tp-field-error" id="tp-bill-error" data-error-for="bill" hidden></p>
       </div>
-      <div>
-        <label class="field-label" for="tp-people">Split between</label>
-        <div class="flex"><input class="field rounded-r-none" id="tp-people" name="people" type="number" min="1" step="1" value={d.people} inputmode="numeric" /><span class="field-affix rounded-r-lg border-l-0">people</span></div>
+
+      <div data-field="tipPct">
+        <label class="field-label" for="tp-tip">Tip percentage</label>
+        <div class="flex">
+          <input
+            class="field rounded-r-none"
+            id="tp-tip"
+            name="tipPct"
+            type="number"
+            min="0"
+            step="1"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 18"
+            aria-describedby="tp-tip-error"
+          />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        </div>
+        <div class="tp-presets" role="group" aria-label="Quick tip percentages">
+          {presets.map((p) => (
+            <button type="button" class="tp-preset" data-tp-preset={p} aria-pressed="false" aria-label={`Set tip to ${p} percent`}>{p}%</button>
+          ))}
+        </div>
+        <p class="tp-field-error" id="tp-tip-error" data-error-for="tipPct" hidden></p>
+      </div>
+
+      <div data-field="people">
+        <label class="field-label" for="tp-people">Number of people</label>
+        <input
+          class="field"
+          id="tp-people"
+          name="people"
+          type="number"
+          min="1"
+          step="1"
+          value="1"
+          inputmode="numeric"
+          autocomplete="off"
+          aria-describedby="tp-people-error"
+        />
+        <p class="tp-field-error" id="tp-people-error" data-error-for="people" hidden></p>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Tip</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="tp-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Total per person</p>
-    <p class="mt-1 text-4xl result-value" data-tp-perperson>{formatCurrency(r.perPersonTotal)}</p>
-    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
-      <div class="flex justify-between"><dt style="color: var(--muted)">Tip amount</dt><dd class="font-semibold" style="color: var(--color-accent-600)" data-tp-tip>{formatCurrency(r.tipAmount)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Total bill</dt><dd class="font-semibold" data-tp-total>{formatCurrency(r.total)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Tip per person</dt><dd class="font-semibold" data-tp-tipperson>{formatCurrency(r.perPersonTip)}</dd></div>
-    </dl>
-  </div>
+  <!-- Result -->
+  <ResultShell
+    id="tp-result"
+    state="empty"
+    density="standard"
+    label="Tip result"
+    minHeight="20rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter the bill, choose or enter a tip percentage, and select how many people are splitting the total." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Total per person">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-tp-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Breakdown">
+        <dl class="tp-metrics">
+          <div><dt>Tip amount</dt><dd data-tp-tip>—</dd></div>
+          <div><dt>Total bill</dt><dd data-tp-total>—</dd></div>
+          <div><dt>Tip per person</dt><dd data-tp-tipperson>—</dd></div>
+        </dl>
+        <p class="tp-note">Amounts are in US dollars (USD).</p>
+      </ResultBreakdown>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a bill amount, a tip percentage, and how many people are splitting the bill."
+    />
+
+    <ResultAnnouncement id="tp-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { calculateTip } from '@lib/calculators/tip';
-  import { formatCurrency } from '@lib/format';
-  document.querySelectorAll<HTMLElement>('[data-tip]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-tp-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const r = calculateTip({ bill: num('bill'), tipPct: num('tipPct'), people: num('people') });
-      set('[data-tp-perperson]', formatCurrency(r.perPersonTotal));
-      set('[data-tp-tip]', formatCurrency(r.tipAmount));
-      set('[data-tp-total]', formatCurrency(r.total));
-      set('[data-tp-tipperson]', formatCurrency(r.perPersonTip));
+<style>
+  .tp-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .tp-field-error {
+      color: #fca5a5;
     }
-    root.querySelectorAll<HTMLButtonElement>('[data-tp-preset]').forEach((b) => b.addEventListener('click', () => {
-      (form.elements.namedItem('tipPct') as HTMLInputElement).value = b.dataset.tpPreset!;
-      recompute();
-    }));
-    form.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .tp-field-error {
+    color: #fca5a5;
+  }
+
+  .tp-presets {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .tp-preset {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-brand-700);
+    background: transparent;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .tp-preset:hover {
+    border-color: var(--color-brand-600);
+  }
+  .tp-preset:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+  /* Selected state uses THREE non-colour cues (fill + heavier border + a check glyph),
+     so it never relies on colour alone. */
+  .tp-preset[aria-pressed='true'] {
+    background: var(--color-brand-600);
+    color: #fff;
+    border-color: var(--color-brand-700);
+    border-width: 2px;
+    padding: calc(0.35rem - 1px) calc(0.7rem - 1px);
+  }
+  .tp-preset[aria-pressed='true']::before {
+    content: '✓\00a0';
+    font-weight: 800;
+  }
+
+  .tp-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .tp-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .tp-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .tp-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .tp-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .tp-note {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { tipBinding } from '@lib/calculators/tip-form';
+
+  document.querySelectorAll<HTMLElement>('[data-tip]').forEach((root) => {
+    mountFormCalculator(root, tipBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Tip',
+    });
+
+    // The island owns the tip-percentage PRESET quick-set buttons. The tip field is the source of
+    // truth; presets write into it and dispatch its normal input event, so the runtime recomputes
+    // through the SAME path as typing (and only after the first explicit Calculate — the runtime's
+    // live gate ignores input before then). Pressed state tracks the field value.
+    const tipField = root.querySelector<HTMLInputElement>('[name="tipPct"]');
+    const presetBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tp-preset]'));
+
+    const clearPresets = () =>
+      presetBtns.forEach((b) => {
+        b.setAttribute('aria-pressed', 'false');
+        b.classList.remove('is-selected');
+      });
+
+    const syncPresets = () => {
+      const raw = tipField?.value.trim() ?? '';
+      const num = raw === '' ? NaN : Number(raw);
+      presetBtns.forEach((b) => {
+        const on = Number.isFinite(num) && num === Number(b.dataset.tpPreset);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.classList.toggle('is-selected', on);
+      });
+    };
+
+    presetBtns.forEach((b) =>
+      b.addEventListener('click', () => {
+        if (!tipField) return;
+        tipField.value = b.dataset.tpPreset!;
+        syncPresets(); // reflect the pressed state immediately
+        tipField.dispatchEvent(new Event('input', { bubbles: true })); // runtime live recompute (after first calc)
+      }),
+    );
+
+    // Typed edits keep the pressed state in step (a match presses, anything else — incl. 0 — clears).
+    tipField?.addEventListener('input', syncPresets);
+
+    // Reset (runtime clears the field + restores people=1); the island clears the preset pressed state.
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', clearPresets);
   });
 </script>
