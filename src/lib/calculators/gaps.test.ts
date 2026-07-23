@@ -1,21 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTip } from './tip';
 import { calculateArea } from './area';
 import { calculateVolume } from './volume';
 import { calculateSquareFootage } from './square-footage';
 
-describe('tip', () => {
-  it('computes tip, total and split', () => {
-    const r = calculateTip({ bill: 50, tipPct: 20, people: 2 });
-    expect(r.tipAmount).toBeCloseTo(10, 6);
-    expect(r.total).toBeCloseTo(60, 6);
-    expect(r.perPersonTotal).toBeCloseTo(30, 6);
-    expect(r.perPersonTip).toBeCloseTo(5, 6);
-  });
-  it('never divides by fewer than one person', () => {
-    expect(calculateTip({ bill: 40, tipPct: 15, people: 0 }).perPersonTotal).toBeCloseTo(46, 6);
-  });
-});
+// NOTE: Tip cases moved to the dedicated `tip.test.ts` (R9B1 characterization).
 
 describe('area', () => {
   it('computes shape areas', () => {
