@@ -1,89 +1,301 @@
 ---
-import { projectSavings } from '@lib/calculators/savings';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-
-const d = { startingAmount: 1000, monthlyContribution: 300, annualRatePct: 4, years: 10, goal: 50000 };
-const proj = projectSavings({ startingAmount: d.startingAmount, monthlyContribution: d.monthlyContribution, annualRatePct: d.annualRatePct, years: d.years });
+/**
+ * Savings calculator island (R8D1 — standard-form wave, calculator #16; product family
+ * MULTI-MODE, on the standard-form runtime UNCHANGED — no isUsableResult).
+ *
+ * Task-first, direct-intent: mode defaults to Project savings, all fields start EMPTY, the
+ * result is empty (an instruction, not the legacy $1,000 / $300 / 4% / 10-year sample), and
+ * the visitor presses "Project Savings" (or "Calculate Required Deposit") for the first
+ * result. Live-after-first afterwards. Compute, validation, state, announcement and focus are
+ * owned by the shared runtime + the savings binding (@lib/calculators/savings-form).
+ *
+ * "Savings calculation" is a native radio group — a STRUCTURAL selector the runtime recomputes
+ * on. Its two modes swap ONE conditional field (monthly deposit ⇆ savings goal), sharing the
+ * starting balance, annual return and years. The island OWNS the conditional field's visibility
+ * + the action label: the inactive field is hidden AND disabled, its stale error cleared and its
+ * value preserved for an in-session switch; on a switch the mode-owned result is briefly blanked.
+ * The calculator is SUMMARY-ONLY — the formula's yearly series is not rendered.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-savings>
-  <form class="card p-5 sm:p-6" data-sv-form novalidate>
-    <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Mode" style="border-color: var(--line)">
-      <button type="button" class="mode-btn is-active" data-mode="project" role="radio" aria-checked="true">Project savings</button>
-      <button type="button" class="mode-btn" data-mode="goal" role="radio" aria-checked="false">Reach a goal</button>
-    </div>
-    <div class="space-y-4">
-      <div>
-        <label class="field-label" for="sv-start">Starting amount</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="sv-start" name="startingAmount" type="number" min="0" step="100" value={d.startingAmount} inputmode="decimal" /></div>
+<div class="savings mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-savings>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Savings calculator">
+    <fieldset class="sv-modes">
+      <legend class="field-label">Savings calculation</legend>
+      <div class="seg-group">
+        <label class="seg"><input type="radio" name="mode" value="project" checked /><span>Project savings</span></label>
+        <label class="seg"><input type="radio" name="mode" value="goal" /><span>Reach a savings goal</span></label>
       </div>
-      <div data-sv-project>
+    </fieldset>
+
+    <div class="mt-5 space-y-4">
+      <div data-field="startingAmount">
+        <label class="field-label" for="sv-start">Starting balance</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="sv-start" name="startingAmount" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 1000" aria-describedby="sv-start-error" />
+        </div>
+        <p class="sv-field-error" id="sv-start-error" data-error-for="startingAmount" hidden></p>
+      </div>
+
+      <!-- Conditional: Project shows the monthly deposit. -->
+      <div data-field="monthlyContribution" data-sv-project>
         <label class="field-label" for="sv-monthly">Monthly deposit</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="sv-monthly" name="monthlyContribution" type="number" min="0" step="50" value={d.monthlyContribution} inputmode="decimal" /></div>
-      </div>
-      <div data-sv-goal hidden>
-        <label class="field-label" for="sv-goalamt">Savings goal</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="sv-goalamt" name="goal" type="number" min="0" step="1000" value={d.goal} inputmode="decimal" /></div>
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="field-label" for="sv-rate">Annual return</label>
-          <div class="flex"><input class="field rounded-r-none" id="sv-rate" name="annualRatePct" type="number" min="0" step="0.1" value={d.annualRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="sv-monthly" name="monthlyContribution" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 300" aria-describedby="sv-monthly-error" />
         </div>
-        <div>
+        <p class="sv-field-error" id="sv-monthly-error" data-error-for="monthlyContribution" hidden></p>
+      </div>
+
+      <!-- Conditional: Reach a goal shows the savings goal. -->
+      <div data-field="goal" data-sv-goal hidden>
+        <label class="field-label" for="sv-goalamt">Savings goal</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="sv-goalamt" name="goal" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 50000" aria-describedby="sv-goal-error" disabled />
+        </div>
+        <p class="sv-field-error" id="sv-goal-error" data-error-for="goal" hidden></p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div data-field="annualRatePct">
+          <label class="field-label" for="sv-rate">Annual return</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="sv-rate" name="annualRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 4" aria-describedby="sv-rate-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="sv-field-error" id="sv-rate-error" data-error-for="annualRatePct" hidden></p>
+        </div>
+        <div data-field="years">
           <label class="field-label" for="sv-years">Years</label>
-          <input class="field" id="sv-years" name="years" type="number" min="1" step="1" value={d.years} inputmode="decimal" />
+          <input class="field" id="sv-years" name="years" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="sv-years-error" />
+          <p class="sv-field-error" id="sv-years-error" data-error-for="years" hidden></p>
         </div>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-sv-submit>Project Savings</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="sv-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="result-label" data-sv-label>Projected balance</p>
-    <p class="mt-1 text-4xl result-value" data-sv-main>{formatCurrency(proj.futureValue)}</p>
-    <dl class="mt-5 space-y-2 border-t pt-4 text-left text-sm" style="border-color: var(--line)" data-sv-detail>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Total deposited</dt><dd class="font-semibold" data-sv-contrib>{formatCurrencyRounded(proj.totalContributions)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Interest earned</dt><dd class="font-semibold" style="color: var(--color-accent-600)" data-sv-interest>{formatCurrencyRounded(proj.totalInterest)}</dd></div>
-    </dl>
-  </div>
+  <!-- Result -->
+  <ResultShell
+    id="sv-result"
+    state="empty"
+    density="standard"
+    label="Savings result"
+    minHeight="20rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter your savings details, then project your balance or calculate the monthly deposit needed for a goal." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Projected savings balance">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+
+      <p class="sv-interpretation" data-sv-interpretation hidden></p>
+
+      <div data-sv-breakdown>
+        <ResultBreakdown title="Breakdown">
+          <dl class="sv-metrics">
+            <div><dt>Total deposited</dt><dd data-sv-contrib>—</dd></div>
+            <div><dt>Interest earned</dt><dd data-sv-interest>—</dd></div>
+          </dl>
+          <p class="sv-note">Assumes monthly deposits and monthly compounding. Amounts are in US dollars (USD).</p>
+        </ResultBreakdown>
+      </div>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter your starting balance, annual return, years, and — depending on the mode — a monthly deposit or a savings goal."
+    />
+
+    <ResultAnnouncement id="sv-live" />
+  </ResultShell>
 </div>
 
 <style>
-  .mode-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
-  .mode-btn.is-active { background: var(--color-brand-600); color: #fff; }
+  .sv-modes {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+  }
+  .seg-group {
+    display: inline-flex;
+    margin-top: 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    padding: 0.125rem;
+  }
+  .seg {
+    position: relative;
+    display: inline-flex;
+  }
+  .seg input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+  .seg span {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .seg:has(input:checked) span {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+  .seg:has(input:focus-visible) span {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  .sv-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .sv-field-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .sv-field-error {
+    color: #fca5a5;
+  }
+
+  .sv-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .sv-interpretation {
+    margin: 0.6rem 0 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+
+  .sv-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .sv-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .sv-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .sv-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .sv-note {
+    margin: 0.6rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
 </style>
 
 <script>
-  import { projectSavings, requiredMonthlyForGoal } from '@lib/calculators/savings';
-  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { savingsBinding } from '@lib/calculators/savings-form';
+
   document.querySelectorAll<HTMLElement>('[data-savings]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-sv-form]')!;
-    let mode: 'project' | 'goal' = 'project';
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      if (mode === 'project') {
-        const r = projectSavings({ startingAmount: num('startingAmount'), monthlyContribution: num('monthlyContribution'), annualRatePct: num('annualRatePct'), years: num('years') });
-        set('[data-sv-label]', 'Projected balance');
-        set('[data-sv-main]', formatCurrency(r.futureValue));
-        set('[data-sv-contrib]', formatCurrencyRounded(r.totalContributions));
-        set('[data-sv-interest]', formatCurrencyRounded(r.totalInterest));
-        root.querySelector<HTMLElement>('[data-sv-detail]')!.hidden = false;
-      } else {
-        const m = requiredMonthlyForGoal({ goal: num('goal'), startingAmount: num('startingAmount'), annualRatePct: num('annualRatePct'), years: num('years') });
-        set('[data-sv-label]', 'Monthly deposit needed');
-        set('[data-sv-main]', formatCurrency(m));
-        root.querySelector<HTMLElement>('[data-sv-detail]')!.hidden = true;
+    mountFormCalculator(root, savingsBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Project Savings',
+    });
+
+    // The island owns the visible mode presentation. The runtime recomputes on the mode
+    // radio's structural `input` (unchanged); here we keep the conditional field + action
+    // label in step and, on a switch, blank the mode-owned result so no stale value shows
+    // under the new mode while the live recompute is pending.
+    const submitBtn = root.querySelector<HTMLElement>('[data-sv-submit]');
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    const projWrap = root.querySelector<HTMLElement>('[data-sv-project]');
+    const goalWrap = root.querySelector<HTMLElement>('[data-sv-goal]');
+    const projInput = projWrap?.querySelector<HTMLInputElement>('input');
+    const goalInput = goalWrap?.querySelector<HTMLInputElement>('input');
+    const isGoal = () => root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'goal';
+
+    const clearError = (name: string) => {
+      root.querySelector<HTMLElement>(`[name="${name}"]`)?.removeAttribute('aria-invalid');
+      const err = root.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
+      if (err) {
+        err.textContent = '';
+        err.hidden = true;
       }
-    }
-    root.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach((b) => b.addEventListener('click', () => {
-      mode = (b.dataset.mode as 'project' | 'goal') ?? 'project';
-      root.querySelectorAll('.mode-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
-      root.querySelector<HTMLElement>('[data-sv-project]')!.hidden = mode !== 'project';
-      root.querySelector<HTMLElement>('[data-sv-goal]')!.hidden = mode !== 'goal';
-      recompute();
-    }));
-    form.addEventListener('input', recompute);
-    recompute();
+    };
+
+    const syncMode = () => {
+      const g = isGoal();
+      if (submitBtn) submitBtn.textContent = g ? 'Calculate Required Deposit' : 'Project Savings';
+      if (projWrap) projWrap.hidden = g;
+      if (projInput) projInput.disabled = g;
+      if (goalWrap) goalWrap.hidden = !g;
+      if (goalInput) goalInput.disabled = !g;
+      clearError(g ? 'monthlyContribution' : 'goal');
+    };
+
+    const blankResult = () => {
+      for (const sel of [
+        '[data-result-when~="valid"] [data-result-value]',
+        '[data-result-when~="valid"] [data-result-value-a11y]',
+        '[data-sv-contrib]',
+        '[data-sv-interest]',
+        '[data-sv-interpretation]',
+      ]) {
+        const el = root.querySelector<HTMLElement>(sel);
+        if (el) el.textContent = '—';
+      }
+    };
+
+    root.querySelectorAll<HTMLInputElement>('[name="mode"]').forEach((r) =>
+      r.addEventListener('change', () => {
+        syncMode();
+        if (shell?.dataset.resultState === 'valid') blankResult();
+      }),
+    );
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      const projectRadio = root.querySelector<HTMLInputElement>('[name="mode"][value="project"]');
+      if (projectRadio) projectRadio.checked = true;
+      syncMode();
+    });
+    syncMode();
   });
 </script>

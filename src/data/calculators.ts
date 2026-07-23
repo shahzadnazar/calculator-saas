@@ -202,7 +202,7 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Savings Calculator',
     category: 'finance',
     status: 'live',
-    description: 'See how regular deposits and interest build your savings balance.',
+    description: 'Project how regular deposits and interest can grow your savings, or calculate the monthly deposit needed to reach a savings goal.',
     keywords: ['savings calculator', 'savings goal'],
   },
   {

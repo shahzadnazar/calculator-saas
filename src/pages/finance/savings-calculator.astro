@@ -5,17 +5,23 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'savings-calculator')!;
 const faqs = [
   { question: 'How much will my savings grow?', answer: 'In "Project savings" mode, enter your starting balance, monthly deposit, expected return and time frame, and the calculator projects your future balance and how much of it is interest.' },
-  { question: 'How much do I need to save each month for a goal?', answer: 'Switch to "Reach a goal" mode, enter your target amount and time frame, and the calculator solves for the monthly deposit required — accounting for your starting balance and expected growth.' },
+  { question: 'How much do I need to save each month for a goal?', answer: 'Switch to "Reach a savings goal" mode, enter your target amount and time frame, and the calculator solves for the monthly deposit required — accounting for your starting balance and expected growth.' },
   { question: 'How much of my income should I save?', answer: 'A common guideline is the 50/30/20 rule: roughly 50% of take-home pay for needs, 30% for wants and 20% for saving and debt repayment. Saving 20% is a solid target, but any consistent amount beats none.' },
   { question: 'How big should my emergency fund be?', answer: 'Most guidance suggests three to six months of essential expenses, kept in an accessible, low-risk account such as a high-yield savings account. Build this first, before longer-term investing, so a surprise cost does not become debt.' },
   { question: 'What return rate should I use?', answer: 'A high-yield savings account might return 3–5%, while long-term investments have historically returned more with more risk. Use a rate that matches where you will actually keep the money.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Project how your savings grow with regular deposits, or work backwards to find the monthly amount needed to reach a specific goal." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Project how your savings grow with regular deposits, or work backwards to find the monthly amount needed to reach a specific goal."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-22' }}
+>
   <SavingsCalculator />
   <Fragment slot="content">
     <h2>Two ways to plan</h2>
-    <p><strong>Project savings</strong> shows where consistent deposits will take you. <strong>Reach a goal</strong> flips the question: tell it your target and timeline, and it tells you the monthly deposit required. Both account for compound growth on your balance.</p>
+    <p><strong>Project savings</strong> shows where consistent deposits will take you. <strong>Reach a savings goal</strong> flips the question: tell it your target and timeline, and it tells you the monthly deposit required. Both account for compound growth on your balance.</p>
 
     <h2>A worked example</h2>
     <p>Save <strong>$500 a month</strong> in an account earning <strong>4%</strong> for <strong>5 years</strong> and you end with about <strong>$33,000</strong> — roughly $30,000 of deposits plus $3,000 of interest. Push the same habit to 10 years and the interest portion grows far faster than the deposits, because each dollar has more time to compound.</p>
@@ -24,7 +30,7 @@ const faqs = [
     <p>Two rules of thumb make a plan concrete. The <strong>50/30/20 rule</strong> puts about 20% of take-home pay toward saving and debt. And an <strong>emergency fund</strong> of three to six months of essential expenses comes first, in an accessible account, before longer-term investing — it is what keeps a surprise bill from turning into debt.</p>
 
     <h2>Make saving automatic</h2>
-    <p>The single most effective savings habit is automation — a fixed monthly transfer you never have to think about. Small, consistent amounts compound into large balances over time, as the interest figure makes clear. To model longer-term investing, see the <a href="/finance/investment-calculator">investment calculator</a>.</p>
+    <p>The single most effective savings habit is automation — a fixed monthly transfer you never have to think about. Small, consistent amounts compound into large balances over time, as the interest figure makes clear. Projections assume deposits are made monthly with monthly compounding, and whole years. To model longer-term investing, see the <a href="/finance/investment-calculator">investment calculator</a>.</p>
     <p>This is general educational information, not financial advice.</p>
   </Fragment>
 </CalculatorLayout>
