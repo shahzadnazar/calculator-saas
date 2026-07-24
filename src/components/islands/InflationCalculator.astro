@@ -1,62 +1,207 @@
 ---
-import { adjustForInflation } from '@lib/calculators/inflation';
-import { formatCurrency, formatPercent } from '@lib/format';
-
-const d = { amount: 1000, annualRatePct: 3, years: 20 };
-const r = adjustForInflation(d);
+/**
+ * Inflation calculator island (R9C1 — standard-form wave, calculator #19; product family
+ * FINANCE-SIMPLE, on the standard-form runtime UNCHANGED — no isUsableResult).
+ *
+ * Task-first, direct-intent: a single mode. Amount + rate + years start EMPTY, the result is empty
+ * (an instruction, not the legacy $1,000 / 3% / 20-year sample), and the visitor presses "Calculate
+ * Inflation Impact" for the first result; live-after-first afterwards. Compute, validation, state,
+ * the single announcement, focus and Reset are owned by the shared runtime (UNCHANGED) + the
+ * inflation binding (@lib/calculators/inflation-form).
+ *
+ * A NEGATIVE rate is valid deflation (the binding rejects only rate <= -100). The result is
+ * mixed-unit: a dominant projected future cost ($), plus future buying power ($) and a SIGNED
+ * cumulative price change (%) — labelled neutrally ("Cumulative price change", never "increase")
+ * and NOT colour-coded, so a negative (deflation) value never reads as an error.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-inflation>
-  <form class="card p-5 sm:p-6" data-if-form novalidate>
+<div class="inflation mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-inflation>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Inflation calculator">
     <div class="space-y-4">
-      <div>
-        <label class="field-label" for="if-amount">Amount</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="if-amount" name="amount" type="number" min="0" step="100" value={d.amount} inputmode="decimal" /></div>
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="field-label" for="if-rate">Inflation rate</label>
-          <div class="flex"><input class="field rounded-r-none" id="if-rate" name="annualRatePct" type="number" min="0" step="0.1" value={d.annualRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+      <div data-field="amount">
+        <label class="field-label" for="if-amount">Current amount in USD</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input
+            class="field rounded-l-none"
+            id="if-amount"
+            name="amount"
+            type="number"
+            min="0"
+            step="100"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 1000"
+            aria-describedby="if-amount-error"
+          />
         </div>
-        <div>
-          <label class="field-label" for="if-years">Years</label>
-          <input class="field" id="if-years" name="years" type="number" min="0" step="1" value={d.years} inputmode="decimal" />
-        </div>
+        <p class="if-field-error" id="if-amount-error" data-error-for="amount" hidden></p>
       </div>
-      <p class="text-xs" style="color: var(--muted)">Long-run inflation has averaged roughly 2–3% per year in many developed economies.</p>
+
+      <div data-field="annualRatePct">
+        <label class="field-label" for="if-rate">Annual inflation or deflation rate</label>
+        <div class="flex">
+          <input
+            class="field rounded-r-none"
+            id="if-rate"
+            name="annualRatePct"
+            type="number"
+            step="0.1"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 3"
+            aria-describedby="if-rate-error if-rate-hint"
+          />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        </div>
+        <p class="if-hint" id="if-rate-hint">Use a negative percentage for deflation.</p>
+        <p class="if-field-error" id="if-rate-error" data-error-for="annualRatePct" hidden></p>
+      </div>
+
+      <div data-field="years">
+        <label class="field-label" for="if-years">Time</label>
+        <div class="flex">
+          <input
+            class="field rounded-r-none"
+            id="if-years"
+            name="years"
+            type="number"
+            min="0"
+            step="1"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 20"
+            aria-describedby="if-years-error"
+          />
+          <span class="field-affix rounded-r-lg border-l-0">years</span>
+        </div>
+        <p class="if-field-error" id="if-years-error" data-error-for="years" hidden></p>
+      </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Inflation Impact</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="if-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <div class="rounded-lg p-4" style="background: var(--subtle)">
-      <p class="text-sm" style="color: var(--muted)">Future cost of today's <span data-if-amount>{formatCurrency(d.amount)}</span></p>
-      <p class="text-3xl result-value" data-if-future>{formatCurrency(r.futureCost)}</p>
-      <p class="text-sm" style="color: var(--muted)">in <span data-if-years>{d.years}</span> years</p>
+  <!-- Result -->
+  <ResultShell
+    id="if-result"
+    state="empty"
+    density="standard"
+    label="Inflation result"
+    minHeight="20rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter an amount, annual inflation or deflation rate, and time period to estimate future cost and purchasing power." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Projected future cost">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-if-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Breakdown">
+        <dl class="if-metrics">
+          <div><dt>Future buying power</dt><dd data-if-power>—</dd></div>
+          <div><dt>Cumulative price change</dt><dd data-if-change>—</dd></div>
+        </dl>
+        <p class="if-note">A positive change is inflation; a negative change is deflation. Amounts are in US dollars (USD).</p>
+      </ResultBreakdown>
     </div>
-    <dl class="mt-4 space-y-2 text-sm">
-      <div class="flex justify-between"><dt style="color: var(--muted)">Buying power of that amount then</dt><dd class="font-semibold" data-if-power>{formatCurrency(r.buyingPower)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Total price increase</dt><dd class="font-semibold" style="color: var(--color-danger)" data-if-total>{formatPercent(r.totalInflationPct, 1)}</dd></div>
-    </dl>
-  </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter an amount, an annual rate greater than -100%, and a time period in years to calculate."
+    />
+
+    <ResultAnnouncement id="if-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { adjustForInflation } from '@lib/calculators/inflation';
-  import { formatCurrency, formatPercent } from '@lib/format';
-  document.querySelectorAll<HTMLElement>('[data-inflation]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-if-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const amount = num('amount'), years = num('years');
-      const r = adjustForInflation({ amount, annualRatePct: num('annualRatePct'), years });
-      set('[data-if-amount]', formatCurrency(amount));
-      set('[data-if-future]', formatCurrency(r.futureCost));
-      set('[data-if-years]', String(years));
-      set('[data-if-power]', formatCurrency(r.buyingPower));
-      set('[data-if-total]', formatPercent(r.totalInflationPct, 1));
+<style>
+  .if-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .if-field-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .if-field-error {
+    color: #fca5a5;
+  }
+
+  .if-hint {
+    margin-top: 0.3rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .if-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .if-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .if-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .if-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .if-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .if-note {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { inflationBinding } from '@lib/calculators/inflation-form';
+
+  document.querySelectorAll<HTMLElement>('[data-inflation]').forEach((root) => {
+    mountFormCalculator(root, inflationBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Inflation Impact',
+    });
   });
 </script>

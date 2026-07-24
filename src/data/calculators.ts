@@ -210,7 +210,7 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Inflation Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Adjust the value of money for inflation across years.',
+    description: 'Estimate how inflation or deflation changes future prices and purchasing power over time.',
     keywords: ['inflation calculator', 'purchasing power'],
   },
   {

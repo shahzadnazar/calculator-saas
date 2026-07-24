@@ -11,7 +11,7 @@ const faqs = [
   { question: 'What inflation rate should I use?', answer: 'Long-run inflation has averaged around 2–3% per year in many developed economies, though it varies year to year and spiked well above that in some recent years. Use a rate that reflects your expectations or your central bank\'s stated target (often 2%).' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="See how inflation erodes the value of money over time — what a sum today will cost in the future, and what future money is worth now." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="See how inflation erodes the value of money over time — what a sum today will cost in the future, and what future money is worth now." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-23' }}>
   <InflationCalculator />
   <Fragment slot="content">
     <h2>What inflation is, and what causes it</h2>
