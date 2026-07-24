@@ -27,6 +27,7 @@ const PILOTS = [
   { route: '/finance/inflation-calculator', structure: 'form (single mode; deflation-safe; mixed-unit result)' },
   { route: '/everyday/square-footage-calculator', structure: 'form (geometry; converting input unit; optional cost)' },
   { route: '/everyday/concrete-calculator', structure: 'form (geometry; converting radio unit; bag table; no cost)' },
+  { route: '/math/triangle-calculator', structure: 'form (geometry; cross-field domain validation; area primary)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];

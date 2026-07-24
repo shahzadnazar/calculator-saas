@@ -436,7 +436,7 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Triangle Calculator',
     category: 'math',
     status: 'live',
-    description: 'Solve triangle sides, angles and area from known values.',
+    description: "Calculate a triangle's area, perimeter, angles and classification from three side lengths.",
     keywords: ['triangle calculator', 'triangle solver'],
   },
   {
