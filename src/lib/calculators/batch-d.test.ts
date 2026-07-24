@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { solveTriangleSSS } from './triangle';
 import { randomIntegers } from './random-number';
 import { toSeconds, combineDurations, breakdownDuration } from './time';
-import { calculateConcrete } from './concrete';
+
+// NOTE: Concrete cases moved to the dedicated `concrete.test.ts` (R10C1 characterization).
 
 describe('triangle (SSS)', () => {
   it('solves a 3-4-5 right triangle', () => {
@@ -54,19 +55,5 @@ describe('time arithmetic', () => {
     const d = breakdownDuration(combineDurations(60, 'subtract', 150));
     expect(d.negative).toBe(true);
     expect(d).toMatchObject({ minutes: 1, seconds: 30 });
-  });
-});
-
-describe('concrete', () => {
-  it('computes volume and bag counts for a slab', () => {
-    const r = calculateConcrete({ length: 10, width: 10, depth: 0.5, unit: 'ft' });
-    expect(r.cubicFeet).toBeCloseTo(50, 3);
-    expect(r.cubicYards).toBeCloseTo(1.852, 2);
-    expect(r.bags80lb).toBe(84); // ceil(50 / 0.6)
-  });
-  it('adds a waste allowance', () => {
-    const base = calculateConcrete({ length: 10, width: 10, depth: 0.5, unit: 'ft' });
-    const withWaste = calculateConcrete({ length: 10, width: 10, depth: 0.5, unit: 'ft', wastePct: 10 });
-    expect(withWaste.cubicFeet).toBeCloseTo(base.cubicFeet * 1.1, 3);
   });
 });
