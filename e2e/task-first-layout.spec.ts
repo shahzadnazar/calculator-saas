@@ -25,6 +25,7 @@ const PILOTS = [
   { route: '/finance/simple-interest-calculator', structure: 'form (single mode, currency)' },
   { route: '/finance/tip-calculator', structure: 'form (single mode + preset quick-set group)' },
   { route: '/finance/inflation-calculator', structure: 'form (single mode; deflation-safe; mixed-unit result)' },
+  { route: '/everyday/square-footage-calculator', structure: 'form (geometry; converting input unit; optional cost)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];

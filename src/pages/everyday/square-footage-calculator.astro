@@ -12,7 +12,7 @@ const faqs = [
   { question: 'How many square feet are in a square yard or an acre?', answer: 'One square yard equals 9 square feet (carpet is often priced per square yard), and one acre equals 43,560 square feet. Divide your square footage by 9 for square yards, or by 43,560 for acres.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the square footage of a room or area for flooring, paint, tile or landscaping — with metric conversions and an optional cost estimate." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the square footage of a room or area for flooring, paint, tile or landscaping — with metric conversions and an optional cost estimate." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-24' }}>
   <SquareFootageCalculator />
   <Fragment slot="content">
     <h2>How to calculate square footage</h2>
