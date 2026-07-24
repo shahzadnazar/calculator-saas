@@ -1,30 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { solveTriangleSSS } from './triangle';
 import { randomIntegers } from './random-number';
 import { toSeconds, combineDurations, breakdownDuration } from './time';
 
 // NOTE: Concrete cases moved to the dedicated `concrete.test.ts` (R10C1 characterization).
-
-describe('triangle (SSS)', () => {
-  it('solves a 3-4-5 right triangle', () => {
-    const r = solveTriangleSSS(3, 4, 5);
-    expect(r.valid).toBe(true);
-    expect(r.angleC).toBeCloseTo(90, 2);
-    expect(r.area).toBeCloseTo(6, 3);
-    expect(r.perimeter).toBe(12);
-    expect(r.sideType).toBe('Scalene');
-    expect(r.angleType).toBe('Right');
-  });
-  it('classifies an equilateral triangle', () => {
-    const r = solveTriangleSSS(5, 5, 5);
-    expect(r.angleA).toBeCloseTo(60, 2);
-    expect(r.sideType).toBe('Equilateral');
-    expect(r.angleType).toBe('Acute');
-  });
-  it('rejects an impossible triangle', () => {
-    expect(solveTriangleSSS(1, 1, 5).valid).toBe(false);
-  });
-});
+// NOTE: Triangle cases moved to the dedicated `triangle.test.ts` (R10D1 characterization).
 
 describe('random integers', () => {
   it('is deterministic with an injected RNG', () => {
