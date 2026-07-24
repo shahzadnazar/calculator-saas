@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { calculateArea } from './area';
 import { calculateVolume } from './volume';
-import { calculateSquareFootage } from './square-footage';
 
 // NOTE: Tip cases moved to the dedicated `tip.test.ts` (R9B1 characterization).
+// NOTE: Square-footage cases moved to the dedicated `square-footage.test.ts` (R10B1 characterization).
 
 describe('area', () => {
   it('computes shape areas', () => {
@@ -22,19 +22,5 @@ describe('volume', () => {
     expect(calculateVolume('sphere', { radius: 3 })).toBeCloseTo(113.097, 2);
     expect(calculateVolume('cylinder', { radius: 2, height: 5 })).toBeCloseTo(62.832, 2);
     expect(calculateVolume('cone', { radius: 3, height: 6 })).toBeCloseTo(56.549, 2);
-  });
-});
-
-describe('square footage', () => {
-  it('computes area, total, conversions and cost', () => {
-    const r = calculateSquareFootage({ length: 10, width: 12, unit: 'ft', quantity: 2, pricePerSqFt: 5 });
-    expect(r.areaSqFt).toBe(120);
-    expect(r.totalSqFt).toBe(240);
-    expect(r.totalSqYd).toBeCloseTo(26.667, 2);
-    expect(r.cost).toBe(1200);
-  });
-  it('converts non-foot units', () => {
-    // 10 yd × 12 yd = 30 ft × 36 ft = 1080 sq ft
-    expect(calculateSquareFootage({ length: 10, width: 12, unit: 'yd' }).areaSqFt).toBeCloseTo(1080, 6);
   });
 });
