@@ -19,12 +19,12 @@ const faqs = [
   {
     question: 'What return rate should I assume?',
     answer:
-      'Historical stock-market returns have averaged roughly 7% per year after inflation over the long term, but returns vary widely and are never guaranteed. Try a range of rates to see best- and worst-case scenarios.',
+      'Historical stock-market returns have averaged roughly 7% per year after inflation over the long term — closer to 10% before inflation. This calculator projects nominal growth, so enter the nominal return you expect and remember the real, after-inflation figure is lower. Returns vary widely and are never guaranteed, so try a range of rates to see best- and worst-case scenarios.',
   },
   {
     question: 'What is a good return on investment?',
     answer:
-      'It depends on risk and time frame. A widely used benchmark is the stock market\'s long-run average of about 7% real (after inflation); "safe" assets like savings or bonds return less, while higher potential returns come with a higher chance of loss.',
+      'It depends on risk and time frame. A widely used benchmark is the stock market\'s long-run average of about 7% after inflation (roughly 10% nominal); "safe" assets like savings or bonds return less, while higher potential returns come with a higher chance of loss.',
   },
   {
     question: 'What is the rule of 72?',
@@ -41,9 +41,10 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-18"
+  presentation="task-first"
   intro="Project the future value of an investment with a starting amount and regular monthly contributions, and see how much of the growth comes from earnings versus deposits."
   faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-25' }}
 >
   <InvestmentCalculator />
 
@@ -82,9 +83,11 @@ const faqs = [
       to see returns in today's money.
     </p>
     <p>
-      Projections assume a constant return, which real markets never provide. Actual
-      results vary and can be negative. This is educational information, not investment
-      advice.
+      This calculator projects <strong>nominal</strong> investment growth and does not adjust the
+      result for inflation, taxes or investment fees. Projections also assume a constant return,
+      which real markets never provide — actual results vary and can be negative. Use the
+      <a href="/finance/inflation-calculator">inflation calculator</a> to translate a nominal
+      projection into today's money. This is educational information, not investment advice.
     </p>
   </Fragment>
 </CalculatorLayout>
