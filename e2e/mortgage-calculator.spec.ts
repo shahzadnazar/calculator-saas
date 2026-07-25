@@ -50,8 +50,32 @@ test('loads empty: blank fields, term defaults to 30, empty result, Calculate Mo
   await expect(page.locator('[name="annualInterestRate"]')).toHaveValue('');
   await expect(page.locator('[name="loanTermYears"]')).toHaveValue('30');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(submit(page)).toHaveText('Calculate Mortgage');
+  await expect(submit(page)).toHaveText('Calculate Mortgage Payment');
   await expect(downPct(page)).toBeHidden();
+  // Initial: no schedule rows, no result, no announcement.
+  await expect(rows(page)).toHaveCount(0);
+  await expect(live(page)).toHaveText('');
+});
+
+test('the primary action has the exact accessible name "Calculate Mortgage Payment"', async ({ page }) => {
+  await expect(page.getByRole('button', { name: 'Calculate Mortgage Payment' })).toBeVisible();
+});
+
+test('keyboard submission (Enter from a field) computes with the corrected action', async ({ page }) => {
+  await page.fill('[name="homePrice"]', '360000');
+  await page.fill('[name="downPayment"]', '72000');
+  await page.selectOption('[name="loanTermYears"]', '30');
+  const rate = page.locator('[name="annualInterestRate"]');
+  await rate.fill('6.5');
+  await rate.press('Enter');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(primary(page)).toHaveText('$1,820.36');
+});
+
+test('the schedule disclosure is labelled "View year-by-year amortization schedule"', async ({ page }) => {
+  await fillCore(page, '360000', '72000', '30', '6.5');
+  await submit(page).click();
+  await expect(disclosure(page).locator('summary')).toContainText('View year-by-year amortization schedule');
 });
 
 test('does not calculate before the first submission', async ({ page }) => {
@@ -225,18 +249,137 @@ test('after the first result, editing updates live and keeps focus on the edited
   await expect(rate).toBeFocused();
 });
 
-test('reset clears fields, result, announcement, restores the term and closes the disclosure', async ({ page }) => {
+test('reset closes BOTH disclosures, removes rows, clears result/announcement/live-note, restores term 30, clears fields, and does not calculate', async ({ page }) => {
+  const costs = page.locator('[data-mc-costs]');
+  const liveNote = page.locator('[data-live-note]');
+  // Open the optional-cost disclosure, fill everything, calculate, then open the schedule.
+  await costs.locator('summary').click();
   await fillCore(page, '360000', '72000', '15', '6.5');
+  await page.fill('[name="propertyTaxAnnual"]', '3600');
   await submit(page).click();
   await disclosure(page).locator('summary').click();
   await expect(disclosure(page)).toHaveAttribute('open', '');
+  await expect(costs).toHaveAttribute('open', '');
+  await expect(rows(page)).toHaveCount(15);
+  await expect(liveNote).toBeVisible();
 
   await page.locator('[data-reset]').click();
+
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty'); // did NOT calculate
   await expect(page.locator('[name="homePrice"]')).toHaveValue('');
+  await expect(page.locator('[name="downPayment"]')).toHaveValue('');
+  await expect(page.locator('[name="propertyTaxAnnual"]')).toHaveValue('');
   await expect(page.locator('[name="loanTermYears"]')).toHaveValue('30'); // default restored
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(live(page)).toHaveText('');
+  await expect(disclosure(page)).not.toHaveAttribute('open', ''); // schedule disclosure closed
+  await expect(costs).not.toHaveAttribute('open', ''); // optional-cost disclosure closed
+  await expect(rows(page)).toHaveCount(0); // rows removed
+  await expect(live(page)).toHaveText(''); // announcement cleared
+  await expect(liveNote).toBeHidden(); // live-update note removed
   await expect(downPct(page)).toBeHidden();
+});
+
+/* ---- Yearly-schedule + disclosure lifecycle (R11E1.1) ------------------- */
+
+test.describe('yearly-schedule lifecycle', () => {
+  test('first positive-loan success: summary visible, rows prepared, disclosure stays closed, rows not announced', async ({ page }) => {
+    await fillCore(page, '360000', '72000', '30', '6.5');
+    await submit(page).click();
+    await expect(region(page, 'valid')).toBeVisible();
+    await expect(primary(page)).toHaveText('$1,820.36');
+    // Rows are prepared in the DOM even while the disclosure is collapsed.
+    await expect(disclosure(page)).not.toHaveAttribute('open', '');
+    await expect(rows(page)).toHaveCount(30);
+    // The announcement is the dominant payment only — never the schedule rows.
+    await expect(live(page)).toContainText('estimated monthly payment');
+    await expect(live(page)).not.toContainText('Balance');
+  });
+
+  test('open disclosure: caption + scoped headers + bounded overflow; opening does not announce', async ({ page }) => {
+    await fillCore(page, '360000', '72000', '30', '6.5');
+    await submit(page).click();
+    const announced = await live(page).textContent();
+    await disclosure(page).locator('summary').click();
+
+    const table = page.locator('.mc-table');
+    await expect(table.locator('caption')).toHaveText(/year-by-year|end of each year|amortization schedule/i);
+    // Every column header carries scope="col".
+    await expect(table.locator('thead th')).toHaveCount(4);
+    for (let i = 0; i < 4; i++) await expect(table.locator('thead th').nth(i)).toHaveAttribute('scope', 'col');
+    // Row headers (year) carry scope="row".
+    await expect(rows(page).first().locator('th')).toHaveAttribute('scope', 'row');
+    // The table lives inside a bounded, scrollable container on BOTH axes.
+    const of = await page.locator('.mc-table-wrap').evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { x: s.overflowX, y: s.overflowY, maxH: s.maxHeight };
+    });
+    expect(of.x).toBe('auto');
+    expect(of.y).toBe('auto');
+    expect(of.maxH).not.toBe('none'); // bounded vertical height
+    // Opening the disclosure emits no new announcement.
+    await expect(live(page)).toHaveText(announced ?? '');
+  });
+
+  test('valid live update: preserves the open disclosure, replaces rows, keeps focus, one announcement', async ({ page }) => {
+    await fillCore(page, '360000', '72000', '30', '6.5');
+    await submit(page).click();
+    await disclosure(page).locator('summary').click();
+    const firstBalance = await rows(page).first().locator('td').last().textContent();
+
+    const rate = page.locator('[name="annualInterestRate"]');
+    await rate.focus();
+    await rate.fill('7');
+    await page.waitForTimeout(DEBOUNCE);
+
+    await expect(disclosure(page)).toHaveAttribute('open', ''); // stayed open
+    await expect(rows(page)).toHaveCount(30); // rows replaced, still all present
+    expect(await rows(page).first().locator('td').last().textContent()).not.toBe(firstBalance); // new numbers
+    // Focus preserved on the edited field ⇒ the runtime did NOT run revealResult (its only scroll path,
+    // which focuses the shell): a live update never scrolls or moves focus.
+    await expect(rate).toBeFocused();
+  });
+
+  test('invalid live update: clears the summary + all rows, keeps focus, does not scroll', async ({ page }) => {
+    await fillCore(page, '360000', '72000', '30', '6.5');
+    await submit(page).click();
+    await disclosure(page).locator('summary').click();
+    await expect(rows(page)).toHaveCount(30);
+
+    const price = page.locator('[name="homePrice"]');
+    await price.focus();
+    await price.fill('0'); // invalid
+    await page.waitForTimeout(DEBOUNCE);
+
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(region(page, 'valid')).toBeHidden(); // stale summary not visible
+    await expect(rows(page)).toHaveCount(0); // rows cleared
+    // Focus preserved on the edited field ⇒ the runtime did NOT run revealResult (its only scroll path):
+    // an invalid live update never scrolls or moves focus.
+    await expect(price).toBeFocused();
+  });
+
+  test('valid → invalid → valid keeps the schedule coherent (no stale rows survive)', async ({ page }) => {
+    await fillCore(page, '360000', '72000', '30', '6.5');
+    await submit(page).click();
+    await disclosure(page).locator('summary').click();
+    await page.fill('[name="homePrice"]', '0'); // invalid
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(rows(page)).toHaveCount(0);
+    await page.fill('[name="homePrice"]', '400000'); // valid again
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(rows(page)).toHaveCount(30);
+  });
+
+  test('zero-mortgage: no schedule disclosure, no empty table rendered, ongoing-cost result valid', async ({ page }) => {
+    await fillCore(page, '300000', '300000', '30', '6');
+    await openCosts(page);
+    await page.fill('[name="propertyTaxAnnual"]', '3600');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(scheduleBlock(page)).toBeHidden(); // disclosure hidden
+    await expect(rows(page)).toHaveCount(0); // no empty table body rows
+    await expect(page.locator('[data-mc-tax]')).toHaveText('$300.00'); // ongoing cost still valid
+  });
 });
 
 /* ---- Responsive / theme / embed / guide / monetization ------------------ */

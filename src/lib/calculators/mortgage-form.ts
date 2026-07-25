@@ -10,7 +10,7 @@
  *
  * Product decisions (R11E1):
  *   • Task-first, summary-first: every field starts EMPTY, the result is empty, and the visitor presses
- *     "Calculate Mortgage" for the first result (live-after-first thereafter). The dominant value is the
+ *     "Calculate Mortgage Payment" for the first result (live-after-first thereafter). The dominant value is the
  *     estimated monthly payment (PITI + HOA); the amortization schedule is a closed, on-demand disclosure.
  *   • Home price is required (> 0) and interest rate is required (>= 0 — a 0% loan is a valid principal-
  *     only schedule). Down payment is optional (empty → $0 down) but, when entered, must be a finite

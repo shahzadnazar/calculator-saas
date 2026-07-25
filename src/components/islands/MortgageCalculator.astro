@@ -4,7 +4,7 @@
  * final finance complex-form).
  *
  * Task-first, summary-first: every field starts EMPTY, the result is empty, and the visitor presses
- * "Calculate Mortgage" for the first result; live-after-first afterwards. Compute, validation, state,
+ * "Calculate Mortgage Payment" for the first result; live-after-first afterwards. Compute, validation, state,
  * announcement and focus are owned by the shared runtime + the mortgage binding
  * (@lib/calculators/mortgage-form), which wraps the UNCHANGED dedicated calculateMortgage /
  * toYearlySchedule engine (its OWN PMI-aware schedule — NOT @lib/finance / the Amortization binding). The
@@ -72,7 +72,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         </div>
       </div>
 
-      <details class="mc-costs">
+      <details class="mc-costs" data-mc-costs>
         <summary class="mc-costs__summary">
           <span>Taxes, insurance &amp; fees</span>
           <span class="mc-costs__hint">optional</span>
@@ -115,7 +115,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     </div>
 
     <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-mc-submit>Calculate Mortgage</button>
+      <button type="submit" class="btn btn-primary" data-mc-submit>Calculate Mortgage Payment</button>
       <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
     <p class="mc-live-note" data-live-note hidden>Changes update automatically.</p>
@@ -157,7 +157,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       <div data-mc-schedule-block>
         <details class="mc-disclosure" data-mc-disclosure>
           <summary class="mc-disclosure__summary">
-            <span>View amortization schedule</span>
+            <span>View year-by-year amortization schedule</span>
             <svg class="mc-disclosure__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </summary>
 
@@ -331,7 +331,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   document.querySelectorAll<HTMLElement>('[data-mortgage]').forEach((root) => {
     mountFormCalculator(root, mortgageBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate Mortgage',
+      calculateButtonLabel: 'Calculate Mortgage Payment',
     });
 
     // A live "X% down" readout beside the down-payment field — purely presentational, independent of the
@@ -358,13 +358,15 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     const disclosure = root.querySelector<HTMLDetailsElement>('[data-mc-disclosure]');
+    const costs = root.querySelector<HTMLDetailsElement>('[data-mc-costs]');
     const clearRows = () =>
       root.querySelectorAll<HTMLElement>('[data-mc-rows]').forEach((tb) => tb.replaceChildren());
 
     // React to runtime state transitions the island does not itself cause. Leaving `valid` (an invalid
     // live edit) drops the stale/possibly-malformed rows so a malformed schedule can never remain in the
-    // DOM; returning to `empty` (Reset) also closes the disclosure and clears the live down-payment
-    // readout. A `valid` update is owned by the binding's renderResult, so the observer never touches it.
+    // DOM; returning to `empty` (Reset) also closes BOTH disclosures (the optional-cost inputs and the
+    // yearly schedule) and clears the live down-payment readout. A `valid` update is owned by the
+    // binding's renderResult, so the observer never touches it.
     if (shell) {
       const observer = new MutationObserver(() => {
         const state = shell.dataset.resultState;
@@ -372,6 +374,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         clearRows();
         if (state === 'empty') {
           if (disclosure) disclosure.open = false;
+          if (costs) costs.open = false;
           if (pctEl) pctEl.hidden = true;
         }
       });
