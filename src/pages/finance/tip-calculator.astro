@@ -11,7 +11,7 @@ const faqs = [
   { question: 'How do I split a bill with a tip?', answer: 'Enter the number of people and the calculator divides the total (bill plus tip) evenly, showing the amount and the tip each person owes. A $60 total split four ways is $15 each.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the tip and total on any bill and split it evenly between friends. Tap a preset percentage or enter your own." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the tip and total on any bill and split it evenly between friends. Tap a preset percentage or enter your own." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-23' }}>
   <TipCalculator />
   <Fragment slot="content">
     <h2>How to calculate a tip</h2>

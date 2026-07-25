@@ -11,7 +11,13 @@ const faqs = [
   { question: 'How do I know my calorie target?', answer: 'Estimate your daily calorie needs with the calorie calculator, then enter that number here to get your fat range.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Find your recommended daily fat intake in grams, based on your calorie target and the standard 20–35% of calories from fat." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Find your recommended daily fat intake in grams, based on your calorie target and the standard 20–35% of calories from fat."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-18' }}
+>
   <FatIntakeCalculator />
   <Fragment slot="content">
     <h2>How the range is calculated</h2>

@@ -1,70 +1,180 @@
 ---
-import { AREA_SHAPES, calculateArea } from '@lib/calculators/area';
-import { formatNumber } from '@lib/format';
-
-const first = AREA_SHAPES[0]; // rectangle
-const defaults: Record<string, number> = { length: 5, width: 4 };
-const result = calculateArea(first.key, defaults);
+/**
+ * Area calculator island (R12B1 — task-first migration, geometry shape-picker family; the pilot).
+ *
+ * Task-first: every dimension starts EMPTY, the result is empty, and the visitor presses "Calculate Area"
+ * for the first result; live-after-first afterwards. Compute, validation, state, announcement and focus
+ * are owned by the shared runtime + the area binding (@lib/calculators/area-form), which wraps the
+ * UNCHANGED calculateArea / AREA_SHAPES. The complete-result guard lives in the binding's resultValue
+ * (a NaN sentinel → the runtime's default finite gate) — there is NO isUsableResult.
+ *
+ * The SHAPE is a structural <select> (default rectangle). Each shape owns ONLY its source dimensions, and
+ * every shape's field group is rendered SHAPE-SCOPED (name="<shape>.<key>") so a visitor's values survive
+ * switching away and back; the ISLAND shows/enables only the active group and hides + disables the rest,
+ * so inactive fields never parse, validate, receive errors or take focus. The binding reads and validates
+ * only the active shape. The UNIT is INTERPRETIVE — it labels the dimension unit and the squared result
+ * unit and NEVER converts entered numbers; the island keeps the visible dimension-unit affixes in step.
+ * On Reset the runtime restores rectangle + m and clears every field; the island re-syncs visibility.
+ */
+import { AREA_SHAPES } from '@lib/calculators/area';
+import { AREA_UNITS, DEFAULT_SHAPE, DEFAULT_UNIT } from '@lib/calculators/area-form';
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-area>
-  <form class="card p-5 sm:p-6" data-ar-form novalidate>
+<div class="area mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-area>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Area calculator">
     <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="field-label" for="ar-shape">Shape</label>
-        <select class="field" id="ar-shape" data-ar-shape>
-          {AREA_SHAPES.map((s) => (<option value={s.key} selected={s.key === first.key}>{s.label}</option>))}
+        <select class="field" id="ar-shape" name="shape" data-ar-shape>
+          {AREA_SHAPES.map((s) => <option value={s.key} selected={s.key === DEFAULT_SHAPE}>{s.label}</option>)}
         </select>
       </div>
       <div>
         <label class="field-label" for="ar-unit">Unit</label>
-        <select class="field" id="ar-unit" data-ar-unit>
-          {['cm', 'm', 'in', 'ft', 'yd'].map((u) => (<option value={u} selected={u === 'm'}>{u}</option>))}
+        <select class="field" id="ar-unit" name="unit" data-ar-unit>
+          {AREA_UNITS.map((u) => <option value={u} selected={u === DEFAULT_UNIT}>{u}</option>)}
         </select>
       </div>
     </div>
-    <div class="mt-4 space-y-3" data-ar-inputs>
-      {first.inputs.map((inp) => (
-        <div>
-          <label class="field-label">{inp.label}</label>
-          <input class="field" data-ar-dim={inp.key} type="number" min="0" step="0.1" value={defaults[inp.key] ?? 1} inputmode="decimal" />
+
+    <p class="ar-help">Enter every dimension in the selected unit. Changing the unit does not convert values already entered.</p>
+
+    <div class="mt-4">
+      {AREA_SHAPES.map((s) => (
+        <div class="ar-group space-y-3" data-ar-group={s.key} hidden={s.key !== DEFAULT_SHAPE}>
+          {s.inputs.map((inp) => (
+            <div data-field={`${s.key}.${inp.key}`}>
+              <label class="field-label" for={`ar-${s.key}-${inp.key}`}>{inp.label}</label>
+              <div class="flex">
+                <input
+                  class="field rounded-r-none"
+                  id={`ar-${s.key}-${inp.key}`}
+                  name={`${s.key}.${inp.key}`}
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder="e.g. 5"
+                  disabled={s.key !== DEFAULT_SHAPE}
+                  aria-describedby={`ar-${s.key}-${inp.key}-error`}
+                />
+                <span class="field-affix rounded-r-lg border-l-0" data-ar-dim-unit>{DEFAULT_UNIT}</span>
+              </div>
+              <p class="ar-field-error" id={`ar-${s.key}-${inp.key}-error`} data-error-for={`${s.key}.${inp.key}`} hidden></p>
+            </div>
+          ))}
         </div>
       ))}
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-ar-submit>Calculate Area</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="ar-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="result-label">Area</p>
-    <p class="mt-2 text-5xl result-value" data-ar-result>{formatNumber(result, 3)}</p>
-    <p class="mt-1 text-lg" style="color: var(--muted)"><span data-ar-unit-label>m</span>²</p>
-  </div>
+  <!-- Result -->
+  <ResultShell id="ar-result" state="empty" density="standard" label="Area result" minHeight="14rem">
+    <EmptyResult message="Choose a shape and enter its dimensions to calculate the area." />
+
+    <div data-result-when="valid" class="text-center">
+      <ResultSummary label="Area">
+        <ResultValue value="—" size="text-5xl" />
+      </ResultSummary>
+      <p class="ar-unit-sq"><span data-ar-unit-sq>m²</span></p>
+      <p class="ar-interpretation" data-ar-interpretation></p>
+      <p class="ar-assumptions">Enter all dimensions in the same unit; the area comes out in that unit squared. The unit selector labels your measurements — it does not convert them.</p>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter every dimension for the selected shape as a number greater than zero."
+    />
+
+    <ResultAnnouncement id="ar-live" />
+  </ResultShell>
 </div>
 
+<style>
+  .ar-help { margin-top: 0.75rem; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+  .ar-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .ar-field-error { color: #fca5a5; }
+  }
+  :root[data-theme='dark'] .ar-field-error { color: #fca5a5; }
+  .ar-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  .ar-unit-sq { margin-top: 0.25rem; font-size: 1.125rem; color: var(--muted); }
+  .ar-interpretation { margin: 0.9rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+  .ar-assumptions { margin: 0.9rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+</style>
+
 <script>
-  import { AREA_SHAPES, calculateArea, type AreaShapeKey } from '@lib/calculators/area';
-  const nf = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }).format(v));
-  const shapeMap = new Map(AREA_SHAPES.map((s) => [s.key, s]));
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { areaBinding, DEFAULT_SHAPE, DEFAULT_UNIT } from '@lib/calculators/area-form';
 
   document.querySelectorAll<HTMLElement>('[data-area]').forEach((root) => {
-    const shapeSel = root.querySelector<HTMLSelectElement>('[data-ar-shape]')!;
-    const unitSel = root.querySelector<HTMLSelectElement>('[data-ar-unit]')!;
-    const inputsEl = root.querySelector<HTMLElement>('[data-ar-inputs]')!;
+    mountFormCalculator(root, areaBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Area',
+    });
 
-    function buildInputs() {
-      const shape = shapeMap.get(shapeSel.value as AreaShapeKey)!;
-      inputsEl.innerHTML = shape.inputs
-        .map((inp) => `<div><label class="field-label">${inp.label}</label><input class="field" data-ar-dim="${inp.key}" type="number" min="0" step="0.1" value="1" inputmode="decimal" /></div>`)
-        .join('');
+    const shapeSel = root.querySelector<HTMLSelectElement>('[data-ar-shape]');
+    const unitSel = root.querySelector<HTMLSelectElement>('[data-ar-unit]');
+    const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-ar-group]'));
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+
+    // The island owns conditional-field visibility: show + enable only the active shape's group; hide +
+    // DISABLE every other shape's inputs so they never parse, validate, receive errors or take focus.
+    // Values in the inactive (disabled) controls are retained so switching back restores the visitor's work.
+    const applyShapeVisibility = () => {
+      const active = shapeSel?.value ?? DEFAULT_SHAPE;
+      for (const g of groups) {
+        const on = g.dataset.arGroup === active;
+        g.hidden = !on;
+        g.querySelectorAll<HTMLInputElement>('input').forEach((el) => {
+          el.disabled = !on;
+        });
+      }
+    };
+    // The unit is interpretive: it relabels the dimension-unit affixes (and, via the binding, the squared
+    // result unit) but never converts numbers. The affixes update immediately, even before the first calc.
+    const applyUnitLabels = () => {
+      const u = unitSel?.value ?? DEFAULT_UNIT;
+      root.querySelectorAll<HTMLElement>('[data-ar-dim-unit]').forEach((el) => {
+        el.textContent = u;
+      });
+    };
+
+    shapeSel?.addEventListener('change', applyShapeVisibility);
+    unitSel?.addEventListener('change', applyUnitLabels);
+    applyShapeVisibility();
+    applyUnitLabels();
+
+    // On Reset the runtime restores shape → rectangle + unit → m and clears every field; re-sync the
+    // island-owned visibility + unit labels when the shell returns to `empty`.
+    if (shell) {
+      const observer = new MutationObserver(() => {
+        if (shell.dataset.resultState === 'empty') {
+          applyShapeVisibility();
+          applyUnitLabels();
+        }
+      });
+      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-    function recompute() {
-      const dims: Record<string, number> = {};
-      inputsEl.querySelectorAll<HTMLInputElement>('[data-ar-dim]').forEach((el) => (dims[el.dataset.arDim!] = Number(el.value) || 0));
-      root.querySelector<HTMLElement>('[data-ar-result]')!.textContent = nf(calculateArea(shapeSel.value as AreaShapeKey, dims));
-      root.querySelector<HTMLElement>('[data-ar-unit-label]')!.textContent = unitSel.value;
-    }
-    shapeSel.addEventListener('change', () => { buildInputs(); recompute(); });
-    unitSel.addEventListener('change', recompute);
-    inputsEl.addEventListener('input', recompute);
-    recompute();
   });
 </script>

@@ -1,0 +1,19 @@
+---
+/**
+ * ResultAssumptions — the most secondary block: the assumptions a result rests
+ * on (rounding, rate basis, tax year, "excludes fees"). Muted and small so it
+ * informs without competing with the answer, but always present for trust.
+ */
+export interface Props {
+  title?: string;
+  class?: string;
+}
+const { title = 'Assumptions', class: className = '' } = Astro.props;
+---
+
+<section class:list={['result-assumptions', className]} aria-label={title}>
+  <h3 class="result-section-title">{title}</h3>
+  <div class="result-assumptions__body">
+    <slot />
+  </div>
+</section>

@@ -1,0 +1,17 @@
+{
+  "commit": "430229b",
+  "label": "post-R7D1 per-slug static embeds (0 unrelated scoped CSS)",
+  "measuredPage": "embed/finance/mortgage-calculator.html",
+  "measurement": {
+    "page": "embed/finance/mortgage-calculator.html",
+    "totalCssBytes": 32007,
+    "gzippedCssBytes": 7122,
+    "scopedCssBytes": 699,
+    "unusedScopedBytes": 0,
+    "unusedScopedSelectors": 0,
+    "scopedIslandCids": 1,
+    "renderedCids": [
+      "r4tsmomu"
+    ]
+  }
+}

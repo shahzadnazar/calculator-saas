@@ -41,19 +41,29 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  presentation="task-first"
   intro="Estimate your monthly car payment including down payment, trade-in, sales tax and fees — and see the total cost of financing."
   faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-25' }}
 >
   <AutoLoanCalculator />
 
   <Fragment slot="content">
     <h2>How to use the auto loan calculator</h2>
     <p>
-      Enter the <strong>vehicle price</strong>, <strong>term</strong>,
-      <strong>interest rate</strong> and <strong>down payment</strong>. Open
-      <strong>Trade-in &amp; fees</strong> to add a trade-in, the amount still owed on it,
-      dealer fees, and to choose whether tax and fees are financed or paid upfront.
+      Enter the <strong>vehicle price</strong>, <strong>loan term</strong>,
+      <strong>interest rate</strong> and <strong>down payment</strong>, then calculate. Use the
+      <strong>Finance taxes and fees</strong> checkbox to choose whether estimated tax and fees are
+      rolled into the loan or paid upfront, and open <strong>Trade-in &amp; fees</strong> to add a
+      trade-in, the amount still owed on it, and dealer fees.
+    </p>
+
+    <h2>How sales tax is estimated</h2>
+    <p>
+      This calculator applies the sales-tax rate you enter to the <strong>full vehicle price</strong>
+      and does not apply a trade-in tax credit. Tax rules vary by jurisdiction — some states tax the
+      price after a trade-in, and rebates and fees can be treated differently — so treat the sales-tax
+      figure as a planning estimate and confirm the exact amount with your dealer or state.
     </p>
 
     <h2>What "total cost" includes</h2>

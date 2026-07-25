@@ -1,0 +1,24 @@
+---
+/**
+ * EmbedPageShell (R7D1) — the shared, calculator-AGNOSTIC chrome for a public
+ * embed page.
+ *
+ * Wraps the existing `EmbedLayout` with the calculator's title / canonical / slug
+ * so a generated per-slug embed page only has to import ITS island + this shell.
+ * It owns no calculator-specific markup, CSS or component import — the calculator
+ * comes through the default slot. This is the "non-calculator part" extracted from
+ * the old dynamic embed route, unchanged in output (EmbedLayout is untouched), so
+ * the embed chrome stays byte-identical; only the per-page scoped-CSS set shrinks.
+ */
+import EmbedLayout from '@layouts/EmbedLayout.astro';
+import { calculatorPath, type Calculator } from '@data/calculators';
+
+interface Props {
+  calculator: Calculator;
+}
+const { calculator } = Astro.props;
+---
+
+<EmbedLayout title={calculator.title} canonicalPath={calculatorPath(calculator)} slug={calculator.slug}>
+  <slot />
+</EmbedLayout>

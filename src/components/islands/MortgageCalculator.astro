@@ -1,251 +1,384 @@
 ---
 /**
- * Mortgage calculator island.
+ * Mortgage calculator island (R11E1 — task-first migration, finance complex-form family; the fourth and
+ * final finance complex-form).
  *
- * The default scenario is computed at build time and rendered server-side, so
- * the tool shows a meaningful result with zero layout shift and even without
- * JavaScript. The client script recomputes live on input using the same
- * unit-tested logic in src/lib/calculators/mortgage.ts.
+ * Task-first, summary-first: every field starts EMPTY, the result is empty, and the visitor presses
+ * "Calculate Mortgage Payment" for the first result; live-after-first afterwards. Compute, validation, state,
+ * announcement and focus are owned by the shared runtime + the mortgage binding
+ * (@lib/calculators/mortgage-form), which wraps the UNCHANGED dedicated calculateMortgage /
+ * toYearlySchedule engine (its OWN PMI-aware schedule — NOT @lib/finance / the Amortization binding). The
+ * complete-result guard lives in the binding's resultValue (a NaN sentinel → the runtime's default finite
+ * gate) — there is NO isUsableResult.
+ *
+ * The dominant value is the estimated monthly payment (PITI + HOA). A supplemental breakdown bar
+ * (aria-hidden) and a textual breakdown split it into principal & interest, tax, insurance, PMI and HOA;
+ * three summary metrics show the loan amount, total interest and total of payments. The amortization
+ * schedule is a native <details> DISCLOSURE, closed by default and hidden entirely for a zero mortgage;
+ * inside, the yearly schedule renders every row (built with the DOM API, never innerHTML) into a semantic
+ * <table> (caption + scoped headers). Optional taxes/insurance/HOA/PMI live in their own closed
+ * disclosure so the core four inputs lead. The island also reacts to runtime state changes it does not
+ * itself cause: leaving `valid` (an invalid live edit) drops the stale rows; returning to `empty` (Reset)
+ * also closes the schedule disclosure.
  */
-import { calculateMortgage, toYearlySchedule } from '@lib/calculators/mortgage';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-
-const defaults = {
-  homePrice: 360000,
-  downPayment: 72000,
-  loanTermYears: 30,
-  annualInterestRate: 6.5,
-  propertyTaxAnnual: 3600,
-  homeInsuranceAnnual: 1200,
-  hoaMonthly: 0,
-  pmiAnnualRate: 0.5,
-};
-const r = calculateMortgage(defaults);
-const yearly = toYearlySchedule(r.schedule);
-const pct = (v: number) => (r.monthlyTotal ? (v / r.monthlyTotal) * 100 : 0);
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div
-  class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]"
-  data-mortgage
-  data-defaults={JSON.stringify(defaults)}
->
+<div class="mortgage mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-2 lg:items-start" data-mortgage>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-mc-form novalidate>
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Mortgage calculator">
     <div class="space-y-4">
-      <div>
+      <div data-field="homePrice">
         <label class="field-label" for="mc-home-price">Home price</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="mc-home-price" name="homePrice" type="number" min="0" step="1000" value={defaults.homePrice} inputmode="decimal" />
+          <input class="field rounded-l-none" id="mc-home-price" name="homePrice" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 360000" aria-describedby="mc-home-price-error" />
         </div>
+        <p class="mc-field-error" id="mc-home-price-error" data-error-for="homePrice" hidden></p>
       </div>
 
-      <div>
+      <div data-field="downPayment">
         <div class="flex items-baseline justify-between">
           <label class="field-label" for="mc-down-payment">Down payment</label>
-          <span class="text-xs font-semibold" style="color: var(--muted)" data-mc-down-pct></span>
+          <span class="mc-down-pct" data-mc-down-pct hidden></span>
         </div>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" value={defaults.downPayment} inputmode="decimal" />
+          <input class="field rounded-l-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 72000" aria-describedby="mc-down-payment-error" />
         </div>
+        <p class="mc-field-error" id="mc-down-payment-error" data-error-for="downPayment" hidden></p>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
-        <div>
+        <div data-field="loanTermYears">
           <label class="field-label" for="mc-term">Loan term</label>
-          <select class="field" id="mc-term" name="loanTermYears">
-            {[30, 20, 15, 10].map((y) => (
-              <option value={y} selected={y === defaults.loanTermYears}>{y} years</option>
-            ))}
+          <select class="field" id="mc-term" name="loanTermYears" aria-describedby="mc-term-error">
+            {[30, 20, 15, 10].map((y) => <option value={y}>{y} years</option>)}
           </select>
+          <p class="mc-field-error" id="mc-term-error" data-error-for="loanTermYears" hidden></p>
         </div>
-        <div>
+        <div data-field="annualInterestRate">
           <label class="field-label" for="mc-rate">Interest rate</label>
           <div class="flex">
-            <input class="field rounded-r-none" id="mc-rate" name="annualInterestRate" type="number" min="0" step="0.05" value={defaults.annualInterestRate} inputmode="decimal" />
+            <input class="field rounded-r-none" id="mc-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 6.5" aria-describedby="mc-rate-error" />
             <span class="field-affix rounded-r-lg border-l-0">%</span>
           </div>
+          <p class="mc-field-error" id="mc-rate-error" data-error-for="annualInterestRate" hidden></p>
         </div>
       </div>
 
-      <details class="pt-1">
-        <summary class="cursor-pointer text-sm font-semibold" style="color: var(--color-brand-600)">
-          Taxes, insurance &amp; fees
+      <details class="mc-costs" data-mc-costs>
+        <summary class="mc-costs__summary">
+          <span>Taxes, insurance &amp; fees</span>
+          <span class="mc-costs__hint">optional</span>
         </summary>
         <div class="mt-4 grid grid-cols-2 gap-4">
-          <div>
-            <label class="field-label" for="mc-tax">Property tax /yr</label>
-            <input class="field" id="mc-tax" name="propertyTaxAnnual" type="number" min="0" step="100" value={defaults.propertyTaxAnnual} inputmode="decimal" />
-          </div>
-          <div>
-            <label class="field-label" for="mc-insurance">Home insurance /yr</label>
-            <input class="field" id="mc-insurance" name="homeInsuranceAnnual" type="number" min="0" step="100" value={defaults.homeInsuranceAnnual} inputmode="decimal" />
-          </div>
-          <div>
-            <label class="field-label" for="mc-hoa">HOA /mo</label>
-            <input class="field" id="mc-hoa" name="hoaMonthly" type="number" min="0" step="10" value={defaults.hoaMonthly} inputmode="decimal" />
-          </div>
-          <div>
-            <label class="field-label" for="mc-pmi">PMI rate /yr</label>
+          <div data-field="propertyTaxAnnual">
+            <label class="field-label" for="mc-tax-in">Property tax /yr</label>
             <div class="flex">
-              <input class="field rounded-r-none" id="mc-pmi" name="pmiAnnualRate" type="number" min="0" step="0.05" value={defaults.pmiAnnualRate} inputmode="decimal" />
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="mc-tax-in" name="propertyTaxAnnual" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 3600" aria-describedby="mc-tax-error" />
+            </div>
+            <p class="mc-field-error" id="mc-tax-error" data-error-for="propertyTaxAnnual" hidden></p>
+          </div>
+          <div data-field="homeInsuranceAnnual">
+            <label class="field-label" for="mc-insurance-in">Home insurance /yr</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="mc-insurance-in" name="homeInsuranceAnnual" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 1200" aria-describedby="mc-insurance-error" />
+            </div>
+            <p class="mc-field-error" id="mc-insurance-error" data-error-for="homeInsuranceAnnual" hidden></p>
+          </div>
+          <div data-field="hoaMonthly">
+            <label class="field-label" for="mc-hoa-in">HOA /mo</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="mc-hoa-in" name="hoaMonthly" type="number" min="0" step="10" inputmode="decimal" autocomplete="off" placeholder="e.g. 0" aria-describedby="mc-hoa-error" />
+            </div>
+            <p class="mc-field-error" id="mc-hoa-error" data-error-for="hoaMonthly" hidden></p>
+          </div>
+          <div data-field="pmiAnnualRate">
+            <label class="field-label" for="mc-pmi-in">PMI rate /yr</label>
+            <div class="flex">
+              <input class="field rounded-r-none" id="mc-pmi-in" name="pmiAnnualRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 0.5" aria-describedby="mc-pmi-error" />
               <span class="field-affix rounded-r-lg border-l-0">%</span>
             </div>
+            <p class="mc-field-error" id="mc-pmi-error" data-error-for="pmiAnnualRate" hidden></p>
           </div>
         </div>
       </details>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-mc-submit>Calculate Mortgage Payment</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="mc-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <!-- Results -->
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Estimated monthly payment</p>
-    <p class="mt-1 text-4xl result-value" data-mc-monthly-total>
-      {formatCurrency(r.monthlyTotal)}
-    </p>
+  <!-- Result -->
+  <ResultShell id="mc-result" state="empty" density="complex" label="Mortgage result" minHeight="22rem">
+    <EmptyResult message="Enter a home price, down payment, loan term and interest rate, then calculate to see your estimated monthly payment and amortization schedule." />
 
-    <!-- Breakdown bar -->
-    <div class="mt-5 flex h-3 w-full overflow-hidden rounded-full" style="background: var(--subtle)" data-mc-bar aria-hidden="true">
-      <span style={`width:${pct(r.monthlyPrincipalInterest)}%; background: var(--color-brand-600)`} data-seg="pi"></span>
-      <span style={`width:${pct(r.monthlyPropertyTax)}%; background: var(--color-accent-500)`} data-seg="tax"></span>
-      <span style={`width:${pct(r.monthlyInsurance)}%; background: #f59e0b`} data-seg="ins"></span>
-      <span style={`width:${pct(r.monthlyPmi)}%; background: #a855f7`} data-seg="pmi"></span>
-      <span style={`width:${pct(r.monthlyHoa)}%; background: #64748b`} data-seg="hoa"></span>
+    <div data-result-when="valid">
+      <ResultSummary label="Estimated monthly payment">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+
+      <p class="mc-interpretation" data-mc-interpretation></p>
+
+      <div class="mc-bar" data-mc-bar aria-hidden="true">
+        <span class="mc-seg" style="width:0%; background: var(--color-brand-600)" data-mc-seg="pi"></span>
+        <span class="mc-seg" style="width:0%; background: var(--color-accent-500)" data-mc-seg="tax"></span>
+        <span class="mc-seg" style="width:0%; background: #f59e0b" data-mc-seg="ins"></span>
+        <span class="mc-seg" style="width:0%; background: #a855f7" data-mc-seg="pmi"></span>
+        <span class="mc-seg" style="width:0%; background: #64748b" data-mc-seg="hoa"></span>
+      </div>
+
+      <dl class="mc-metrics">
+        <div><dt><span class="mc-dot" style="background: var(--color-brand-600)"></span>Principal &amp; interest</dt><dd data-mc-pi>—</dd></div>
+        <div><dt><span class="mc-dot" style="background: var(--color-accent-500)"></span>Property tax</dt><dd data-mc-tax>—</dd></div>
+        <div><dt><span class="mc-dot" style="background: #f59e0b"></span>Home insurance</dt><dd data-mc-ins>—</dd></div>
+        <div><dt><span class="mc-dot" style="background: #a855f7"></span>PMI</dt><dd data-mc-pmi>—</dd></div>
+        <div><dt><span class="mc-dot" style="background: #64748b"></span>HOA</dt><dd data-mc-hoa>—</dd></div>
+      </dl>
+
+      <div class="mc-totals">
+        <div><span class="mc-totals__label">Loan amount</span><span class="mc-totals__value" data-mc-loan>—</span></div>
+        <div><span class="mc-totals__label">Total interest</span><span class="mc-totals__value" data-mc-total-interest>—</span></div>
+        <div><span class="mc-totals__label">Total of payments</span><span class="mc-totals__value" data-mc-total-paid>—</span></div>
+      </div>
+
+      <div data-mc-schedule-block>
+        <details class="mc-disclosure" data-mc-disclosure>
+          <summary class="mc-disclosure__summary">
+            <span>View year-by-year amortization schedule</span>
+            <svg class="mc-disclosure__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </summary>
+
+          <div class="mc-table-wrap">
+            <table class="mc-table">
+              <caption class="sr-only">Yearly amortization schedule showing principal paid, interest paid and remaining balance at the end of each year.</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="mc-th-period">Year</th>
+                  <th scope="col" class="mc-num">Principal</th>
+                  <th scope="col" class="mc-num">Interest</th>
+                  <th scope="col" class="mc-num">Balance</th>
+                </tr>
+              </thead>
+              <tbody data-mc-rows></tbody>
+            </table>
+          </div>
+          <p class="mc-schedule__note">Amounts are shown to the nearest dollar, in US dollars (USD).</p>
+        </details>
+      </div>
+
+      <p class="mc-assumptions">This is an estimate of your monthly housing cost (often called PITI). Principal and interest use the fixed-rate amortization formula; PMI applies while your balance stays above 80% of the home price. Your actual rate, taxes and insurance depend on your lender, location and credit profile.</p>
     </div>
 
-    <dl class="mt-5 space-y-2 text-sm">
-      <div class="flex items-center justify-between">
-        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: var(--color-brand-600)"></span>Principal &amp; interest</dt>
-        <dd class="font-semibold" data-mc-pi>{formatCurrency(r.monthlyPrincipalInterest)}</dd>
-      </div>
-      <div class="flex items-center justify-between">
-        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: var(--color-accent-500)"></span>Property tax</dt>
-        <dd class="font-semibold" data-mc-tax>{formatCurrency(r.monthlyPropertyTax)}</dd>
-      </div>
-      <div class="flex items-center justify-between">
-        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: #f59e0b"></span>Home insurance</dt>
-        <dd class="font-semibold" data-mc-ins>{formatCurrency(r.monthlyInsurance)}</dd>
-      </div>
-      <div class="flex items-center justify-between">
-        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: #a855f7"></span>PMI</dt>
-        <dd class="font-semibold" data-mc-pmi>{formatCurrency(r.monthlyPmi)}</dd>
-      </div>
-      <div class="flex items-center justify-between">
-        <dt class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full" style="background: #64748b"></span>HOA</dt>
-        <dd class="font-semibold" data-mc-hoa>{formatCurrency(r.monthlyHoa)}</dd>
-      </div>
-    </dl>
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a home price, an interest rate, and a down payment no greater than the price."
+    />
 
-    <div class="mt-5 grid grid-cols-3 gap-3 border-t pt-5 text-center" style="border-color: var(--line)">
-      <div>
-        <p class="text-xs" style="color: var(--muted)">Loan amount</p>
-        <p class="mt-1 font-bold" data-mc-loan>{formatCurrencyRounded(r.loanAmount)}</p>
-      </div>
-      <div>
-        <p class="text-xs" style="color: var(--muted)">Total interest</p>
-        <p class="mt-1 font-bold" data-mc-total-interest>{formatCurrencyRounded(r.totalInterest)}</p>
-      </div>
-      <div>
-        <p class="text-xs" style="color: var(--muted)">Total of payments</p>
-        <p class="mt-1 font-bold" data-mc-total-paid>{formatCurrencyRounded(r.totalOfPayments)}</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Amortization -->
-  <div class="card p-5 sm:p-6 lg:col-span-2">
-    <h3 class="text-lg font-bold">Amortization schedule (yearly)</h3>
-    <div class="mt-4 max-h-80 overflow-auto rounded-lg border" style="border-color: var(--line)">
-      <table class="w-full text-sm">
-        <thead class="sticky top-0" style="background: var(--subtle)">
-          <tr>
-            <th class="px-3 py-2 text-left font-semibold">Year</th>
-            <th class="px-3 py-2 text-right font-semibold">Principal</th>
-            <th class="px-3 py-2 text-right font-semibold">Interest</th>
-            <th class="px-3 py-2 text-right font-semibold">Balance</th>
-          </tr>
-        </thead>
-        <tbody data-mc-schedule>
-          {
-            yearly.map((row) => (
-              <tr class="border-t" style="border-color: var(--line)">
-                <td class="px-3 py-2">{row.period}</td>
-                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.principal)}</td>
-                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.interest)}</td>
-                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.balance)}</td>
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </div>
-  </div>
+    <ResultAnnouncement id="mc-live" />
+  </ResultShell>
 </div>
 
+<style>
+  .mc-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .mc-field-error { color: #fca5a5; }
+  }
+  :root[data-theme='dark'] .mc-field-error { color: #fca5a5; }
+
+  .mc-down-pct { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+  .mc-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  /* Optional-cost disclosure */
+  .mc-costs { padding-top: 0.25rem; }
+  .mc-costs__summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-brand-600);
+  }
+  .mc-costs__summary::-webkit-details-marker { display: none; }
+  .mc-costs__summary:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 0.35rem;
+  }
+  .mc-costs__hint {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+
+  .mc-interpretation { margin: 0.6rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+
+  /* Breakdown bar */
+  .mc-bar {
+    margin-top: 1.1rem;
+    display: flex;
+    height: 0.75rem;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: var(--subtle);
+  }
+  .mc-seg { display: block; height: 100%; }
+
+  .mc-metrics { margin: 1.1rem 0 0; display: grid; gap: 0.25rem; }
+  .mc-metrics > div {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    padding: 0.4rem 0; border-bottom: 1px solid var(--line); font-size: 0.95rem;
+  }
+  .mc-metrics dt { display: flex; align-items: center; gap: 0.5rem; color: var(--fg); font-weight: 600; }
+  .mc-metrics dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--heading); font-weight: 700; white-space: nowrap; }
+  .mc-dot { display: inline-block; height: 0.6rem; width: 0.6rem; border-radius: 9999px; flex: none; }
+
+  /* Loan-summary totals */
+  .mc-totals {
+    margin-top: 1.25rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1.25rem;
+    text-align: center;
+  }
+  .mc-totals__label { display: block; font-size: 0.75rem; color: var(--muted); }
+  .mc-totals__value { display: block; margin-top: 0.25rem; font-weight: 700; color: var(--heading); font-variant-numeric: tabular-nums; }
+
+  /* Schedule disclosure */
+  .mc-disclosure {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+  .mc-disclosure__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.35rem 0;
+  }
+  .mc-disclosure__summary::-webkit-details-marker { display: none; }
+  .mc-disclosure__summary:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 0.35rem;
+  }
+  .mc-disclosure__chevron { flex: none; transition: transform 0.15s ease; color: var(--muted); }
+  .mc-disclosure[open] .mc-disclosure__chevron { transform: rotate(180deg); }
+
+  .mc-table-wrap {
+    margin-top: 1rem;
+    max-height: 22rem;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+  }
+  .mc-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .mc-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--subtle);
+    padding: 0.55rem 0.75rem;
+    font-weight: 600;
+    text-align: left;
+    color: var(--fg);
+    white-space: nowrap;
+  }
+  .mc-table th.mc-num, .mc-table td.mc-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .mc-table :global(.mc-row) { border-top: 1px solid var(--line); }
+  .mc-table :global(.mc-cell) { padding: 0.5rem 0.75rem; }
+  .mc-table :global(.mc-cell--period) { text-align: left; font-weight: 600; color: var(--fg); }
+
+  .mc-schedule__note { margin: 0.75rem 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+  .mc-assumptions { margin: 1.25rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+</style>
+
 <script>
-  import { calculateMortgage, toYearlySchedule } from '@lib/calculators/mortgage';
-  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { mortgageBinding } from '@lib/calculators/mortgage-form';
 
   document.querySelectorAll<HTMLElement>('[data-mortgage]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-mc-form]')!;
-    const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    mountFormCalculator(root, mortgageBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Mortgage Payment',
+    });
 
-    const num = (name: string) => {
-      const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
-      return el ? Number(el.value) || 0 : 0;
+    // A live "X% down" readout beside the down-payment field — purely presentational, independent of the
+    // result state. Shown only when the price is positive and the down payment is a valid amount not
+    // exceeding it (an over-price down payment surfaces its own field error instead).
+    const priceEl = root.querySelector<HTMLInputElement>('[name="homePrice"]');
+    const downEl = root.querySelector<HTMLInputElement>('[name="downPayment"]');
+    const pctEl = root.querySelector<HTMLElement>('[data-mc-down-pct]');
+    const syncDownPct = () => {
+      if (!pctEl) return;
+      const price = Number(priceEl?.value);
+      const down = Number(downEl?.value);
+      const show =
+        Number.isFinite(price) && price > 0 && Number.isFinite(down) && down >= 0 && down <= price && (downEl?.value ?? '') !== '';
+      if (show) {
+        pctEl.textContent = `${Math.round((down / price) * 100)}% down`;
+        pctEl.hidden = false;
+      } else {
+        pctEl.hidden = true;
+      }
     };
+    priceEl?.addEventListener('input', syncDownPct);
+    downEl?.addEventListener('input', syncDownPct);
 
-    function recompute() {
-      const input = {
-        homePrice: num('homePrice'),
-        downPayment: num('downPayment'),
-        loanTermYears: num('loanTermYears'),
-        annualInterestRate: num('annualInterestRate'),
-        propertyTaxAnnual: num('propertyTaxAnnual'),
-        homeInsuranceAnnual: num('homeInsuranceAnnual'),
-        hoaMonthly: num('hoaMonthly'),
-        pmiAnnualRate: num('pmiAnnualRate'),
-      };
-      const r = calculateMortgage(input);
-      const pct = (v: number) => (r.monthlyTotal ? (v / r.monthlyTotal) * 100 : 0);
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    const disclosure = root.querySelector<HTMLDetailsElement>('[data-mc-disclosure]');
+    const costs = root.querySelector<HTMLDetailsElement>('[data-mc-costs]');
+    const clearRows = () =>
+      root.querySelectorAll<HTMLElement>('[data-mc-rows]').forEach((tb) => tb.replaceChildren());
 
-      $('[data-mc-monthly-total]').textContent = formatCurrency(r.monthlyTotal);
-      $('[data-mc-pi]').textContent = formatCurrency(r.monthlyPrincipalInterest);
-      $('[data-mc-tax]').textContent = formatCurrency(r.monthlyPropertyTax);
-      $('[data-mc-ins]').textContent = formatCurrency(r.monthlyInsurance);
-      $('[data-mc-pmi]').textContent = formatCurrency(r.monthlyPmi);
-      $('[data-mc-hoa]').textContent = formatCurrency(r.monthlyHoa);
-      $('[data-mc-loan]').textContent = formatCurrencyRounded(r.loanAmount);
-      $('[data-mc-total-interest]').textContent = formatCurrencyRounded(r.totalInterest);
-      $('[data-mc-total-paid]').textContent = formatCurrencyRounded(r.totalOfPayments);
-
-      const segs: Record<string, number> = {
-        pi: r.monthlyPrincipalInterest,
-        tax: r.monthlyPropertyTax,
-        ins: r.monthlyInsurance,
-        pmi: r.monthlyPmi,
-        hoa: r.monthlyHoa,
-      };
-      root.querySelectorAll<HTMLElement>('[data-seg]').forEach((el) => {
-        el.style.width = `${pct(segs[el.dataset.seg!] ?? 0)}%`;
+    // React to runtime state transitions the island does not itself cause. Leaving `valid` (an invalid
+    // live edit) drops the stale/possibly-malformed rows so a malformed schedule can never remain in the
+    // DOM; returning to `empty` (Reset) also closes BOTH disclosures (the optional-cost inputs and the
+    // yearly schedule) and clears the live down-payment readout. A `valid` update is owned by the
+    // binding's renderResult, so the observer never touches it.
+    if (shell) {
+      const observer = new MutationObserver(() => {
+        const state = shell.dataset.resultState;
+        if (state === 'valid') return;
+        clearRows();
+        if (state === 'empty') {
+          if (disclosure) disclosure.open = false;
+          if (costs) costs.open = false;
+          if (pctEl) pctEl.hidden = true;
+        }
       });
-
-      const price = input.homePrice || 1;
-      $('[data-mc-down-pct]').textContent =
-        `${((input.downPayment / price) * 100).toFixed(0)}% down`;
-
-      const rows = toYearlySchedule(r.schedule)
-        .map(
-          (row) =>
-            `<tr class="border-t" style="border-color: var(--line)"><td class="px-3 py-2">${row.period}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.principal)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.interest)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.balance)}</td></tr>`,
-        )
-        .join('');
-      $('[data-mc-schedule]').innerHTML = rows;
+      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-
-    form.addEventListener('input', recompute);
-    recompute();
   });
 </script>

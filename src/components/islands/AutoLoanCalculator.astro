@@ -1,108 +1,229 @@
 ---
-import { calculateAutoLoan } from '@lib/calculators/auto-loan';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-
-const defaults = {
-  autoPrice: 30000,
-  loanTermMonths: 60,
-  interestRatePct: 5,
-  downPayment: 3000,
-  tradeInValue: 0,
-  amountOwedOnTradeIn: 0,
-  salesTaxRatePct: 7,
-  fees: 300,
-  includeTaxesFeesInLoan: true,
-};
-const r = calculateAutoLoan(defaults);
+/**
+ * Auto Loan calculator island (R11C1 — task-first migration, finance complex-form family).
+ *
+ * Task-first, direct-intent: personal fields start EMPTY, the result is an instruction, and the
+ * visitor presses "Calculate Auto Loan Payment" for the first result; live-after-first afterwards.
+ * Compute, validation, state, announcement and focus are owned by the shared runtime + the auto-loan
+ * binding (@lib/calculators/auto-loan-form), which wraps the UNCHANGED calculateAutoLoan / @lib/finance
+ * engine. The complete-result guard lives in the binding's resultValue (a NaN sentinel) — NO
+ * isUsableResult.
+ *
+ * Structural controls, both native and IN the form so the runtime recomputes on them live-after-first:
+ * a loan-term <select> (36/48/60/72/84, default 60) and a "Finance taxes and fees" checkbox (default
+ * checked). Trade-in and fees sit in a progressive-disclosure <details>. The island restores the
+ * structural defaults (term 60, checkbox checked, disclosure closed) on Reset. Sales tax is applied to
+ * the FULL vehicle price with no trade-in credit (a jurisdiction note, not a new mode); negative
+ * trade-in equity is a supported scenario shown as a signed value; a zero financed balance is a valid
+ * informational result.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import { TERM_OPTIONS, DEFAULT_TERM } from '@lib/calculators/auto-loan-form';
 ---
 
-<div class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-autoloan>
-  <form class="card p-5 sm:p-6" data-al-form novalidate>
+<div class="autoloan mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-autoloan>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Auto loan calculator">
     <div class="space-y-4">
-      <div>
-        <label class="field-label" for="al-price">Vehicle price</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-price" name="autoPrice" type="number" min="0" step="500" value={defaults.autoPrice} inputmode="decimal" /></div>
+      <div data-field="autoPrice">
+        <label class="field-label" for="al-price">Vehicle price (USD)</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="al-price" name="autoPrice" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="e.g. 30000" aria-describedby="al-price-error" />
+        </div>
+        <p class="al-field-error" id="al-price-error" data-error-for="autoPrice" hidden></p>
       </div>
+
       <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="field-label" for="al-term">Term (months)</label>
-          <select class="field" id="al-term" name="loanTermMonths">
-            {[36, 48, 60, 72, 84].map((m) => (<option value={m} selected={m === defaults.loanTermMonths}>{m}</option>))}
+        <div data-field="loanTermMonths">
+          <label class="field-label" for="al-term">Loan term</label>
+          <select class="field" id="al-term" name="loanTermMonths" aria-describedby="al-term-error">
+            {TERM_OPTIONS.map((m) => (<option value={m} selected={m === DEFAULT_TERM}>{m} months</option>))}
           </select>
+          <p class="al-field-error" id="al-term-error" data-error-for="loanTermMonths" hidden></p>
         </div>
-        <div>
-          <label class="field-label" for="al-rate">Interest rate</label>
-          <div class="flex"><input class="field rounded-r-none" id="al-rate" name="interestRatePct" type="number" min="0" step="0.1" value={defaults.interestRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        <div data-field="interestRatePct">
+          <label class="field-label" for="al-rate">Annual interest rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="al-rate" name="interestRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 5" aria-describedby="al-rate-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="al-field-error" id="al-rate-error" data-error-for="interestRatePct" hidden></p>
         </div>
       </div>
+
       <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="field-label" for="al-down">Down payment</label>
-          <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-down" name="downPayment" type="number" min="0" step="500" value={defaults.downPayment} inputmode="decimal" /></div>
+        <div data-field="downPayment">
+          <label class="field-label" for="al-down">Down payment (USD)</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="al-down" name="downPayment" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-down-error" />
+          </div>
+          <p class="al-field-error" id="al-down-error" data-error-for="downPayment" hidden></p>
         </div>
-        <div>
-          <label class="field-label" for="al-tax">Sales tax</label>
-          <div class="flex"><input class="field rounded-r-none" id="al-tax" name="salesTaxRatePct" type="number" min="0" step="0.1" value={defaults.salesTaxRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+        <div data-field="salesTaxRatePct">
+          <label class="field-label" for="al-tax">Sales-tax rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="al-tax" name="salesTaxRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-tax-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="al-field-error" id="al-tax-error" data-error-for="salesTaxRatePct" hidden></p>
         </div>
       </div>
-      <details>
-        <summary class="cursor-pointer text-sm font-semibold" style="color: var(--color-brand-600)">Trade-in &amp; fees</summary>
+
+      <details class="al-disclosure" data-al-disclosure>
+        <summary class="al-disclosure__summary">Trade-in &amp; fees (optional)</summary>
         <div class="mt-4 grid grid-cols-2 gap-4">
-          <div>
-            <label class="field-label" for="al-trade">Trade-in value</label>
-            <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-trade" name="tradeInValue" type="number" min="0" step="500" value={defaults.tradeInValue} inputmode="decimal" /></div>
+          <div data-field="tradeInValue">
+            <label class="field-label" for="al-trade">Trade-in value (USD)</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="al-trade" name="tradeInValue" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-trade-error" />
+            </div>
+            <p class="al-field-error" id="al-trade-error" data-error-for="tradeInValue" hidden></p>
           </div>
-          <div>
-            <label class="field-label" for="al-owed">Owed on trade-in</label>
-            <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-owed" name="amountOwedOnTradeIn" type="number" min="0" step="500" value={defaults.amountOwedOnTradeIn} inputmode="decimal" /></div>
+          <div data-field="amountOwedOnTradeIn">
+            <label class="field-label" for="al-owed">Amount owed on trade-in (USD)</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="al-owed" name="amountOwedOnTradeIn" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-owed-error" />
+            </div>
+            <p class="al-field-error" id="al-owed-error" data-error-for="amountOwedOnTradeIn" hidden></p>
           </div>
-          <div>
-            <label class="field-label" for="al-fees">Fees</label>
-            <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="al-fees" name="fees" type="number" min="0" step="50" value={defaults.fees} inputmode="decimal" /></div>
+          <div class="col-span-2" data-field="fees">
+            <label class="field-label" for="al-fees">Additional fees (USD)</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="al-fees" name="fees" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-fees-error" />
+            </div>
+            <p class="al-field-error" id="al-fees-error" data-error-for="fees" hidden></p>
           </div>
-          <label class="flex items-center gap-2 self-end pb-2 text-sm font-medium">
-            <input type="checkbox" name="includeTaxesFeesInLoan" checked={defaults.includeTaxesFeesInLoan} /> Finance tax &amp; fees
-          </label>
         </div>
       </details>
+
+      <div class="al-finance">
+        <label class="al-finance__label">
+          <input type="checkbox" name="includeTaxesFeesInLoan" checked data-al-finance />
+          <span>Finance taxes and fees in the loan</span>
+        </label>
+        <p class="al-finance__note">When selected, estimated sales tax and entered fees are added to the financed balance. When cleared, they are excluded from the loan estimate and may be due upfront.</p>
+      </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-al-submit>Calculate Auto Loan Payment</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="al-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Monthly payment</p>
-    <p class="mt-1 text-4xl result-value" data-al-monthly>{formatCurrency(r.monthlyPayment)}</p>
-    <dl class="mt-5 space-y-2 text-sm">
-      <div class="flex justify-between"><dt style="color: var(--muted)">Loan amount</dt><dd class="font-semibold" data-al-loan>{formatCurrencyRounded(r.loanAmount)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Sales tax</dt><dd class="font-semibold" data-al-tax>{formatCurrency(r.salesTax)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Upfront payment</dt><dd class="font-semibold" data-al-upfront>{formatCurrency(r.upfrontPayment)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Total loan interest</dt><dd class="font-semibold" data-al-interest>{formatCurrencyRounded(r.totalLoanInterest)}</dd></div>
-      <div class="flex justify-between border-t pt-2" style="border-color: var(--line)"><dt class="font-semibold">Total cost</dt><dd class="text-lg font-bold" data-al-total>{formatCurrencyRounded(r.totalCost)}</dd></div>
-    </dl>
-  </div>
+  <!-- Result -->
+  <ResultShell id="al-result" state="empty" density="complex" label="Auto loan result" minHeight="22rem">
+    <EmptyResult message="Enter the vehicle price, interest rate, and term, then calculate your estimated monthly auto-loan payment." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Estimated monthly payment">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+
+      <p class="al-interpretation" data-al-interpretation></p>
+      <p class="al-note" data-al-toggle-note></p>
+      <p class="al-note al-note--warn" data-al-equity-note hidden></p>
+
+      <dl class="al-metrics">
+        <div><dt>Amount financed</dt><dd data-al-financed>—</dd></div>
+        <div><dt>Estimated sales tax</dt><dd data-al-tax>—</dd></div>
+        <div><dt>Total interest</dt><dd data-al-interest>—</dd></div>
+        <div><dt>Total of loan payments</dt><dd data-al-top>—</dd></div>
+        <div><dt>Upfront payment</dt><dd data-al-upfront>—</dd></div>
+        <div data-al-equity-row hidden><dt>Negative trade-in equity</dt><dd data-al-equity class="al-neg">—</dd></div>
+        <div class="al-metrics__total"><dt>Total cost</dt><dd data-al-total>—</dd></div>
+      </dl>
+
+      <p class="al-tax-assumption">Tax rules vary by jurisdiction. This estimate applies the entered sales-tax rate to the full vehicle price and does not apply a trade-in tax credit. Amounts are in US dollars (USD).</p>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a vehicle price greater than zero and an interest rate of zero or more, then calculate."
+    />
+
+    <ResultAnnouncement id="al-live" />
+  </ResultShell>
 </div>
 
+<style>
+  .al-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .al-field-error { color: #fca5a5; }
+  }
+  :root[data-theme='dark'] .al-field-error { color: #fca5a5; }
+
+  .al-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  .al-disclosure { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0.5rem 0; }
+  .al-disclosure__summary { cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--color-brand-600); padding: 0.25rem 0; }
+
+  .al-finance { margin-top: 0.25rem; }
+  .al-finance__label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 600; color: var(--fg); cursor: pointer; }
+  .al-finance__label input { width: 1.05rem; height: 1.05rem; cursor: pointer; }
+  .al-finance__note { margin: 0.35rem 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+
+  .al-interpretation { margin: 0.6rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+  .al-note { margin: 0.4rem 0 0; font-size: 0.85rem; line-height: 1.45; color: var(--muted); }
+  .al-note--warn { color: #b45309; font-weight: 600; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .al-note--warn { color: #fbbf24; }
+  }
+  :root[data-theme='dark'] .al-note--warn { color: #fbbf24; }
+
+  .al-metrics { margin: 1.1rem 0 0; display: grid; gap: 0.25rem; }
+  .al-metrics > div {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem;
+    padding: 0.35rem 0; border-bottom: 1px solid var(--line); font-size: 0.95rem;
+  }
+  .al-metrics dt { color: var(--fg); font-weight: 600; }
+  .al-metrics dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--heading); font-weight: 700; white-space: nowrap; }
+  .al-metrics__total dt, .al-metrics__total dd { font-size: 1.05rem; }
+  .al-metrics .al-neg { color: #b45309; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .al-metrics .al-neg { color: #fbbf24; }
+  }
+  :root[data-theme='dark'] .al-metrics .al-neg { color: #fbbf24; }
+
+  .al-tax-assumption { margin: 0.9rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+</style>
+
 <script>
-  import { calculateAutoLoan } from '@lib/calculators/auto-loan';
-  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { autoLoanBinding, DEFAULT_TERM } from '@lib/calculators/auto-loan-form';
+
   document.querySelectorAll<HTMLElement>('[data-autoloan]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-al-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement | HTMLSelectElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const r = calculateAutoLoan({
-        autoPrice: num('autoPrice'), loanTermMonths: num('loanTermMonths'), interestRatePct: num('interestRatePct'),
-        downPayment: num('downPayment'), tradeInValue: num('tradeInValue'), amountOwedOnTradeIn: num('amountOwedOnTradeIn'),
-        salesTaxRatePct: num('salesTaxRatePct'), fees: num('fees'),
-        includeTaxesFeesInLoan: (form.elements.namedItem('includeTaxesFeesInLoan') as HTMLInputElement).checked,
-      });
-      set('[data-al-monthly]', formatCurrency(r.monthlyPayment));
-      set('[data-al-loan]', formatCurrencyRounded(r.loanAmount));
-      set('[data-al-tax]', formatCurrency(r.salesTax));
-      set('[data-al-upfront]', formatCurrency(r.upfrontPayment));
-      set('[data-al-interest]', formatCurrencyRounded(r.totalLoanInterest));
-      set('[data-al-total]', formatCurrencyRounded(r.totalCost));
-    }
-    form.addEventListener('input', recompute);
-    recompute();
+    mountFormCalculator(root, autoLoanBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Auto Loan Payment',
+    });
+
+    // The island restores the STRUCTURAL defaults on Reset — the runtime clears only the numeric
+    // fields. The term select + finance checkbox are native form inputs, so the runtime already
+    // recomputes on them live-after-first (focus stays on the control, no scroll).
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      const term = root.querySelector<HTMLSelectElement>('[name="loanTermMonths"]');
+      if (term) term.value = String(DEFAULT_TERM);
+      const finance = root.querySelector<HTMLInputElement>('[name="includeTaxesFeesInLoan"]');
+      if (finance) finance.checked = true;
+      const disclosure = root.querySelector<HTMLDetailsElement>('[data-al-disclosure]');
+      if (disclosure) disclosure.open = false;
+    });
   });
 </script>

@@ -1,0 +1,152 @@
+{
+  "age-calculator": {
+    "componentPath": "@components/islands/AgeCalculator.astro"
+  },
+  "amortization-calculator": {
+    "componentPath": "@components/islands/AmortizationCalculator.astro"
+  },
+  "area-calculator": {
+    "componentPath": "@components/islands/AreaCalculator.astro"
+  },
+  "auto-loan-calculator": {
+    "componentPath": "@components/islands/AutoLoanCalculator.astro"
+  },
+  "bmi-calculator": {
+    "componentPath": "@components/islands/BmiCalculator.astro"
+  },
+  "bmr-calculator": {
+    "componentPath": "@components/islands/BmrCalculator.astro"
+  },
+  "body-fat-calculator": {
+    "componentPath": "@components/islands/BodyFatCalculator.astro"
+  },
+  "calorie-calculator": {
+    "componentPath": "@components/islands/CalorieCalculator.astro"
+  },
+  "compound-interest-calculator": {
+    "componentPath": "@components/islands/CompoundInterestCalculator.astro"
+  },
+  "concrete-calculator": {
+    "componentPath": "@components/islands/ConcreteCalculator.astro"
+  },
+  "conversion-calculator": {
+    "componentPath": "@components/islands/ConversionCalculator.astro"
+  },
+  "credit-card-payoff-calculator": {
+    "componentPath": "@components/islands/CreditCardPayoffCalculator.astro"
+  },
+  "date-calculator": {
+    "componentPath": "@components/islands/DateCalculator.astro"
+  },
+  "due-date-calculator": {
+    "componentPath": "@components/islands/DueDateCalculator.astro"
+  },
+  "fat-intake-calculator": {
+    "componentPath": "@components/islands/FatIntakeCalculator.astro"
+  },
+  "fraction-calculator": {
+    "componentPath": "@components/islands/FractionCalculator.astro"
+  },
+  "gpa-calculator": {
+    "componentPath": "@components/islands/GpaCalculator.astro"
+  },
+  "grade-calculator": {
+    "componentPath": "@components/islands/GradeCalculator.astro"
+  },
+  "home-equity-loan-calculator": {
+    "componentPath": "@components/islands/HomeEquityLoanCalculator.astro"
+  },
+  "hours-calculator": {
+    "componentPath": "@components/islands/HoursCalculator.astro"
+  },
+  "ideal-weight-calculator": {
+    "componentPath": "@components/islands/IdealWeightCalculator.astro"
+  },
+  "income-tax-calculator": {
+    "componentPath": "@components/islands/IncomeTaxCalculator.astro"
+  },
+  "inflation-calculator": {
+    "componentPath": "@components/islands/InflationCalculator.astro"
+  },
+  "interest-calculator": {
+    "componentPath": "@components/islands/InterestCalculator.astro"
+  },
+  "interest-rate-calculator": {
+    "componentPath": "@components/islands/InterestRateCalculator.astro"
+  },
+  "investment-calculator": {
+    "componentPath": "@components/islands/InvestmentCalculator.astro"
+  },
+  "loan-calculator": {
+    "componentPath": "@components/islands/LoanCalculator.astro"
+  },
+  "mortgage-calculator": {
+    "componentPath": "@components/islands/MortgageCalculator.astro"
+  },
+  "pace-calculator": {
+    "componentPath": "@components/islands/PaceCalculator.astro"
+  },
+  "password-generator": {
+    "componentPath": "@components/islands/PasswordGeneratorCalculator.astro"
+  },
+  "payment-calculator": {
+    "componentPath": "@components/islands/PaymentCalculator.astro"
+  },
+  "percent-calculator": {
+    "componentPath": "@components/islands/PercentCalculator.astro"
+  },
+  "pregnancy-calculator": {
+    "componentPath": "@components/islands/PregnancyCalculator.astro"
+  },
+  "protein-calculator": {
+    "componentPath": "@components/islands/ProteinCalculator.astro"
+  },
+  "random-number-generator": {
+    "componentPath": "@components/islands/RandomNumberGenerator.astro"
+  },
+  "retirement-calculator": {
+    "componentPath": "@components/islands/RetirementCalculator.astro"
+  },
+  "salary-calculator": {
+    "componentPath": "@components/islands/SalaryCalculator.astro"
+  },
+  "sales-tax-calculator": {
+    "componentPath": "@components/islands/SalesTaxCalculator.astro"
+  },
+  "savings-calculator": {
+    "componentPath": "@components/islands/SavingsCalculator.astro"
+  },
+  "scientific-calculator": {
+    "componentPath": "@components/calc/ScientificCalculatorEmbed.astro"
+  },
+  "simple-interest-calculator": {
+    "componentPath": "@components/islands/SimpleInterestCalculator.astro"
+  },
+  "square-footage-calculator": {
+    "componentPath": "@components/islands/SquareFootageCalculator.astro"
+  },
+  "standard-deviation-calculator": {
+    "componentPath": "@components/islands/StatisticsCalculator.astro",
+    "props": {
+      "primary": "sd"
+    }
+  },
+  "statistics-calculator": {
+    "componentPath": "@components/islands/StatisticsCalculator.astro"
+  },
+  "target-heart-rate-calculator": {
+    "componentPath": "@components/islands/TargetHeartRateCalculator.astro"
+  },
+  "time-calculator": {
+    "componentPath": "@components/islands/TimeCalculator.astro"
+  },
+  "tip-calculator": {
+    "componentPath": "@components/islands/TipCalculator.astro"
+  },
+  "triangle-calculator": {
+    "componentPath": "@components/islands/TriangleCalculator.astro"
+  },
+  "volume-calculator": {
+    "componentPath": "@components/islands/VolumeCalculator.astro"
+  }
+}

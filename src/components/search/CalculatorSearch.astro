@@ -1,0 +1,90 @@
+---
+/**
+ * CalculatorSearch — accessible combobox over the static search index.
+ *
+ * Progressive enhancement: it is a real GET form (action="/calculators",
+ * input name="q"), so it still works with JavaScript or the index unavailable.
+ * The client controller upgrades it to a live combobox/listbox.
+ */
+import '@styles/calculator-search.css';
+
+export interface Props {
+  /** Fingerprinted index URL (pass SEARCH_INDEX_URL from @lib/search). */
+  indexUrl: string;
+  loadStrategy?: 'eager' | 'idle' | 'interaction';
+  maxVisibleResults?: number;
+  showRecent?: boolean;
+  showPopular?: boolean;
+  variant?: 'full' | 'compact';
+  /** Unique per instance on a page. */
+  id?: string;
+  placeholder?: string;
+}
+
+const {
+  indexUrl,
+  loadStrategy = 'interaction',
+  maxVisibleResults = 10,
+  showRecent = true,
+  showPopular = true,
+  variant = 'full',
+  id = 'calc-search',
+  placeholder = 'Search calculators…',
+} = Astro.props;
+
+const inputId = `${id}-input`;
+const listId = `${id}-listbox`;
+---
+
+<form
+  class="calc-search"
+  role="search"
+  action="/calculators"
+  method="get"
+  id={id}
+  data-calc-search
+  data-index-url={indexUrl}
+  data-load-strategy={loadStrategy}
+  data-max={String(maxVisibleResults)}
+  data-show-recent={String(showRecent)}
+  data-show-popular={String(showPopular)}
+  data-variant={variant}
+>
+  <label class="sr-only" for={inputId}>Search calculators</label>
+  <div class="calc-search__field">
+    <input
+      id={inputId}
+      class="calc-search__input"
+      type="search"
+      name="q"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-expanded="false"
+      aria-controls={listId}
+      aria-label="Search calculators"
+      autocomplete="off"
+      placeholder={placeholder}
+      data-calc-search-input
+    />
+    <button type="submit" class="btn btn-primary calc-search__submit">Search</button>
+  </div>
+
+  <div class="calc-search__panel" data-calc-search-panel hidden>
+    <p class="calc-search__group" data-calc-search-group hidden></p>
+    <ul
+      class="calc-search__list"
+      id={listId}
+      role="listbox"
+      aria-label="Calculator results"
+      data-calc-search-list
+    >
+    </ul>
+    <div class="calc-search__foot" data-calc-search-foot hidden></div>
+  </div>
+
+  <div class="sr-only" role="status" aria-live="polite" data-calc-search-live></div>
+</form>
+
+<script>
+  import './calculator-search.client';
+</script>

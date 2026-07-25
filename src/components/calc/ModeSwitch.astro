@@ -1,0 +1,29 @@
+---
+/**
+ * Basic/Scientific mode switch (segmented control). Switching only changes the
+ * visible keypad — the shared engine keeps the expression, current value, Ans
+ * and angle mode. The client wires the behavior.
+ */
+interface Props { default?: 'basic' | 'scientific' }
+const { default: def = 'basic' } = Astro.props;
+const modes = [
+  { id: 'basic', label: 'Basic' },
+  { id: 'scientific', label: 'Scientific' },
+];
+---
+
+<div class="seg" role="radiogroup" aria-label="Calculator mode" data-mode-switch>
+  {
+    modes.map((m) => (
+      <button
+        type="button"
+        class={`seg-btn${m.id === def ? ' is-active' : ''}`}
+        role="radio"
+        aria-checked={m.id === def ? 'true' : 'false'}
+        data-mode={m.id}
+      >
+        {m.label}
+      </button>
+    ))
+  }
+</div>

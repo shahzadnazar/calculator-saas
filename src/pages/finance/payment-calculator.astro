@@ -4,18 +4,24 @@ import PaymentCalculator from '@components/islands/PaymentCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'payment-calculator')!;
 const faqs = [
-  { question: 'What can this calculator solve for?', answer: 'Two things. "Fixed term" finds the monthly payment for a loan of a given amount, rate and term. "Fixed payment" finds how long it takes to pay off a loan if you pay a set amount each month.' },
+  { question: 'What can this calculator solve for?', answer: 'Two things. "Monthly payment" finds the payment for a loan of a given amount, rate and term. "Payoff time" finds how long it takes to pay off a loan if you pay a set amount each month. Pick one under "Solve for".' },
   { question: 'How is a monthly loan payment calculated?', answer: 'With the amortization formula M = P · r(1+r)ⁿ ÷ ((1+r)ⁿ − 1), where P is the loan amount, r is the monthly rate (annual rate ÷ 12) and n is the number of monthly payments. The calculator applies it for you; you just enter the amount, rate and term.' },
-  { question: 'Why might a loan "never" pay off?', answer: 'If your monthly payment is less than the monthly interest, the balance grows instead of shrinking, so the loan is never repaid. The calculator flags this — the fix is a larger payment.' },
+  { question: 'Why might a loan "never" pay off?', answer: 'If your monthly payment is less than the monthly interest, the balance grows instead of shrinking, so the loan is never repaid. In "Payoff time" mode the calculator shows "Never" and explains it — the fix is a larger payment.' },
   { question: 'Does a longer loan term cost more?', answer: 'Yes. A longer term lowers the monthly payment but increases the total interest, because you borrow the money for longer. A shorter term costs more each month but far less overall.' },
   { question: 'How do I lower my monthly payment?', answer: 'A longer term or a lower interest rate reduces the payment, and a bigger down payment reduces the amount borrowed. Weigh a lower payment against the extra total interest a longer term brings.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Solve for a loan's monthly payment given a term, or find how long it takes to pay off a balance at a fixed monthly payment." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Calculate a loan's monthly payment from its term, or find how long it takes to pay off a balance at a fixed monthly payment."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-22' }}
+>
   <PaymentCalculator />
   <Fragment slot="content">
     <h2>Two questions, one tool</h2>
-    <p>Use <strong>Fixed term</strong> when you know how long you want the loan to run and need the payment. Use <strong>Fixed payment</strong> when you know what you can afford monthly and want to know how long you'll be paying.</p>
+    <p>Choose <strong>Monthly payment</strong> when you know how long you want the loan to run (the term) and need the payment. Choose <strong>Payoff time</strong> when you know what you can afford each month and want to know how long you'll be paying.</p>
 
     <h2>A worked example</h2>
     <p>For a <strong>$20,000</strong> loan at <strong>6%</strong> over <strong>5 years</strong>, the monthly rate is 6% ÷ 12 = 0.5% and there are 60 payments. The formula returns a payment of about <strong>$387 a month</strong>, and over the full term you repay roughly $23,200 — about $3,200 of it interest. Raise the rate or lengthen the term and both the payment and that interest figure move.</p>

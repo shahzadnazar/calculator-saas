@@ -1,0 +1,22 @@
+---
+/**
+ * ExampleResult — a deliberately labelled worked example (for guides / demos),
+ * never the visitor's own computed answer. The "Example" badge is real text (not
+ * decoration), so screen-reader users are told this is illustrative. Shown only
+ * while the shell's state is `example`.
+ */
+export interface Props {
+  label?: string;
+  class?: string;
+}
+const { label = 'Example', class: className = '' } = Astro.props;
+---
+
+<div class:list={['result-example', className]} data-result-when="example">
+  <p class="result-example__badge">
+    <span aria-hidden="true">◦</span>{label}
+  </p>
+  <div class="result-example__body">
+    <slot />
+  </div>
+</div>

@@ -25,9 +25,14 @@ export default defineConfig({
   integrations: [
     mdx(),
     sitemap({
-      // Exclude 404 and the chrome-less iframe embed pages (/embed/<cat>/<slug>,
-      // which are noindex). The indexable /embed landing page is kept.
-      filter: (page) => !page.includes('/404') && !page.includes('/embed/'),
+      // Exclude 404, the chrome-less iframe embed pages (/embed/<cat>/<slug>,
+      // which are noindex), the dev routes, and the JSON search index (a data
+      // asset, not a page). The indexable /embed landing page is kept.
+      filter: (page) =>
+        !page.includes('/404') &&
+        !page.includes('/embed/') &&
+        !page.includes('/dev/') &&
+        !page.includes('/search-index'),
       changefreq: 'weekly',
       priority: 0.7,
     }),

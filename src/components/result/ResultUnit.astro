@@ -1,0 +1,18 @@
+---
+/**
+ * ResultUnit — a standalone unit chip for cases where a unit is shown apart
+ * from the main value (e.g. a per-line unit in a breakdown). The abbreviated
+ * visual is `aria-hidden`; an adjacent sr-only span carries the spoken form so
+ * the unit is never silently dropped. For the main answer, prefer passing
+ * `unit` to <ResultValue>, which owns the combined accessible name.
+ */
+import { accessibleUnit } from '@lib/result/state';
+
+export interface Props {
+  unit: string;
+  class?: string;
+}
+const { unit, class: className = '' } = Astro.props;
+---
+
+<span class:list={['result-unit', className]} aria-hidden="true">{unit}</span><span class="sr-only"> {accessibleUnit(unit)}</span>

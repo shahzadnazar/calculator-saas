@@ -1,0 +1,326 @@
+---
+/**
+ * INTERNAL DEV DEMO — shared result primitives (R1) validation.
+ * noindex + nofollow, excluded from the sitemap, no public links to it.
+ * MUST be deleted before production launch (CI prelaunch-no-dev guard enforces).
+ *
+ * This page exercises the result state machine + primitives in ISOLATION: no
+ * real calculator, no formula, no field bindings. The interactive panel drives
+ * the actual reducer (@lib/result/state) through the demo controller; the
+ * gallery below pins each state / density / activity for visual + a11y review.
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import ResultAssumptions from '@components/result/ResultAssumptions.astro';
+import ResultActions from '@components/result/ResultActions.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import ExampleResult from '@components/result/ExampleResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+
+/**
+ * Dev-only consistency guard for the complex financial demos. The displayed
+ * total and its breakdown components are stated INDEPENDENTLY (so an edit can
+ * desync them); this build-time assertion fails the (dev-only) build if the
+ * components do not reconcile to the total within a cents-rounding tolerance.
+ * It is purely for the demonstration — it does not touch the shared result
+ * architecture, which carries no financial knowledge.
+ */
+const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+function assertReconciles(label: string, total: number, parts: number[]): void {
+  const sum = parts.reduce((a, b) => a + b, 0);
+  const tolerance = 0.005 * (parts.length + 1); // ≤ half a cent of rounding per line
+  if (Math.abs(sum - total) > tolerance) {
+    throw new Error(
+      `[dev/result] ${label}: breakdown components sum to ${sum.toFixed(2)} but the ` +
+        `displayed total is ${total.toFixed(2)} (tolerance ${tolerance.toFixed(3)}).`,
+    );
+  }
+}
+
+// $300,000 loan at 6.5% over 30 years: principal & interest ≈ $1,896.20/mo,
+// plus escrow. The monthly-payment total is the sum of these lines.
+const MORTGAGE_TOTAL = 2300.37;
+const mortgageDetailed = [
+  { label: 'Principal & interest', value: 1896.2 },
+  { label: 'Property tax', value: 312.5 },
+  { label: 'Home insurance', value: 91.67 },
+];
+const mortgageGrouped = [
+  { label: 'Principal & interest', value: 1896.2 },
+  { label: 'Taxes & insurance', value: 404.17 },
+];
+assertReconciles('mortgage breakdown', MORTGAGE_TOTAL, mortgageDetailed.map((p) => p.value));
+assertReconciles('mortgage grouped breakdown', MORTGAGE_TOTAL, mortgageGrouped.map((p) => p.value));
+---
+
+<BaseLayout
+  title="Result Primitives — Dev Demo"
+  description="Internal component demo (noindex)."
+  path="/dev/result"
+  noindex={true}
+>
+  <div class="wrap py-8">
+    <p class="text-sm" style="color: var(--muted)">
+      Internal demo route — noindex, excluded from sitemap, removed before launch.
+      No calculator, no formula: this validates the shared result state machine and
+      primitives in isolation.
+    </p>
+    <h1 class="mt-2 text-2xl font-bold">Result primitives — component demo</h1>
+
+    <!-- ============================================================ -->
+    <!-- INTERACTIVE — drives the real reducer through every event    -->
+    <!-- ============================================================ -->
+    <section class="mt-8" aria-labelledby="demo-interactive-h">
+      <h2 id="demo-interactive-h" class="text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
+        Interactive — real state machine
+      </h2>
+      <div
+        class="mt-3 grid gap-6 md:grid-cols-2"
+        data-result-demo
+        data-demo-unit="kg/m²"
+        data-demo-base="22.4"
+        data-demo-error="Enter a weight greater than zero."
+      >
+        <ResultShell id="demo-shell" label="Your BMI result" minHeight="13rem">
+          <EmptyResult message="Enter your height and weight to see your BMI." />
+
+          <ExampleResult label="Example">
+            <p>A worked example (175 cm, 70 kg → BMI 22.9) lives here, clearly
+            labelled so it is never mistaken for your own result.</p>
+          </ExampleResult>
+
+          <div data-result-when="valid">
+            <ResultSummary label="Your BMI">
+              <ResultValue value="22.4" unit="kg/m²" />
+            </ResultSummary>
+            <ResultInterpretation>Normal weight — a healthy range for your height.</ResultInterpretation>
+          </div>
+
+          <InvalidResult title="Check your entries" message="Enter a weight greater than zero." />
+
+          <ResultAnnouncement id="demo-live" />
+        </ResultShell>
+
+        <div class="flex flex-col gap-2" role="group" aria-label="Demo controls">
+          <button type="button" class="btn btn-primary" data-demo-action="calculate-valid">Calculate BMI (valid)</button>
+          <button type="button" class="btn btn-secondary" data-demo-action="calculate-invalid">Calculate (invalid)</button>
+          <button type="button" class="btn btn-secondary" data-demo-action="live">Live update (instant)</button>
+          <button type="button" class="btn btn-secondary" data-demo-action="live-perceptible">Live update (perceptible)</button>
+          <button type="button" class="btn btn-secondary" data-demo-action="live-invalid">Live update → invalid</button>
+          <button type="button" class="btn btn-secondary" data-demo-action="example">Show example</button>
+          <button type="button" class="btn btn-secondary" data-demo-action="reset">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- STATE GALLERY — one shell pinned per content state           -->
+    <!-- ============================================================ -->
+    <h2 class="mt-12 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">Content states</h2>
+    <div class="mt-3 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <!-- 1. Empty -->
+      <div>
+        <p class="demo-cap">Empty (initial)</p>
+        <ResultShell state="empty" label="Empty result">
+          <EmptyResult message="Enter your height and weight to see your BMI." />
+        </ResultShell>
+      </div>
+
+      <!-- 2. Labelled example -->
+      <div>
+        <p class="demo-cap">Example (labelled)</p>
+        <ResultShell state="example" label="Example result">
+          <ExampleResult label="Example">
+            <ResultSummary label="Example BMI (175 cm, 70 kg)">
+              <ResultValue value="22.9" unit="kg/m²" size="text-4xl" />
+            </ResultSummary>
+            <ResultInterpretation>This is an illustration, not your result.</ResultInterpretation>
+          </ExampleResult>
+        </ResultShell>
+      </div>
+
+      <!-- 3. Valid, simple (no unit) -->
+      <div>
+        <p class="demo-cap">Valid — simple</p>
+        <ResultShell state="valid" label="Result">
+          <div data-result-when="valid">
+            <ResultSummary label="Age">
+              <ResultValue value="34" />
+            </ResultSummary>
+            <ResultInterpretation>34 years, 2 months and 11 days.</ResultInterpretation>
+          </div>
+        </ResultShell>
+      </div>
+
+      <!-- 4. Valid + unit + interpretation -->
+      <div>
+        <p class="demo-cap">Valid — unit + interpretation</p>
+        <ResultShell state="valid" label="Your BMI result">
+          <div data-result-when="valid">
+            <ResultSummary label="Your BMI">
+              <ResultValue value="22.4" unit="kg/m²" />
+            </ResultSummary>
+            <ResultInterpretation>Normal weight — a healthy range for your height.</ResultInterpretation>
+          </div>
+        </ResultShell>
+      </div>
+
+      <!-- 5. Invalid -->
+      <div>
+        <p class="demo-cap">Invalid</p>
+        <ResultShell state="invalid" label="Result">
+          <InvalidResult title="Check your entries" message="Enter a weight greater than zero." />
+        </ResultShell>
+      </div>
+
+      <!-- 6. Breakdown -->
+      <div>
+        <p class="demo-cap">Valid + breakdown</p>
+        <ResultShell state="valid" density="complex" label="Monthly payment result">
+          <div data-result-when="valid">
+            <ResultSummary label="Monthly payment">
+              <ResultValue value={usd(MORTGAGE_TOTAL)} size="text-4xl" />
+            </ResultSummary>
+            <ResultInterpretation>On a $300,000 loan at 6.5% over 30 years.</ResultInterpretation>
+            <ResultBreakdown title="Breakdown">
+              <dl>
+                {mortgageDetailed.map((p) => (
+                  <div class="result-row"><dt>{p.label}</dt><dd>{usd(p.value)}</dd></div>
+                ))}
+              </dl>
+            </ResultBreakdown>
+          </div>
+        </ResultShell>
+      </div>
+
+      <!-- 7. Assumptions -->
+      <div>
+        <p class="demo-cap">Valid + assumptions</p>
+        <ResultShell state="valid" density="complex" label="Result">
+          <div data-result-when="valid">
+            <ResultSummary label="Take-home pay">
+              <ResultValue value="$4,182" unit="/mo" size="text-4xl" />
+            </ResultSummary>
+            <ResultAssumptions>
+              <ul class="list-disc pl-5">
+                <li>2026 federal brackets, single filer.</li>
+                <li>Standard deduction; no state tax.</li>
+                <li>Excludes 401(k) and benefits.</li>
+              </ul>
+            </ResultAssumptions>
+          </div>
+        </ResultShell>
+      </div>
+
+      <!-- 8. Actions -->
+      <div>
+        <p class="demo-cap">Valid + actions</p>
+        <ResultShell state="valid" label="Password result">
+          <div data-result-when="valid">
+            <ResultSummary label="Generated password">
+              <ResultValue value="k7$Rm-9wQz-vLxT" size="text-2xl" />
+            </ResultSummary>
+            <ResultActions>
+              <button type="button" class="btn btn-primary">Copy</button>
+              <button type="button" class="btn btn-secondary">Regenerate</button>
+            </ResultActions>
+          </div>
+        </ResultShell>
+      </div>
+
+      <!-- 9. Activity — just-updated + calculating -->
+      <div>
+        <p class="demo-cap">Activity — just-updated</p>
+        <ResultShell state="valid" activity="just-updated" label="Result">
+          <div data-result-when="valid">
+            <ResultSummary label="Total">
+              <ResultValue value="$248.75" size="text-4xl" />
+            </ResultSummary>
+            <ResultInterpretation>Highlights briefly after a live change.</ResultInterpretation>
+          </div>
+        </ResultShell>
+      </div>
+      <div>
+        <p class="demo-cap">Activity — calculating</p>
+        <ResultShell state="valid" activity="calculating" label="Result">
+          <div data-result-when="valid">
+            <ResultSummary label="Total">
+              <ResultValue value="$248.75" size="text-4xl" />
+            </ResultSummary>
+            <ResultInterpretation>Dims subtly while a perceptible compute runs.</ResultInterpretation>
+          </div>
+        </ResultShell>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DENSITY — compact / standard / complex                       -->
+    <!-- ============================================================ -->
+    <h2 class="mt-12 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">Density</h2>
+    <div class="mt-3 grid gap-6 md:grid-cols-3">
+      <div>
+        <p class="demo-cap">Compact</p>
+        <ResultShell state="valid" density="compact" label="Tip result">
+          <div data-result-when="valid">
+            <ResultSummary label="Tip (18%)">
+              <ResultValue value="$12.60" unit="/table" size="text-3xl" />
+            </ResultSummary>
+          </div>
+        </ResultShell>
+      </div>
+      <div>
+        <p class="demo-cap">Standard</p>
+        <ResultShell state="valid" density="standard" label="BMI result">
+          <div data-result-when="valid">
+            <ResultSummary label="Your BMI">
+              <ResultValue value="22.4" unit="kg/m²" />
+            </ResultSummary>
+            <ResultInterpretation>Normal weight.</ResultInterpretation>
+          </div>
+        </ResultShell>
+      </div>
+      <div>
+        <p class="demo-cap">Complex</p>
+        <ResultShell state="valid" density="complex" label="Loan result">
+          <div data-result-when="valid">
+            <ResultSummary label="Monthly payment">
+              <ResultValue value={usd(MORTGAGE_TOTAL)} size="text-4xl" />
+            </ResultSummary>
+            <ResultBreakdown>
+              <dl>
+                {mortgageGrouped.map((p) => (
+                  <div class="result-row"><dt>{p.label}</dt><dd>{usd(p.value)}</dd></div>
+                ))}
+              </dl>
+            </ResultBreakdown>
+          </div>
+        </ResultShell>
+      </div>
+    </div>
+
+    <p class="mt-10 text-sm" style="color: var(--muted)">
+      Toggle the header theme switch to review light / dark. Narrow the viewport to
+      confirm the result never overflows or shifts. Dimensions are reserved per
+      density via <code>--result-min-h</code>, so switching states holds layout.
+    </p>
+  </div>
+</BaseLayout>
+
+<style>
+  .demo-cap {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+</style>
+
+<script>
+  import '@components/result/result-demo.client';
+</script>

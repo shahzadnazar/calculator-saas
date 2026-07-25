@@ -1,0 +1,47 @@
+---
+/**
+ * INTERNAL DEV DEMO — physical calculator component validation.
+ * noindex + nofollow, excluded from the sitemap, no public links to it.
+ * MUST be deleted before production launch (CI prelaunch-no-dev guard enforces).
+ *
+ * Two instances are rendered to validate multi-instance keyboard isolation
+ * (only the active calculator responds to physical keys).
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PhysicalCalculator from '@components/calc/PhysicalCalculator.astro';
+---
+
+<BaseLayout
+  title="Physical Calculator — Dev Demo"
+  description="Internal component demo (noindex)."
+  path="/dev/physical-calculator"
+  noindex={true}
+>
+  <div class="wrap py-8">
+    <p class="text-sm" style="color: var(--muted)">
+      Internal demo route — noindex, excluded from sitemap, removed before launch.
+    </p>
+    <h1 class="mt-2 text-2xl font-bold">Physical Calculator — component demo</h1>
+
+    <div class="mt-8 grid gap-10 lg:grid-cols-2">
+      <div>
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
+          Full — Basic + Scientific (mode switch)
+        </h2>
+        <PhysicalCalculator id="demo-a" defaultMode="basic" showModeSwitch={true} size="full" />
+      </div>
+      <div>
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
+          Scientific (fixed) — function panel + shared Basic keypad
+        </h2>
+        <PhysicalCalculator id="demo-b" defaultMode="scientific" showModeSwitch={false} size="full" />
+      </div>
+      <div>
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">
+          Compact (homepage variant) — Basic
+        </h2>
+        <PhysicalCalculator id="demo-c" defaultMode="basic" showModeSwitch={true} size="compact" />
+      </div>
+    </div>
+  </div>
+</BaseLayout>

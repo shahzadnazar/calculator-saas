@@ -1,75 +1,236 @@
 ---
-import { calculateProtein, PROTEIN_GOALS } from '@lib/calculators/protein';
-
-const defaults = { goalKey: 'active' };
-const r = calculateProtein({ system: 'metric', weightKg: 75, goalKey: defaults.goalKey });
-const show = (v: number) => (Number.isNaN(v) ? '—' : `${v} g`);
+/**
+ * Protein calculator island (R7C-1 — standard-form wave, calculator #2).
+ *
+ * Task-first, direct-intent: body weight starts EMPTY, the result is empty (an
+ * instruction, no sample grams), and the visitor presses "Calculate Protein
+ * Needs" for the first result. Live-after-first afterwards. All interaction,
+ * validation, state, announcement and focus are owned by the shared standard-form
+ * runtime; this island is markup + the protein binding
+ * (@lib/calculators/protein-form).
+ *
+ * The PRIMARY result is the daily-protein target for the SELECTED goal. The
+ * reviewed formula returns ONE gram value per goal (not a range), so a single
+ * figure is the honest headline; the SECONDARY, accessible table compares every
+ * goal's g/kg factor and grams (the comparison the tool has always shown) with
+ * the selected goal highlighted, so the number is never presented without its
+ * context. Metric/Imperial is the runtime's `[data-unit]` selector; the goal is a
+ * plain select that participates in live-after-first like any field.
+ */
+import { PROTEIN_GOALS } from '@lib/calculators/protein';
+import { DEFAULT_GOAL_KEY } from '@lib/calculators/protein-form';
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-protein>
-  <form class="card p-5 sm:p-6" data-pr-form novalidate>
-    <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Units" style="border-color: var(--line)">
+<div class="protein mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-protein>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Protein calculator">
+    <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Unit system" style="border-color: var(--line)">
       <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
-      <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial</button>
+      <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial (US)</button>
     </div>
+
     <div class="mt-5 space-y-4">
-      <div>
-        <label class="field-label" for="pr-weight">Body weight</label>
-        <div class="flex"><input class="field rounded-r-none" id="pr-weight" name="weight" type="number" min="0" value="75" inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0" data-pr-unit>kg</span></div>
+      <!-- Metric weight -->
+      <div data-group="metric" data-field="weightKg">
+        <label class="field-label" for="pr-weight-kg">Body weight</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="pr-weight-kg" name="weightKg" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 75" aria-describedby="pr-weightKg-error" />
+          <span class="field-affix rounded-r-lg border-l-0">kg</span>
+        </div>
+        <p class="pr-field-error" id="pr-weightKg-error" data-error-for="weightKg" hidden></p>
       </div>
-      <div>
+      <!-- Imperial weight -->
+      <div data-group="imperial" data-field="weightLb" hidden>
+        <label class="field-label" for="pr-weight-lb">Body weight</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="pr-weight-lb" name="weightLb" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 165" aria-describedby="pr-weightLb-error" />
+          <span class="field-affix rounded-r-lg border-l-0">lb</span>
+        </div>
+        <p class="pr-field-error" id="pr-weightLb-error" data-error-for="weightLb" hidden></p>
+      </div>
+      <!-- Goal / activity (unit-independent) -->
+      <div data-field="goalKey">
         <label class="field-label" for="pr-goal">Goal / activity</label>
         <select class="field" id="pr-goal" name="goalKey">
-          {PROTEIN_GOALS.map((g) => (<option value={g.key} selected={g.key === defaults.goalKey}>{g.label}</option>))}
+          {PROTEIN_GOALS.map((g) => (
+            <option value={g.key} selected={g.key === DEFAULT_GOAL_KEY}>{g.label}</option>
+          ))}
         </select>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Protein Needs</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="pr-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Recommended daily protein</p>
-    <p class="mt-1 text-5xl result-value"><span data-pr-grams>{r.grams}</span> <span class="text-2xl" style="color: var(--muted)">g</span></p>
-    <table class="mt-5 w-full text-sm">
-      <tbody data-pr-table>
-        {r.perGoal.map((g) => (
-          <tr class="border-t" style="border-color: var(--line)">
-            <td class="py-2" style="color: var(--muted)">{g.label}</td>
-            <td class="py-2 text-right font-semibold">{show(g.grams)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
+  <!-- Result. Reserve the valid-state height so live editing never jumps; the
+       shared `placeholderAlignment="center"` centres the short empty/invalid
+       placeholders so the reserved card reads as intentional. -->
+  <ResultShell
+    id="pr-result"
+    state="empty"
+    density="standard"
+    label="Your protein result"
+    minHeight="24rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter your body weight and goal, then calculate your daily protein target." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Estimated daily protein">
+        <ResultValue value="—" unit="g/day" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-pr-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Protein by goal">
+        <table class="pr-goals">
+          <thead>
+            <tr>
+              <th scope="col">Goal</th>
+              <th scope="col" class="pr-num">Target</th>
+              <th scope="col" class="pr-num">Protein/day</th>
+            </tr>
+          </thead>
+          <tbody>
+            {PROTEIN_GOALS.map((g) => (
+              <tr data-pr-row={g.key}>
+                <th scope="row">{g.label}</th>
+                <td class="pr-num pr-factor">{g.factor} g/kg</td>
+                <td class="pr-num pr-grams" data-pr-grams={g.key}>—</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="pr-note">
+          Based on total body weight at the grams-per-kilogram target for each goal — practical estimates, not medical advice.
+        </p>
+      </ResultBreakdown>
+    </div>
+
+    <InvalidResult title="Check your entry" message="Enter your body weight to estimate your daily protein." />
+
+    <ResultAnnouncement id="pr-live" />
+  </ResultShell>
 </div>
 
 <style>
-  .unit-btn { padding: 0.35rem 0.9rem; border-radius: 0.45rem; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; }
-  .unit-btn.is-active { background: var(--color-brand-600); color: #fff; }
+  .unit-btn {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .unit-btn.is-active {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+
+  .pr-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .pr-field-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .pr-field-error {
+    color: #fca5a5;
+  }
+
+  .pr-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* Secondary goal comparison — clearly subordinate to the dominant figure. */
+  .pr-goals {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .pr-goals th,
+  .pr-goals td {
+    padding: 0.4rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  .pr-goals thead th {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .pr-goals tbody th {
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .pr-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .pr-factor {
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .pr-goals tbody td.pr-grams {
+    font-weight: 700;
+    color: var(--heading);
+  }
+  /* Selected goal — tie the highlighted row to the dominant primary figure. */
+  .pr-goals tbody tr[aria-current='true'] {
+    background: color-mix(in srgb, var(--color-brand-500) 10%, transparent);
+  }
+  .pr-goals tbody tr[aria-current='true'] th,
+  .pr-goals tbody tr[aria-current='true'] td.pr-grams {
+    color: var(--color-brand-700);
+  }
+  :root[data-theme='dark'] .pr-goals tbody tr[aria-current='true'] th,
+  :root[data-theme='dark'] .pr-goals tbody tr[aria-current='true'] td.pr-grams {
+    color: var(--color-brand-300);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .pr-goals tbody tr[aria-current='true'] th,
+    :root:not([data-theme='light']) .pr-goals tbody tr[aria-current='true'] td.pr-grams {
+      color: var(--color-brand-300);
+    }
+  }
+  .pr-note {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
 </style>
 
 <script>
-  import { calculateProtein, type UnitSystem } from '@lib/calculators/protein';
-  const show = (v: number) => (Number.isNaN(v) ? '—' : `${v} g`);
-  document.querySelectorAll<HTMLElement>('[data-protein]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-pr-form]')!;
-    let system: UnitSystem = 'metric';
-    const weight = () => Number((form.elements.namedItem('weight') as HTMLInputElement).value) || 0;
-    const goalKey = () => (form.elements.namedItem('goalKey') as HTMLSelectElement).value;
-    function recompute() {
-      const r = calculateProtein(system === 'metric' ? { system, weightKg: weight(), goalKey: goalKey() } : { system, weightLb: weight(), goalKey: goalKey() });
-      const g = root.querySelector<HTMLElement>('[data-pr-grams]')!;
-      g.textContent = Number.isNaN(r.grams) ? '—' : String(r.grams);
-      root.querySelector<HTMLElement>('[data-pr-table]')!.innerHTML = r.perGoal
-        .map((x) => `<tr class="border-t" style="border-color: var(--line)"><td class="py-2" style="color: var(--muted)">${x.label}</td><td class="py-2 text-right font-semibold">${show(x.grams)}</td></tr>`)
-        .join('');
-    }
-    root.querySelectorAll<HTMLButtonElement>('.unit-btn').forEach((b) => b.addEventListener('click', () => {
-      system = (b.dataset.unit as UnitSystem) ?? 'metric';
-      root.querySelectorAll('.unit-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
-      root.querySelector<HTMLElement>('[data-pr-unit]')!.textContent = system === 'metric' ? 'kg' : 'lb';
-      recompute();
-    }));
-    form.addEventListener('input', recompute);
-    recompute();
-  });
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { proteinBinding } from '@lib/calculators/protein-form';
+
+  document.querySelectorAll<HTMLElement>('[data-protein]').forEach((root) =>
+    mountFormCalculator(root, proteinBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Protein Needs',
+    }),
+  );
 </script>

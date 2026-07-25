@@ -12,7 +12,14 @@
     "check": "astro check",
     "assets": "node scripts/generate-assets.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "assert:no-dev": "node scripts/assert-no-dev.mjs",
+    "assert:mon-off": "node scripts/assert-monetization-off.mjs",
+    "report:embed-css": "node scripts/report-embed-css.mjs",
+    "gen:embed-pages": "node scripts/gen-embed-pages.mjs",
+    "assert:embed-pages-current": "node scripts/gen-embed-pages.mjs --check",
+    "assert:embed-isolation": "node scripts/assert-embed-isolation.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.3.14",
@@ -21,6 +28,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.0.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.3",

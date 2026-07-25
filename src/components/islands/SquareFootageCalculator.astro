@@ -1,59 +1,216 @@
 ---
-import { calculateSquareFootage, type SqFtUnit } from '@lib/calculators/square-footage';
-import { formatNumber, formatCurrency } from '@lib/format';
-
-const d = { length: 12, width: 10, unit: 'ft' as SqFtUnit, quantity: 1, pricePerSqFt: 0 };
-const r = calculateSquareFootage(d);
+/**
+ * Square footage calculator island (R10B1 — standard-form wave, calculator #20; product family
+ * GEOMETRY, on the standard-form runtime UNCHANGED — no isUsableResult).
+ *
+ * Task-first, direct-intent: a single mode. Length + width start EMPTY, the unit defaults to feet,
+ * quantity to 1 (a neutral structural default), price empty, and the result is empty (an
+ * instruction, not the legacy 12×10-ft sample). The visitor presses "Calculate Square Footage" for
+ * the first result; live-after-first afterwards. Compute, validation, state, the single
+ * announcement, focus and Reset are owned by the shared runtime (UNCHANGED) + the square-footage
+ * binding (@lib/calculators/square-footage-form).
+ *
+ * The measurement unit is a native <select>. The binding owns the CONVERSION (convertValues, the
+ * accepted Pace capability); the island bridges the select to it — on change it converts the entered
+ * length + width in place (dimension-preserving) and updates the "(ft)" unit tags. The select's own
+ * input event drives the runtime's live recompute AFTER the first calc; before then the runtime gate
+ * ignores it, so a unit change converts without calculating. Primary output stays square feet; the
+ * optional price is always per square foot in USD, and a unit change never alters it.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-sqft>
-  <form class="card p-5 sm:p-6" data-sf-form novalidate>
-    <div class="grid grid-cols-3 gap-3">
-      <div><label class="field-label" for="sf-length">Length</label><input class="field" id="sf-length" name="length" type="number" min="0" step="0.1" value={d.length} inputmode="decimal" /></div>
-      <div><label class="field-label" for="sf-width">Width</label><input class="field" id="sf-width" name="width" type="number" min="0" step="0.1" value={d.width} inputmode="decimal" /></div>
-      <div>
-        <label class="field-label" for="sf-unit">Unit</label>
-        <select class="field" id="sf-unit" name="unit">
-          {['ft', 'in', 'yd', 'm'].map((u) => (<option value={u} selected={u === d.unit}>{u}</option>))}
+<div class="sqft mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-sqft>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Square footage calculator">
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 gap-3">
+        <div data-field="length">
+          <label class="field-label" for="sf-length">Length (<span data-sf-unit-tag>ft</span>)</label>
+          <input class="field" id="sf-length" name="length" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 12" aria-describedby="sf-length-error" />
+          <p class="sf-field-error" id="sf-length-error" data-error-for="length" hidden></p>
+        </div>
+        <div data-field="width">
+          <label class="field-label" for="sf-width">Width (<span data-sf-unit-tag>ft</span>)</label>
+          <input class="field" id="sf-width" name="width" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 10" aria-describedby="sf-width-error" />
+          <p class="sf-field-error" id="sf-width-error" data-error-for="width" hidden></p>
+        </div>
+      </div>
+
+      <div data-field="unit">
+        <label class="field-label" for="sf-unit">Measurement unit</label>
+        <select class="field" id="sf-unit" name="unit" aria-describedby="sf-unit-error">
+          <option value="ft">Feet</option>
+          <option value="in">Inches</option>
+          <option value="yd">Yards</option>
+          <option value="m">Metres</option>
         </select>
+        <p class="sf-field-error" id="sf-unit-error" data-error-for="unit" hidden></p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div data-field="quantity">
+          <label class="field-label" for="sf-qty">Number of identical areas</label>
+          <input class="field" id="sf-qty" name="quantity" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" aria-describedby="sf-qty-error" />
+          <p class="sf-field-error" id="sf-qty-error" data-error-for="quantity" hidden></p>
+        </div>
+        <div data-field="pricePerSqFt">
+          <label class="field-label" for="sf-price">Price per square foot in USD</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="sf-price" name="pricePerSqFt" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="optional" aria-describedby="sf-price-hint sf-price-error" />
+          </div>
+          <p class="sf-hint" id="sf-price-hint">Optional. Leave blank to calculate area without an estimated cost.</p>
+          <p class="sf-field-error" id="sf-price-error" data-error-for="pricePerSqFt" hidden></p>
+        </div>
       </div>
     </div>
-    <div class="mt-4 grid grid-cols-2 gap-3">
-      <div><label class="field-label" for="sf-qty">Number of areas</label><input class="field" id="sf-qty" name="quantity" type="number" min="1" step="1" value={d.quantity} inputmode="numeric" /></div>
-      <div><label class="field-label" for="sf-price">Price per sq ft</label><div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="sf-price" name="pricePerSqFt" type="number" min="0" step="0.01" value={d.pricePerSqFt} inputmode="decimal" /></div></div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Square Footage</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
+    <p class="sf-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Total square footage</p>
-    <p class="mt-1 text-4xl result-value"><span data-sf-total>{formatNumber(r.totalSqFt, 2)}</span> <span class="text-xl" style="color: var(--muted)">ft²</span></p>
-    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
-      <div class="flex justify-between"><dt style="color: var(--muted)">Square metres</dt><dd class="font-semibold"><span data-sf-sqm>{formatNumber(r.totalSqM, 2)}</span> m²</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Square yards</dt><dd class="font-semibold"><span data-sf-sqyd>{formatNumber(r.totalSqYd, 2)}</span> yd²</dd></div>
-      <div class="flex justify-between border-t pt-2" style="border-color: var(--line)"><dt class="font-semibold">Estimated cost</dt><dd class="text-lg font-bold" style="color: var(--color-accent-600)" data-sf-cost>{formatCurrency(r.cost)}</dd></div>
-    </dl>
-  </div>
+  <!-- Result -->
+  <ResultShell
+    id="sf-result"
+    state="empty"
+    density="standard"
+    label="Square footage result"
+    minHeight="20rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter the length and width of the area, choose a measurement unit, and set how many identical areas you need." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Total area">
+        <ResultValue value="—" size="text-4xl" unit="ft²" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-sf-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Breakdown">
+        <dl class="sf-metrics">
+          <div><dt>Square metres</dt><dd data-sf-sqm>—</dd></div>
+          <div><dt>Square yards</dt><dd data-sf-sqyd>—</dd></div>
+          <div data-sf-onesection-row hidden><dt>Area of one section</dt><dd data-sf-onesection>—</dd></div>
+          <div data-sf-cost-row hidden><dt>Estimated cost</dt><dd data-sf-cost>—</dd></div>
+        </dl>
+        <p class="sf-note">Total area is in square feet; equivalents and the optional cost (per square foot, USD) are derived from it.</p>
+      </ResultBreakdown>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a length and width greater than zero, choose a unit, and set the number of areas."
+    />
+
+    <ResultAnnouncement id="sf-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { calculateSquareFootage, type SqFtUnit } from '@lib/calculators/square-footage';
-  import { formatNumber, formatCurrency } from '@lib/format';
-  document.querySelectorAll<HTMLElement>('[data-sqft]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-sf-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const r = calculateSquareFootage({
-        length: num('length'), width: num('width'),
-        unit: (form.elements.namedItem('unit') as HTMLSelectElement).value as SqFtUnit,
-        quantity: num('quantity'), pricePerSqFt: num('pricePerSqFt'),
-      });
-      set('[data-sf-total]', formatNumber(r.totalSqFt, 2));
-      set('[data-sf-sqm]', formatNumber(r.totalSqM, 2));
-      set('[data-sf-sqyd]', formatNumber(r.totalSqYd, 2));
-      set('[data-sf-cost]', formatCurrency(r.cost));
+<style>
+  .sf-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .sf-field-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .sf-field-error {
+    color: #fca5a5;
+  }
+
+  .sf-hint {
+    margin-top: 0.3rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .sf-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .sf-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .sf-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .sf-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .sf-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .sf-note {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { squareFootageBinding } from '@lib/calculators/square-footage-form';
+
+  document.querySelectorAll<HTMLElement>('[data-sqft]').forEach((root) => {
+    mountFormCalculator(root, squareFootageBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Square Footage',
+    });
+
+    // Native-select converting unit. The binding owns the conversion; the island bridges the select
+    // to it. On change: convert length + width in place, then update the "(ft)" tags. The select's
+    // own input event drives the runtime's live recompute (after first calc); the runtime's 180ms
+    // debounce means the synchronous conversion here lands before that recompute reads the values.
+    const select = root.querySelector<HTMLSelectElement>('[name="unit"]');
+    const unitTags = Array.from(root.querySelectorAll<HTMLElement>('[data-sf-unit-tag]'));
+    let currentUnit = select?.value ?? 'ft';
+    const syncTags = () => unitTags.forEach((t) => (t.textContent = select?.value ?? 'ft'));
+
+    select?.addEventListener('change', () => {
+      const to = select.value;
+      if (to === currentUnit) return;
+      squareFootageBinding.convertValues?.(root, currentUnit, to);
+      currentUnit = to;
+      syncTags();
+    });
+
+    // Reset: the binding restores the select to feet; keep the tracked unit + tags in step.
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      currentUnit = 'ft';
+      syncTags();
+    });
   });
 </script>

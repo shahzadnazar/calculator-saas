@@ -1,98 +1,196 @@
 ---
 /**
- * BMI calculator island. Metric/imperial toggle, WHO classification, healthy
- * weight range and a visual scale. Default scenario rendered server-side; the
- * client recomputes live via src/lib/calculators/bmi.ts.
+ * BMI calculator island (R2 — standard-form runtime pilot).
+ *
+ * Direct-intent, task-first: personal fields start EMPTY, the result panel is
+ * empty (an instruction, no sample BMI), and the visitor presses "Calculate BMI"
+ * for the first result. After that first success, edits update automatically
+ * (live-after-first). All interaction, validation, state, announcements and
+ * focus are owned by the shared runtime (@lib/result/form-runtime); this island
+ * is only markup + the tiny BMI binding (@lib/calculators/bmi-form).
  */
-import { calculateBmi, type BmiSeverity } from '@lib/calculators/bmi';
-import { formatNumber } from '@lib/format';
-
-const initial = calculateBmi({ system: 'metric', heightCm: 175, weightKg: 70 });
-const severityColor: Record<BmiSeverity, string> = {
-  low: '#3b82f6',
-  normal: '#059669',
-  high: '#f59e0b',
-  danger: '#e11d48',
-};
-const markerPos = (bmi: number) => Math.max(0, Math.min(100, ((bmi - 15) / (40 - 15)) * 100));
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-bmi>
+<div class="bmi mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-bmi>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-bmi-form novalidate>
-    <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Unit system" style="border-color: var(--line)">
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="BMI calculator">
+    <div
+      class="inline-flex rounded-lg border p-0.5"
+      role="radiogroup"
+      aria-label="Unit system"
+      style="border-color: var(--line)"
+    >
       <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
       <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial (US)</button>
     </div>
 
     <!-- Metric -->
     <div class="mt-5 space-y-4" data-group="metric">
-      <div>
+      <div data-field="heightCm">
         <label class="field-label" for="bmi-height-cm">Height</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="bmi-height-cm" name="heightCm" type="number" min="0" step="0.5" value="175" inputmode="decimal" />
+          <input
+            class="field rounded-r-none"
+            id="bmi-height-cm"
+            name="heightCm"
+            type="number"
+            min="0"
+            step="0.1"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 175"
+            aria-describedby="bmi-heightCm-error"
+          />
           <span class="field-affix rounded-r-lg border-l-0">cm</span>
         </div>
+        <p class="bmi-field-error" id="bmi-heightCm-error" data-error-for="heightCm" hidden></p>
       </div>
-      <div>
+      <div data-field="weightKg">
         <label class="field-label" for="bmi-weight-kg">Weight</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="bmi-weight-kg" name="weightKg" type="number" min="0" step="0.1" value="70" inputmode="decimal" />
+          <input
+            class="field rounded-r-none"
+            id="bmi-weight-kg"
+            name="weightKg"
+            type="number"
+            min="0"
+            step="0.1"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 70"
+            aria-describedby="bmi-weightKg-error"
+          />
           <span class="field-affix rounded-r-lg border-l-0">kg</span>
         </div>
+        <p class="bmi-field-error" id="bmi-weightKg-error" data-error-for="weightKg" hidden></p>
       </div>
     </div>
 
     <!-- Imperial -->
     <div class="mt-5 space-y-4" data-group="imperial" hidden>
-      <div>
-        <label class="field-label">Height</label>
+      <div data-field="height">
+        <label class="field-label" for="bmi-height-ft">Height</label>
         <div class="grid grid-cols-2 gap-3">
           <div class="flex">
-            <input class="field rounded-r-none" name="heightFt" type="number" min="0" step="1" value="5" inputmode="decimal" aria-label="Height feet" />
+            <input
+              class="field rounded-r-none"
+              id="bmi-height-ft"
+              name="heightFt"
+              type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="5"
+              aria-label="Height, feet"
+              aria-describedby="bmi-height-error"
+            />
             <span class="field-affix rounded-r-lg border-l-0">ft</span>
           </div>
           <div class="flex">
-            <input class="field rounded-r-none" name="heightIn" type="number" min="0" step="1" value="9" inputmode="decimal" aria-label="Height inches" />
+            <input
+              class="field rounded-r-none"
+              id="bmi-height-in"
+              name="heightIn"
+              type="number"
+              min="0"
+              max="11"
+              step="1"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="9"
+              aria-label="Height, inches"
+              aria-describedby="bmi-height-error"
+            />
             <span class="field-affix rounded-r-lg border-l-0">in</span>
           </div>
         </div>
+        <p class="bmi-field-error" id="bmi-height-error" data-error-for="height" hidden></p>
       </div>
-      <div>
+      <div data-field="weightLb">
         <label class="field-label" for="bmi-weight-lb">Weight</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="bmi-weight-lb" name="weightLb" type="number" min="0" step="0.1" value="154" inputmode="decimal" />
+          <input
+            class="field rounded-r-none"
+            id="bmi-weight-lb"
+            name="weightLb"
+            type="number"
+            min="0"
+            step="0.1"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="e.g. 154"
+            aria-describedby="bmi-weightLb-error"
+          />
           <span class="field-affix rounded-r-lg border-l-0">lb</span>
         </div>
+        <p class="bmi-field-error" id="bmi-weightLb-error" data-error-for="weightLb" hidden></p>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate BMI</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="bmi-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Your BMI</p>
-    <div class="mt-1 flex items-baseline gap-3">
-      <span class="text-5xl result-value" data-bmi-value>{formatNumber(initial.bmi, 1)}</span>
-      <span class="rounded-full px-3 py-1 text-sm font-bold text-white" style={`background:${severityColor[initial.severity]}`} data-bmi-category>
-        {initial.category}
-      </span>
+  <!-- Reserve the valid-state height so live editing never jumps; the shared
+       `placeholderAlignment="center"` prop vertically centres the short
+       empty/invalid placeholders so the reserved card reads as intentional. -->
+  <ResultShell
+    id="bmi-result"
+    state="empty"
+    density="standard"
+    label="Your BMI result"
+    minHeight="22rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter your height and weight, then calculate your BMI." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Your BMI">
+        <ResultValue value="—" unit="kg/m²" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <strong data-bmi-category>—</strong> <span data-bmi-phrase style="color: var(--muted)"></span>
+      </ResultInterpretation>
+
+      <!-- Category scale. Decorative; the category NAME above carries meaning,
+           so classification never relies on colour alone. -->
+      <div class="bmi-scale" aria-hidden="true">
+        <div class="bmi-scale__bar">
+          <span class="bmi-scale__marker" data-bmi-marker style="left: 0%"></span>
+        </div>
+        <div class="bmi-scale__labels">
+          <span>Under</span><span>Normal</span><span>Over</span><span>Obese</span>
+        </div>
+      </div>
+
+      <ResultBreakdown title="Healthy weight range">
+        <p class="text-sm" style="color: var(--fg)">
+          A healthy weight for your height is <strong data-bmi-range>—</strong>.
+        </p>
+      </ResultBreakdown>
+
+      <p class="bmi-footnote">
+        WHO adult classification (healthy BMI 18.5–24.9). BMI is a screening tool, not a diagnosis.
+      </p>
     </div>
 
-    <!-- Scale -->
-    <div class="mt-6">
-      <div class="relative h-3 w-full rounded-full" style="background: linear-gradient(90deg,#3b82f6 0 14%,#059669 14% 40%,#f59e0b 40% 60%,#e11d48 60% 100%)">
-        <span class="absolute -top-1.5 h-6 w-1.5 -translate-x-1/2 rounded-full ring-2 ring-white" style={`left:${markerPos(initial.bmi)}%; background: var(--heading)`} data-bmi-marker aria-hidden="true"></span>
-      </div>
-      <div class="mt-2 flex justify-between text-[0.7rem]" style="color: var(--muted)">
-        <span>Under</span><span>Normal</span><span>Over</span><span>Obese</span>
-      </div>
-    </div>
+    <InvalidResult title="Check your entries" message="Enter your height and weight to calculate your BMI." />
 
-    <p class="mt-6 text-sm" style="color: var(--fg)">
-      A healthy weight for your height is
-      <strong data-bmi-range>{formatNumber(initial.healthyMin, 1)}–{formatNumber(initial.healthyMax, 1)} {initial.unitLabel}</strong>.
-    </p>
-  </div>
+    <ResultAnnouncement id="bmi-live" />
+  </ResultShell>
 </div>
 
 <style>
@@ -108,79 +206,72 @@ const markerPos = (bmi: number) => Math.max(0, Math.min(100, ((bmi - 15) / (40 -
     background: var(--color-brand-600);
     color: #fff;
   }
+
+  .bmi-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .bmi-field-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .bmi-field-error {
+    color: #fca5a5;
+  }
+
+  .bmi-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .bmi-scale {
+    margin-top: 1rem;
+  }
+  .bmi-scale__bar {
+    position: relative;
+    height: 0.75rem;
+    width: 100%;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, #3b82f6 0 14%, #059669 14% 40%, #f59e0b 40% 60%, #e11d48 60% 100%);
+  }
+  .bmi-scale__marker {
+    position: absolute;
+    top: -0.375rem;
+    height: 1.5rem;
+    width: 0.375rem;
+    transform: translateX(-50%);
+    border-radius: 9999px;
+    background: var(--heading);
+    box-shadow: 0 0 0 2px var(--card);
+  }
+  .bmi-scale__labels {
+    margin-top: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .bmi-footnote {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
 </style>
 
 <script>
-  import { calculateBmi, type UnitSystem, type BmiSeverity } from '@lib/calculators/bmi';
-  import { formatNumber } from '@lib/format';
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { bmiBinding } from '@lib/calculators/bmi-form';
 
-  const severityColor: Record<BmiSeverity, string> = {
-    low: '#3b82f6',
-    normal: '#059669',
-    high: '#f59e0b',
-    danger: '#e11d48',
-  };
-  const markerPos = (bmi: number) => Math.max(0, Math.min(100, ((bmi - 15) / (40 - 15)) * 100));
-
-  document.querySelectorAll<HTMLElement>('[data-bmi]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-bmi-form]')!;
-    const unitButtons = root.querySelectorAll<HTMLButtonElement>('.unit-btn');
-    const groups = {
-      metric: root.querySelector<HTMLElement>('[data-group="metric"]')!,
-      imperial: root.querySelector<HTMLElement>('[data-group="imperial"]')!,
-    };
-    let system: UnitSystem = 'metric';
-
-    const val = (name: string) => {
-      const el = form.elements.namedItem(name) as HTMLInputElement | null;
-      return el ? Number(el.value) || 0 : 0;
-    };
-
-    function recompute() {
-      const r =
-        system === 'metric'
-          ? calculateBmi({ system, heightCm: val('heightCm'), weightKg: val('weightKg') })
-          : calculateBmi({
-              system,
-              heightFt: val('heightFt'),
-              heightIn: val('heightIn'),
-              weightLb: val('weightLb'),
-            });
-
-      const valueEl = root.querySelector<HTMLElement>('[data-bmi-value]')!;
-      const catEl = root.querySelector<HTMLElement>('[data-bmi-category]')!;
-      const rangeEl = root.querySelector<HTMLElement>('[data-bmi-range]')!;
-      const marker = root.querySelector<HTMLElement>('[data-bmi-marker]')!;
-
-      if (Number.isNaN(r.bmi)) {
-        valueEl.textContent = '—';
-        catEl.textContent = 'Enter values';
-        catEl.style.background = 'var(--muted)';
-        rangeEl.textContent = '—';
-        return;
-      }
-      valueEl.textContent = formatNumber(r.bmi, 1);
-      catEl.textContent = r.category;
-      catEl.style.background = severityColor[r.severity];
-      rangeEl.textContent = `${formatNumber(r.healthyMin, 1)}–${formatNumber(r.healthyMax, 1)} ${r.unitLabel}`;
-      marker.style.left = `${markerPos(r.bmi)}%`;
-    }
-
-    unitButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        system = (btn.dataset.unit as UnitSystem) ?? 'metric';
-        unitButtons.forEach((b) => {
-          const active = b === btn;
-          b.classList.toggle('is-active', active);
-          b.setAttribute('aria-checked', String(active));
-        });
-        groups.metric.hidden = system !== 'metric';
-        groups.imperial.hidden = system !== 'imperial';
-        recompute();
-      });
-    });
-
-    form.addEventListener('input', recompute);
-    recompute();
-  });
+  document.querySelectorAll<HTMLElement>('[data-bmi]').forEach((root) =>
+    mountFormCalculator(root, bmiBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate BMI',
+    }),
+  );
 </script>

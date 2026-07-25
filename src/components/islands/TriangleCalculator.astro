@@ -1,52 +1,188 @@
 ---
-import { solveTriangleSSS } from '@lib/calculators/triangle';
-import { formatNumber } from '@lib/format';
-
-const d = { a: 3, b: 4, c: 5 };
-const r = solveTriangleSSS(d.a, d.b, d.c);
-const fmt = (v: number) => (Number.isNaN(v) ? '—' : formatNumber(v, 2));
+/**
+ * Triangle calculator island (R10D1 — standard-form wave, calculator #22; product family GEOMETRY,
+ * on the standard-form runtime UNCHANGED — no isUsableResult). The final geometry migration.
+ *
+ * Task-first, direct-intent: SSS — three side lengths → the triangle's area (dominant) with perimeter,
+ * the three angles and the side/angle classification. Sides start EMPTY (not the legacy 3/4/5 sample);
+ * the visitor presses "Solve Triangle" for the first result, live-after-first afterwards. Compute,
+ * validation, state, the single announcement, field-error focus and Reset are owned by the shared
+ * runtime (UNCHANGED) + the triangle binding (@lib/calculators/triangle-form).
+ *
+ * Cross-field domain rule: three individually-valid sides that fail the triangle inequality are ONE
+ * form-level error (the binding's formError) — no single side is blamed. The runtime renders it in the
+ * invalid region and announces it; the island adds the two things the runtime cannot infer for a
+ * field-less error: it returns focus to Side A on an explicit submit, and reveals the "sum of any two
+ * sides…" explanation only for that domain case. There is no unit selector — sides are unitless.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-triangle>
-  <form class="card p-5 sm:p-6" data-tri-form novalidate>
-    <p class="mb-3 text-sm" style="color: var(--muted)">Enter the three side lengths.</p>
-    <div class="space-y-4">
-      <div><label class="field-label" for="tri-a">Side a</label><input class="field" id="tri-a" name="a" type="number" min="0" step="0.1" value={d.a} inputmode="decimal" /></div>
-      <div><label class="field-label" for="tri-b">Side b</label><input class="field" id="tri-b" name="b" type="number" min="0" step="0.1" value={d.b} inputmode="decimal" /></div>
-      <div><label class="field-label" for="tri-c">Side c</label><input class="field" id="tri-c" name="c" type="number" min="0" step="0.1" value={d.c} inputmode="decimal" /></div>
+<div class="triangle mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-triangle>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Triangle calculator">
+    <fieldset class="tri-sides">
+      <legend class="field-label">Triangle side lengths</legend>
+      <p class="tri-help" id="tri-help">Use the same measurement unit for all three sides. The perimeter uses that unit, and the area is returned in square units.</p>
+
+      <div class="tri-dims mt-3">
+        <div data-field="a">
+          <label class="field-label" for="tri-a">Side A</label>
+          <input class="field" id="tri-a" name="a" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 3" aria-describedby="tri-help tri-a-error" />
+          <p class="tri-field-error" id="tri-a-error" data-error-for="a" hidden></p>
+        </div>
+        <div data-field="b">
+          <label class="field-label" for="tri-b">Side B</label>
+          <input class="field" id="tri-b" name="b" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 4" aria-describedby="tri-b-error" />
+          <p class="tri-field-error" id="tri-b-error" data-error-for="b" hidden></p>
+        </div>
+        <div data-field="c">
+          <label class="field-label" for="tri-c">Side C</label>
+          <input class="field" id="tri-c" name="c" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 5" aria-describedby="tri-c-error" />
+          <p class="tri-field-error" id="tri-c-error" data-error-for="c" hidden></p>
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Solve Triangle</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
-    <p class="mt-3 text-xs" style="color: var(--color-danger)" data-tri-invalid hidden>Those side lengths cannot form a triangle.</p>
+    <p class="tri-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <div class="grid grid-cols-2 gap-3 text-center">
-      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Area</p><p class="mt-1 text-xl font-bold" data-tri-area>{fmt(r.area)}</p></div>
-      <div class="rounded-lg p-3" style="background: var(--subtle)"><p class="text-xs" style="color: var(--muted)">Perimeter</p><p class="mt-1 text-xl font-bold" data-tri-perim>{fmt(r.perimeter)}</p></div>
+  <!-- Result -->
+  <ResultShell
+    id="tri-result"
+    state="empty"
+    density="standard"
+    label="Triangle result"
+    minHeight="20rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter all three side lengths to calculate the triangle's area, perimeter, angles and classification." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Triangle area">
+        <ResultValue value="—" size="text-4xl" unit="square units" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-tri-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Breakdown">
+        <dl class="tri-metrics">
+          <div><dt>Perimeter</dt><dd><span data-tri-perimeter>—</span> units</dd></div>
+          <div><dt>Angle A</dt><dd data-tri-angle-a>—</dd></div>
+          <div><dt>Angle B</dt><dd data-tri-angle-b>—</dd></div>
+          <div><dt>Angle C</dt><dd data-tri-angle-c>—</dd></div>
+          <div class="tri-metrics__rule"><dt>Side type</dt><dd data-tri-side-type>—</dd></div>
+          <div><dt>Angle type</dt><dd data-tri-angle-type>—</dd></div>
+        </dl>
+      </ResultBreakdown>
     </div>
-    <dl class="mt-4 space-y-2 text-sm">
-      <div class="flex justify-between"><dt style="color: var(--muted)">Angle A (opposite a)</dt><dd class="font-semibold"><span data-tri-A>{fmt(r.angleA)}</span>°</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Angle B (opposite b)</dt><dd class="font-semibold"><span data-tri-B>{fmt(r.angleB)}</span>°</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Angle C (opposite c)</dt><dd class="font-semibold"><span data-tri-C>{fmt(r.angleC)}</span>°</dd></div>
-      <div class="flex justify-between border-t pt-2" style="border-color: var(--line)"><dt class="font-semibold">Type</dt><dd class="font-bold" style="color: var(--color-brand-700)"><span data-tri-stype>{r.sideType}</span> · <span data-tri-atype>{r.angleType}</span></dd></div>
-    </dl>
-  </div>
+
+    <!-- Domain (triangle-inequality) + field invalid region. The runtime fills
+         [data-result-invalid-message]; the "sum of any two sides…" hint is revealed by the island
+         only for a triangle-inequality failure (not a field error). -->
+    <div class="result-invalid" data-result-when="invalid">
+      <p class="result-invalid__title">Check the side lengths</p>
+      <p class="result-invalid__message" data-result-invalid-message>Please check the side lengths.</p>
+      <p class="tri-domain-hint" data-tri-domain-hint hidden>The sum of any two sides must be greater than the third side.</p>
+    </div>
+
+    <ResultAnnouncement id="tri-live" />
+  </ResultShell>
 </div>
 
+<style>
+  .tri-sides { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .tri-help { margin-top: 0.35rem; font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
+
+  /* The three sides are one related group — stacked on mobile, a compact three-up row from 640px so
+     the primary action and the area result both sit in the first viewport. */
+  .tri-dims { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 640px) {
+    .tri-dims { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+  }
+
+  .tri-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .tri-field-error { color: #fca5a5; }
+  }
+  :root[data-theme='dark'] .tri-field-error { color: #fca5a5; }
+
+  .tri-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  .tri-metrics { margin: 0; display: grid; gap: 0.25rem; }
+  .tri-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .tri-metrics__rule { margin-top: 0.35rem; border-top: 1px solid var(--line); padding-top: 0.55rem !important; }
+  .tri-metrics dt { color: var(--fg); font-weight: 600; }
+  .tri-metrics dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--heading); font-weight: 700; white-space: nowrap; }
+
+  .tri-domain-hint { margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.45; color: var(--muted); }
+
+  /* "square units" is a WORD unit — give it room from the numeral. The shared value/unit pair sits
+     tight (right for symbol units like ³ / %); scope this loosening to the triangle result only. */
+  .triangle :global(.result-unit) { margin-left: 0.3rem; }
+</style>
+
 <script>
-  import { solveTriangleSSS } from '@lib/calculators/triangle';
-  const fmt = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(v));
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { triangleBinding, validateTriangleValues } from '@lib/calculators/triangle-form';
+
   document.querySelectorAll<HTMLElement>('[data-triangle]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-tri-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const r = solveTriangleSSS(num('a'), num('b'), num('c'));
-      root.querySelector<HTMLElement>('[data-tri-invalid]')!.hidden = r.valid;
-      set('[data-tri-area]', fmt(r.area)); set('[data-tri-perim]', fmt(r.perimeter));
-      set('[data-tri-A]', fmt(r.angleA)); set('[data-tri-B]', fmt(r.angleB)); set('[data-tri-C]', fmt(r.angleC));
-      set('[data-tri-stype]', r.valid ? r.sideType : '—'); set('[data-tri-atype]', r.valid ? r.angleType : '—');
-    }
-    form.addEventListener('input', recompute);
-    recompute();
+    mountFormCalculator(root, triangleBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Solve Triangle',
+    });
+
+    const form = root.querySelector<HTMLFormElement>('[data-form]');
+    const hint = root.querySelector<HTMLElement>('[data-tri-domain-hint]');
+    const sideA = root.querySelector<HTMLInputElement>('[name="a"]');
+
+    // A DOMAIN failure = three individually-valid sides that cannot form a triangle (the binding's
+    // form-level error). A field-level error is NOT a domain failure.
+    const domainFailure = () => {
+      const v = validateTriangleValues(triangleBinding.readValues(root));
+      return !v.ok && Boolean(v.formError);
+    };
+    const syncHint = () => {
+      if (hint) hint.hidden = !domainFailure();
+    };
+
+    // The runtime owns field-error focus; the island owns the field-less DOMAIN-error focus. On an
+    // explicit submit that fails only the inequality, return the visitor to Side A (the runtime moves
+    // focus only when a field is aria-invalid, and here none is). Live edits never move focus.
+    form?.addEventListener('submit', () => {
+      syncHint();
+      if (domainFailure()) sideA?.focus();
+    });
+    // Keep the domain hint in step during live editing after the first calc — never moves focus.
+    form?.addEventListener('input', syncHint);
+
+    // Reset clears the domain hint along with everything the runtime resets.
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      if (hint) hint.hidden = true;
+    });
   });
 </script>

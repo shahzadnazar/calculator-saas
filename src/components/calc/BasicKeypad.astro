@@ -1,0 +1,24 @@
+---
+/**
+ * Basic keypad — renders the familiar physical-calculator arrangement from the
+ * shared key catalog. Buttons carry their engine action as `data-act`; the
+ * client delegates clicks. Backspace is NOT here (it lives beside the display).
+ */
+import { BASIC_KEYS } from '@lib/calc/keys';
+---
+
+<div class="keypad keypad--basic" role="group" aria-label="Basic calculator keypad">
+  {
+    BASIC_KEYS.map((k) => (
+      <button
+        type="button"
+        class={`calc-key calc-key--${k.kind}`}
+        style={k.span ? `grid-column: span ${k.span};` : undefined}
+        data-act={JSON.stringify(k.act)}
+        aria-label={k.aria}
+      >
+        <span set:html={k.label} />
+      </button>
+    ))
+  }
+</div>

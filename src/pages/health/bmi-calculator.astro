@@ -41,9 +41,10 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  presentation="task-first"
   intro="Calculate your Body Mass Index in metric or imperial units, see your WHO weight category on a color-coded scale, and find the healthy weight range for your height."
   faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-17' }}
 >
   <BmiCalculator />
 
@@ -67,8 +68,9 @@ const faqs = [
     <h2>How to use this BMI calculator</h2>
     <p>
       Choose <strong>Metric</strong> or <strong>Imperial</strong>, enter your height and
-      weight, and read your BMI, category and healthy weight range instantly. The marker
-      on the colored scale shows where you fall between the categories.
+      weight, and press <strong>Calculate BMI</strong> to see your BMI, category and healthy
+      weight range. After the first result, changes update automatically as you adjust your
+      figures. The marker on the colored scale shows where you fall between the categories.
     </p>
 
     <h2>The limits of BMI</h2>

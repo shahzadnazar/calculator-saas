@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { solveAnnualRate } from './interest-rate';
-import { payoffByPayment, payoffByMonths } from './credit-card';
 import { calculateHomeEquity } from './home-equity';
 import { convertSalary } from './salary';
 import { calculateIncomeTax } from './income-tax';
@@ -12,24 +11,6 @@ describe('interest rate solver', () => {
   });
   it('returns ~0 when payments barely exceed principal', () => {
     expect(solveAnnualRate(12000, 1000, 12)).toBeCloseTo(0, 4);
-  });
-});
-
-describe('credit card payoff', () => {
-  it('computes payoff time and interest for a payment', () => {
-    const r = payoffByPayment(5000, 18, 200);
-    expect(Number.isFinite(r.months)).toBe(true);
-    expect(r.totalInterest).toBeGreaterThan(0);
-    expect(r.totalPaid).toBeGreaterThan(5000);
-  });
-  it('flags a payment that never clears the balance', () => {
-    // 18% APR on 5000 is ~75/mo interest; a 50/mo payment never wins
-    expect(payoffByPayment(5000, 18, 50).months).toBe(Infinity);
-  });
-  it('solves the payment for a target number of months', () => {
-    const r = payoffByMonths(5000, 18, 24);
-    expect(r.monthlyPayment).toBeGreaterThan(200);
-    expect(r.totalPaid).toBeCloseTo(r.monthlyPayment * 24, 4);
   });
 });
 

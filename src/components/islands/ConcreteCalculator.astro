@@ -1,66 +1,245 @@
 ---
-import { calculateConcrete, type LengthUnit } from '@lib/calculators/concrete';
-import { formatNumber } from '@lib/format';
-
-const d = { length: 10, width: 10, depth: 0.5, unit: 'ft' as LengthUnit, wastePct: 10 };
-const r = calculateConcrete(d);
-const nf = (v: number) => formatNumber(v, 2);
+/**
+ * Concrete calculator island (R10C1 — standard-form wave, calculator #21; product family GEOMETRY,
+ * on the standard-form runtime UNCHANGED — no isUsableResult).
+ *
+ * Task-first, direct-intent: a single rectangular-prism volume. Length + width + depth start EMPTY,
+ * the unit defaults to feet, waste empty, and the result is empty (an instruction, not the legacy
+ * 10×10×0.5-ft / 10% sample). The visitor presses "Calculate Concrete" for the first result;
+ * live-after-first afterwards. Compute, validation, state, the single announcement, focus and Reset
+ * are owned by the shared runtime (UNCHANGED) + the concrete binding (@lib/calculators/concrete-form).
+ *
+ * The measurement unit is a NATIVE radio group (ft/m). The binding owns the CONVERSION
+ * (convertValues, the accepted capability); the island bridges the radios to it — on change it
+ * converts the entered length + width + depth dimension-preservingly and updates the "(ft)" tags. A
+ * radio's own input event drives the runtime's live recompute AFTER the first calc (the 180ms
+ * debounce lands the synchronous conversion first); before then the runtime gate ignores it, so a
+ * unit change converts without calculating. The calculator computes NO cost.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-concrete>
-  <form class="card p-5 sm:p-6" data-co-form novalidate>
-    <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Units" style="border-color: var(--line)">
-      <button type="button" class="unit-btn is-active" data-unit="ft" role="radio" aria-checked="true">Feet</button>
-      <button type="button" class="unit-btn" data-unit="m" role="radio" aria-checked="false">Metres</button>
+<div class="concrete mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-concrete>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Concrete calculator">
+    <fieldset class="co-modes">
+      <legend class="field-label">Measurement unit</legend>
+      <div class="seg-group">
+        <label class="seg"><input type="radio" name="unit" value="ft" checked /><span>Feet</span></label>
+        <label class="seg"><input type="radio" name="unit" value="m" /><span>Metres</span></label>
+      </div>
+    </fieldset>
+
+    <div class="mt-5 space-y-4">
+      <div class="co-dims">
+        <div data-field="length">
+          <label class="field-label" for="co-length">Length (<span data-co-unit-tag>ft</span>)</label>
+          <input class="field" id="co-length" name="length" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 10" aria-describedby="co-length-error" />
+          <p class="co-field-error" id="co-length-error" data-error-for="length" hidden></p>
+        </div>
+        <div data-field="width">
+          <label class="field-label" for="co-width">Width (<span data-co-unit-tag>ft</span>)</label>
+          <input class="field" id="co-width" name="width" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 10" aria-describedby="co-width-error" />
+          <p class="co-field-error" id="co-width-error" data-error-for="width" hidden></p>
+        </div>
+        <div data-field="depth">
+          <label class="field-label" for="co-depth">Depth (<span data-co-unit-tag>ft</span>)</label>
+          <input class="field" id="co-depth" name="depth" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 0.33" aria-describedby="co-depth-error" />
+          <p class="co-field-error" id="co-depth-error" data-error-for="depth" hidden></p>
+        </div>
+      </div>
+      <div data-field="wastePct">
+        <label class="field-label" for="co-waste">Waste allowance</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="co-waste" name="wastePct" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" placeholder="optional" aria-describedby="co-waste-hint co-waste-error" />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        </div>
+        <p class="co-hint" id="co-waste-hint">Optional. Many projects add 5% to 10% for spills, uneven surfaces and measurement variation.</p>
+        <p class="co-field-error" id="co-waste-error" data-error-for="wastePct" hidden></p>
+      </div>
     </div>
-    <div class="space-y-4">
-      <div><label class="field-label" for="co-l">Length</label><input class="field" id="co-l" name="length" type="number" min="0" step="0.1" value={d.length} inputmode="decimal" /></div>
-      <div><label class="field-label" for="co-w">Width</label><input class="field" id="co-w" name="width" type="number" min="0" step="0.1" value={d.width} inputmode="decimal" /></div>
-      <div><label class="field-label" for="co-d">Depth / thickness</label><input class="field" id="co-d" name="depth" type="number" min="0" step="0.05" value={d.depth} inputmode="decimal" /></div>
-      <div><label class="field-label" for="co-waste">Waste allowance</label><div class="flex"><input class="field rounded-r-none" id="co-waste" name="wastePct" type="number" min="0" step="1" value={d.wastePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div></div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Concrete</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
+    <p class="co-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Concrete needed</p>
-    <p class="mt-1 text-4xl result-value"><span data-co-yards>{nf(r.cubicYards)}</span> <span class="text-xl" style="color: var(--muted)">yd³</span></p>
-    <dl class="mt-4 space-y-2 text-sm">
-      <div class="flex justify-between"><dt style="color: var(--muted)">Cubic metres</dt><dd class="font-semibold"><span data-co-meters>{nf(r.cubicMeters)}</span> m³</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Cubic feet</dt><dd class="font-semibold"><span data-co-feet>{nf(r.cubicFeet)}</span> ft³</dd></div>
-    </dl>
-    <h3 class="mt-4 text-sm font-bold" style="color: var(--heading)">Pre-mix bags needed</h3>
-    <div class="mt-2 grid grid-cols-3 gap-2 text-center text-sm">
-      <div class="rounded-lg p-2" style="background: var(--subtle)"><p class="font-bold" data-co-b40>{r.bags40lb}</p><p class="text-xs" style="color: var(--muted)">40 lb</p></div>
-      <div class="rounded-lg p-2" style="background: var(--subtle)"><p class="font-bold" data-co-b60>{r.bags60lb}</p><p class="text-xs" style="color: var(--muted)">60 lb</p></div>
-      <div class="rounded-lg p-2" style="background: var(--subtle)"><p class="font-bold" data-co-b80>{r.bags80lb}</p><p class="text-xs" style="color: var(--muted)">80 lb</p></div>
+  <!-- Result -->
+  <ResultShell
+    id="co-result"
+    state="empty"
+    density="standard"
+    label="Concrete result"
+    minHeight="22rem"
+    placeholderAlignment="center"
+  >
+    <EmptyResult message="Enter the slab length, width and depth, then optionally add a waste allowance to estimate concrete volume and bag quantities." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Concrete needed">
+        <ResultValue value="—" size="text-4xl" unit="yd³" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-co-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Breakdown">
+        <dl class="co-metrics">
+          <div><dt>Cubic metres</dt><dd data-co-cm>—</dd></div>
+          <div><dt>Cubic feet</dt><dd data-co-cf>—</dd></div>
+        </dl>
+      </ResultBreakdown>
+
+      <div class="co-bags">
+        <h3 class="co-bags-title">Approximate bag quantities</h3>
+        <table class="co-bags-table">
+          <thead>
+            <tr><th scope="col">Bag size</th><th scope="col">Approximate bags</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">40 lb</th><td data-co-b40>—</td></tr>
+            <tr><th scope="row">60 lb</th><td data-co-b60>—</td></tr>
+            <tr><th scope="row">80 lb</th><td data-co-b80>—</td></tr>
+          </tbody>
+        </table>
+        <p class="co-note">Bag estimates use approximate yields of 0.30 cubic feet for a 40&nbsp;lb bag, 0.45 cubic feet for a 60&nbsp;lb bag, and 0.60 cubic feet for an 80&nbsp;lb bag. Counts are rounded up to whole bags — confirm quantities with your supplier.</p>
+      </div>
     </div>
-  </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a length, width and depth greater than zero, and choose a measurement unit."
+    />
+
+    <ResultAnnouncement id="co-live" />
+  </ResultShell>
 </div>
 
 <style>
-  .unit-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
-  .unit-btn.is-active { background: var(--color-brand-600); color: #fff; }
+  .co-modes { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .seg-group {
+    display: inline-flex;
+    margin-top: 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    padding: 0.125rem;
+  }
+  .seg { position: relative; display: inline-flex; }
+  .seg input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .seg span {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .seg:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .seg:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  /* The three dimensions are one related group — stacked on mobile, a compact
+     three-up row from 640px so the primary action stays in the first viewport. */
+  .co-dims { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 640px) {
+    .co-dims { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+  }
+
+  .co-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .co-field-error { color: #fca5a5; }
+  }
+  :root[data-theme='dark'] .co-field-error { color: #fca5a5; }
+
+  .co-hint { margin-top: 0.3rem; font-size: 0.78rem; color: var(--muted); }
+  .co-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  .co-metrics { margin: 0; display: grid; gap: 0.25rem; }
+  .co-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .co-metrics dt { color: var(--fg); font-weight: 600; }
+  .co-metrics dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--heading); font-weight: 700; white-space: nowrap; }
+
+  .co-bags { margin-top: 1rem; }
+  .co-bags-title { font-size: 0.85rem; font-weight: 700; color: var(--heading); }
+  .co-bags-table { width: 100%; margin-top: 0.5rem; border-collapse: collapse; font-size: 0.9rem; }
+  .co-bags-table th[scope='col'] {
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    padding: 0.2rem 0.5rem 0.35rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .co-bags-table th[scope='col']:last-child { text-align: right; }
+  .co-bags-table th[scope='row'] { text-align: left; font-weight: 600; color: var(--fg); padding: 0.3rem 0.5rem; }
+  .co-bags-table td {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .co-note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
 </style>
 
 <script>
-  import { calculateConcrete, type LengthUnit } from '@lib/calculators/concrete';
-  const nf = (v: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(v);
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { concreteBinding } from '@lib/calculators/concrete-form';
+
   document.querySelectorAll<HTMLElement>('[data-concrete]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-co-form]')!;
-    let unit: LengthUnit = 'ft';
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const r = calculateConcrete({ length: num('length'), width: num('width'), depth: num('depth'), unit, wastePct: num('wastePct') });
-      set('[data-co-yards]', nf(r.cubicYards)); set('[data-co-meters]', nf(r.cubicMeters)); set('[data-co-feet]', nf(r.cubicFeet));
-      set('[data-co-b40]', String(r.bags40lb)); set('[data-co-b60]', String(r.bags60lb)); set('[data-co-b80]', String(r.bags80lb));
-    }
-    root.querySelectorAll<HTMLButtonElement>('.unit-btn').forEach((b) => b.addEventListener('click', () => {
-      unit = (b.dataset.unit as LengthUnit) ?? 'ft';
-      root.querySelectorAll('.unit-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
-      recompute();
-    }));
-    form.addEventListener('input', recompute);
-    recompute();
+    mountFormCalculator(root, concreteBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Concrete',
+    });
+
+    // Native-radio converting unit. The binding owns the conversion; the island bridges the radios.
+    // On change: convert length + width + depth in place, then update the "(ft)" tags. A radio's own
+    // input event drives the runtime's live recompute (after first calc); the 180ms debounce means
+    // the synchronous conversion here lands before that recompute reads the values.
+    const dimTags = Array.from(root.querySelectorAll<HTMLElement>('[data-co-unit-tag]'));
+    const checkedUnit = () => root.querySelector<HTMLInputElement>('[name="unit"]:checked')?.value ?? 'ft';
+    let currentUnit = checkedUnit();
+    const syncTags = () => {
+      const u = checkedUnit();
+      dimTags.forEach((t) => (t.textContent = u));
+    };
+
+    root.querySelectorAll<HTMLInputElement>('[name="unit"]').forEach((r) =>
+      r.addEventListener('change', () => {
+        const to = checkedUnit();
+        if (to === currentUnit) return;
+        concreteBinding.convertValues?.(root, currentUnit, to);
+        currentUnit = to;
+        syncTags();
+      }),
+    );
+
+    // Reset: the binding restores the ft radio; keep the tracked unit + tags in step.
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      currentUnit = 'ft';
+      syncTags();
+    });
   });
 </script>

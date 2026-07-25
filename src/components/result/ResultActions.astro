@@ -1,0 +1,17 @@
+---
+/**
+ * ResultActions — a grouped row of secondary actions on a result (Copy, Reset,
+ * Share, Print). A labelled `role="group"` so the actions are announced as
+ * belonging to the result. Actions only make sense once a result exists, so
+ * this typically lives inside the valid-state region.
+ */
+export interface Props {
+  label?: string;
+  class?: string;
+}
+const { label = 'Result actions', class: className = '' } = Astro.props;
+---
+
+<div class:list={['result-actions', className]} role="group" aria-label={label}>
+  <slot />
+</div>

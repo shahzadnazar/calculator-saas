@@ -1,0 +1,19 @@
+---
+/**
+ * InvalidResult — the error state's visual surface. Deliberately NOT
+ * `role="alert"`: the single restrained announcement is made by the shared live
+ * region (<ResultAnnouncement>), so making this an alert too would double-speak.
+ * Shown only while the shell's state is `invalid`.
+ */
+export interface Props {
+  title?: string;
+  message?: string;
+  class?: string;
+}
+const { title, message = 'Please check the values entered.', class: className = '' } = Astro.props;
+---
+
+<div class:list={['result-invalid', className]} data-result-when="invalid">
+  {title && <p class="result-invalid__title">{title}</p>}
+  <p class="result-invalid__message" data-result-invalid-message><slot>{message}</slot></p>
+</div>

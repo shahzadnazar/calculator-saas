@@ -1,0 +1,72 @@
+---
+/**
+ * ResultShell — the shared result region.
+ *
+ * Hosts the two-axis result state (`data-result-state` × `data-result-activity`)
+ * that a family runtime flips, a density class, and (via slots) the state
+ * regions + the live announcer. It is a `role="region"` so assistive tech can
+ * jump to the answer, and it reserves a min-height so switching between empty /
+ * example / valid / invalid never shifts the page.
+ *
+ * State switching is declarative: children marked `data-result-when="…"` are
+ * shown by CSS only when the shell's state matches (see result.css). This shell
+ * renders nothing dynamic itself — the state logic lives in @lib/result/state.
+ */
+import '@styles/result.css';
+import type { ResultState, ResultActivity } from '@lib/result/state';
+
+/**
+ * Vertical alignment of the SHORT placeholder states (empty / invalid) within
+ * the reserved height. `'start'` (default) keeps them at the top; `'center'`
+ * vertically centres them so a tall reservation reads as an intentional
+ * "your result appears here" surface rather than a void. The valid result
+ * always keeps normal top-aligned result layout regardless of this setting.
+ */
+export type PlaceholderAlignment = 'start' | 'center';
+
+export interface Props {
+  state?: ResultState;
+  activity?: ResultActivity;
+  density?: 'compact' | 'standard' | 'complex';
+  /** Accessible name for the region landmark. */
+  label?: string;
+  /** Overrides the per-density reserved height, e.g. "14rem" or "0" to collapse. */
+  minHeight?: string;
+  /** Card chrome (border/background/padding). Off to embed inside another card. */
+  boxed?: boolean;
+  /** Vertical alignment of the empty/invalid placeholders (default 'start'). */
+  placeholderAlignment?: PlaceholderAlignment;
+  id?: string;
+  class?: string;
+}
+
+const {
+  state = 'empty',
+  activity = 'idle',
+  density = 'standard',
+  label = 'Result',
+  minHeight,
+  boxed = true,
+  placeholderAlignment,
+  id,
+  class: className = '',
+} = Astro.props;
+
+const style = minHeight != null ? `--result-min-h:${minHeight}` : undefined;
+---
+
+<section
+  id={id}
+  class:list={['result-shell', className]}
+  role="region"
+  aria-label={label}
+  data-result-shell
+  data-result-state={state}
+  data-result-activity={activity}
+  data-density={density}
+  data-boxed={String(boxed)}
+  data-placeholder-align={placeholderAlignment}
+  style={style}
+>
+  <slot />
+</section>

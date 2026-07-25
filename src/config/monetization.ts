@@ -109,3 +109,80 @@ export const DIGITAL_PRODUCTS: StreamFlag = { enabled: false, note: 'Static prod
 export const PUBLIC_API: StreamFlag = { enabled: false, note: 'Expose src/lib/calculators via serverless functions.' };
 /** Embeddable widgets / white-label (also builds backlinks → authority). */
 export const EMBEDDABLE: StreamFlag = { enabled: true, note: 'iframe/script embed of islands; each embed carries an attribution backlink → authority + brand.' };
+
+/* ---------------------------------------------------------------- */
+/* 6. Central monetization-region configuration (R5)                 */
+/* ---------------------------------------------------------------- */
+/**
+ * The single source of placement decisions for the higher-level
+ * `MonetizationRegion` orchestrator. EVERYTHING is disabled: `enabled: false`
+ * globally and per placement, so no region renders on any live page. The
+ * pure resolvers live in `src/lib/monetization/policy.ts`; the internal
+ * `/dev/monetization` demo supplies its own config to showcase states. Types
+ * are imported type-only to avoid a runtime cycle with the policy module.
+ *
+ * R5 is architecture only — CalculatorLayout integration is R6, and every
+ * placement stays off until traffic, trust and (where relevant) a consent
+ * vendor + provider are in place. Defaults below document the INTENDED module
+ * and reservation/consent settings for each placement, not an activation.
+ */
+import type { MonetizationConfig } from '@lib/monetization/policy';
+
+export const MONETIZATION_CONFIG: MonetizationConfig = {
+  enabled: false,
+  placements: {
+    'calculator-sidebar': {
+      enabled: false,
+      module: 'ad',
+      reserveSpace: true,
+      retainReservationOnNoFill: true,
+      lazy: true,
+      requiresConsent: 'advertising',
+    },
+    'calculator-post-result': {
+      enabled: false,
+      module: 'affiliate',
+      reserveSpace: false,
+      requiresConsent: 'none',
+    },
+    'calculator-in-content': {
+      enabled: false,
+      module: 'ad',
+      reserveSpace: true,
+      retainReservationOnNoFill: true,
+      lazy: true,
+      requiresConsent: 'advertising',
+    },
+    'related-tools': {
+      enabled: false,
+      module: 'embed',
+      reserveSpace: false,
+      requiresConsent: 'none',
+    },
+    'home-after-dashboard': {
+      enabled: false,
+      module: 'sponsored',
+      reserveSpace: false,
+      requiresConsent: 'none',
+    },
+    'category-between-groups': {
+      enabled: false,
+      module: 'ad',
+      reserveSpace: true,
+      lazy: true,
+      requiresConsent: 'advertising',
+    },
+    'guide-in-content': {
+      enabled: false,
+      module: 'affiliate',
+      reserveSpace: false,
+      requiresConsent: 'none',
+    },
+    footer: {
+      enabled: false,
+      module: 'premium',
+      reserveSpace: false,
+      requiresConsent: 'none',
+    },
+  },
+};

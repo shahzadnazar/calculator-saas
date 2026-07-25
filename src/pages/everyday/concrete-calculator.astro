@@ -7,12 +7,12 @@ const faqs = [
   { question: 'How much concrete do I need?', answer: 'Multiply the length, width and depth of your slab to get the volume, then convert to cubic yards. In feet, the shortcut is length × width × thickness ÷ 27, because there are 27 cubic feet in a cubic yard. Enter your dimensions above and the calculator does it — including the number of pre-mix bags.' },
   { question: 'How do I estimate concrete in cubic yards?', answer: 'Convert every measurement to feet first (a 4-inch slab is 4 ÷ 12 = 0.33 ft), multiply length × width × thickness for cubic feet, then divide by 27 for cubic yards. A 10 × 10 ft pad at 4 inches is 10 × 10 × 0.33 ÷ 27 ≈ 1.24 cubic yards.' },
   { question: 'How many bags of concrete are in a cubic yard?', answer: 'Roughly 45 × 80-lb bags, 60 × 60-lb bags, or 90 × 40-lb bags make one cubic yard. Because that is a lot of mixing, anything beyond about a cubic yard is usually cheaper and easier as ready-mix delivery.' },
-  { question: 'How much does a cubic yard of concrete cost?', answer: 'Ready-mix concrete commonly runs in the region of $125–$175 per cubic yard delivered, though prices vary widely by area, mix and market, and small loads carry a short-load fee. Bagged mix costs more per yard but suits jobs too small to order a truck.' },
+  { question: 'How much does a cubic yard of concrete cost?', answer: 'This calculator estimates volume and bag counts, not cost. To budget, take the cubic yards it returns and multiply by your local price: ready-mix commonly runs in the region of $125–$175 per cubic yard delivered, though prices vary widely by supplier, mix and delivery conditions, and small loads carry a short-load fee. Bagged mix costs more per yard but suits jobs too small to order a truck.' },
   { question: 'How long does concrete take to dry and cure?', answer: 'You can usually walk on new concrete after 24–48 hours and drive on it after about 7 days, but it keeps hardening for weeks — reaching most of its rated strength at 28 days. Keeping it damp during that period (curing) makes the finished slab stronger.' },
   { question: 'Why add a waste allowance?', answer: 'Some concrete is always lost to spillage, uneven subgrade and over-excavation. Adding about 5–10% extra ensures you do not run short mid-pour, which is far more costly than a little leftover.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate how much concrete a slab or footing needs — in cubic yards, cubic metres and pre-mix bags — with an optional waste allowance." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate how much concrete a slab or footing needs — in cubic yards, cubic metres and pre-mix bags — with an optional waste allowance." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <ConcreteCalculator />
   <Fragment slot="content">
     <h2>How to estimate how much concrete you need</h2>
@@ -25,7 +25,7 @@ const faqs = [
     <p>Enter the length, width and depth above and the calculator returns cubic yards, cubic metres and cubic feet, plus how many 40, 60 or 80-lb bags the job would take.</p>
 
     <h2>A worked example</h2>
-    <p>Say you are pouring a <strong>10 ft × 10 ft patio, 4 inches thick</strong>. In feet that is 10 × 10 × 0.33 = 33 cubic feet, or 33 ÷ 27 ≈ <strong>1.24 cubic yards</strong>. Add a 10% waste allowance and you would order about <strong>1.4 cubic yards</strong> — roughly 56 × 80-lb bags, which is exactly the point at which a ready-mix truck starts to make sense.</p>
+    <p>Say you are pouring a <strong>10 ft × 10 ft patio, 4 inches thick</strong>. In feet that is 10 × 10 × 0.33 = 33 cubic feet, or 33 ÷ 27 ≈ <strong>1.24 cubic yards</strong>. Add a 10% waste allowance and you would order about <strong>1.4 cubic yards</strong> — roughly 61 × 80-lb bags, which is exactly the point at which a ready-mix truck starts to make sense.</p>
 
     <h2>Bags or ready-mix?</h2>
     <p>Bagged pre-mix suits small jobs — footings, fence posts, a small pad. Each bag covers only a fraction of a cubic foot, so the count climbs fast:</p>

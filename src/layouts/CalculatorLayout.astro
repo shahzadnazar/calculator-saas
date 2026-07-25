@@ -2,12 +2,27 @@
 /**
  * CalculatorLayout — the shared skeleton for every calculator page.
  *
- * A page supplies its registry entry, FAQs and review date; this layout derives
- * SEO metadata, breadcrumbs, calculator + breadcrumb + FAQ structured data, and
- * lays out the tool, explainer content, FAQ and related calculators. New
- * calculators get all of this for free.
+ * A page supplies its registry entry, intro, FAQs and review metadata; this
+ * layout derives SEO metadata, breadcrumbs, calculator + breadcrumb + FAQ
+ * structured data, and lays out the tool, explainer content, FAQ and related
+ * calculators. New calculators get all of this for free.
  *
- * Slots: default = the interactive tool; "content" = long-form explainer prose.
+ * Presentation modes:
+ *   'legacy'     — original arrangement: category eyebrow + review metadata
+ *                  above the tool. This is the default, so un-migrated pages
+ *                  render exactly as before.
+ *   'task-first' — one breadcrumb, H1, one-sentence intro, then the calculator
+ *                  immediately; trust signals (review date, methodology,
+ *                  references) move into an "About" block below the tool.
+ *
+ * Slots:
+ *   default        — the interactive tool (standardized position).
+ *   "belowTool"    — optional region directly under the tool (result
+ *                    explanation, assumptions) — placed before the long content.
+ *   "content"      — free-form explainer prose; the page controls the order of
+ *                    how-to / formulas / examples / assumptions within it.
+ * The header and calculator order are standardized; lower educational content
+ * may vary per page via the "content" slot and the "belowTool" region.
  */
 import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
@@ -16,6 +31,7 @@ import Icon from '@components/Icon.astro';
 import AdSlot from '@components/AdSlot.astro';
 import RelatedOffers from '@components/RelatedOffers.astro';
 import EmbedBox from '@components/EmbedBox.astro';
+import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
 import {
   type Calculator,
   getCategory,
@@ -23,29 +39,73 @@ import {
   calculatorPath,
   categoryPath,
 } from '@data/calculators';
-import { getClustersForCalculator, clusterPath } from '@data/clusters';
+import { getTaskGroupForCalculator, taskPath } from '@data/tasks';
 import { getReferencesForCalculator, referencePath } from '@data/reference';
 import { calculatorSchema, breadcrumbSchema, faqSchema } from '@lib/schema';
+import { MONETIZATION_CONFIG } from '@config/monetization';
+import { planCalculatorMonetization, type CalculatorMonetizationOptions } from '@lib/monetization/layout';
+import { MONETIZATION_CSS } from '@lib/monetization/styles';
 
 interface FAQ {
   question: string;
   answer: string;
 }
 
-interface Props {
-  calculator: Calculator;
-  /** Optional lead paragraph overriding the registry description. */
-  intro?: string;
-  faqs?: FAQ[];
-  /** ISO date this calculator's method was last reviewed (EEAT signal). */
-  reviewedOn?: string;
+/**
+ * Single source of truth for a calculator's trust signals. The layout decides
+ * WHERE these render from `presentation`; pages never hand-render review dates
+ * or reference links.
+ */
+export interface CalculatorReviewMetadata {
+  /** ISO date the method was last reviewed (EEAT signal). */
+  reviewedDate?: string;
+  /** Label shown beside the review date. Defaults to "Method reviewed for accuracy". */
+  methodLabel?: string;
+  /** Extra citations as {label, href}; internal reference-data pages are added automatically. */
+  references?: Array<{ label: string; href: string }>;
 }
 
-const { calculator, intro, faqs = [], reviewedOn } = Astro.props;
+interface Props {
+  calculator: Calculator;
+  /** One task-focused sentence stating exactly what the tool calculates. Required. */
+  intro: string;
+  faqs?: FAQ[];
+  /** Presentation mode; defaults to 'legacy' so un-migrated pages are unchanged. */
+  presentation?: 'legacy' | 'task-first';
+  /** Structured trust signals (review date, method label, references). */
+  reviewMetadata?: CalculatorReviewMetadata;
+  /** Legacy shorthand for reviewMetadata.reviewedDate; still used by un-migrated pages. Prefer reviewMetadata on new/migrated pages. */
+  reviewedOn?: string;
+  /**
+   * Monetization opt-in (R6). Expresses ELIGIBILITY only — every field is off by
+   * default, and the central `MONETIZATION_CONFIG` (all off) gates every
+   * placement, so this changes nothing until monetization is deliberately
+   * enabled. A page cannot pass provider ids or bypass consent/result gating.
+   */
+  monetization?: CalculatorMonetizationOptions;
+}
+
+const {
+  calculator,
+  intro,
+  faqs = [],
+  presentation = 'legacy',
+  reviewMetadata,
+  reviewedOn,
+  monetization,
+} = Astro.props;
+
+const taskFirst = presentation === 'task-first';
+
+// Normalize trust signals to one shape (structured prop wins; legacy string is a fallback).
+const review = reviewMetadata ?? (reviewedOn ? { reviewedDate: reviewedOn } : undefined);
+const methodLabel = review?.methodLabel ?? 'Method reviewed for accuracy';
+
 const category = getCategory(calculator.category)!;
 const path = calculatorPath(calculator);
 const related = getRelatedCalculators(calculator);
-const clusters = getClustersForCalculator(calculator.category, calculator.slug);
+// The task group is the calculator's PRIMARY home in the task-first IA.
+const taskGroup = getTaskGroupForCalculator(calculator.category, calculator.slug);
 const references = getReferencesForCalculator(calculator.category, calculator.slug);
 
 // Guides that reference this calculator — bidirectional internal linking.
@@ -54,26 +114,85 @@ const relatedGuides = (await getCollection('guides', ({ data }) => !data.draft))
   g.data.relatedCalculators.includes(calcRef),
 );
 
+// Breadcrumb follows the primary (task) hierarchy, falling back to the category
+// for any tool not yet mapped to a task group.
 const crumbs = [
   { name: 'Home', path: '/' },
-  { name: category.shortName, path: categoryPath(category) },
+  taskGroup
+    ? { name: taskGroup.shortName, path: taskPath(taskGroup) }
+    : { name: category.shortName, path: categoryPath(category) },
   { name: calculator.title, path },
 ];
 
 const jsonLd = [
-  calculatorSchema({ name: calculator.title, description: calculator.description, path, dateModified: reviewedOn }),
+  calculatorSchema({ name: calculator.title, description: calculator.description, path, dateModified: review?.reviewedDate }),
   breadcrumbSchema(crumbs),
   ...(faqs.length ? [faqSchema(faqs)] : []),
 ];
 
-const reviewedDisplay = reviewedOn
-  ? new Date(reviewedOn + 'T00:00:00Z').toLocaleDateString('en-US', {
+const reviewedDisplay = review?.reviewedDate
+  ? new Date(review.reviewedDate + 'T00:00:00Z').toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       timeZone: 'UTC',
     })
   : null;
+
+// Internal reference-data pages (registry) + any extra citations from metadata,
+// unified into one list for the task-first "About" block.
+const aboutReferences = [
+  ...references.map((r) => ({ label: r.shortName, href: referencePath(r) })),
+  ...(review?.references ?? []),
+];
+
+/* ---------------------------------------------------------------- */
+/* Monetization integration (R6)                                     */
+/* ---------------------------------------------------------------- */
+// Server-side plan from the central config + this page's opt-in. With the
+// production config (all off) every flag is false → `active`/`bridge` false →
+// none of the blocks below render, no monetization CSS/JS is emitted, and the
+// page is byte-identical to one with no monetization at all. Post-result
+// additionally requires a shared, client-observable result state (task-first).
+const monetizationPlan = planCalculatorMonetization({
+  config: MONETIZATION_CONFIG,
+  options: monetization,
+  hasSharedResultState: taskFirst,
+});
+
+// Monetization CSS (region + module + workspace + gate) lives in
+// @lib/monetization/styles and is emitted inline (see below) ONLY when a region
+// is active, so a disabled page ships zero monetization bytes.
+//
+// BYTE-IDENTITY NOTE: every monetization region below is a conditional appended
+// to its preceding sibling's line with NO intervening whitespace (and no new
+// comment lines in the element flow). Astro emits inter-node whitespace verbatim,
+// so a standalone `{cond && ...}` line — or even a `{/* */}` comment — would add
+// stray whitespace to EVERY calculator page even when the condition is false. The
+// same-line append renders to the empty string with zero surrounding whitespace
+// when off, keeping disabled pages byte-identical to the pre-monetization build.
+
+// Result-state bridge. Observes THIS calculator's result shells and reveals the
+// client-gated post-result region only for a fresh valid result (any one of the
+// percentage tool's independent equations qualifies the page). Pure logic mirrors
+// @lib/monetization/result-bridge (shellEligible/pageEligible); keep in sync.
+//
+// SCOPE: the shell query is rooted at this layout's `[data-calculator-workspace]`
+// element, NOT `document` — so an unrelated result shell elsewhere on the page
+// can never make this calculator's region eligible. Emitted inline ONLY when the
+// post-result region is active, so a disabled page has no monetization JS at all.
+const bridgeScript = `(function(){
+var ws=document.querySelector('[data-calculator-workspace]');
+if(!ws)return;
+var shells=ws.querySelectorAll(${JSON.stringify(monetizationPlan.resultSelector)});
+var gates=document.querySelectorAll('[data-mon-client-gated]');
+if(!shells.length||!gates.length)return;
+function ok(){for(var i=0;i<shells.length;i++){var e=shells[i];if(e.getAttribute('data-result-state')==='valid'&&e.getAttribute('data-result-activity')!=='calculating'&&e.getAttribute('data-stale')!=='true')return true;}return false;}
+function sync(){var v=ok();for(var j=0;j<gates.length;j++){gates[j].hidden=!v;gates[j].setAttribute('data-mon-eligible',v?'true':'false');}}
+var o=new MutationObserver(sync);
+for(var k=0;k<shells.length;k++){o.observe(shells[k],{attributes:true,attributeFilter:['data-result-state','data-result-activity','data-stale']});}
+sync();
+})();`;
 ---
 
 <BaseLayout
@@ -87,26 +206,35 @@ const reviewedDisplay = reviewedOn
     <Breadcrumbs crumbs={crumbs} />
 
     <header class="mt-5 max-w-3xl">
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
-        <Icon name={category.icon} size={16} />
-        <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
-        {
-          clusters.map((cl) => (
-            <Fragment>
-              <span aria-hidden="true" style="color: var(--muted)">·</span>
-              <a href={clusterPath(cl)} class="hover:underline">{cl.title}</a>
-            </Fragment>
-          ))
-        }
-      </div>
-      <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
+      {
+        !taskFirst && (
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
+            {
+              taskGroup ? (
+                <Fragment>
+                  <Icon name={taskGroup.icon} size={16} />
+                  <a href={taskPath(taskGroup)} class="hover:underline">{taskGroup.title}</a>
+                  <span aria-hidden="true" style="color: var(--muted)">·</span>
+                  <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
+                </Fragment>
+              ) : (
+                <Fragment>
+                  <Icon name={category.icon} size={16} />
+                  <a href={categoryPath(category)} class="hover:underline">{category.name}</a>
+                </Fragment>
+              )
+            }
+          </div>
+        )
+      }
+      <h1 class={taskFirst ? 'text-3xl font-extrabold tracking-tight sm:text-4xl' : 'mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl'}>
         {calculator.title}
       </h1>
       <p class="mt-3 text-lg" style="color: var(--muted)">
-        {intro ?? calculator.description}
+        {intro}
       </p>
       {
-        reviewedDisplay && (
+        !taskFirst && reviewedDisplay && (
           <p class="mt-3 inline-flex items-center gap-1.5 text-xs" style="color: var(--muted)">
             <svg class="h-4 w-4" style="color: var(--color-accent-600)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -116,7 +244,7 @@ const reviewedDisplay = reviewedOn
         )
       }
       {
-        references.length > 0 && (
+        !taskFirst && references.length > 0 && (
           <p class="mt-3 text-sm" style="color: var(--muted)">
             Reference:{' '}
             {references.map((r, i) => (
@@ -133,16 +261,42 @@ const reviewedDisplay = reviewedOn
     </header>
 
     <!-- Interactive tool -->
-    <section class="mt-8" aria-label={`${calculator.title} tool`}>
-      <slot />
-    </section>
-
+    {
+      monetizationPlan.sidebar ? (
+        <div class="mon-workspace" data-mon-workspace>
+          <section
+            class:list={['mon-workspace__core', taskFirst ? 'mt-6' : 'mt-8']}
+            aria-label={`${calculator.title} tool`}
+            data-calculator-workspace={monetizationPlan.bridge ? '' : undefined}
+          >
+            <slot />
+          </section>
+          <MonetizationRegion
+            placement="calculator-sidebar"
+            allowSidebar={true}
+            pageSlug={calculator.slug}
+            category={calculator.category}
+            class="mon-workspace__aside"
+          />
+        </div>
+      ) : (
+        <section
+          class={taskFirst ? 'mt-6' : 'mt-8'}
+          aria-label={`${calculator.title} tool`}
+          data-calculator-workspace={monetizationPlan.bridge ? '' : undefined}
+        >
+          <slot />
+        </section>
+      )
+    }
+    {/* Optional region hugging the tool (result explanation, assumptions); emits nothing unless a page fills it. */}
+    {Astro.slots.has('belowTool') && <slot name="belowTool" />}{monetizationPlan.postResult && <MonetizationRegion placement="calculator-post-result" resultGate="client" pageSlug={calculator.slug} category={calculator.category} class="mt-8 max-w-3xl" />}
     <AdSlot placement="below-tool" class="mt-10 max-w-3xl" />
 
     <!-- Explainer content -->
     <div class="prose mt-12">
       <slot name="content" />
-    </div>
+    </div>{monetizationPlan.inContent && <MonetizationRegion placement="calculator-in-content" pageSlug={calculator.slug} category={calculator.category} class="mt-12 max-w-3xl" />}
 
     <!-- Related guides -->
     {
@@ -209,6 +363,40 @@ const reviewedDisplay = reviewedOn
           </ul>
         </section>
       )
+    }{monetizationPlan.relatedTools && <MonetizationRegion placement="related-tools" pageSlug={calculator.slug} category={calculator.category} class="mt-8" />}
+
+    {/* Trust signals (task-first): review date, methodology and references, below the tool */}
+    {
+      taskFirst && (reviewedDisplay || aboutReferences.length > 0) && (
+        <section class="mt-16 max-w-3xl border-t pt-8" style="border-color: var(--line)" aria-labelledby="about-heading">
+          <h2 id="about-heading" class="text-2xl font-bold">About this calculator</h2>
+          {reviewedDisplay && (
+            <p class="mt-3 inline-flex items-center gap-1.5 text-sm" style="color: var(--muted)">
+              <svg class="h-4 w-4" style="color: var(--color-accent-600)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {methodLabel} on {reviewedDisplay}
+            </p>
+          )}
+          <p class="mt-3 text-sm" style="color: var(--fg)">
+            Built on transparent, unit-tested formulas that run entirely in your browser — see{' '}
+            <a href="/methodology" class="font-semibold hover:underline" style="color: var(--color-brand-600)">how we build our calculators</a>.
+          </p>
+          {aboutReferences.length > 0 && (
+            <p class="mt-3 text-sm" style="color: var(--muted)">
+              References:{' '}
+              {aboutReferences.map((r, i) => (
+                <Fragment>
+                  {i > 0 && ', '}
+                  <a href={r.href} class="font-semibold hover:underline" style="color: var(--color-brand-600)">
+                    {r.label}
+                  </a>
+                </Fragment>
+              ))}
+            </p>
+          )}
+        </section>
+      )
     }
 
     <!-- Embed this calculator (authority/link program; renders only when enabled) -->
@@ -218,7 +406,7 @@ const reviewedDisplay = reviewedOn
       embedPath={`/embed/${calculator.category}/${calculator.slug}`}
       canonicalPath={path}
       noun="calculator"
-    />
+    />{monetizationPlan.active && <style is:inline set:html={MONETIZATION_CSS} />}{monetizationPlan.bridge && <script is:inline set:html={bridgeScript} />}
 
   </div>
 </BaseLayout>

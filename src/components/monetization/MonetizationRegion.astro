@@ -1,0 +1,156 @@
+---
+/**
+ * MonetizationRegion (R5) — the higher-level orchestrator.
+ *
+ * Resolves the central config (via the pure `@lib/monetization/policy`
+ * resolvers), decides whether a placement may render, which revenue module, in
+ * what slot state, with which disclosure and reservation/collapse behaviour,
+ * then renders a labelled `complementary` region wrapping the specialized
+ * module. It NEVER renders inside a result primitive — it is a sibling of the
+ * result, not part of it.
+ *
+ * Everything is off by default: with the production `MONETIZATION_CONFIG` a
+ * region resolves to `disabled` and renders nothing (no wrapper, no space, no
+ * request). The internal `/dev/monetization` demo passes its own config +
+ * `demonstrationState` to showcase every state with placeholders only.
+ */
+import { MONETIZATION_CONFIG } from '@config/monetization';
+import RevenueModule from './RevenueModule.astro';
+import {
+  resolvePlacement,
+  noFillCollapses,
+  reservesDimensions,
+  type MonetizationPlacement,
+  type MonetizationSlotState,
+  type MonetizationConfig,
+  type ConsentState,
+  type ResultState,
+} from '@lib/monetization/policy';
+
+interface Props {
+  placement: MonetizationPlacement;
+  pageSlug?: string;
+  category?: string;
+  resultState?: ResultState;
+  resultIsStale?: boolean;
+  allowSidebar?: boolean;
+  /**
+   * Where the post-result result-state gate is enforced. `'server'` (default)
+   * uses the static result state (dev demo, no-JS). `'client'` defers the
+   * result-state axis to the runtime bridge: the region renders its markup (if
+   * config + consent permit) but starts `hidden`, and the bridge reveals it only
+   * for a fresh valid result. Config/consent/global gating are unaffected — a
+   * client-gated region on the production (off) config still renders nothing.
+   */
+  resultGate?: 'server' | 'client';
+  /** Internal-demo only: force a slot state to showcase it. */
+  demonstrationState?: MonetizationSlotState;
+  /** Internal-demo only: whether a lazy slot has entered the viewport. */
+  seen?: boolean;
+  /** Defaults to the production config (all off). The demo passes its own. */
+  config?: MonetizationConfig;
+  /** Demo consent simulation; defaults to denied inside the resolver. */
+  consent?: ConsentState;
+  class?: string;
+}
+
+const {
+  placement,
+  pageSlug,
+  category,
+  resultState,
+  resultIsStale,
+  allowSidebar,
+  resultGate = 'server',
+  demonstrationState,
+  seen = true,
+  config = MONETIZATION_CONFIG,
+  consent,
+  class: className = '',
+} = Astro.props;
+
+// Client-gated: the layout owns the result-state gate via the runtime bridge, so
+// resolve as if a fresh valid result exists (config/consent still apply) and
+// render the markup `hidden` until the bridge confirms eligibility client-side.
+const clientGated = resultGate === 'client';
+
+const resolved = resolvePlacement(config, placement, {
+  category,
+  slug: pageSlug,
+  resultState: clientGated ? 'valid' : resultState,
+  resultIsStale: clientGated ? false : resultIsStale,
+  allowSidebar,
+  consent,
+});
+
+// A placement that is NOT permitted is always `disabled` (renders nothing) — the
+// demo's `demonstrationState` can only showcase a state for a PERMITTED
+// placement, so consent/result/sidebar gating is never bypassed. When permitted:
+// the demo forces the state; otherwise a static module renders immediately
+// (`filled`) and an ad reserves first (`reserved`). The production config keeps
+// every placement off, so live pages always resolve to `disabled`.
+const state: MonetizationSlotState = !resolved.permitted
+  ? 'disabled'
+  : (demonstrationState ?? (resolved.isStaticModule ? 'filled' : 'reserved'));
+
+// no-fill / failed may collapse (render nothing) or retain the reservation.
+const collapsed =
+  (state === 'no-fill' || state === 'failed') && noFillCollapses(resolved, seen);
+
+const showModule = state === 'filled';
+const showReservation = (state === 'reserved' || state === 'loading' || (!collapsed && (state === 'no-fill' || state === 'failed'))) &&
+  reservesDimensions(resolved, state);
+
+const render = state !== 'disabled' && !collapsed;
+
+const reserveH = placement === 'calculator-sidebar' ? 250 : 90;
+const regionLabel =
+  resolved.module === 'ad'
+    ? 'Advertisement'
+    : resolved.module === 'affiliate' || resolved.module === 'sponsored'
+      ? 'Sponsored content'
+      : 'Promoted';
+---
+
+{
+  render && (
+    <aside
+      class:list={['mon-region', className]}
+      role="complementary"
+      aria-label={regionLabel}
+      data-mon-region
+      data-mon-placement={placement}
+      data-mon-state={state}
+      data-mon-module={resolved.module}
+      data-mon-client-gated={clientGated ? '' : undefined}
+      data-mon-eligible={clientGated ? 'false' : undefined}
+      hidden={clientGated || undefined}
+    >
+      {showModule && resolved.module && (
+        <>
+          {resolved.module === 'ad' && <p class="mon-region__label">Advertisement</p>}
+          <RevenueModule kind={resolved.module} disclosure={resolved.disclosure} />
+        </>
+      )}
+
+      {!showModule && (
+        <div
+          class="mon-region__reserve"
+          data-mon-reserve={String(showReservation)}
+          style={showReservation ? `min-height:${reserveH}px` : undefined}
+        >
+          {state === 'loading' && <span class="mon-region__loading" aria-hidden="true">Loading advertisement…</span>}
+          {state === 'reserved' && <span class="mon-region__placeholder">Reserved ({placement}) — demo placeholder</span>}
+          {(state === 'no-fill' || state === 'failed') && (
+            <span class="mon-region__placeholder">No ad to show — reservation retained to avoid layout shift</span>
+          )}
+        </div>
+      )}
+    </aside>
+  )
+}
+
+{/* Styles intentionally live in @lib/monetization/styles (MONETIZATION_CSS),
+    emitted inline ONLY where a region renders. A scoped <style> here would be
+    linked onto every page that references this component — even when it renders
+    nothing — breaking the disabled-page byte-identity guarantee. */}

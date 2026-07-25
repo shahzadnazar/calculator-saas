@@ -42,6 +42,10 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+// NOTE: the payoff-duration presenter lives in `@lib/format-duration` (R8C1.1), kept out
+// of this broadly-imported currency module so a duration change never rotates the asset
+// hash of unrelated `formatCurrency` consumers.
+
 /** Parse a user-entered numeric string, tolerating commas and stray spaces. */
 export function parseNumber(input: string | number | null | undefined): number {
   if (typeof input === 'number') return input;
