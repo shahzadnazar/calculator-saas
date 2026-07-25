@@ -168,6 +168,108 @@ function fillBody(tbody: HTMLElement | null, rows: readonly AmortRow[]): void {
 }
 
 /* ------------------------------------------------------------------ */
+/* Complete-result guard (pure) — the resultValue sentinel             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Explicit floating-point tolerances. Per-row `payment == principal + interest` is an exact float
+ * addition (buildAmortization stores `payment: principalPaid + interest`), so ROW_SUM_TOL is tiny;
+ * a fully-amortized final balance is exactly 0 (the last principal is capped at the balance), so
+ * ZERO_BAL_TOL only absorbs sub-cent noise; reconciliation sums scale with the loan, so RECON_TOL is
+ * relative. These are loose enough for legitimate float noise yet tight enough to reject a schedule
+ * malformed by dollars.
+ */
+const ROW_SUM_TOL = 1e-6;
+const ZERO_BAL_TOL = 1e-2;
+const reconTol = (magnitude: number) => Math.max(1, Math.abs(magnitude) * 1e-6);
+
+const FAIL = Number.NaN; // non-finite sentinel → the runtime's default finite gate rejects the result
+
+function rowsFiniteNonNegative(rows: readonly AmortRow[]): boolean {
+  for (const r of rows) {
+    if (
+      !Number.isFinite(r.period) ||
+      !Number.isFinite(r.payment) ||
+      !Number.isFinite(r.principal) ||
+      !Number.isFinite(r.interest) ||
+      !Number.isFinite(r.balance)
+    ) {
+      return false;
+    }
+    if (r.payment < 0 || r.principal < 0 || r.interest < 0 || r.balance < 0) return false;
+  }
+  return true;
+}
+
+/** Periods must run 1, 2, 3, … from the given start with no gaps or reordering. */
+function periodsOrderedFrom(rows: readonly AmortRow[], start: number): boolean {
+  for (let i = 0; i < rows.length; i++) if (rows[i].period !== start + i) return false;
+  return true;
+}
+
+/**
+ * The dominant monthly payment — but ONLY when the ENTIRE computed result is well-formed. The
+ * complete-result contract (summary + full monthly schedule + yearly schedule, with reconciliation)
+ * is enforced here so a malformed or non-reconciling result NEVER renders. Any failure returns the
+ * NaN sentinel, which the standard-form runtime's DEFAULT finite gate rejects (the Inflation /
+ * Square-Footage / Concrete / Triangle `resultValue`-guard pattern — NO `isUsableResult`).
+ */
+export function completeResultValue(result: AmortComputed): number {
+  const { monthlyPayment, totalInterest, totalPaid, payoffMonths, schedule, yearlySchedule } = result;
+
+  // --- Summary ---
+  if (!Number.isFinite(monthlyPayment) || monthlyPayment < 0) return FAIL;
+  if (!Number.isFinite(totalInterest) || totalInterest < 0) return FAIL;
+  if (!Number.isFinite(totalPaid) || totalPaid < 0) return FAIL;
+  if (
+    !Number.isFinite(payoffMonths) ||
+    !Number.isInteger(payoffMonths) ||
+    payoffMonths < 1 ||
+    payoffMonths > MAX_MONTHLY_ROWS
+  ) {
+    return FAIL;
+  }
+
+  // --- Monthly schedule ---
+  if (!Array.isArray(schedule)) return FAIL;
+  if (schedule.length !== payoffMonths) return FAIL;
+  if (schedule.length < 1 || schedule.length > MAX_MONTHLY_ROWS) return FAIL;
+  if (!periodsOrderedFrom(schedule, 1)) return FAIL;
+  if (!rowsFiniteNonNegative(schedule)) return FAIL;
+
+  let sumPrincipal = 0;
+  let sumInterest = 0;
+  for (const r of schedule) {
+    if (Math.abs(r.payment - (r.principal + r.interest)) > ROW_SUM_TOL) return FAIL;
+    sumPrincipal += r.principal;
+    sumInterest += r.interest;
+  }
+  if (Math.abs(schedule[schedule.length - 1].balance) > ZERO_BAL_TOL) return FAIL; // final ~ 0
+
+  // totalPaid = max(0, amount) + totalInterest, so the loan amount is totalPaid − totalInterest.
+  const loanAmount = totalPaid - totalInterest;
+  if (Math.abs(sumPrincipal - loanAmount) > reconTol(loanAmount)) return FAIL;
+  if (Math.abs(sumInterest - totalInterest) > reconTol(totalInterest)) return FAIL;
+
+  // --- Yearly schedule ---
+  if (!Array.isArray(yearlySchedule) || yearlySchedule.length < 1) return FAIL;
+  if (!periodsOrderedFrom(yearlySchedule, 1)) return FAIL;
+  if (!rowsFiniteNonNegative(yearlySchedule)) return FAIL;
+  if (Math.abs(yearlySchedule[yearlySchedule.length - 1].balance) > ZERO_BAL_TOL) return FAIL;
+
+  let ySumPrincipal = 0;
+  let ySumInterest = 0;
+  for (const y of yearlySchedule) {
+    ySumPrincipal += y.principal;
+    ySumInterest += y.interest;
+  }
+  if (Math.abs(ySumPrincipal - sumPrincipal) > reconTol(sumPrincipal)) return FAIL;
+  if (Math.abs(ySumInterest - sumInterest) > reconTol(sumInterest)) return FAIL;
+
+  return monthlyPayment;
+}
+
+/* ------------------------------------------------------------------ */
 /* The binding                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -186,22 +288,13 @@ export const amortizationBinding: FormCalculatorBinding<AmortValues, AmortComput
 
   compute: computeAmortization,
 
-  /** The dominant magnitude the runtime guards for finiteness. */
-  resultValue(result) {
-    return result.monthlyPayment;
-  },
+  /** The dominant monthly payment when the ENTIRE result is well-formed, else a NaN sentinel the
+   *  runtime's default finite gate rejects. The complete-result contract lives in this ordinary
+   *  result-value function — there is deliberately NO `isUsableResult` (the Inflation / Triangle
+   *  pattern). */
+  resultValue: completeResultValue,
 
-  /** Widen the gate to also assert the 360-row schedule contract: a usable result has a finite
-   *  monthly payment AND a non-empty schedule of at most MAX_MONTHLY_ROWS rows. Post-validation
-   *  (amount > 0, term 1–30) this always holds; the guard makes the invariant explicit and rejects
-   *  any malformed/empty schedule defensively rather than rendering it. */
-  isUsableResult(result) {
-    return (
-      Number.isFinite(result.monthlyPayment) &&
-      result.schedule.length >= 1 &&
-      result.schedule.length <= MAX_MONTHLY_ROWS
-    );
-  },
+  // No isUsableResult — the complete-result guard is the resultValue sentinel above.
 
   describeResult: describeAmortizationResult,
 

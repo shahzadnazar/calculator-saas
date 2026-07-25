@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   validateAmortizationValues,
   computeAmortization,
+  completeResultValue,
   describeAmortizationResult,
   spokenUSD,
   amortizationBinding,
   MAX_TERM_YEARS,
   MAX_MONTHLY_ROWS,
   TERM_MESSAGE,
+  type AmortComputed,
   type AmortValues,
 } from './amortization-form';
 
@@ -162,26 +164,104 @@ describe('computeAmortization', () => {
 });
 
 /* ------------------------------------------------------------------ */
-/* Usability gate — the 360-row schedule contract                      */
+/* Complete-result guard in resultValue (NO isUsableResult) — R11B1.1   */
 /* ------------------------------------------------------------------ */
 
-describe('amortizationBinding.isUsableResult', () => {
-  it('accepts a well-formed result', () => {
-    expect(amortizationBinding.isUsableResult!(computeAmortization(values()))).toBe(true);
+const good = (): AmortComputed => computeAmortization(values());
+/** completeResultValue returns a NaN sentinel on any failure. */
+const rejects = (r: AmortComputed) => Number.isNaN(completeResultValue(r));
+
+describe('amortization binding — resultValue complete-result guard', () => {
+  it('does NOT define isUsableResult (guard lives in resultValue)', () => {
+    expect(amortizationBinding.isUsableResult).toBeUndefined();
   });
-  it('rejects an empty schedule', () => {
-    const r = computeAmortization(values());
-    expect(amortizationBinding.isUsableResult!({ ...r, schedule: [] })).toBe(false);
+
+  it('the binding wires resultValue to completeResultValue', () => {
+    expect(amortizationBinding.resultValue).toBe(completeResultValue);
   });
-  it('rejects a schedule beyond the 360-row ceiling', () => {
-    const r = computeAmortization(values());
-    const tooMany = Array.from({ length: MAX_MONTHLY_ROWS + 1 }, () => r.schedule[0]);
-    expect(amortizationBinding.isUsableResult!({ ...r, schedule: tooMany })).toBe(false);
+
+  it('returns the dominant monthly payment for a well-formed result', () => {
+    const r = good();
+    expect(completeResultValue(r)).toBe(r.monthlyPayment);
+    expect(Number.isFinite(completeResultValue(r))).toBe(true);
   });
-  it('rejects a non-finite monthly payment', () => {
-    const r = computeAmortization(values());
-    expect(amortizationBinding.isUsableResult!({ ...r, monthlyPayment: Infinity })).toBe(false);
-    expect(amortizationBinding.isUsableResult!({ ...r, monthlyPayment: NaN })).toBe(false);
+
+  /* --- Summary failures --- */
+  it('rejects non-finite / negative summary values', () => {
+    expect(rejects({ ...good(), monthlyPayment: Infinity })).toBe(true);
+    expect(rejects({ ...good(), monthlyPayment: NaN })).toBe(true);
+    expect(rejects({ ...good(), monthlyPayment: -1 })).toBe(true);
+    expect(rejects({ ...good(), totalInterest: -1 })).toBe(true);
+    expect(rejects({ ...good(), totalPaid: -1 })).toBe(true);
+  });
+
+  it('rejects a non-whole or out-of-range payoffMonths', () => {
+    expect(rejects({ ...good(), payoffMonths: 359.5 })).toBe(true);
+    expect(rejects({ ...good(), payoffMonths: 0 })).toBe(true);
+  });
+
+  it('rejects a schedule OVER 360 rows', () => {
+    const r = good();
+    const rows = Array.from({ length: MAX_MONTHLY_ROWS + 1 }, (_, i) => ({ ...r.schedule[0], period: i + 1 }));
+    expect(rejects({ ...r, payoffMonths: MAX_MONTHLY_ROWS + 1, schedule: rows })).toBe(true);
+  });
+
+  /* --- Malformed MONTHLY schedule --- */
+  it('rejects an empty monthly schedule', () => {
+    expect(rejects({ ...good(), schedule: [] })).toBe(true);
+  });
+  it('rejects a schedule whose length disagrees with payoffMonths', () => {
+    const r = good();
+    expect(rejects({ ...r, schedule: r.schedule.slice(0, r.schedule.length - 1) })).toBe(true);
+  });
+  it('rejects out-of-order periods', () => {
+    const r = good();
+    const sched = r.schedule.map((row, i) => (i === 5 ? { ...row, period: 999 } : row));
+    expect(rejects({ ...r, schedule: sched })).toBe(true);
+  });
+  it('rejects a non-finite or negative row value', () => {
+    const r = good();
+    expect(rejects({ ...r, schedule: r.schedule.map((row, i) => (i === 0 ? { ...row, balance: NaN } : row)) })).toBe(true);
+    expect(rejects({ ...r, schedule: r.schedule.map((row, i) => (i === 0 ? { ...row, principal: -1 } : row)) })).toBe(true);
+  });
+  it('rejects a row where payment ≠ principal + interest', () => {
+    const r = good();
+    const sched = r.schedule.map((row, i) => (i === 0 ? { ...row, payment: row.payment + 1 } : row));
+    expect(rejects({ ...r, schedule: sched })).toBe(true);
+  });
+  it('rejects a non-zero FINAL balance', () => {
+    const r = good();
+    const sched = r.schedule.map((row, i) => (i === r.schedule.length - 1 ? { ...row, balance: 100 } : row));
+    expect(rejects({ ...r, schedule: sched })).toBe(true);
+  });
+
+  /* --- Reconciliation failures --- */
+  it('rejects a PRINCIPAL reconciliation failure (loan amount does not match the schedule)', () => {
+    // loanAmount = totalPaid − totalInterest; inflating totalPaid breaks the principal reconciliation.
+    expect(rejects({ ...good(), totalPaid: good().totalPaid + 10_000 })).toBe(true);
+  });
+  it('rejects an INTEREST reconciliation failure', () => {
+    const r = good();
+    // Shift one row's interest AND payment together (row-sum still holds) so only the interest total drifts.
+    const sched = r.schedule.map((row, i) =>
+      i === 0 ? { ...row, interest: row.interest + 5_000, payment: row.payment + 5_000 } : row,
+    );
+    expect(rejects({ ...r, schedule: sched })).toBe(true);
+  });
+
+  /* --- Malformed YEARLY schedule --- */
+  it('rejects an empty yearly schedule', () => {
+    expect(rejects({ ...good(), yearlySchedule: [] })).toBe(true);
+  });
+  it('rejects a non-zero final YEARLY balance', () => {
+    const r = good();
+    const yearly = r.yearlySchedule.map((row, i) => (i === r.yearlySchedule.length - 1 ? { ...row, balance: 100 } : row));
+    expect(rejects({ ...r, yearlySchedule: yearly })).toBe(true);
+  });
+  it('rejects a YEARLY reconciliation failure vs the monthly rows', () => {
+    const r = good();
+    const yearly = r.yearlySchedule.map((row, i) => (i === 0 ? { ...row, principal: row.principal + 10_000 } : row));
+    expect(rejects({ ...r, yearlySchedule: yearly })).toBe(true);
   });
 });
 

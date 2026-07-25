@@ -1,19 +1,23 @@
 ---
 /**
- * Amortization calculator island (R11B1 Commit 2 — task-first migration).
+ * Amortization calculator island (R11B1 + R11B1.1 hardening).
  *
- * Task-first, direct-intent: all fields start EMPTY, the result is an instruction (not the legacy
- * $250,000 / 6.5% / 30-year sample), and the visitor presses "Calculate Schedule" for the first
- * result; live-after-first afterwards. Compute, validation, state, announcement and focus are owned
- * by the shared runtime + the amortization binding (@lib/calculators/amortization-form), which wraps
- * the UNCHANGED calculateLoan / @lib/finance engine.
+ * Task-first, direct-intent: all fields start EMPTY, the result is an instruction, and the visitor
+ * presses "Calculate Amortization" for the first result; live-after-first afterwards. Compute,
+ * validation, state, announcement and focus are owned by the shared runtime + the amortization
+ * binding (@lib/calculators/amortization-form), which wraps the UNCHANGED calculateLoan / @lib/finance
+ * engine. The complete-result guard lives in the binding's resultValue (a NaN sentinel → the runtime's
+ * default finite gate) — there is NO isUsableResult.
  *
- * The loan term is a migrated-product boundary — required, whole, 1–30 years — which bounds the
- * monthly schedule to at most 360 rows. The schedule renders EVERY row (yearly summary + full
- * monthly breakdown, no pagination and no virtualization) inside a scrolled container, built with the
- * DOM API (never innerHTML). Yearly is the default view; Monthly is on demand. The Yearly/Monthly
- * selector is a STRUCTURAL, presentation-only control the ISLAND owns: it toggles which view is
- * visible over the already-rendered schedule without recomputing.
+ * The schedule is a native <details> DISCLOSURE, closed by default: the dominant monthly payment +
+ * totals show first, and the visitor opens "View amortization schedule" on demand. Inside, the FULL
+ * schedule renders every row (yearly summary + monthly breakdown, no pagination / virtualization),
+ * built with the DOM API (never innerHTML), into a semantic <table> (caption + scoped headers). The
+ * Yearly (default) / Monthly view is NATIVE RADIO inputs the ISLAND owns — a presentation switch over
+ * the already-rendered rows that never recomputes and never announces. The island also reacts to
+ * runtime state changes it does not itself cause: leaving `valid` (an invalid live edit) drops the
+ * stale/possibly-malformed rows; returning to `empty` (Reset) also closes the disclosure and restores
+ * the Yearly default.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
@@ -53,7 +57,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     </div>
 
     <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-am-submit>Calculate Schedule</button>
+      <button type="submit" class="btn btn-primary" data-am-submit>Calculate Amortization</button>
       <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
     <p class="am-live-note" data-live-note hidden>Changes update automatically.</p>
@@ -75,34 +79,41 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         </dl>
       </div>
 
-      <div class="am-schedule" data-am-schedule data-am-view="yearly">
-        <div class="am-schedule__head">
-          <h3 class="am-schedule__title">Amortization schedule</h3>
-          <div class="am-view" role="radiogroup" aria-label="Schedule view">
-            <button type="button" class="am-view-btn is-active" data-am-view-btn="yearly" role="radio" aria-checked="true">Yearly</button>
-            <button type="button" class="am-view-btn" data-am-view-btn="monthly" role="radio" aria-checked="false" tabindex="-1">Monthly</button>
-          </div>
-        </div>
+      <details class="am-disclosure" data-am-disclosure>
+        <summary class="am-disclosure__summary">
+          <span>View amortization schedule</span>
+          <svg class="am-disclosure__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
 
-        <div class="am-table-wrap">
-          <table class="am-table">
-            <caption class="sr-only">Amortization schedule showing principal paid, interest paid and remaining balance for each period.</caption>
-            <thead>
-              <tr>
-                <th scope="col" class="am-th-period">
-                  <span data-am-when-view="yearly">Year</span><span data-am-when-view="monthly">Month</span>
-                </th>
-                <th scope="col" class="am-num">Principal</th>
-                <th scope="col" class="am-num">Interest</th>
-                <th scope="col" class="am-num">Balance</th>
-              </tr>
-            </thead>
-            <tbody data-am-rows="yearly"></tbody>
-            <tbody data-am-rows="monthly"></tbody>
-          </table>
+        <div class="am-schedule" data-am-schedule data-am-view="yearly">
+          <fieldset class="am-view">
+            <legend class="sr-only">Schedule view</legend>
+            <div class="am-view__group">
+              <label class="am-view__opt"><input type="radio" name="am-view" value="yearly" checked data-am-view-radio /><span>Yearly</span></label>
+              <label class="am-view__opt"><input type="radio" name="am-view" value="monthly" data-am-view-radio /><span>Monthly</span></label>
+            </div>
+          </fieldset>
+
+          <div class="am-table-wrap">
+            <table class="am-table">
+              <caption class="sr-only">Amortization schedule showing principal paid, interest paid and remaining balance for each period.</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="am-th-period">
+                    <span data-am-when-view="yearly">Year</span><span data-am-when-view="monthly">Month</span>
+                  </th>
+                  <th scope="col" class="am-num">Principal</th>
+                  <th scope="col" class="am-num">Interest</th>
+                  <th scope="col" class="am-num">Balance</th>
+                </tr>
+              </thead>
+              <tbody data-am-rows="yearly"></tbody>
+              <tbody data-am-rows="monthly"></tbody>
+            </table>
+          </div>
+          <p class="am-schedule__note">Balances are shown to the nearest dollar. Amounts are in US dollars (USD).</p>
         </div>
-        <p class="am-schedule__note">Balances are shown to the nearest dollar. Amounts are in US dollars (USD).</p>
-      </div>
+      </details>
     </div>
 
     <InvalidResult
@@ -175,46 +186,81 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     white-space: nowrap;
   }
 
-  /* Schedule */
-  .am-schedule {
-    margin-top: 1.75rem;
+  /* Disclosure */
+  .am-disclosure {
+    margin-top: 1.5rem;
     border-top: 1px solid var(--line);
-    padding-top: 1.25rem;
+    padding-top: 1rem;
   }
-  .am-schedule__head {
+  .am-disclosure__summary {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-  .am-schedule__title {
-    font-size: 1.05rem;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
     font-weight: 700;
     color: var(--heading);
-    margin: 0;
+    padding: 0.35rem 0;
   }
+  .am-disclosure__summary::-webkit-details-marker {
+    display: none;
+  }
+  .am-disclosure__summary:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 0.35rem;
+  }
+  .am-disclosure__chevron {
+    flex: none;
+    transition: transform 0.15s ease;
+    color: var(--muted);
+  }
+  .am-disclosure[open] .am-disclosure__chevron {
+    transform: rotate(180deg);
+  }
+
+  .am-schedule {
+    margin-top: 0.75rem;
+  }
+
+  /* View selector — native radios styled as a segmented control */
   .am-view {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+  }
+  .am-view__group {
     display: inline-flex;
     border: 1px solid var(--line);
     border-radius: 0.55rem;
     padding: 0.125rem;
   }
-  .am-view-btn {
-    padding: 0.3rem 0.85rem;
+  .am-view__opt {
+    position: relative;
+    display: inline-flex;
+  }
+  .am-view__opt input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+  .am-view__opt span {
+    padding: 0.35rem 0.9rem;
     border-radius: 0.45rem;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--muted);
-    cursor: pointer;
-    background: transparent;
-    border: 0;
   }
-  .am-view-btn.is-active {
+  .am-view__opt:has(input:checked) span {
     background: var(--color-brand-600);
     color: #fff;
   }
-  .am-view-btn:focus-visible {
+  .am-view__opt:has(input:focus-visible) span {
     outline: 2px solid var(--color-brand-600);
     outline-offset: 2px;
   }
@@ -285,37 +331,45 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   document.querySelectorAll<HTMLElement>('[data-amort]').forEach((root) => {
     mountFormCalculator(root, amortizationBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate Schedule',
+      calculateButtonLabel: 'Calculate Amortization',
     });
 
-    // The island owns the Yearly/Monthly view — a presentation-only switch over the schedule the
-    // runtime already rendered in full. It never recomputes; it flips which view is visible.
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    const disclosure = root.querySelector<HTMLDetailsElement>('[data-am-disclosure]');
     const schedule = root.querySelector<HTMLElement>('[data-am-schedule]');
-    const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-am-view-btn]'));
+    const radios = Array.from(root.querySelectorAll<HTMLInputElement>('[data-am-view-radio]'));
 
-    const setView = (view: string) => {
-      if (schedule) schedule.dataset.amView = view;
-      for (const b of buttons) {
-        const on = b.dataset.amViewBtn === view;
-        b.classList.toggle('is-active', on);
-        b.setAttribute('aria-checked', String(on));
-        b.tabIndex = on ? 0 : -1;
-      }
+    // The island owns the Yearly/Monthly view — a presentation-only switch over the schedule the
+    // runtime already rendered in full. Native radios: focus stays on the selected radio, no
+    // recompute (they sit OUTSIDE the form), no announcement.
+    const applyView = () => {
+      const checked = radios.find((r) => r.checked)?.value ?? 'yearly';
+      if (schedule) schedule.dataset.amView = checked;
+    };
+    for (const r of radios) r.addEventListener('change', applyView);
+
+    const clearRows = () =>
+      root.querySelectorAll<HTMLElement>('[data-am-rows]').forEach((tb) => tb.replaceChildren());
+    const restoreYearly = () => {
+      for (const r of radios) r.checked = r.value === 'yearly';
+      applyView();
     };
 
-    for (const b of buttons) {
-      b.addEventListener('click', () => setView(b.dataset.amViewBtn ?? 'yearly'));
-      // Roving arrow keys within the two-option radiogroup.
-      b.addEventListener('keydown', (e) => {
-        if (!['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-        e.preventDefault();
-        const next = (b.dataset.amViewBtn ?? 'yearly') === 'yearly' ? 'monthly' : 'yearly';
-        setView(next);
-        root.querySelector<HTMLButtonElement>(`[data-am-view-btn="${next}"]`)?.focus();
+    // React to runtime state transitions the island does not itself cause. Leaving `valid` (an
+    // invalid live edit) drops the stale/possibly-malformed rows so a malformed schedule can never
+    // remain in the DOM; returning to `empty` (Reset) also closes the disclosure and restores Yearly.
+    // A `valid` update is owned by the binding's renderResult, so the observer never touches it.
+    if (shell) {
+      const observer = new MutationObserver(() => {
+        const state = shell.dataset.resultState;
+        if (state === 'valid') return;
+        clearRows();
+        if (state === 'empty') {
+          if (disclosure) disclosure.open = false;
+          restoreYearly();
+        }
       });
+      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-
-    // Reset returns the view to the Yearly default.
-    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => setView('yearly'));
   });
 </script>
