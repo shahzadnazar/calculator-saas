@@ -12,7 +12,7 @@ const faqs = [
   { question: 'How can I pay off a loan faster?', answer: 'Extra payments applied to principal shrink the balance ahead of schedule, which lowers the interest charged on every future payment. Even small additional amounts early in the loan — when interest dominates — save a surprising amount over the full term.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="See exactly how each payment on a loan splits between principal and interest, and how the balance falls over the full term — month by month or year by year." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="See exactly how each payment on a loan splits between principal and interest, and how the balance falls over the full term — month by month or year by year." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <AmortizationCalculator />
   <Fragment slot="content">
     <h2>How amortization works</h2>

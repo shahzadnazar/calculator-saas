@@ -144,15 +144,15 @@ validation patterns, responsive density tokens, and monetization boundaries.
 count — any "48 island/calculator" figure elsewhere in the docs is stale and
 replaced by the table below.**
 
-**Audit date:** 2026-07-25 · **Source commit:** this R10D1 migration (Triangle —
-GEOMETRY FAMILY COMPLETE; see the provenance table). Re-run and refresh the date,
-commit and counts whenever the fleet changes.
+**Audit date:** 2026-07-25 · **Source commit:** this R11B1 migration (Amortization —
+first FINANCIAL-SCHEDULE migration; see the provenance table). Re-run and refresh the
+date, commit and counts whenever the fleet changes.
 
 | Metric | Value |
 |---|---|
 | Total live calculators | **49** |
-| Migrated (task-first + shared runtime) | **22** — scientific, bmi, **bmr**, **ideal-weight**, **protein**, **body-fat**, **calorie**, **target-heart-rate**, **fat-intake**, **pace**, **sales-tax**, **payment**, **credit-card-payoff**, **savings**, **simple-interest**, **tip**, **inflation**, **square-footage**, **concrete**, **triangle**, percent, password-generator |
-| Not migrated (legacy) | **27** |
+| Migrated (task-first + shared runtime) | **23** — scientific, bmi, **bmr**, **ideal-weight**, **protein**, **body-fat**, **calorie**, **target-heart-rate**, **fat-intake**, **pace**, **sales-tax**, **payment**, **credit-card-payoff**, **savings**, **simple-interest**, **tip**, **inflation**, **square-footage**, **concrete**, **triangle**, **amortization**, percent, password-generator |
+| Not migrated (legacy) | **26** |
 | Approved exceptions | **0** |
 | Distinct Astro islands | **47** — statistics + standard-deviation share `StatisticsCalculator` via a `primary` prop; **scientific uses `PhysicalCalculator`** (`components/calc/`, not an island) |
 | Embed exposure | **all 49** — each calculator is served by a **generated per-slug static page** `src/pages/embed/<category>/<slug>.astro` (R7D1; the dynamic `IslandBySlug` route was retired). Same public URLs; each page bundles only its own island's scoped CSS |
@@ -218,6 +218,8 @@ what the R1–R7 program closes.
 | R10C1 | concrete-calculator (**second geometry migration**; converting native-RADIO input unit ft/m over length + width + depth (Pace `convertValues`, 3 fields); cubic-yards dominant + m³/ft³ equivalents + a fixed 40/60/80 lb bag table; **NO cost** — cost FAQ clarified; waste optional, no legacy 10% prefill; runtime UNCHANGED, no `isUsableResult` — guard in `resultValue`) | `4861f3a` |
 | R10D1 chars | triangle formula characterization (consolidated out of the shared `batch-d.test.ts` into a dedicated `triangle.test.ts`; ordinary valid triangles + side ordering + every strict-inequality path (degenerate equality invalid) + non-positive/non-finite dimensions + the invalid sentinel + the frozen NaN-side `valid:true` quirk + Heron/angle/rounding; parity net; no formula change) | `3c7307f` |
 | R10D1 | triangle-calculator (**third/final geometry migration — family COMPLETE**; SSS three sides → area dominant + perimeter/angles/classification; **cross-field domain validation** — the triangle inequality is ONE form-level error (`formError`, no side blamed), the island returns focus to Side A on explicit submit and reveals the "sum of any two sides…" hint only for that case; NO unit selector (unitless / square units); runtime UNCHANGED, no `isUsableResult` — complete-result guard in `resultValue`) | *(this R10D1 migration commit)* |
+| R11B1 chars | @lib/finance (`pmt` / `buildAmortization` / `collapseYearly`) + `calculateLoan` dedicated characterization — the shared loan engine, previously covered only INDIRECTLY through consumers (parity net; no formula change) | `455ca68` |
+| R11B1 | amortization-calculator (**first financial-SCHEDULE migration**; loan term is a migrated-product boundary — whole, 1–30 years → a **360-row monthly cap**; the FULL schedule renders every row — yearly summary + monthly breakdown, no pagination/virtualization — built via the DOM API, **never `innerHTML`**, with an ISLAND-owned yearly/monthly view; runtime UNCHANGED; `isUsableResult` asserts the 360-row contract) | *(this R11B1 migration commit)* |
 
 **Fleet after R8D1:** 49 total · **16 migrated** · **33 legacy** · **0 approved exceptions**. **Embed architecture:** 49 generated static calculator routes · 0 dynamic calculator embed routes · **0 unrelated calculator-scoped CSS per embed** (enforced). **Multi-mode family COMPLETE** — all four are migrated on the standard-form runtime: Sales Tax (simplest: same two fields), Payment (conditional field + summary-only informational "Never"), Credit-Card Payoff (conditional field + an ENRICHED interest/total-paid breakdown + informational "Never"), and Savings (project/goal conditional field + a projection breakdown + a valid-$0 "already reached" outcome). Payment/Credit-Card use the accepted `isUsableResult` gate; **Savings needs neither a new extension nor even `isUsableResult`** (its "already reached" answer is a finite $0 that the default gate accepts). **No dedicated multi-mode or financial-report runtime was ever built** — Savings' latent yearly series stays unrendered (summary-only), and any future schedule would be binding-owned markup (the BMR/calorie table precedent), not a runtime.
 
