@@ -29,6 +29,7 @@ const PILOTS = [
   { route: '/everyday/concrete-calculator', structure: 'form (geometry; converting radio unit; bag table; no cost)' },
   { route: '/math/triangle-calculator', structure: 'form (geometry; cross-field domain validation; area primary)' },
   { route: '/math/area-calculator', structure: 'form (geometry shape-picker; conditional per-shape fields; interpretive unit)' },
+  { route: '/math/volume-calculator', structure: 'form (geometry shape-picker; 3D conditional per-shape fields; interpretive cubic unit)' },
   { route: '/finance/amortization-calculator', structure: 'form (financial schedule; 360-row table; yearly/monthly view)' },
   { route: '/finance/auto-loan-calculator', structure: 'form (complex-form; term select + finance checkbox; negative equity)' },
   { route: '/finance/investment-calculator', structure: 'form (complex-form; collective funding; nominal projection; negative growth)' },

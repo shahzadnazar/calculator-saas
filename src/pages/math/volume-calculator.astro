@@ -12,7 +12,7 @@ const faqs = [
   { question: 'What units is the volume in?', answer: 'Enter all dimensions in the same unit; the volume is in that unit cubed (e.g. cubic metres or cubic feet). Choose a unit label to match your measurements.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid or capsule — select the shape and enter its dimensions." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid or capsule — select the shape and enter its dimensions." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <VolumeCalculator />
   <Fragment slot="content">
     <h2>Volume formulas, with worked examples</h2>
