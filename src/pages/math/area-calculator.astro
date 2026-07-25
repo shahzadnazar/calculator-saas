@@ -11,7 +11,7 @@ const faqs = [
   { question: 'What units does the area come out in?', answer: 'Enter all measurements in the same unit; the area is in that unit squared. Select a unit label (cm, m, in, ft, yd) to match your measurements.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate the area of a rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse — just pick the shape and enter its dimensions." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the area of a rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse — just pick the shape and enter its dimensions." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <AreaCalculator />
   <Fragment slot="content">
     <h2>Area formulas, with worked examples</h2>
