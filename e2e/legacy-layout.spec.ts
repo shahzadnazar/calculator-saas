@@ -10,7 +10,7 @@ import { test, expect, type Page } from '@playwright/test';
  * whitespace-ignoring diff of every page; these tests lock the behaviour in CI.)
  */
 const LEGACY = [
-  { route: '/finance/mortgage-calculator', category: 'finance' },
+  { route: '/finance/loan-calculator', category: 'finance' }, // mortgage migrated in R11E1; loan stays legacy
   { route: '/health/due-date-calculator', category: 'health' }, // target-heart-rate migrated in R7C-2C; this stays legacy
   { route: '/math/area-calculator', category: 'math' },
   { route: '/everyday/age-calculator', category: 'everyday' },

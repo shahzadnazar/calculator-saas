@@ -50,7 +50,7 @@ test('the standard-deviation embed renders the shared statistics island via the 
   await expect(page.locator('main.embed-main').locator('input, textarea, button').first()).toBeVisible();
 });
 
-test('a representative legacy embed (mortgage) renders its interactive tool', async ({ page }) => {
+test('a representative finance embed (mortgage) renders its interactive tool', async ({ page }) => {
   await page.goto('/embed/finance/mortgage-calculator', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('main.embed-main h1')).toContainText('Mortgage');
   await expect(page.locator('main.embed-main').locator('input').first()).toBeVisible();

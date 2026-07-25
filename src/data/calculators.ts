@@ -110,7 +110,7 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'finance',
     status: 'live',
     description:
-      'Estimate your monthly mortgage payment including principal, interest, property tax, insurance and PMI, with a full amortization schedule.',
+      'Estimate your monthly mortgage payment including principal, interest, property tax, insurance and PMI, and a year-by-year amortization schedule.',
     keywords: ['mortgage calculator', 'monthly mortgage payment', 'home loan calculator', 'amortization schedule'],
     aliases: ['home loan calculator', 'house loan calculator', 'home mortgage calculator'],
     phrases: ['house loan', 'home loan', 'monthly house payment', 'buy a house', 'mortgage payment'],

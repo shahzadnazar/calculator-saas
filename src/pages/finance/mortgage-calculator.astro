@@ -36,9 +36,10 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
-  intro="Estimate your full monthly mortgage payment — principal, interest, property tax, insurance, PMI and HOA — and see a complete amortization schedule. Adjust any value to compare scenarios instantly."
+  presentation="task-first"
+  intro="Estimate your full monthly mortgage payment — principal, interest, property tax, insurance, PMI and HOA — and see a year-by-year amortization schedule."
   faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-07-25' }}
 >
   <MortgageCalculator />
 
@@ -46,8 +47,9 @@ const faqs = [
     <h2>How to use this mortgage calculator</h2>
     <p>
       Enter the <strong>home price</strong>, your <strong>down payment</strong>, the
-      <strong>loan term</strong> and the <strong>interest rate</strong>. The estimated
-      monthly payment and breakdown update instantly. Expand
+      <strong>loan term</strong> and the <strong>interest rate</strong>, then press
+      <strong>Calculate</strong>. Your estimated monthly payment and its breakdown appear,
+      and after the first result any edit updates it live. Expand
       <strong>Taxes, insurance &amp; fees</strong> to include property tax, home
       insurance, HOA dues and PMI for a complete picture of your monthly housing cost.
     </p>
