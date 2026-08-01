@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { dueDateFromLMP, gestationalAge } from './due-date';
 import { pregnancyInfo } from './pregnancy';
 import { toISODateUTC } from './date-duration';
 
@@ -13,18 +12,8 @@ const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d))
 
 // Pace coverage now lives in the dedicated characterization suite `pace.test.ts` (R7C-2E1).
 
-describe('due date', () => {
-  it('applies Naegele\'s rule (LMP + 280 days)', () => {
-    expect(toISODateUTC(dueDateFromLMP(utc(2024, 1, 1)))).toBe('2024-10-07');
-  });
-  it('computes gestational age and trimester', () => {
-    const g = gestationalAge(utc(2024, 1, 1), utc(2024, 3, 11)); // 70 days
-    expect(g.weeks).toBe(10);
-    expect(g.days).toBe(0);
-    expect(g.trimester).toBe(1);
-    expect(g.progressPct).toBeCloseTo(25, 0);
-  });
-});
+// Due-date coverage now lives in the dedicated characterization suite
+// `due-date.test.ts` (R14B1). Pregnancy stays here (shared batch).
 
 describe('pregnancy', () => {
   it('reports conception, due date and trimester', () => {
