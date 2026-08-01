@@ -11,7 +11,7 @@ const faqs = [
   { question: 'What if my cycle is irregular?', answer: 'Naegele\'s rule assumes a 28-day cycle. If your cycle is consistently longer or shorter, or you know your conception or IVF transfer date, your due date may shift by several days — your healthcare provider can adjust it accordingly.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate your baby's due date from the first day of your last period, and see how far along you are today." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate your baby's due date from the first day of your last period, and see how far along you are today." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <DueDateCalculator />
   <Fragment slot="content">
     <h2>How the estimate works</h2>
@@ -22,6 +22,5 @@ const faqs = [
 
     <h2>Remember it's an estimate</h2>
     <p>Very few babies arrive exactly on the due date — it marks the middle of a normal range, and a full-term birth is anything from 37 to 42 weeks. Your provider may refine the date with an early ultrasound, which is generally more accurate than LMP dating if your cycle is irregular. To follow your pregnancy week by week, use the <a href="/health/pregnancy-calculator">pregnancy calculator</a>.</p>
-    <p>This is general information, not medical advice. Always follow guidance from your healthcare provider.</p>
   </Fragment>
 </CalculatorLayout>

@@ -11,7 +11,7 @@ import { test, expect, type Page } from '@playwright/test';
  */
 const LEGACY = [
   { route: '/finance/loan-calculator', category: 'finance' }, // mortgage migrated in R11E1; loan stays legacy
-  { route: '/health/due-date-calculator', category: 'health' }, // target-heart-rate migrated in R7C-2C; this stays legacy
+  { route: '/health/pregnancy-calculator', category: 'health' }, // due-date migrated in R14B1; pregnancy stays legacy
   { route: '/math/fraction-calculator', category: 'math' }, // area migrated in R12B1; fraction stays legacy
   { route: '/everyday/age-calculator', category: 'everyday' },
 ];
