@@ -12,7 +12,7 @@ const faqs = [
   { question: 'Can a data set have more than one mode?', answer: 'Yes. If two or more values tie for the highest frequency, the set is multimodal and the calculator lists them all. If every value appears exactly once, there is no mode.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate every descriptive statistic from a data set — mean, median, mode, range, variance, standard deviation and the full five-number summary — with population and sample results." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate every descriptive statistic from a data set — mean, median, mode, range, variance, standard deviation and the full five-number summary — with population and sample results." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <StatisticsCalculator primary="summary" />
   <Fragment slot="content">
     <h2>Everything the calculator gives you</h2>

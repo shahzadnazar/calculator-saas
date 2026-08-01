@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateStats, parseNumberList, type StatsResult } from './statistics';
+import { calculateStats, parseNumberList } from './statistics';
 
 /**
  * Characterization suite for the descriptive-statistics engine (R13B1 Commit 1).
