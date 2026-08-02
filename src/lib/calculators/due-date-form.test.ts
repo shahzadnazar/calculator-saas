@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateDueDate,
+  isStrictCalendarDate,
   computeDueDate,
   completeDueDateValue,
   presentDueDate,
@@ -44,17 +45,20 @@ describe('due-date binding — contract', () => {
 /* Validation — required + not in the future                          */
 /* ------------------------------------------------------------------ */
 
-describe('due-date binding — validation', () => {
-  it('requires a valid LMP (empty / malformed)', () => {
+describe('due-date binding — validation (required → strict calendar → not future)', () => {
+  it('accepts ordinary + leap + leading-zero + today dates', () => {
+    for (const d of ['2024-01-01', '2024-02-29', '2024-06-01', TODAY]) {
+      expect(ok(validateDueDate(v(d)))).toBe(true);
+    }
+  });
+  it('rejects empty input with the required message', () => {
     expect(err(validateDueDate(v('')))).toBe('Enter the first day of your last menstrual period.');
-    expect(err(validateDueDate(v('not-a-date')))).toBe('Enter the first day of your last menstrual period.');
-    expect(err(validateDueDate(v('2024-1-1')))).toMatch(/last menstrual period/);
+    expect(err(validateDueDate(v('   ')))).toBe('Enter the first day of your last menstrual period.');
   });
-  it('accepts an ordinary past LMP', () => {
-    expect(ok(validateDueDate(v('2024-01-01')))).toBe(true);
-  });
-  it('accepts the local-today maximum boundary', () => {
-    expect(ok(validateDueDate(v('2024-06-01')))).toBe(true);
+  it('rejects impossible / malformed / non-canonical dates with the invalid-calendar message', () => {
+    for (const bad of ['not-a-date', '2023-02-29', '2023-02-30', '2026-04-31', '2026-00-10', '2026-13-01', '2026-05-00', '2026-1-2', '20240101']) {
+      expect(err(validateDueDate(v(bad)))).toBe('Enter a valid last menstrual period date.');
+    }
   });
   it('rejects a future LMP with the future message', () => {
     expect(err(validateDueDate(v('2024-07-01')))).toBe('Enter a last menstrual period date that is not in the future.');
@@ -62,6 +66,22 @@ describe('due-date binding — validation', () => {
   });
   it('accepts a historical LMP (no lower bound)', () => {
     expect(ok(validateDueDate(v('2000-01-01')))).toBe(true);
+  });
+  it('applies precedence: required → invalid-calendar → future', () => {
+    expect(err(validateDueDate(v('')))).toMatch(/first day/); // required wins over "also not a date"
+    expect(err(validateDueDate({ lmp: '2027-02-30', today: TODAY }))).toBe('Enter a valid last menstrual period date.'); // impossible wins over future-year
+    expect(err(validateDueDate(v('2024-07-01')))).toMatch(/not in the future/); // valid-but-future
+  });
+});
+
+describe('due-date binding — strict calendar round-trip (isStrictCalendarDate)', () => {
+  it('accepts canonical valid dates (incl. leap day)', () => {
+    for (const d of ['2024-01-01', '2024-02-29', '2000-12-31']) expect(isStrictCalendarDate(d)).toBe(true);
+  });
+  it('rejects rollover / malformed input (the frozen primitive still rolls over — see due-date.test.ts)', () => {
+    for (const bad of ['2023-02-30', '2023-02-29', '2026-04-31', '2026-13-01', '2026-1-2', '', 'x']) {
+      expect(isStrictCalendarDate(bad)).toBe(false);
+    }
   });
 });
 

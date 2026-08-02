@@ -101,6 +101,23 @@ test.describe('due date: task-first', () => {
     await expect(lmp(page)).toHaveAttribute('aria-describedby', /dd-lmp-error/);
   });
 
+  test('an impossible calendar date (scripted injection) is rejected, never rolled over (R14B1.1)', async ({ page }) => {
+    // A native <input type="date"> may coerce an impossible value to '' before the
+    // page sees it; either way the binding must NOT compute a rolled-over result.
+    // The authoritative proof for the invalid-calendar path is the binding unit test.
+    await page.evaluate(() => {
+      const el = document.querySelector('[name="lmp"]') as HTMLInputElement;
+      el.value = '2023-02-30';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(region(page, 'valid')).toBeHidden();
+    // invalid-calendar (value kept) OR required (browser coerced to '') — both are
+    // correct rejections; the key guarantee is: no rolled-over result is ever shown.
+    await expect(fieldError(page)).toContainText(/valid last menstrual period date|Enter the first day/);
+  });
+
   test('a historical LMP whose due date has passed keeps the date, drops progress, and notes it passed', async ({ page }) => {
     await setDate(page, '[name="lmp"]', PAST_DUE);
     await submit(page).click();

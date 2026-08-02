@@ -83,15 +83,35 @@ export function longDate(d: Date): string {
 const ord = (n: 1 | 2 | 3): string => (n === 1 ? '1st' : n === 2 ? '2nd' : '3rd');
 
 const REQUIRED_MSG = 'Enter the first day of your last menstrual period.';
+const INVALID_CALENDAR_MSG = 'Enter a valid last menstrual period date.';
 const FUTURE_MSG = 'Enter a last menstrual period date that is not in the future.';
 
 /* ------------------------------------------------------------------ */
-/* Validation (pure) — required + not-in-the-future                    */
+/* Validation (pure) — required → strict calendar date → not future    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * A structurally valid civil calendar date (R14B1.1). The raw string must
+ * round-trip EXACTLY through the UNCHANGED primitive —
+ * `toISODateUTC(parseISODateUTC(raw)) === raw` — which rejects the frozen
+ * roll-over of impossible components (e.g. `2023-02-30` → `2023-03-02`, `2026-13-01`
+ * → `2027-01-01`) and non-canonical formatting (`2026-1-2`) WITHOUT replacing the
+ * parser. The primitive stays exactly as characterized in due-date.test.ts.
+ */
+export function isStrictCalendarDate(raw: string): boolean {
+  const d = parseISODateUTC(raw);
+  return !!d && Number.isFinite(d.getTime()) && toISODateUTC(d) === raw;
+}
+
+/**
+ * Validation precedence: (1) required, (2) a valid civil calendar date (strict
+ * round-trip), (3) not in the future (relative to the visitor's local today).
+ */
 export function validateDueDate(v: DueDateValues): ValidationResult {
-  const lmp = parseISODateUTC(v.lmp);
-  if (!lmp) return { ok: false, fieldErrors: { lmp: REQUIRED_MSG } };
+  const raw = v.lmp ?? '';
+  if (raw.trim() === '') return { ok: false, fieldErrors: { lmp: REQUIRED_MSG } };
+  if (!isStrictCalendarDate(raw)) return { ok: false, fieldErrors: { lmp: INVALID_CALENDAR_MSG } };
+  const lmp = parseISODateUTC(raw)!;
   const today = parseISODateUTC(v.today);
   if (today && lmp.getTime() > today.getTime()) {
     return { ok: false, fieldErrors: { lmp: FUTURE_MSG } };
