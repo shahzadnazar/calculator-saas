@@ -11,7 +11,7 @@ const faqs = [
   { question: 'How many weeks is a full-term pregnancy?', answer: 'Full term is 39–40 weeks, though birth any time from 37 to 42 weeks is considered normal. The 40-week due date is the midpoint of that range, not a deadline.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Track your pregnancy week by week from your last period — current gestational age, trimester, estimated conception and due dates, and progress." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" reviewMetadata={{ reviewedDate: '2026-07-25' }} intro="Track your pregnancy week by week from your last period — current gestational age, trimester, estimated conception and due dates, and progress." faqs={faqs}>
   <PregnancyCalculator />
   <Fragment slot="content">
     <h2>Following your pregnancy</h2>
@@ -26,6 +26,5 @@ const faqs = [
 
     <h2>Why it's dated from the LMP</h2>
     <p>By convention, pregnancy is measured from the first day of your last menstrual period — about two weeks before conception actually occurs. That is why "40 weeks pregnant" corresponds to roughly 38 weeks since conception. This gestational-age standard is what your provider and every prenatal test uses. For just the due date, use the <a href="/health/due-date-calculator">due date calculator</a>.</p>
-    <p>This is general information, not medical advice. Your healthcare provider's dating takes precedence.</p>
   </Fragment>
 </CalculatorLayout>
