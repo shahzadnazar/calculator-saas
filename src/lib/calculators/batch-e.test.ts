@@ -1,22 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { calculateGPA } from './gpa';
 import { weightedGrade, finalScoreNeeded } from './grade';
 import { convert } from './conversion';
 
-describe('GPA', () => {
-  it('computes weighted GPA', () => {
-    const r = calculateGPA([
-      { gradePoints: 4.0, credits: 3 },
-      { gradePoints: 3.0, credits: 4 },
-      { gradePoints: 3.7, credits: 3 },
-    ]);
-    expect(r.totalCredits).toBe(10);
-    expect(r.gpa).toBeCloseTo(3.51, 2);
-  });
-  it('returns NaN with no credits', () => {
-    expect(Number.isNaN(calculateGPA([]).gpa)).toBe(true);
-  });
-});
+// GPA coverage now lives in the dedicated characterization suite `gpa.test.ts`
+// (R16B1); batch-e keeps its grade / conversion coverage.
 
 describe('grade', () => {
   it('computes a weighted average', () => {
