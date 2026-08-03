@@ -20,6 +20,7 @@ const PILOTS = [
   { route: '/health/pace-calculator', structure: 'form (composite time + converting unit)' },
   { route: '/health/due-date-calculator', structure: 'form (gestational; date input; clock-free due-date result + past-due; island-owned disclaimer)' },
   { route: '/health/pregnancy-calculator', structure: 'form (gestational; date input; gestational-age result + progress bar + trimester timeline + past-due; island-owned disclaimer)' },
+  { route: '/finance/loan-calculator', structure: 'form (financial schedule; fixed-rate loan; yearly amortization disclosure; own binding mirroring amortization)' },
   { route: '/finance/sales-tax-calculator', structure: 'form (multi-mode: add/remove tax)' },
   { route: '/finance/payment-calculator', structure: 'form (multi-mode: payment/payoff time)' },
   { route: '/finance/credit-card-payoff-calculator', structure: 'form (multi-mode: payoff/required payment + breakdown)' },
