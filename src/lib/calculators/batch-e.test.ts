@@ -1,20 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { weightedGrade, finalScoreNeeded } from './grade';
 import { convert } from './conversion';
 
-// GPA coverage now lives in the dedicated characterization suite `gpa.test.ts`
-// (R16B1); batch-e keeps its grade / conversion coverage.
-
-describe('grade', () => {
-  it('computes a weighted average', () => {
-    expect(weightedGrade([{ score: 90, weight: 50 }, { score: 80, weight: 50 }]).grade).toBeCloseTo(85, 6);
-    expect(weightedGrade([{ score: 100, weight: 20 }, { score: 60, weight: 80 }]).grade).toBeCloseTo(68, 6);
-  });
-  it('computes the score needed on a final', () => {
-    expect(finalScoreNeeded(85, 30, 90)).toBeCloseTo(101.67, 1); // unreachable
-    expect(finalScoreNeeded(80, 40, 85)).toBeCloseTo(92.5, 1);
-  });
-});
+// GPA coverage now lives in `gpa.test.ts` (R16B1) and Grade coverage in
+// `grade.test.ts` (R16B2); batch-e now holds unit-conversion coverage only.
 
 describe('unit conversion', () => {
   it('converts length', () => {
