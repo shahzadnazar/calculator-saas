@@ -1,20 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { solveAnnualRate } from './interest-rate';
 import { convertSalary } from './salary';
 import { calculateIncomeTax } from './income-tax';
 
-describe('interest rate solver', () => {
-  it('recovers a known rate', () => {
-    // A $20,000 loan over 60 months at 5% has a payment of ~377.42
-    expect(solveAnnualRate(20000, 377.42, 60)).toBeCloseTo(5, 1);
-  });
-  it('returns ~0 when payments barely exceed principal', () => {
-    expect(solveAnnualRate(12000, 1000, 12)).toBeCloseTo(0, 4);
-  });
-});
-
-// Home-equity coverage now lives in the dedicated characterization suite
-// `home-equity.test.ts` (R15B2); batch-b keeps interest-rate / salary / income-tax.
+// Interest-rate coverage now lives in the dedicated characterization suite
+// `interest-rate.test.ts` (R15B3); home-equity moved to `home-equity.test.ts` (R15B2).
+// batch-b now holds salary / income-tax only.
 
 describe('salary conversion', () => {
   it('converts hourly to annual and back', () => {
