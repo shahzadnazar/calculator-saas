@@ -12,7 +12,13 @@ const faqs = [
   { question: 'Can you refinance a home equity loan?', answer: 'Yes. You can refinance a home equity loan into a new one, roll it into a HELOC, or fold it into a cash-out refinance of your first mortgage — usually to get a lower rate or a different term. Weigh any closing costs against the savings.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate how much you can borrow against your home equity and the monthly payment on a home equity loan." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  reviewMetadata={{ reviewedDate: '2026-08-03' }}
+  intro="Estimate how much you can borrow against your home equity and the monthly payment on a home equity loan."
+  faqs={faqs}
+>
   <HomeEquityLoanCalculator />
   <Fragment slot="content">
     <h2>How borrowing power is calculated</h2>
@@ -26,6 +32,5 @@ const faqs = [
 
     <h2>Borrow carefully</h2>
     <p>A home equity loan is secured by your home, which raises the stakes above an unsecured loan — missed payments can put the property at risk. Compare the payment against your budget, and see the full amortization with the <a href="/finance/amortization-calculator">amortization calculator</a> or weigh it against your primary loan using the <a href="/finance/mortgage-calculator">mortgage calculator</a>.</p>
-    <p>This is general educational information, not financial advice.</p>
   </Fragment>
 </CalculatorLayout>
