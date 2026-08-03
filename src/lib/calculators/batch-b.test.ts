@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { solveAnnualRate } from './interest-rate';
-import { calculateHomeEquity } from './home-equity';
 import { convertSalary } from './salary';
 import { calculateIncomeTax } from './income-tax';
 
@@ -14,19 +13,8 @@ describe('interest rate solver', () => {
   });
 });
 
-describe('home equity', () => {
-  it('computes equity and max borrow at an LTV cap', () => {
-    const r = calculateHomeEquity({ homeValue: 400000, mortgageBalance: 250000, maxLtvPct: 85, loanAmount: 50000, annualRatePct: 8, termYears: 10 });
-    expect(r.equity).toBe(150000);
-    expect(r.maxBorrow).toBe(90000); // 400000*0.85 - 250000
-    expect(r.exceedsMax).toBe(false);
-    expect(r.monthlyPayment).toBeGreaterThan(0);
-  });
-  it('flags borrowing above the cap', () => {
-    const r = calculateHomeEquity({ homeValue: 400000, mortgageBalance: 250000, maxLtvPct: 85, loanAmount: 120000, annualRatePct: 8, termYears: 10 });
-    expect(r.exceedsMax).toBe(true);
-  });
-});
+// Home-equity coverage now lives in the dedicated characterization suite
+// `home-equity.test.ts` (R15B2); batch-b keeps interest-rate / salary / income-tax.
 
 describe('salary conversion', () => {
   it('converts hourly to annual and back', () => {
