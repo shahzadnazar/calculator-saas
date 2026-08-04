@@ -44,6 +44,7 @@ const PILOTS = [
   { route: '/finance/investment-calculator', structure: 'form (complex-form; collective funding; nominal projection; negative growth)' },
   { route: '/finance/mortgage-calculator', structure: 'form (complex-form; PMI schedule; optional-cost + yearly-schedule disclosures; zero-mortgage)' },
   { route: '/math/fraction-calculator', structure: 'form (math; two fractions + operation <select> parameter; strict integer fields; simplified-fraction dominant + mixed/decimal secondaries; own binding, runtime unchanged)' },
+  { route: '/everyday/hours-calculator', structure: 'form (everyday; two type=time fields + whole-minute break; overnight-aware; valid zero duration; total hours+minutes dominant + decimal-hours secondary; own binding, runtime unchanged)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];

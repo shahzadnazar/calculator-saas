@@ -1,55 +1,179 @@
 ---
-import { calculateHours, parseTimeToMinutes } from '@lib/calculators/hours';
-
-const start = parseTimeToMinutes('09:00')!;
-const end = parseTimeToMinutes('17:30')!;
-const r = calculateHours(start, end, 30);
+/**
+ * Hours calculator island (R17B2 — bounded Everyday singleton; task-first).
+ *
+ * A single form on the UNCHANGED standard-form runtime + the Hours binding (@lib/calculators/hours-form),
+ * which wraps the UNCHANGED parseTimeToMinutes / calculateHours. Two native `type="time"` fields
+ * (start / end) + a break in MINUTES. All fields start EMPTY (the legacy prefilled 09:00 / 17:30 / 30
+ * and auto-calculated); the visitor presses "Calculate Hours" for the first result, then live-after-first.
+ * The DOMINANT result is the total time (hours + minutes); decimal hours is the secondary. OVERNIGHT is
+ * supported (end earlier than start = next day). NO isUsableResult — the complete-result guard lives in
+ * the binding's resultValue (a NaN sentinel → the default finite gate; a valid 0 duration passes). No
+ * runtime change; NO generic time / duration / clock / shift / time-input abstraction.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Hours calculator shares a document (the
+ * R16B2.1 discipline), so an embed gallery has no duplicate ids and every association stays instance-local.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-hours>
-  <form class="card p-5 sm:p-6" data-hr-form novalidate>
+<div class="hours mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-hours>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Hours calculator">
     <div class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
-        <div>
+        <div data-field="start">
           <label class="field-label" for="hr-start">Start time</label>
-          <input class="field" id="hr-start" name="start" type="time" value="09:00" />
+          <input class="field" id="hr-start" name="start" type="time" autocomplete="off" aria-describedby="hr-start-error" />
+          <p class="hr-field-error" id="hr-start-error" data-error-for="start" hidden></p>
         </div>
-        <div>
+        <div data-field="end">
           <label class="field-label" for="hr-end">End time</label>
-          <input class="field" id="hr-end" name="end" type="time" value="17:30" />
+          <input class="field" id="hr-end" name="end" type="time" autocomplete="off" aria-describedby="hr-end-error" />
+          <p class="hr-field-error" id="hr-end-error" data-error-for="end" hidden></p>
         </div>
       </div>
-      <div>
+      <div data-field="breakMin">
         <label class="field-label" for="hr-break">Break (minutes)</label>
-        <input class="field" id="hr-break" name="breakMin" type="number" min="0" step="5" value="30" inputmode="numeric" />
+        <input class="field" id="hr-break" name="breakMin" type="number" min="0" step="5" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="hr-break-error" />
+        <p class="hr-field-error" id="hr-break-error" data-error-for="breakMin" hidden></p>
       </div>
-      <p class="text-xs" style="color: var(--muted)">Overnight shifts are handled automatically — an end time earlier than the start counts as the next day.</p>
+      <p class="hr-note">Overnight shifts are handled automatically — an end time earlier than the start counts as the next day. Leave the break empty for none.</p>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Hours</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="hr-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card flex flex-col justify-center p-6 text-center">
-    <p class="result-label">Time worked</p>
-    <p class="mt-2 text-4xl result-value"><span data-hr-hm>{r.hours}h {r.minutes}m</span></p>
-    <p class="mt-2 text-lg" style="color: var(--muted)"><span class="font-bold" style="color: var(--color-brand-600)" data-hr-decimal>{r.decimalHours}</span> decimal hours</p>
-  </div>
+  <!-- Result -->
+  <ResultShell id="hr-result" state="empty" density="standard" label="Hours result" minHeight="16rem" placeholderAlignment="center">
+    <EmptyResult message="Enter a start time, end time and any break, then calculate the total time worked." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Total time">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-hr-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="For payroll">
+        <dl class="hr-metrics">
+          <div><dt>Decimal hours</dt><dd data-hr-decimal>—</dd></div>
+        </dl>
+      </ResultBreakdown>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a valid start and end time, and a break of whole minutes (zero or more), to calculate."
+    />
+
+    <ResultAnnouncement id="hr-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { calculateHours, parseTimeToMinutes } from '@lib/calculators/hours';
-  document.querySelectorAll<HTMLElement>('[data-hours]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-hr-form]')!;
-    const val = (n: string) => (form.elements.namedItem(n) as HTMLInputElement).value;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const s = parseTimeToMinutes(val('start'));
-      const e = parseTimeToMinutes(val('end'));
-      const brk = Number(val('breakMin')) || 0;
-      if (s === null || e === null) { set('[data-hr-hm]', '—'); set('[data-hr-decimal]', '—'); return; }
-      const r = calculateHours(s, e, brk);
-      set('[data-hr-hm]', `${r.hours}h ${r.minutes}m`);
-      set('[data-hr-decimal]', String(r.decimalHours));
+<style>
+  .hr-field-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .hr-field-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .hr-field-error {
+    color: #fca5a5;
+  }
+
+  .hr-note {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .hr-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .hr-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .hr-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .hr-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .hr-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { hoursBinding } from '@lib/calculators/hours-form';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // When more than one Hours calculator shares a document (e.g. an embed gallery), the server-static
+  // ids (the three fields + their error slots, result shell, live region) collide. Namespace THIS
+  // root's ids and repoint its in-root references (label `for`, `aria-describedby`, …) so associations
+  // stay instance-local and the document has no duplicate ids; a lone instance is left untouched. The
+  // runtime targets fields by `[name]` / `[data-*]`, never these ids.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-hours]').forEach((root) => {
+    if (document.querySelectorAll('[data-hours]').length > 1) uniquifyStaticIds(root, `h${++ns}`);
+    mountFormCalculator(root, hoursBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Hours',
+    });
   });
 </script>

@@ -41,7 +41,8 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-18"
+  presentation="task-first"
+  reviewMetadata={{ reviewedDate: '2026-08-04' }}
   intro="Calculate the hours between two times, minus breaks — including overnight shifts. Get the result in hours and minutes and as decimal hours for payroll."
   faqs={faqs}
 >
@@ -51,8 +52,9 @@ const faqs = [
     <h2>How to use the hours calculator</h2>
     <p>
       Enter a <strong>start time</strong> and <strong>end time</strong>, then add any
-      unpaid <strong>break</strong> in minutes. The result updates instantly in both
-      hours-and-minutes and decimal-hour formats.
+      unpaid <strong>break</strong> in minutes and press <strong>Calculate Hours</strong>.
+      The result shows in both hours-and-minutes and decimal-hour formats, and updates as
+      you adjust the figures.
     </p>
 
     <h2>How many work hours are in a year?</h2>
