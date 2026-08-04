@@ -267,6 +267,38 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   import { gradeBinding } from '@lib/calculators/grade-form';
 
   let uid = 0; // module-global → weighted-row ids unique across instances on a page
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // The weighted rows already carry per-instance-unique ids (via `uid`), but the
+  // final-mode fields + result shell + live region are server-STATIC ids. When more
+  // than one Grade calculator shares a document (e.g. an embed gallery), those ids
+  // collide. This namespaces THIS root's static ids and repoints its in-root
+  // references (label `for`, `aria-describedby`, …) so associations stay
+  // instance-local and the document has no duplicate ids. It runs BEFORE the first
+  // row is seeded, so it only touches the static markup; a lone instance skips it
+  // entirely (single-instance output is unchanged). The runtime targets fields by
+  // `[name]` / `[data-*]`, never by these ids, so re-id-ing has no effect on it.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
 
   function buildRow(): HTMLElement {
     const id = `grade-r${++uid}`;
@@ -341,6 +373,10 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     const submitBtn = root.querySelector<HTMLElement>('[data-grade-submit]')!;
     const avgPanel = root.querySelector<HTMLElement>('[data-grade-average]')!;
     const finalPanel = root.querySelector<HTMLElement>('[data-grade-final]')!;
+
+    // Namespace the server-static ids first (only when not alone in the document),
+    // before any dynamic rows exist, so associations stay instance-local.
+    if (document.querySelectorAll('[data-grade]').length > 1) uniquifyStaticIds(root, `g${++ns}`);
 
     if (!rowsEl.querySelector('[data-grade-row]')) rowsEl.appendChild(buildRow());
 
