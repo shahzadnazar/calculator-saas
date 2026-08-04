@@ -13,7 +13,7 @@ const LEGACY = [
   { route: '/finance/income-tax-calculator', category: 'finance' }, // loan migrated in R15B1; income-tax stays legacy (finance rep)
   // health has no legacy representative: pregnancy (R14B2) completed the Gestational
   // family, and every health calculator now renders task-first.
-  { route: '/math/fraction-calculator', category: 'math' }, // area migrated in R12B1; fraction stays legacy
+  { route: '/math/random-number-generator', category: 'math' }, // fraction migrated in R17B1; random-number-generator stays legacy (math rep)
   { route: '/everyday/age-calculator', category: 'everyday' },
 ];
 

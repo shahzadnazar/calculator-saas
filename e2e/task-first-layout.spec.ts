@@ -43,6 +43,7 @@ const PILOTS = [
   { route: '/finance/auto-loan-calculator', structure: 'form (complex-form; term select + finance checkbox; negative equity)' },
   { route: '/finance/investment-calculator', structure: 'form (complex-form; collective funding; nominal projection; negative growth)' },
   { route: '/finance/mortgage-calculator', structure: 'form (complex-form; PMI schedule; optional-cost + yearly-schedule disclosures; zero-mortgage)' },
+  { route: '/math/fraction-calculator', structure: 'form (math; two fractions + operation <select> parameter; strict integer fields; simplified-fraction dominant + mixed/decimal secondaries; own binding, runtime unchanged)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];
