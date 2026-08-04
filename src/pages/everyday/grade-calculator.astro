@@ -11,7 +11,13 @@ const faqs = [
   { question: 'What is the difference between a course grade and a GPA?', answer: 'A course grade is your percentage in one class, weighted by assessments. A GPA converts final letter grades across several courses to points (on a 4.0 scale) and averages them by credit hours. Use the GPA calculator for the second.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Work out your weighted course grade from assignments and tests, or find exactly what you need to score on the final to reach your target." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  reviewMetadata={{ reviewedDate: '2026-08-04' }}
+  intro="Work out your weighted course grade from assignments and tests, or find exactly what you need to score on the final to reach your target."
+  faqs={faqs}
+>
   <GradeCalculator />
   <Fragment slot="content">
     <h2>Two grade tools in one</h2>
