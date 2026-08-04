@@ -2,7 +2,7 @@
  * Hours form binding (R17B2 — bounded Everyday singleton; task-first).
  *
  * Wraps the UNCHANGED `parseTimeToMinutes` / `calculateHours` and layers the visitor-facing contract
- * they lack: required + strict time validation, a strict whole-minute break, and a complete-result
+ * they lack: required + strict time validation, a strict non-negative break (whole or decimal), and a complete-result
  * guard. Start / end are native `type="time"` fields (HH:MM); the break is in MINUTES.
  *
  * Own file — the standard-form runtime is UNCHANGED; there is NO `isUsableResult` (the complete-result
@@ -10,9 +10,10 @@
  * duration — equal times, or a break at least as long as the interval — is a finite 0 that passes).
  * The frozen source keeps its behaviour: OVERNIGHT is supported (end earlier than start counts as the
  * next day); the binding never reproduces elapsed-time arithmetic — it calls the source and reconciles
- * via a recompute. Visitor validation is STRICTER than the source in two safe ways only: a negative
- * break is rejected (the source silently clamps it) and the break must be whole minutes (a fractional
- * break would make the source emit a fractional minute the result contract forbids).
+ * via a recompute. Visitor validation is STRICTER than the source in ONE safe way only: a negative
+ * break is rejected (the source silently clamps it). The frozen source accepts nonnegative DECIMAL
+ * break minutes, so the binding HONOURS them too — a fractional break yields fractional remaining
+ * minutes (e.g. a 30.5-minute break off 09:00–17:00 → 7h 29.5m), shown without truncation.
  */
 import { parseTimeToMinutes, calculateHours, type HoursResult } from './hours';
 import type {
@@ -44,7 +45,7 @@ export const MSG = {
   startInvalid: 'Enter a valid start time (HH:MM).',
   endRequired: 'Enter an end time.',
   endInvalid: 'Enter a valid end time (HH:MM).',
-  breakInvalid: 'Enter the break as a whole number of minutes.',
+  breakInvalid: 'Enter the break as a number of minutes.',
   breakNegative: 'The break cannot be negative.',
 } as const;
 
@@ -52,13 +53,19 @@ export const MSG = {
 /* Parsing                                                             */
 /* ------------------------------------------------------------------ */
 
-/** '' → 0 (the neutral "no break"); a whole non-negative integer → the number; else a reason. */
+/**
+ * '' → 0 (the neutral "no break"); a finite NON-NEGATIVE number (whole OR decimal) → the number;
+ * else a reason. The frozen source honours nonnegative decimal break minutes, so the binding does too
+ * — WITHOUT `Number(v)||0` / `parseInt` coercion or silent truncation: a strict finite-decimal grammar
+ * (optional sign, digits with an optional single fractional part — "30", "30.5", "0.5", ".5", "5."; no
+ * exponent, no junk) then a finiteness guard (an over-long digit run that overflows to Infinity fails).
+ */
 function parseBreak(raw: string): number | 'invalid' | 'negative' {
   const s = raw.trim();
   if (s === '') return 0; // an empty break means the verified neutral value (0)
-  if (!/^-?\d+$/.test(s)) return 'invalid'; // whole minutes only — rejects decimals / junk
+  if (!/^-?(?:\d+\.?\d*|\.\d+)$/.test(s)) return 'invalid'; // finite decimal only — rejects junk / partial / exponent
   const n = Number(s);
-  if (!Number.isSafeInteger(n)) return 'invalid';
+  if (!Number.isFinite(n)) return 'invalid';
   if (n < 0) return 'negative';
   return n;
 }
@@ -110,23 +117,30 @@ export function computeHours(v: HoursFormValues): HoursComputed {
 
 const clockOk = (n: number): boolean => Number.isInteger(n) && n >= 0 && n <= DAY - 1;
 
+// The clock minutes stay whole; the BREAK, and therefore totalMinutes and the `total % 60` remaining
+// minutes, MAY be decimal (the frozen source honours a decimal break). hours(*60) + minutes can differ
+// from the stored totalMinutes by a floating-point ULP or two, so the decomposition is reconciled with a
+// narrow tolerance; the recompute + two-decimal decimalHours checks stay exact — identical-input
+// arithmetic is deterministic, so a re-run reproduces the same floats bit-for-bit.
+const DECOMP_TOL = 1e-9;
+
 export function completeHoursValue(c: HoursComputed): number {
   const { startMin, endMin, breakMin, result } = c;
   if (!clockOk(startMin) || !clockOk(endMin)) return Number.NaN;
-  if (!Number.isInteger(breakMin) || breakMin < 0) return Number.NaN;
+  if (!Number.isFinite(breakMin) || breakMin < 0) return Number.NaN; // finite, non-negative; MAY be decimal
 
   const { totalMinutes, hours, minutes, decimalHours } = result;
-  if (!Number.isInteger(totalMinutes) || totalMinutes < 0) return Number.NaN;
-  if (!Number.isInteger(hours) || hours < 0) return Number.NaN;
-  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 59) return Number.NaN;
-  if (hours * 60 + minutes !== totalMinutes) return Number.NaN;
+  if (!Number.isFinite(totalMinutes) || totalMinutes < 0) return Number.NaN; // MAY be decimal
+  if (!Number.isInteger(hours) || hours < 0) return Number.NaN; // whole hours only
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes >= 60) return Number.NaN; // [0, 60); MAY be decimal
+  if (Math.abs(hours * 60 + minutes - totalMinutes) > DECOMP_TOL) return Number.NaN;
   if (!Number.isFinite(decimalHours) || decimalHours !== Math.round((totalMinutes / 60) * 100) / 100) return Number.NaN;
 
   const re = calculateHours(startMin, endMin, breakMin);
   if (re.totalMinutes !== totalMinutes || re.hours !== hours || re.minutes !== minutes || re.decimalHours !== decimalHours) {
     return Number.NaN;
   }
-  return totalMinutes; // finite sentinel (a valid 0 duration passes the default gate)
+  return totalMinutes; // finite sentinel (a valid 0 duration passes the default gate; a decimal total is fine)
 }
 
 /* ------------------------------------------------------------------ */

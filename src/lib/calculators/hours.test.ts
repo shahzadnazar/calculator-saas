@@ -108,10 +108,10 @@ describe('calculateHours — elapsed minus break, overnight-aware, clamped ≥ 0
     expect(calculateHours(540, 1020, 600)).toEqual({ totalMinutes: 0, hours: 0, minutes: 0, decimalHours: 0 });
   });
 
-  it('a decimal break is honoured by the source (fractional minutes propagate — the binding will forbid this)', () => {
+  it('a decimal break is honoured by the source (fractional minutes propagate — the binding honours this too)', () => {
     const r = calculateHours(540, 1020, 30.5);
     expect(r.totalMinutes).toBe(449.5);
-    expect(r.minutes).toBe(29.5); // 449.5 % 60 — a non-integer minute the visitor layer must reject
+    expect(r.minutes).toBe(29.5); // 449.5 % 60 — a non-integer minute the visitor layer now honours (R17B2.1)
   });
 
   it('hours/minutes reconcile with totalMinutes and decimalHours with totalMinutes/60', () => {

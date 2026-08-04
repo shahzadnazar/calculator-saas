@@ -42,7 +42,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       </div>
       <div data-field="breakMin">
         <label class="field-label" for="hr-break">Break (minutes)</label>
-        <input class="field" id="hr-break" name="breakMin" type="number" min="0" step="5" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="hr-break-error" />
+        <input class="field" id="hr-break" name="breakMin" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="e.g. 30" aria-describedby="hr-break-error" />
         <p class="hr-field-error" id="hr-break-error" data-error-for="breakMin" hidden></p>
       </div>
       <p class="hr-note">Overnight shifts are handled automatically — an end time earlier than the start counts as the next day. Leave the break empty for none.</p>
@@ -76,7 +76,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     <InvalidResult
       title="Check your entries"
-      message="Enter a valid start and end time, and a break of whole minutes (zero or more), to calculate."
+      message="Enter a valid start and end time, and a break of zero or more minutes, to calculate."
     />
 
     <ResultAnnouncement id="hr-live" />

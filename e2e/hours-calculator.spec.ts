@@ -122,13 +122,14 @@ test.describe('hours: task-first', () => {
     await expect(page.locator('[name="end"]')).toBeFocused();
   });
 
-  test('a non-integer break is a whole-minutes error on the break field', async ({ page }) => {
-    // type=number keeps a decimal string in .value; the binding rejects it strictly.
-    await setFields(page, '09:00', '17:00', '30.5');
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="breakMin"]')).toHaveText('Enter the break as a whole number of minutes.');
-    await expect(page.locator('[name="breakMin"]')).toBeFocused();
+  test('a DECIMAL break is honoured (source contract): 09:00–17:00 minus 30.5m → 7h 29.5m, 7.49', async ({ page }) => {
+    await calc(page, '09:00', '17:00', '30.5');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('7h 29.5m');
+    await expect(decimal(page)).toHaveText('7.49');
+    await expect(interpretation(page)).toHaveText('09:00 to 17:00, minus a 30.5-minute break.');
+    await expect(live(page)).toHaveText('Total time: 7 hours 29.5 minutes.');
+    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
   });
 
   test('a negative break is rejected (not silently clamped)', async ({ page }) => {
@@ -158,10 +159,20 @@ test.describe('hours: task-first', () => {
     await expect(primary(page)).toHaveText('9h 0m');
   });
 
-  test('an invalid live edit clears the stale result, keeping focus', async ({ page }) => {
+  test('after the first result, editing to a decimal break recomputes live', async ({ page }) => {
+    await calc(page, '09:00', '17:00', '30');
+    await expect(primary(page)).toHaveText('7h 30m');
+    await page.locator('[name="breakMin"]').fill('30.5'); // 8h − 30.5m = 7h 29.5m
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(primary(page)).toHaveText('7h 29.5m');
+    await expect(decimal(page)).toHaveText('7.49');
+    await expect(page.locator('[name="breakMin"]')).toBeFocused();
+  });
+
+  test('an invalid live edit (negative decimal) clears the stale result, keeping focus', async ({ page }) => {
     await calc(page, '09:00', '17:00', '0');
     await expect(region(page, 'valid')).toBeVisible();
-    await page.locator('[name="breakMin"]').fill('-5'); // now a negative break
+    await page.locator('[name="breakMin"]').fill('-0.5'); // now a negative break
     await page.waitForTimeout(DEBOUNCE);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
     await expect(region(page, 'valid')).toBeHidden();
@@ -213,6 +224,18 @@ test.describe('hours: task-first', () => {
     await page.getByRole('button', { name: 'Calculate Hours' }).click();
     await expect(page.locator('#hr-result')).toHaveAttribute('data-result-state', 'valid');
     await expect(page.locator('#hr-result [data-result-when~="valid"] [data-result-value]').first()).toHaveText('8h 0m');
+  });
+
+  test('the generated embed honours a decimal break too (30.5m → 7h 29.5m)', async ({ page }) => {
+    await page.goto('/embed/everyday/hours-calculator', { waitUntil: 'domcontentloaded' });
+    await page.locator('[name="start"]').fill('09:00');
+    await page.locator('[name="end"]').fill('17:00');
+    await page.locator('[name="breakMin"]').fill('30.5');
+    await page.getByRole('button', { name: 'Calculate Hours' }).click();
+    await expect(page.locator('#hr-result')).toHaveAttribute('data-result-state', 'valid');
+    await expect(page.locator('#hr-result [data-result-when~="valid"] [data-result-value]').first()).toHaveText('7h 29.5m');
+    await expect(page.locator('[data-hr-decimal]')).toHaveText('7.49');
+    expect(await page.locator('#hr-result [data-result-when~="valid"]').innerText()).not.toMatch(/NaN|Infinity|undefined/);
   });
 
   test('the live page carries no monetization output', async ({ page }) => {
