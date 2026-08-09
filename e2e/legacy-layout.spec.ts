@@ -16,7 +16,9 @@ const LEGACY = [
   // math has no legacy representative: random-number-generator migrated in R18B2 (the
   // last Math legacy), so every math calculator now renders task-first — Math reached 0
   // legacy. (No repoint to an already-migrated calculator.)
-  { route: '/everyday/conversion-calculator', category: 'everyday' }, // date migrated in R18C2; conversion is the everyday legacy rep (still legacy)
+  // everyday has no legacy representative: conversion migrated in R18C3 (the last Everyday
+  // legacy), so every everyday calculator now renders task-first — Everyday reached 0
+  // legacy. Finance is now the ONLY category with legacy calculators. (No repoint.)
 ];
 
 const tool = (page: Page) => page.locator('section[aria-label$=" tool"]');
