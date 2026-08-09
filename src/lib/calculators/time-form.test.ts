@@ -63,12 +63,14 @@ describe('time binding — validation', () => {
     expect(validateTime(V({ a_seconds: '0' })).ok).toBe(true);
   });
 
-  it('a decimal or malformed component is a whole-number error on that field', () => {
-    expect(errs(V({ a_hours: '2.5' })).a_hours).toBe(MSG.componentWhole);
-    expect(errs(V({ a_minutes: 'abc' })).a_minutes).toBe(MSG.componentWhole);
-    expect(errs(V({ b_seconds: '0.5' })).b_seconds).toBe(MSG.componentWhole);
-    expect(errs(V({ a_days: 'Infinity' })).a_days).toBe(MSG.componentWhole);
-    expect(errs(V({ b_hours: '1e2' })).b_hours).toBe(MSG.componentWhole);
+  it('a DECIMAL component is valid (the source accepts decimals); malformed input is an error', () => {
+    expect(validateTime(V({ a_hours: '1.5' })).ok).toBe(true);
+    expect(validateTime(V({ b_seconds: '0.5' })).ok).toBe(true);
+    expect(validateTime(V({ a_days: '.5' })).ok).toBe(true);
+    expect(errs(V({ a_minutes: 'abc' })).a_minutes).toBe(MSG.componentInvalid);
+    expect(errs(V({ a_days: 'Infinity' })).a_days).toBe(MSG.componentInvalid);
+    expect(errs(V({ b_hours: '1e2' })).b_hours).toBe(MSG.componentInvalid); // no exponent form
+    expect(errs(V({ a_seconds: '1.2.3' })).a_seconds).toBe(MSG.componentInvalid);
   });
 
   it('a negative component is rejected on that field (the sign is the operation)', () => {
@@ -131,21 +133,50 @@ describe('time binding — computation + guard', () => {
     expect(completeTimeValue(c)).toBe(86399);
   });
 
+  it('a DECIMAL component that lands on whole seconds is exact (1.5h → 5400 = 1h30m)', () => {
+    const c = computeTime(V({ a_hours: '1.5' }));
+    expect(c.totalSeconds).toBe(5400);
+    expect(c.result).toMatchObject({ hours: 1, minutes: 30, seconds: 0, negative: false });
+    expect(completeTimeValue(c)).toBe(5400);
+  });
+
+  it('decimal minutes are exact (1.5m → 90 = 1m30s)', () => {
+    const c = computeTime(V({ a_minutes: '1.5' }));
+    expect(c.totalSeconds).toBe(90);
+    expect(completeTimeValue(c)).toBe(90);
+  });
+
+  it('a FRACTIONAL total is valid — the sentinel is the EXACT total, the breakdown is rounded (1.5s → 2s, total 1.5)', () => {
+    const c = computeTime(V({ a_seconds: '1.5' }));
+    expect(c.totalSeconds).toBe(1.5);
+    expect(c.result).toMatchObject({ seconds: 2, negative: false }); // Math.round(1.5) = 2
+    expect(completeTimeValue(c)).toBe(1.5); // EXACT fractional finite sentinel — NOT required to be an integer
+    expect(Number.isFinite(completeTimeValue(c))).toBe(true);
+  });
+
+  it('a −0.5s subtraction stays VALID (negative flag, zero rounded magnitude); the sentinel is exactly −0.5', () => {
+    const c = computeTime(V({ op: 'subtract', b_seconds: '0.5' }));
+    expect(c.totalSeconds).toBe(-0.5);
+    expect(c.result).toMatchObject({ days: 0, hours: 0, minutes: 0, seconds: 0, negative: true });
+    expect(completeTimeValue(c)).toBe(-0.5); // valid, not rejected as a negative-zero
+  });
+
   it('the guard rejects malformed / negative / all-empty inputs (→ NaN)', () => {
-    expect(Number.isNaN(value(V({ a_hours: '2.5', a_minutes: '30' })))).toBe(true);
+    expect(Number.isNaN(value(V({ a_hours: 'abc', a_minutes: '30' })))).toBe(true);
     expect(Number.isNaN(value(V({ a_hours: '-1', a_minutes: '30' })))).toBe(true);
+    expect(Number.isNaN(value(V({ a_seconds: '1.2.3' })))).toBe(true);
     expect(Number.isNaN(value(V()))).toBe(true); // all-empty → not present
   });
 
-  it('the guard rejects a tampered result (decomposition, sign, out-of-range, negative-zero, recompute)', () => {
+  it('the guard rejects a tampered result (decomposition, sign, out-of-range, recompute)', () => {
     const good = computeTime(V({ a_hours: '2', a_minutes: '30', b_hours: '1', b_minutes: '45' })); // 15300
-    // decomposition must reconcile with totalSeconds
+    // the magnitude must reconcile with Math.abs(Math.round(totalSeconds))
     expect(Number.isNaN(completeTimeValue({ ...good, result: { ...good.result, minutes: 14 } }))).toBe(true);
-    // a sign flip makes the signed decomposition disagree with totalSeconds
+    // the negative flag must equal totalSeconds < 0 (a bogus sign on a positive total is rejected)
     expect(Number.isNaN(completeTimeValue({ ...good, result: { ...good.result, negative: true } }))).toBe(true);
     // a component out of its normalized range
     expect(Number.isNaN(completeTimeValue({ ...good, result: { days: 0, hours: 4, minutes: 75, seconds: 0, negative: false } }))).toBe(true);
-    // no negative-zero presentation leak
+    // a bogus negative flag on a zero total (sign disagrees with the exact total)
     const zero = computeTime(V({ op: 'subtract', a_hours: '1', b_hours: '1' }));
     expect(Number.isNaN(completeTimeValue({ ...zero, result: { days: 0, hours: 0, minutes: 0, seconds: 0, negative: true } }))).toBe(true);
     // a result that does not reconcile with a recompute of the inputs
@@ -191,10 +222,33 @@ describe('time binding — presentation + announcement', () => {
     expect(p.primary).toBe('1d 2h 0m 0s');
   });
 
-  it('announces the calculated time in words (positive, negative, zero)', () => {
+  it('a whole-second result carries NO rounding note', () => {
+    expect(presentTime(computeTime(V({ a_hours: '1.5' }))).rounded).toBe(''); // 1.5h = 5400s exactly
+    expect(presentTime(computeTime(V({ a_hours: '2', b_hours: '1' }))).rounded).toBe('');
+  });
+
+  it('a FRACTIONAL total rounds the primary, keeps the EXACT total, and shows a rounding note (1.5s)', () => {
+    const p = presentTime(computeTime(V({ a_seconds: '1.5' })));
+    expect(p.primary).toBe('2s'); // rounded breakdown
+    expect(p.a11y).toBe('2 seconds');
+    expect(p.totalSeconds).toBe('1.5'); // EXACT, not rounded
+    expect(p.rounded).not.toBe('');
+  });
+
+  it('a −0.5s result never leaks "−0s": primary "0s", spoken "0 seconds", exact signed total −0.5', () => {
+    const p = presentTime(computeTime(V({ op: 'subtract', b_seconds: '0.5' })));
+    expect(p.primary).toBe('0s'); // NOT "−0s"
+    expect(p.a11y).toBe('0 seconds'); // NOT "minus 0 seconds"
+    expect(p.totalSeconds).toBe('−0.5'); // exact, signed
+    expect(p.rounded).not.toBe('');
+  });
+
+  it('announces the calculated time in words (positive, negative, zero), with a rounding clause when fractional', () => {
     expect(describeTime(computeTime(V({ a_hours: '2', a_minutes: '30', b_hours: '1', b_minutes: '45' })))).toBe('Calculated time: 4 hours, 15 minutes.');
     expect(describeTime(computeTime(V({ op: 'subtract', a_minutes: '1', b_minutes: '2', b_seconds: '30' })))).toBe('Calculated time: minus 1 minute, 30 seconds.');
     expect(describeTime(computeTime(V({ op: 'subtract', a_hours: '1', b_hours: '1' })))).toBe('Calculated time: 0 seconds.');
+    expect(describeTime(computeTime(V({ a_seconds: '1.5' })))).toBe('Calculated time: 2 seconds. Rounded to the nearest whole second.');
+    expect(describeTime(computeTime(V({ op: 'subtract', b_seconds: '0.5' })))).toBe('Calculated time: 0 seconds. Rounded to the nearest whole second.');
   });
 });
 

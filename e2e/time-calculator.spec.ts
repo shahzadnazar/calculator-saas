@@ -20,6 +20,7 @@ const primary = (page: Page) => page.locator('#tc-result [data-result-when~="val
 const summaryLabel = (page: Page) => page.locator('#tc-result [data-result-summary-label]');
 const total = (page: Page) => page.locator('[data-tc-total]');
 const interpretation = (page: Page) => page.locator('[data-tc-interpretation]');
+const rounded = (page: Page) => page.locator('#tc-result [data-tc-rounded]');
 const live = (page: Page) => page.locator('#tc-live');
 const submit = (page: Page) => page.getByRole('button', { name: 'Calculate Time' });
 const region = (page: Page, when: string) => page.locator(`#tc-result [data-result-when~="${when}"]`);
@@ -148,20 +149,51 @@ test.describe('time: task-first', () => {
     await expect(page.locator('#tc-result [data-result-invalid-message]')).toContainText('at least one duration value');
   });
 
-  test('a decimal component is a whole-number error on that field, which is focused', async ({ page }) => {
-    await page.locator('[name="a_hours"]').fill('2.5');
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="a_hours"]')).toHaveText('Use whole numbers only.');
-    await expect(page.locator('[name="a_hours"]')).toHaveAttribute('aria-invalid', 'true');
-    await expect(page.locator('[name="a_hours"]')).toBeFocused();
-  });
-
-  test('a negative component is rejected (the sign is the operation)', async ({ page }) => {
+  test('a negative component is rejected, associated with its field, and focused (the sign is the operation)', async ({ page }) => {
+    // A negative is the reachable invalid input through a native type=number field (a decimal like "1.5"
+    // is now VALID; unparseable junk is blanked by the browser — malformed rejection is unit-tested).
     await page.locator('[name="b_minutes"]').fill('-30');
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
     await expect(page.locator('[data-error-for="b_minutes"]')).toHaveText('Time values cannot be negative.');
+    await expect(page.locator('[name="b_minutes"]')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('[name="b_minutes"]')).toBeFocused();
+  });
+
+  /* ---- decimal components (R17B3.1 — the source accepts them) ---- */
+
+  test('a decimal that lands on whole seconds is EXACT: 1.5h → 1h 30m 0s, total 5,400, no rounding note', async ({ page }) => {
+    await calc(page, 'add', { hours: 1.5 }, {});
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('1h 30m 0s');
+    await expect(total(page)).toHaveText('5,400');
+    await expect(rounded(page)).toBeHidden();
+  });
+
+  test('decimal minutes are exact: 1.5m → 1m 30s, total 90', async ({ page }) => {
+    await calc(page, 'add', { minutes: 1.5 }, {});
+    await expect(primary(page)).toHaveText('1m 30s');
+    await expect(total(page)).toHaveText('90');
+    await expect(rounded(page)).toBeHidden();
+  });
+
+  test('a FRACTIONAL total rounds the primary but keeps the EXACT total + a rounding note: 1.5s → 2s / 1.5', async ({ page }) => {
+    await calc(page, 'add', { seconds: 1.5 }, {});
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('2s');
+    await expect(total(page)).toHaveText('1.5');
+    await expect(rounded(page)).toBeVisible();
+    await expect(rounded(page)).toContainText('rounded to the nearest whole second');
+    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  test('a −0.5s subtraction never shows "−0s": primary "0s", exact total −0.5, still VALID', async ({ page }) => {
+    await calc(page, 'subtract', {}, { seconds: 0.5 });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('0s');
+    await expect(primary(page)).not.toHaveText('−0s');
+    await expect(total(page)).toHaveText('−0.5');
+    await expect(rounded(page)).toBeVisible();
   });
 
   /* ---- live update / operation change / invalidate / reset ---- */
@@ -184,10 +216,20 @@ test.describe('time: task-first', () => {
     await expect(total(page)).toHaveText('−3,600');
   });
 
-  test('an invalid live edit clears the stale result, keeping focus', async ({ page }) => {
+  test('after the first result, a decimal edit recomputes live (edit a to 1.5h → 1h 30m 0s)', async ({ page }) => {
+    await calc(page, 'add', { hours: 1 }, {});
+    await expect(primary(page)).toHaveText('1h 0m 0s');
+    await page.locator('[name="a_hours"]').fill('1.5');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(primary(page)).toHaveText('1h 30m 0s');
+    await expect(total(page)).toHaveText('5,400');
+    await expect(page.locator('[name="a_hours"]')).toBeFocused();
+  });
+
+  test('an invalid live edit (negative component) clears the stale result, keeping focus', async ({ page }) => {
     await calc(page, 'add', { hours: 2, minutes: 30 }, { hours: 1, minutes: 45 });
     await expect(region(page, 'valid')).toBeVisible();
-    await page.locator('[name="a_hours"]').fill('2.5'); // now a decimal
+    await page.locator('[name="a_hours"]').fill('-1'); // now a negative component
     await page.waitForTimeout(DEBOUNCE);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
     await expect(region(page, 'valid')).toBeHidden();

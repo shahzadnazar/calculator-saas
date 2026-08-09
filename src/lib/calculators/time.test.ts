@@ -134,6 +134,55 @@ describe('time — breakdownDuration', () => {
 });
 
 /* ------------------------------------------------------------------ */
+/* decimal components (R17B3.1) — the source accepts them; many are    */
+/* exact whole seconds, and the breakdown rounds a fractional total    */
+/* ------------------------------------------------------------------ */
+
+describe('time — decimal source behaviour', () => {
+  it('decimal components convert exactly (many land on whole seconds)', () => {
+    expect(toSeconds({ days: 0.5 })).toBe(43200); // exact whole seconds
+    expect(toSeconds({ hours: 1.5 })).toBe(5400); // exact
+    expect(toSeconds({ minutes: 1.5 })).toBe(90); // exact
+    expect(toSeconds({ seconds: 1.5 })).toBe(1.5); // fractional seconds
+  });
+
+  it('mixed decimal components can still sum to an exact whole-second total', () => {
+    expect(toSeconds({ hours: 1.5, minutes: 1.5, seconds: 30 })).toBe(5400 + 90 + 30); // 5520
+    expect(combineDurations(toSeconds({ hours: 0.5 }), 'add', toSeconds({ minutes: 30 }))).toBe(3600); // 30m + 30m
+  });
+
+  it('breakdownDuration on whole-second totals is exact', () => {
+    expect(breakdownDuration(90)).toMatchObject({ minutes: 1, seconds: 30, negative: false });
+    expect(breakdownDuration(5400)).toMatchObject({ hours: 1, minutes: 30, seconds: 0, negative: false });
+    expect(breakdownDuration(43200)).toMatchObject({ hours: 12, minutes: 0, seconds: 0, negative: false });
+  });
+
+  it('breakdownDuration ROUNDS a fractional total (half rounds toward +∞)', () => {
+    expect(breakdownDuration(1.4)).toMatchObject({ seconds: 1, negative: false });
+    expect(breakdownDuration(1.5)).toMatchObject({ seconds: 2, negative: false });
+    expect(breakdownDuration(1.6)).toMatchObject({ seconds: 2, negative: false });
+  });
+
+  it('a fractional NEGATIVE total sets negative from `< 0` and rounds the magnitude', () => {
+    // Math.round(-0.4) = -0 → magnitude 0; negative flag from -0.4 < 0
+    expect(breakdownDuration(-0.4)).toMatchObject({ days: 0, hours: 0, minutes: 0, seconds: 0, negative: true });
+    // Math.round(-0.5) = -0 (half toward +∞) → magnitude 0; the -0 quirk
+    expect(breakdownDuration(-0.5)).toMatchObject({ days: 0, hours: 0, minutes: 0, seconds: 0, negative: true });
+    expect(Object.is(Math.round(-0.5), -0)).toBe(true);
+    // Math.round(-0.6) = -1 → magnitude 1 second
+    expect(breakdownDuration(-0.6)).toMatchObject({ seconds: 1, negative: true });
+  });
+
+  it('the magnitude reconciles with Math.abs(Math.round(total)) for fractional totals', () => {
+    for (const t of [1.4, 1.5, 1.6, -0.4, -0.5, -0.6, 90.5]) {
+      const d = breakdownDuration(t);
+      expect(d.days * 86400 + d.hours * 3600 + d.minutes * 60 + d.seconds).toBe(Math.abs(Math.round(t)));
+      expect(d.negative).toBe(t < 0);
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /* end-to-end pipeline (the two operations, whole-second inputs)       */
 /* ------------------------------------------------------------------ */
 

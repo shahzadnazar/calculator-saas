@@ -11,14 +11,19 @@
  * be NEGATIVE: the sentinel is the SIGNED total seconds, which is finite for a valid subtraction that
  * goes negative and for a valid zero, so the default gate accepts it without any runtime change.
  *
- * Visitor components are required to be non-negative WHOLE numbers. This is a SOURCE-contract-derived
- * restriction, not an invented one: `breakdownDuration` rounds the total to whole seconds
- * (`Math.abs(Math.round(total))`), so a whole-component input yields an exact integer total the source
- * represents faithfully, whereas a decimal component could produce a sub-second total the source
- * silently rounds — a displayed result that would disagree with the entered value. (This is the
- * opposite of Hours, whose `calculateHours` carries fractions exactly, which is why Hours honours a
- * decimal break and Time does not.) The SIGN is the job of the Add/Subtract operation, never a negative
- * component (the field's `min="0"`); oversized components are allowed (the source normalises them).
+ * Visitor components are finite and NON-NEGATIVE — whole OR decimal, matching the frozen source
+ * (`toSeconds` accepts decimals; many, like 0.5 days / 1.5 hours / 1.5 minutes, are EXACT whole
+ * seconds). The source exposes TWO numeric representations the binding preserves transparently:
+ *   A. the EXACT signed `totalSeconds` (from `toSeconds` / `combineDurations`; MAY be fractional), and
+ *   B. the WHOLE-SECOND normalized `breakdownDuration`, which ROUNDS the magnitude (`Math.round`) and
+ *      carries the sign SEPARATELY (a `negative` boolean).
+ * The dominant duration is the rounded breakdown (B); the secondary total seconds is the EXACT value
+ * (A); when a fractional total makes them differ, a rounding note makes the rounding explicit rather
+ * than presenting the rounded breakdown as exact. The complete-result sentinel is the EXACT
+ * `totalSeconds` (it is NOT required to be an integer). The SIGN is the job of the Add/Subtract
+ * operation, never a negative component (the field's `min="0"`); oversized components are allowed (the
+ * source normalises them). The `Math.round(-0.5) = -0` quirk (a negative flag with a zero magnitude,
+ * e.g. a −0.5s subtraction) stays a VALID result — never a validation error and never a "−0s" leak.
  */
 import { toSeconds, combineDurations, breakdownDuration, type Duration } from './time';
 import type {
@@ -63,7 +68,7 @@ export interface TimeComputed {
 }
 
 export const MSG = {
-  componentWhole: 'Use whole numbers only.',
+  componentInvalid: 'Enter a number (0 or more).',
   componentNegative: 'Time values cannot be negative.',
   required: 'Enter at least one duration value.',
   opInvalid: 'Choose add or subtract.',
@@ -77,13 +82,19 @@ const MIN = 60;
 /* Parsing                                                             */
 /* ------------------------------------------------------------------ */
 
-/** '' → 0 (neutral); a non-negative whole number → the number; else a reason. */
+/**
+ * '' → 0 (neutral); a finite non-negative number (whole OR decimal) → the number; else a reason.
+ * The frozen `toSeconds` accepts decimal components, so the binding does too — WITHOUT `Number(v)||0`
+ * / `parseInt` / truncation: a strict finite-decimal grammar (optional sign, digits with an optional
+ * single fractional part — "30", "1.5", "0.5", ".5", "5."; no exponent, no junk) then a finiteness
+ * guard (a digit run long enough to overflow to Infinity fails).
+ */
 function parseComponent(raw: string): number | 'invalid' | 'negative' {
   const s = raw.trim();
   if (s === '') return 0; // an empty component is the neutral 0 (legacy Number(v)||0 parity)
-  if (!/^-?\d+$/.test(s)) return 'invalid'; // whole numbers only — no decimals / junk / exponent
+  if (!/^-?(?:\d+\.?\d*|\.\d+)$/.test(s)) return 'invalid'; // finite decimal only — rejects junk / partial / exponent
   const n = Number(s);
-  if (!Number.isSafeInteger(n)) return 'invalid';
+  if (!Number.isFinite(n)) return 'invalid';
   if (n < 0) return 'negative';
   return n;
 }
@@ -117,7 +128,7 @@ export function validateTime(v: TimeFormValues): ValidationResult {
     const val = raw(v, name);
     if (val.trim() !== '') anyPresent = true;
     const p = parseComponent(val);
-    if (p === 'invalid') fieldErrors[name] = MSG.componentWhole;
+    if (p === 'invalid') fieldErrors[name] = MSG.componentInvalid;
     else if (p === 'negative') fieldErrors[name] = MSG.componentNegative;
   }
   if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
@@ -152,37 +163,41 @@ export function computeTime(v: TimeFormValues): TimeComputed {
 /* Complete-result guard (in resultValue — NO isUsableResult)          */
 /* ------------------------------------------------------------------ */
 
-const wholeNonNeg = (n: number): boolean => Number.isInteger(n) && n >= 0;
+const finiteNonNeg = (n: number): boolean => Number.isFinite(n) && n >= 0;
 
 export function completeTimeValue(c: TimeComputed): number {
   if (c.op !== 'add' && c.op !== 'subtract') return Number.NaN;
   if (!c.anyPresent) return Number.NaN;
-  // every parsed component must be a finite non-negative whole number
+  // every parsed component must be a finite non-negative number (whole OR decimal, matching the source)
   for (const side of [c.a, c.b]) {
-    if (!wholeNonNeg(side.days) || !wholeNonNeg(side.hours) || !wholeNonNeg(side.minutes) || !wholeNonNeg(side.seconds)) {
+    if (!finiteNonNeg(side.days) || !finiteNonNeg(side.hours) || !finiteNonNeg(side.minutes) || !finiteNonNeg(side.seconds)) {
       return Number.NaN;
     }
   }
-  // whole components → integer seconds throughout (no rounding surprise)
-  if (!Number.isInteger(c.aSeconds) || !Number.isInteger(c.bSeconds) || !Number.isInteger(c.totalSeconds)) return Number.NaN;
+  // A. the EXACT signed total (and each operand's seconds) may be fractional — require only finiteness
+  if (!Number.isFinite(c.aSeconds) || !Number.isFinite(c.bSeconds) || !Number.isFinite(c.totalSeconds)) return Number.NaN;
 
+  // B. the WHOLE-SECOND normalized breakdown: non-negative integers in their normalized ranges
   const r = c.result;
   if (![r.days, r.hours, r.minutes, r.seconds].every(Number.isInteger)) return Number.NaN;
   if (r.days < 0 || r.hours < 0 || r.minutes < 0 || r.seconds < 0) return Number.NaN;
-  if (r.hours >= 24 || r.minutes >= 60 || r.seconds >= 60) return Number.NaN; // normalized ranges
+  if (r.hours >= 24 || r.minutes >= 60 || r.seconds >= 60) return Number.NaN;
 
-  // the signed decomposition reconciles with totalSeconds (exact, whole seconds)
+  // the SIGN reconciles with the EXACT total; the MAGNITUDE reconciles with the ROUNDED total. A
+  // fractional total that rounds to a zero magnitude (e.g. −0.5s → −0) stays VALID — the `negative`
+  // flag is honoured while the presentation shows an unsigned zero (never "−0s").
+  if (r.negative !== c.totalSeconds < 0) return Number.NaN;
   const mag = r.days * DAY + r.hours * HOUR + r.minutes * MIN + r.seconds;
-  if (mag === 0 && r.negative) return Number.NaN; // no negative-zero presentation leak
-  const signed = r.negative ? -mag : mag;
-  if (signed !== c.totalSeconds) return Number.NaN;
+  if (mag !== Math.abs(Math.round(c.totalSeconds))) return Number.NaN;
 
-  // a recompute of the unchanged source reproduces the result
-  const re = breakdownDuration(combineDurations(c.aSeconds, c.op, c.bSeconds));
+  // a complete source recomputation reproduces the EXACT total AND the breakdown
+  const reTotal = combineDurations(c.aSeconds, c.op, c.bSeconds);
+  if (reTotal !== c.totalSeconds) return Number.NaN;
+  const re = breakdownDuration(reTotal);
   if (re.days !== r.days || re.hours !== r.hours || re.minutes !== r.minutes || re.seconds !== r.seconds || re.negative !== r.negative) {
     return Number.NaN;
   }
-  return c.totalSeconds; // finite SIGNED sentinel (negative and zero both pass the default gate)
+  return c.totalSeconds; // EXACT signed finite sentinel (may be fractional; negative & zero both pass the gate)
 }
 
 /* ------------------------------------------------------------------ */
@@ -194,25 +209,32 @@ export interface TimePresentation {
   a11y: string;
   totalSeconds: string;
   interpretation: string;
+  rounded: string; // '' when the exact total is a whole number; else the rounding note
 }
 
-const nf = new Intl.NumberFormat('en-US');
+// The secondary total keeps the EXACT value (up to 6 fractional digits — enough for any sub-second
+// duration while hiding floating-point noise), with thousands separators for whole seconds.
+const nfTotal = new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 });
 const SUFFIX: Record<Unit, string> = { days: 'd', hours: 'h', minutes: 'm', seconds: 's' };
 const WORD: Record<Unit, string> = { days: 'day', hours: 'hour', minutes: 'minute', seconds: 'second' };
 
-/** Compact signed form: from the highest non-zero unit through seconds; all-zero → "0s". */
+const isZeroMagnitude = (r: SignedDuration): boolean => UNITS.every((u) => r[u] === 0);
+const ROUNDING_NOTE = 'The duration is rounded to the nearest whole second; the exact total is shown below.';
+
+/** Compact signed form: from the highest non-zero unit through seconds; an all-zero magnitude → "0s" (unsigned). */
 export function compactDuration(r: SignedDuration): string {
+  if (isZeroMagnitude(r)) return '0s'; // never "−0s" — a rounded-to-zero magnitude is unsigned
   const vals: Array<[Unit, number]> = UNITS.map((u) => [u, r[u]]);
   const start = vals.findIndex(([, v]) => v !== 0);
-  if (start === -1) return '0s';
   const body = vals.slice(start).map(([u, v]) => `${v}${SUFFIX[u]}`).join(' ');
   return `${r.negative ? '−' : ''}${body}`;
 }
 
-/** Spoken signed form: non-zero units only (all-zero → "0 seconds"), a leading "minus" when negative. */
+/** Spoken signed form: non-zero units only; an all-zero magnitude → "0 seconds" (unsigned — never "minus 0 seconds"). */
 export function spokenDuration(r: SignedDuration): string {
-  const parts = UNITS.map((u) => [u, r[u]] as [Unit, number]).filter(([, v]) => v !== 0);
-  const words = (parts.length ? parts : ([['seconds', 0]] as Array<[Unit, number]>))
+  if (isZeroMagnitude(r)) return '0 seconds';
+  const words = UNITS.map((u) => [u, r[u]] as [Unit, number])
+    .filter(([, v]) => v !== 0)
     .map(([u, v]) => `${v} ${WORD[u]}${v === 1 ? '' : 's'}`)
     .join(', ');
   return `${r.negative ? 'minus ' : ''}${words}`;
@@ -220,7 +242,8 @@ export function spokenDuration(r: SignedDuration): string {
 
 export function presentTime(c: TimeComputed): TimePresentation {
   const r = c.result;
-  const signedTotal = `${c.totalSeconds < 0 ? '−' : ''}${nf.format(Math.abs(c.totalSeconds))}`;
+  const fractional = !Number.isInteger(c.totalSeconds);
+  const signedTotal = `${c.totalSeconds < 0 ? '−' : ''}${nfTotal.format(Math.abs(c.totalSeconds))}`;
   let interpretation =
     c.op === 'add'
       ? 'The two durations were added together.'
@@ -234,11 +257,13 @@ export function presentTime(c: TimeComputed): TimePresentation {
     a11y: spokenDuration(r),
     totalSeconds: signedTotal,
     interpretation,
+    rounded: fractional ? ROUNDING_NOTE : '',
   };
 }
 
 export function describeTime(c: TimeComputed): string {
-  return `Calculated time: ${spokenDuration(c.result)}.`;
+  const base = `Calculated time: ${spokenDuration(c.result)}.`;
+  return Number.isInteger(c.totalSeconds) ? base : `${base} Rounded to the nearest whole second.`;
 }
 
 export function renderTimeResult(result: TimeComputed, context: FormRenderContext): void {
@@ -254,6 +279,11 @@ export function renderTimeResult(result: TimeComputed, context: FormRenderContex
   if (a11y) a11y.textContent = p.a11y;
   set('[data-tc-total]', p.totalSeconds);
   set('[data-tc-interpretation]', p.interpretation);
+  const roundedEl = q('[data-tc-rounded]');
+  if (roundedEl) {
+    roundedEl.textContent = p.rounded;
+    roundedEl.hidden = p.rounded === '';
+  }
 }
 
 /* ------------------------------------------------------------------ */

@@ -48,8 +48,8 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
                     name={`${side}_${u}`}
                     type="number"
                     min="0"
-                    step="1"
-                    inputmode="numeric"
+                    step="any"
+                    inputmode="decimal"
                     autocomplete="off"
                     aria-label={`${legend} ${u}`}
                     aria-describedby={`tc-${side}-${u}-error`}
@@ -98,6 +98,7 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
       <ResultInterpretation>
         <span data-tc-interpretation></span>
       </ResultInterpretation>
+      <p class="tc-rounded" data-tc-rounded hidden></p>
 
       <ResultBreakdown title="In seconds">
         <dl class="tc-metrics">
@@ -108,7 +109,7 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
 
     <InvalidResult
       title="Check your entries"
-      message="Enter at least one duration value using whole numbers (0 or more) to calculate."
+      message="Enter at least one duration value (numbers, 0 or more) to calculate."
     />
 
     <ResultAnnouncement id="tc-live" />
@@ -155,6 +156,11 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
     cursor: pointer;
   }
 
+  .tc-rounded {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
   .tc-live-note {
     margin-top: 0.75rem;
     font-size: 0.8rem;
