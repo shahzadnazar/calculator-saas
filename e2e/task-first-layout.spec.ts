@@ -49,6 +49,7 @@ const PILOTS = [
   { route: '/finance/income-tax-calculator', structure: 'form (finance; complex-form + MULTI-MODE filing status — single/married native radio; gross income + optional pre-tax deductions; 2024-bracket estimated-tax dominant + taxable/after-tax/effective/marginal breakdown; valid $0 tax at/below the deduction; own binding, runtime unchanged)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
+  { route: '/math/random-number-generator', structure: 'generator (random-data; min/max/count/no-repeats settings → explicit Generate Numbers; inclusive integer range; min>max rejected, min==max valid; unique cap preserved + noted; NO output before Generate, NO live regeneration; own binding on the UNCHANGED generator runtime)' },
 ];
 
 const tool = (page: Page) => page.locator('section[aria-label$=" tool"]');

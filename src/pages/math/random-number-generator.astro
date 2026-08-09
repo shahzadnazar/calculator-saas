@@ -11,7 +11,13 @@ const faqs = [
   { question: 'What is the difference between true and pseudo-random numbers?', answer: 'Pseudo-random numbers come from a formula and are predictable if you know the starting seed. This generator uses the browser\'s cryptographic source, which draws on unpredictable system entropy — much closer to "true" randomness and suitable where fairness matters.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Generate one or many random numbers within any range, with an option for unique (non-repeating) values — powered by secure browser randomness." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Generate one or many random numbers within any range, with an option for unique (non-repeating) values — powered by secure browser randomness."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-08-09' }}
+>
   <RandomNumberGenerator />
   <Fragment slot="content">
     <h2>How to use the generator</h2>

@@ -13,7 +13,9 @@ const LEGACY = [
   { route: '/finance/compound-interest-calculator', category: 'finance' }, // income-tax migrated in R18B1; compound-interest is the finance legacy rep (still legacy — it migrates last in the growth cluster)
   // health has no legacy representative: pregnancy (R14B2) completed the Gestational
   // family, and every health calculator now renders task-first.
-  { route: '/math/random-number-generator', category: 'math' }, // fraction migrated in R17B1; random-number-generator stays legacy (math rep)
+  // math has no legacy representative: random-number-generator migrated in R18B2 (the
+  // last Math legacy), so every math calculator now renders task-first — Math reached 0
+  // legacy. (No repoint to an already-migrated calculator.)
   { route: '/everyday/age-calculator', category: 'everyday' },
 ];
 
