@@ -12,7 +12,13 @@ const faqs = [
   { question: 'Does this include state tax, FICA and credits?', answer: 'No — this is a federal income tax estimate only. It excludes state and local income taxes, FICA payroll taxes, and credits such as the Earned Income Tax Credit or Child Tax Credit, which can substantially lower (or, for refundable credits, reverse) your actual bill.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate your U.S. federal income tax using the 2024 brackets and standard deduction, with your effective and marginal rates and after-tax income." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Estimate your U.S. federal income tax using the 2024 brackets and standard deduction, with your effective and marginal rates and after-tax income."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-08-09' }}
+>
   <IncomeTaxCalculator />
   <Fragment slot="content">
     <h2>How progressive tax brackets work</h2>
@@ -31,7 +37,7 @@ const faqs = [
         <tr><td>37%</td><td>Over $609,350</td></tr>
       </tbody>
     </table>
-    <p>Married-filing-jointly and head-of-household filers use the same rates over wider bands.</p>
+    <p>Married-filing-jointly filers use the same rates over wider bands. This calculator supports single and married-filing-jointly filers.</p>
 
     <h2>A worked example</h2>
     <p>Take a single filer earning <strong>$60,000</strong>. Subtract the 2024 standard deduction of $14,600 and taxable income is $45,400. The tax is built up bracket by bracket:</p>

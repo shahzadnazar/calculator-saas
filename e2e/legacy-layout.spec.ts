@@ -10,7 +10,7 @@ import { test, expect, type Page } from '@playwright/test';
  * whitespace-ignoring diff of every page; these tests lock the behaviour in CI.)
  */
 const LEGACY = [
-  { route: '/finance/income-tax-calculator', category: 'finance' }, // loan migrated in R15B1; income-tax stays legacy (finance rep)
+  { route: '/finance/compound-interest-calculator', category: 'finance' }, // income-tax migrated in R18B1; compound-interest is the finance legacy rep (still legacy — it migrates last in the growth cluster)
   // health has no legacy representative: pregnancy (R14B2) completed the Gestational
   // family, and every health calculator now renders task-first.
   { route: '/math/random-number-generator', category: 'math' }, // fraction migrated in R17B1; random-number-generator stays legacy (math rep)
