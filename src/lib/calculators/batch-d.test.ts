@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { randomIntegers } from './random-number';
-import { toSeconds, combineDurations, breakdownDuration } from './time';
 
 // NOTE: Concrete cases moved to the dedicated `concrete.test.ts` (R10C1 characterization).
 // NOTE: Triangle cases moved to the dedicated `triangle.test.ts` (R10D1 characterization).
+// NOTE: Time arithmetic cases moved to the dedicated `time.test.ts` (R17B3 characterization).
 
 describe('random integers', () => {
   it('is deterministic with an injected RNG', () => {
@@ -19,20 +19,5 @@ describe('random integers', () => {
     const out = randomIntegers({ min: 1, max: 5, count: 100, unique: true });
     expect(out.length).toBe(5);
     expect(new Set(out).size).toBe(5);
-  });
-});
-
-describe('time arithmetic', () => {
-  it('adds durations', () => {
-    const a = toSeconds({ hours: 2, minutes: 30 });
-    const b = toSeconds({ hours: 1, minutes: 45 });
-    const total = combineDurations(a, 'add', b);
-    const d = breakdownDuration(total);
-    expect(d).toMatchObject({ hours: 4, minutes: 15, negative: false });
-  });
-  it('handles negative results', () => {
-    const d = breakdownDuration(combineDurations(60, 'subtract', 150));
-    expect(d.negative).toBe(true);
-    expect(d).toMatchObject({ minutes: 1, seconds: 30 });
   });
 });
