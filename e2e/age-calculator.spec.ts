@@ -232,6 +232,58 @@ test.describe('age: task-first', () => {
   });
 });
 
+/* -------------------- "age at" defaults to the visitor's LOCAL civil date (R18C1.1) --------------------
+ * The as-of default must be the visitor's LOCAL calendar date, not the UTC date of the instant. Each
+ * case freezes a UTC instant (page.clock) under a controlled browser timezone (timezoneId) and asserts
+ * the hydrated as-of value against a HARD-CODED expected local date (an oracle independent of todayISO):
+ * at 2026-08-09T21:30Z, Asia/Karachi (+05:00) is already 2026-08-10 while UTC is still 2026-08-09. */
+const TZ_CASES = [
+  { tz: 'Asia/Karachi', instant: '2026-08-09T21:30:00Z', expected: '2026-08-10' }, // +05:00 crosses midnight
+  { tz: 'UTC', instant: '2026-08-09T21:30:00Z', expected: '2026-08-09' }, // UTC baseline (the earlier artifact)
+  { tz: 'America/Los_Angeles', instant: '2026-08-10T04:30:00Z', expected: '2026-08-09' }, // -07:00, still prev day
+  { tz: 'Asia/Karachi', instant: '2026-12-31T20:00:00Z', expected: '2027-01-01' }, // year rollover
+];
+
+for (const c of TZ_CASES) {
+  test.describe(`age: as-of = local date — ${c.tz} @ ${c.instant}`, () => {
+    test.use({ timezoneId: c.tz });
+    test(`hydrates as-of to ${c.expected} (local), DOB empty, result empty`, async ({ page }) => {
+      await page.clock.setFixedTime(new Date(c.instant));
+      await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('[name="at"]')).toHaveValue(c.expected);
+      await expect(page.locator('[name="dob"]')).toHaveValue('');
+      await expect(shell(page)).toHaveAttribute('data-result-state', 'empty'); // no calc from populating today
+      await expect(live(page)).toHaveText('');
+    });
+  });
+}
+
+test.describe('age: local-today under Asia/Karachi — reset + explicit calc still correct (R18C1.1)', () => {
+  test.use({ timezoneId: 'Asia/Karachi' });
+
+  test('reset restores the Karachi-local date across the UTC boundary', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-09T21:30:00Z'));
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await page.locator('[name="dob"]').fill('1990-06-15');
+    await page.locator('[name="at"]').fill('2020-06-15');
+    await page.getByRole('button', { name: 'Calculate Age' }).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await page.click('[data-reset]');
+    await expect(page.locator('[name="at"]')).toHaveValue('2026-08-10'); // Karachi local, not UTC 08-09
+    await expect(page.locator('[name="dob"]')).toHaveValue('');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  });
+
+  test('explicit-date calculation is timezone-independent: Jan-31→Mar-01 = 0y 1m 1d; same-date = 0', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-09T21:30:00Z'));
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await calc(page, { dob: '2020-01-31', at: '2020-03-01' });
+    await expect(primary(page)).toHaveText('0 years, 1 month, 1 day');
+    await calc(page, { dob: '2020-06-15', at: '2020-06-15' });
+    await expect(primary(page)).toHaveText('0 years, 0 months, 0 days');
+  });
+});
+
 /* -------------------- same-document two-instance isolation -------------------- */
 
 test.describe('age: same-document instance isolation', () => {
