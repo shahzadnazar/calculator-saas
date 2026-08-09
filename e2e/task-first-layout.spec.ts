@@ -45,6 +45,7 @@ const PILOTS = [
   { route: '/finance/mortgage-calculator', structure: 'form (complex-form; PMI schedule; optional-cost + yearly-schedule disclosures; zero-mortgage)' },
   { route: '/math/fraction-calculator', structure: 'form (math; two fractions + operation <select> parameter; strict integer fields; simplified-fraction dominant + mixed/decimal secondaries; own binding, runtime unchanged)' },
   { route: '/everyday/hours-calculator', structure: 'form (everyday; two type=time fields + whole-minute break; overnight-aware; valid zero duration; total hours+minutes dominant + decimal-hours secondary; own binding, runtime unchanged)' },
+  { route: '/everyday/time-calculator', structure: 'form (everyday; two d/h/m/s duration operands + native add/subtract radio; SIGNED result — negative subtraction shown, valid zero; whole non-negative components; normalized duration dominant + total-seconds secondary; own binding, runtime unchanged)' },
   { route: '/math/percent-calculator', structure: 'equation' },
   { route: '/everyday/password-generator', structure: 'generator' },
 ];

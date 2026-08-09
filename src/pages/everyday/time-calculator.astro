@@ -11,7 +11,13 @@ const faqs = [
   { question: 'What is the difference from the hours calculator?', answer: 'This tool adds and subtracts durations (spans of time). The hours calculator works out time worked between two clock times, with breaks — better for timesheets.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Add or subtract two durations in days, hours, minutes and seconds, and see the normalised result plus the total in seconds." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  reviewMetadata={{ reviewedDate: '2026-08-09' }}
+  intro="Add or subtract two durations in days, hours, minutes and seconds, then press Calculate Time to see the normalised result and the total in seconds."
+  faqs={faqs}
+>
   <TimeCalculator />
   <Fragment slot="content">
     <h2>Working with durations</h2>
