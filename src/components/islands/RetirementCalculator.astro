@@ -11,9 +11,10 @@
  * prefilled a full $25k/$500/6% scenario and auto-calculated a baked-in SSR result. The DOMINANT
  * result is the projected nest egg; the estimated retirement income (monthly + annual), total
  * contributions and investment growth are supporting. The latent yearly compound series is NOT
- * rendered — there is no schedule table. Ages are whole years with retirement age > current age;
- * savings + monthly contribution collectively fund the projection (mirroring Investment). NO
- * isUsableResult — the guard lives in the binding's resultValue. No runtime change; NO shared
+ * rendered — there is no schedule table. Ages are whole years (no invented upper cap) with
+ * retirement age > current age; current savings and monthly contribution are each OPTIONAL — a
+ * zero-funded projection is a valid all-zero result ($0 nest egg, $0 income), SHOWN, never a
+ * funding error (R18B3.1). NO isUsableResult — the guard lives in the binding's resultValue. No runtime change; NO shared
  * growth / investment / retirement / projection binding, and NOTHING shared with Investment or
  * Savings beyond the frozen engine.
  *
@@ -36,12 +37,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     <div class="grid grid-cols-2 gap-4">
       <div data-field="currentAge">
         <label class="field-label" for="ret-age">Current age</label>
-        <input class="field" id="ret-age" name="currentAge" type="number" min="0" max="120" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="ret-age-error" />
+        <input class="field" id="ret-age" name="currentAge" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="ret-age-error" />
         <p class="ret-error" id="ret-age-error" data-error-for="currentAge" hidden></p>
       </div>
       <div data-field="retirementAge">
         <label class="field-label" for="ret-rage">Retirement age</label>
-        <input class="field" id="ret-rage" name="retirementAge" type="number" min="0" max="120" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 65" aria-describedby="ret-rage-error" />
+        <input class="field" id="ret-rage" name="retirementAge" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 65" aria-describedby="ret-rage-error" />
         <p class="ret-error" id="ret-rage-error" data-error-for="retirementAge" hidden></p>
       </div>
     </div>
@@ -92,7 +93,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="ret-result" state="empty" density="standard" label="Retirement projection" minHeight="20rem" placeholderAlignment="center">
-    <EmptyResult message="Enter your ages, savings, contribution and expected return, then calculate your projection." />
+    <EmptyResult message="Enter your ages and expected return (and any current savings or monthly contribution), then calculate your projection." />
 
     <div data-result-when="valid">
       <ResultSummary label="Projected retirement balance">
@@ -120,7 +121,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     <InvalidResult
       title="Check your entries"
-      message="Enter your current and retirement age, savings or a contribution, an expected return and a withdrawal rate."
+      message="Enter your current and retirement age, an expected return and a withdrawal rate."
     />
 
     <ResultAnnouncement id="ret-live" />

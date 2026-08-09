@@ -6,8 +6,6 @@ import {
   completeResultValue,
   describeRetirementResult,
   MSG,
-  FUNDING_ERROR,
-  MAX_AGE,
   type RetirementValues,
   type RetirementComputed,
 } from './retirement-form';
@@ -72,13 +70,16 @@ describe('retirement binding — validation', () => {
     if (!b.ok) expect(b.fieldErrors?.retirementAge).toBe(MSG.retirementAgeRequired);
   });
 
-  it('rejects non-integer / out-of-range / negative ages', () => {
-    for (const bad of ['30.5', '130', '-5', 'abc']) {
+  it('rejects non-integer / negative / malformed ages — but NOT large ages (no upper cap, R18B3.1)', () => {
+    for (const bad of ['30.5', '-5', 'abc']) {
       const v = validateRetirementValues(vals({ currentAge: bad }));
       expect(v.ok).toBe(false);
       if (!v.ok) expect(v.fieldErrors?.currentAge).toBe(MSG.currentAgeInvalid);
     }
-    expect(validateRetirementValues(vals({ currentAge: String(MAX_AGE), retirementAge: '' })).ok).toBe(false);
+    // A very large whole age is accepted — the frozen source applies no cap and none is in the
+    // public contract (the legacy max="100" was an unenforced HTML hint).
+    expect(validateRetirementValues(vals({ currentAge: '130', retirementAge: '140' })).ok).toBe(true);
+    expect(validateRetirementValues(vals({ currentAge: '200', retirementAge: '205' })).ok).toBe(true);
   });
 
   it('rejects retirement age equal to or below current age (cross-field form error)', () => {
@@ -94,17 +95,21 @@ describe('retirement binding — validation', () => {
     expect(validateRetirementValues(vals({ currentAge: '25', retirementAge: '60' })).ok).toBe(true);
   });
 
-  it('savings + contribution are each optional but collectively required to fund', () => {
-    // both empty (→ 0) with valid ages/rates → funding error
-    const v = validateRetirementValues(vals({ currentSavings: '', monthlyContribution: '' }));
-    expect(v.ok).toBe(false);
-    if (!v.ok) expect(v.formError).toBe(FUNDING_ERROR);
-    // one of them > 0 → ok
+  it('savings + contribution are each optional and NOT collectively required (zero funding is valid, R18B3.1)', () => {
+    // both empty (→ 0) with valid ages/rates → VALID, no funding error
+    expect(validateRetirementValues(vals({ currentSavings: '', monthlyContribution: '' })).ok).toBe(true);
+    // explicit 0 / 0 → VALID
+    expect(validateRetirementValues(vals({ currentSavings: '0', monthlyContribution: '0' })).ok).toBe(true);
+    // any mix of empty / positive → valid
     expect(validateRetirementValues(vals({ currentSavings: '', monthlyContribution: '100' })).ok).toBe(true);
     expect(validateRetirementValues(vals({ currentSavings: '5000', monthlyContribution: '' })).ok).toBe(true);
-    // explicit 0/0 → funding error
-    const z = validateRetirementValues(vals({ currentSavings: '0', monthlyContribution: '0' }));
-    if (!z.ok) expect(z.formError).toBe(FUNDING_ERROR);
+    // a NEGATIVE amount is still rejected per-field (non-negative), never as a collective funding error
+    const neg = validateRetirementValues(vals({ currentSavings: '-1', monthlyContribution: '0' }));
+    expect(neg.ok).toBe(false);
+    if (!neg.ok) {
+      expect(neg.fieldErrors?.currentSavings).toBe(MSG.savingsInvalid);
+      expect(neg.formError).toBeUndefined();
+    }
   });
 
   it('rejects negative / malformed money, allows decimals', () => {
@@ -168,6 +173,33 @@ describe('retirement binding — computation + guard', () => {
     expect(c.currentSavings).toBe(0);
   });
 
+  it('a FULLY zero-funded projection is a usable result: resultValue = 0, not NaN (R18B3.1)', () => {
+    const c = computeRetirement(vals({ currentSavings: '0', monthlyContribution: '0' }));
+    expect(c.nestEgg).toBe(0);
+    expect(c.totalContributions).toBe(0);
+    expect(c.totalEarnings).toBe(0);
+    expect(c.estimatedAnnualIncome).toBe(0);
+    expect(c.estimatedMonthlyIncome).toBe(0);
+    expect(c.yearsToRetirement).toBe(35); // the horizon is unaffected by funding
+    expect(completeResultValue(c)).toBe(0); // finite 0 → the runtime's default gate treats it as valid
+    expect(Number.isNaN(completeResultValue(c))).toBe(false);
+    expect(retirementBinding.resultValue(c)).toBe(0);
+  });
+
+  it('empty savings + empty contribution normalize to a zero-funded valid result (R18B3.1)', () => {
+    const c = computeRetirement(vals({ currentSavings: '', monthlyContribution: '' }));
+    expect(c.currentSavings).toBe(0);
+    expect(c.monthlyContribution).toBe(0);
+    expect(completeResultValue(c)).toBe(0);
+  });
+
+  it('an age above 120 is accepted — the guard reconciles the horizon (no upper cap, R18B3.1)', () => {
+    const c = computeRetirement(vals({ currentAge: '125', retirementAge: '130', currentSavings: '5000', monthlyContribution: '50' }));
+    expect(c.yearsToRetirement).toBe(5);
+    expect(completeResultValue(c)).toBe(c.nestEgg);
+    expect(Number.isNaN(completeResultValue(c))).toBe(false);
+  });
+
   it('zero return → zero earnings, still complete', () => {
     const c = computeRetirement(vals({ annualReturnPct: '0' }));
     expect(c.totalEarnings).toBeCloseTo(0, 6);
@@ -194,6 +226,11 @@ describe('retirement binding — description + DOM', () => {
   it('announces the dominant projected balance', () => {
     const c = computeRetirement(vals({ currentSavings: '100000', monthlyContribution: '0', annualReturnPct: '0', currentAge: '40', retirementAge: '60' }));
     expect(describeRetirementResult(c)).toBe('Projected retirement balance: $100,000.00.');
+  });
+
+  it('announces a zero-funded projection as a valid $0.00 balance, not an error (R18B3.1)', () => {
+    const c = computeRetirement(vals({ currentSavings: '0', monthlyContribution: '0', currentAge: '30', retirementAge: '65' }));
+    expect(describeRetirementResult(c)).toBe('Projected retirement balance: $0.00.');
   });
 
   it('readValues reads all six fields', () => {

@@ -143,10 +143,34 @@ test.describe('retirement: task-first', () => {
     await expect(invalidMsg(page)).toContainText('Retirement age must be greater than your current age');
   });
 
-  test('no funding (zero savings and zero contribution) is a form-level funding error', async ({ page }) => {
-    await calc(page, { currentAge: '30', retirementAge: '65', currentSavings: '0', monthlyContribution: '0', annualReturnPct: '6' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(invalidMsg(page)).toContainText('greater than zero');
+  test('a zero-funded projection (0 savings, 0 contribution) is a VALID all-zero result, not a funding error', async ({ page }) => {
+    await calc(page, { currentAge: '30', retirementAge: '65', currentSavings: '0', monthlyContribution: '0', annualReturnPct: '6', withdrawalRatePct: '4' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('$0.00');
+    await expect(years(page)).toHaveText('35'); // horizon still valid
+    await expect(monthlyIncome(page)).toHaveText('$0.00');
+    await expect(annualIncome(page)).toHaveText('$0');
+    await expect(contrib(page)).toHaveText('$0');
+    await expect(earn(page)).toHaveText('$0');
+    await expect(live(page)).toHaveText('Projected retirement balance: $0.00.');
+    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  test('empty savings and empty contribution also produce the valid $0.00 projection', async ({ page }) => {
+    await page.locator('[name="currentAge"]').fill('40');
+    await page.locator('[name="retirementAge"]').fill('60');
+    await page.locator('[name="annualReturnPct"]').fill('5'); // savings + contribution left empty → 0
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('$0.00');
+    await expect(earn(page)).toHaveText('$0');
+  });
+
+  test('an age above 120 is accepted — no invented upper cap', async ({ page }) => {
+    await calc(page, { currentAge: '125', retirementAge: '130', currentSavings: '5000', monthlyContribution: '50', annualReturnPct: '4' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(years(page)).toHaveText('5');
+    await expect(primary(page)).toHaveText(/^\$[\d,]+\.\d{2}$/);
   });
 
   test('a negative return is rejected with its field error', async ({ page }) => {
@@ -166,6 +190,15 @@ test.describe('retirement: task-first', () => {
     await expect(primary(page)).not.toHaveText(before ?? '');
     await expect(contrib(page)).toHaveText('$420,000'); // 1000 × 12 × 35
     await expect(page.locator('[name="monthlyContribution"]')).toBeFocused();
+  });
+
+  test('live-after-first works starting FROM a zero result: adding savings updates it live', async ({ page }) => {
+    await calc(page, { currentAge: '30', retirementAge: '40', currentSavings: '0', monthlyContribution: '0', annualReturnPct: '0', withdrawalRatePct: '4' });
+    await expect(primary(page)).toHaveText('$0.00');
+    await page.locator('[name="currentSavings"]').fill('10000');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(primary(page)).toHaveText('$10,000.00'); // 0% return, no contribution → savings unchanged over 10 yrs
+    await expect(page.locator('[name="currentSavings"]')).toBeFocused();
   });
 
   test('an invalid live edit clears the stale result, keeping focus', async ({ page }) => {

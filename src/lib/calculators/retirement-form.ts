@@ -15,12 +15,16 @@
  *     with the source's 4% default — a non-personal assumption), the result is empty, and the
  *     visitor presses "Calculate Retirement" for the first result (live-after-first). The
  *     latent yearly series is NOT rendered.
- *   • Ages: required whole years in [MIN_AGE, MAX_AGE]; retirement age must be GREATER than
- *     current age (equal / below rejected — a cross-field error; the source clamps to 0, but
- *     a zero / negative horizon is not a task-valid projection).
+ *   • Ages: required whole years >= MIN_AGE with NO upper cap (the frozen source applies none,
+ *     and no Retirement-specific public contract sets one — R18B3.1); retirement age must be
+ *     GREATER than current age (equal / below rejected — a cross-field error; the source clamps
+ *     to 0, but a zero / negative horizon is not a task-valid projection).
  *   • Current savings + monthly contribution are each optional (empty → 0, entered 0 valid,
- *     negative / non-finite invalid) but COLLECTIVELY at least one must be > 0 (a FORM-level
- *     funding error, mirroring Investment — no single field is blamed).
+ *     negative / non-finite invalid). They are NOT collectively required to be positive: a
+ *     zero-funded projection over a valid horizon is an ordinary all-zero result (nest egg $0,
+ *     $0 income), SHOWN — never a funding error (R18B3.1). No Retirement-specific public
+ *     contract requires funding > 0; the earlier collective rule was Investment's, not this
+ *     calculator's.
  *   • Annual return is required, finite and >= 0 (a retirement "expected return" is
  *     non-negative; the legacy field enforced min=0) — so earnings are always >= 0. Withdrawal
  *     rate is required, finite and >= 0.
@@ -40,15 +44,13 @@ import type {
 } from '@lib/result/form-runtime';
 
 export const MIN_AGE = 0;
-export const MAX_AGE = 120;
 export const DEFAULT_WITHDRAWAL_PCT = 4;
-export const FUNDING_ERROR = 'Enter current savings or a monthly contribution greater than zero.';
 
 export const MSG = {
   currentAgeRequired: 'Enter your current age.',
-  currentAgeInvalid: `Enter a current age from ${MIN_AGE} to ${MAX_AGE}.`,
+  currentAgeInvalid: 'Enter a current age as a whole number (0 or more).',
   retirementAgeRequired: 'Enter your retirement age.',
-  retirementAgeInvalid: `Enter a retirement age from ${MIN_AGE} to ${MAX_AGE}.`,
+  retirementAgeInvalid: 'Enter a retirement age as a whole number (0 or more).',
   ageOrder: 'Retirement age must be greater than your current age.',
   savingsInvalid: 'Enter current savings of zero or more.',
   contributionInvalid: 'Enter a monthly contribution of zero or more.',
@@ -81,12 +83,14 @@ export interface RetirementComputed extends RetirementResult {
 /* ------------------------------------------------------------------ */
 
 type AgeParse = 'empty' | 'invalid' | number;
-/** Required whole-year age in [MIN_AGE, MAX_AGE]. */
+/** Required whole-year age >= MIN_AGE. No upper cap — the frozen source applies none, and no
+ *  Retirement-specific public contract establishes one (R18B3.1; the legacy field's max="100"
+ *  was an unenforced HTML hint the legacy Number()||0 never checked). */
 function parseAge(raw: string): AgeParse {
   const t = raw.trim();
   if (t === '') return 'empty';
   const n = Number(t);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < MIN_AGE || n > MAX_AGE) return 'invalid';
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < MIN_AGE) return 'invalid';
   return n;
 }
 
@@ -133,14 +137,13 @@ export function validateRetirementValues(values: RetirementValues): ValidationRe
   if (withdrawal === 'empty') fieldErrors.withdrawalRatePct = MSG.withdrawalRequired;
   else if (withdrawal === 'invalid') fieldErrors.withdrawalRatePct = MSG.withdrawalInvalid;
 
-  // Cross-field age order — only when both ages are valid integers.
+  // Cross-field age order — only when both ages are valid integers. Savings + monthly
+  // contribution are each optional and need NOT be positive: a zero-funded projection over a
+  // valid horizon is a valid all-zero result, not a funding error (R18B3.1). `savings` /
+  // `contribution` are still consumed above for their own per-field non-negative validation.
   let formError: string | undefined;
   if (typeof currentAge === 'number' && typeof retirementAge === 'number' && retirementAge <= currentAge) {
     formError = MSG.ageOrder;
-  }
-  // Collective funding — only when BOTH funding fields are individually valid; no single field blamed.
-  if (!formError && savings !== 'invalid' && contribution !== 'invalid' && !(savings > 0 || contribution > 0)) {
-    formError = FUNDING_ERROR;
   }
 
   if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors, ...(formError ? { formError } : {}) };
@@ -189,8 +192,8 @@ const FAIL = Number.NaN;
  */
 export function completeResultValue(r: RetirementComputed): number {
   const { currentAge, retirementAge, currentSavings, monthlyContribution, annualReturnPct, withdrawalRatePct } = r;
-  if (!Number.isInteger(currentAge) || currentAge < MIN_AGE || currentAge > MAX_AGE) return FAIL;
-  if (!Number.isInteger(retirementAge) || retirementAge < MIN_AGE || retirementAge > MAX_AGE) return FAIL;
+  if (!Number.isInteger(currentAge) || currentAge < MIN_AGE) return FAIL;
+  if (!Number.isInteger(retirementAge) || retirementAge < MIN_AGE) return FAIL;
   if (retirementAge <= currentAge) return FAIL;
   if (!Number.isFinite(currentSavings) || currentSavings < 0) return FAIL;
   if (!Number.isFinite(monthlyContribution) || monthlyContribution < 0) return FAIL;
