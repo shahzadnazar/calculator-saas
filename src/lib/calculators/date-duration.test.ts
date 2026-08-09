@@ -25,13 +25,20 @@ describe('date duration', () => {
   });
 
   /**
-   * R18C0 — the diff breakdown delegates to calculateAge, so it inherits the month-end defect.
-   * Pre-fix baseline (corrected in Commit 2 alongside the age.ts repair): the breakdown of a
-   * month-end interval currently carries the impossible negative day component.
+   * R18C0 — the diff breakdown delegates to calculateAge, so the month-end repair propagates here
+   * automatically (date-duration.ts is unchanged). The breakdown of a month-end interval no longer
+   * carries an impossible negative day component.
    */
-  it('DEFECT (pre-fix): the breakdown of 2020-01-31 → 2020-03-01 inherits the negative day component', () => {
+  it('the breakdown of 2020-01-31 → 2020-03-01 is fixed via calculateAge (no negative day)', () => {
     const r = diffDates(utc(2020, 1, 31), utc(2020, 3, 1));
-    expect(r.totalDays).toBe(30); // the absolute interval is correct
-    expect(r.breakdown).toEqual({ years: 0, months: 1, days: -1 }); // −1 day: impossible (pre-fix, via calculateAge)
+    expect(r.totalDays).toBe(30); // the absolute interval is unchanged
+    expect(r.breakdown).toEqual({ years: 0, months: 1, days: 1 }); // repaired (was 0y 1m −1d)
+    expect(r.breakdown.days).toBeGreaterThanOrEqual(0);
+  });
+
+  it('add/subtract days is unchanged by the age repair', () => {
+    // addDays does not depend on calculateAge; pin it explicitly alongside the fix.
+    expect(toISODateUTC(addDays(utc(2020, 1, 31), 30))).toBe('2020-03-01');
+    expect(toISODateUTC(addDays(utc(2024, 3, 31), -1))).toBe('2024-03-30');
   });
 });
