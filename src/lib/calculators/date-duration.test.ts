@@ -23,4 +23,15 @@ describe('date duration', () => {
     expect(toISODateUTC(addDays(utc(2024, 2, 28), 1))).toBe('2024-02-29'); // leap year
     expect(toISODateUTC(addDays(utc(2024, 1, 1), -1))).toBe('2023-12-31');
   });
+
+  /**
+   * R18C0 — the diff breakdown delegates to calculateAge, so it inherits the month-end defect.
+   * Pre-fix baseline (corrected in Commit 2 alongside the age.ts repair): the breakdown of a
+   * month-end interval currently carries the impossible negative day component.
+   */
+  it('DEFECT (pre-fix): the breakdown of 2020-01-31 → 2020-03-01 inherits the negative day component', () => {
+    const r = diffDates(utc(2020, 1, 31), utc(2020, 3, 1));
+    expect(r.totalDays).toBe(30); // the absolute interval is correct
+    expect(r.breakdown).toEqual({ years: 0, months: 1, days: -1 }); // −1 day: impossible (pre-fix, via calculateAge)
+  });
 });
