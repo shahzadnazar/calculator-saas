@@ -16,7 +16,7 @@ const LEGACY = [
   // math has no legacy representative: random-number-generator migrated in R18B2 (the
   // last Math legacy), so every math calculator now renders task-first — Math reached 0
   // legacy. (No repoint to an already-migrated calculator.)
-  { route: '/everyday/date-calculator', category: 'everyday' }, // age migrated in R18C1; date is the everyday legacy rep (still legacy)
+  { route: '/everyday/conversion-calculator', category: 'everyday' }, // date migrated in R18C2; conversion is the everyday legacy rep (still legacy)
 ];
 
 const tool = (page: Page) => page.locator('section[aria-label$=" tool"]');
