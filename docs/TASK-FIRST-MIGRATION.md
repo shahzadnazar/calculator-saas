@@ -18,6 +18,7 @@ It is the reference for how calculator pages present the tool and trust signals.
 | Category-wide migration waves | ⏳ after pilot sign-off |
 | Homepage Basic/Scientific calculator (§1) | ✅ shipped |
 | Homepage global-search dropdown + Header search (§5) | ⏳ separate approval |
+| Calculator listing cards — category / task / directory (§7) | ✅ shipped |
 
 ---
 
@@ -313,3 +314,28 @@ score → coverage → searchPriority → shorter title → registryOrder.
 
 Homepage, Header, `/calculators`, category pages and the remaining calculator
 pages are not modified until their step is reached and separately approved.
+
+## 7. Calculator listing cards — SaaS product surfaces
+
+The "pick a calculator" surfaces — category pages (`/[category]`), task-group hubs
+(`/tasks/[slug]`) and the full directory (`/calculators`) — present each calculator
+as a **large product card**, not a dense website-directory row. One shared
+component, `CalculatorCard.astro`, is the single visual language across all three:
+
+- **Large and tap-friendly** — a bold title, one supporting line (the calculator's
+  description, or the task-framed use on task hubs), and one obvious action.
+- **The whole card is the link**; on hover its "Open calculator →" action fills
+  with brand so it reads as a real product button, not a text link.
+- **Two-column** on desktop (`sm:grid-cols-2`), single column on mobile.
+- Category headers carry a light **count + "free, no sign-up"** trust line.
+
+The `/calculators` directory keeps its per-category grouping and its **inline
+`?q=` search filter** — the card sits inside the existing `[data-calc-item]`
+wrapper the filter drives, so filtering is unchanged; the one planned calculator
+still renders as a compact dashed "Soon" cell.
+
+This is additive **presentation only** — no calculator, route, JSON-LD or
+search-index change. Guarded by `e2e/listing-cards.spec.ts` (the card renders on
+all three surfaces; the directory filter still narrows results). The homepage's
+own "Popular calculators" teaser and reference/guide cards are intentionally left
+as-is (different content types); extending the card there is a later option.

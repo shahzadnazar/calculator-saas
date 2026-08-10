@@ -4,6 +4,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import Icon from '@components/Icon.astro';
+import CalculatorCard from '@components/CalculatorCard.astro';
 import { TASK_GROUPS, type TaskGroup, taskPath } from '@data/tasks';
 import { getCalculator, calculatorPath } from '@data/calculators';
 import { getCluster, clusterPath } from '@data/clusters';
@@ -91,14 +92,10 @@ const jsonLd = [
           {sections.map((section) => (
             <section aria-label={section.title}>
               <h2 class="text-sm font-bold uppercase tracking-wide" style="color: var(--muted)">{section.title}</h2>
-              <ul class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <ul class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
                 {section.items.map((m) => (
                   <li>
-                    <a href={calculatorPath(m.calc)} class="card flex h-full flex-col gap-1 p-5 transition-shadow hover:shadow-lg">
-                      <span class="text-lg font-bold" style="color: var(--heading)">{m.calc.title}</span>
-                      <span class="text-sm" style="color: var(--fg)">{m.use}</span>
-                      <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Open calculator →</span>
-                    </a>
+                    <CalculatorCard href={calculatorPath(m.calc)} title={m.calc.title} blurb={m.use} />
                   </li>
                 ))}
               </ul>
@@ -107,14 +104,10 @@ const jsonLd = [
         </div>
       ) : (
         <section class="mt-10" aria-label={`${group.title} calculators`}>
-          <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <ul class="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {members.map((m) => (
               <li>
-                <a href={calculatorPath(m.calc)} class="card flex h-full flex-col gap-1 p-5 transition-shadow hover:shadow-lg">
-                  <span class="text-lg font-bold" style="color: var(--heading)">{m.calc.title}</span>
-                  <span class="text-sm" style="color: var(--fg)">{m.use}</span>
-                  <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Open calculator →</span>
-                </a>
+                <CalculatorCard href={calculatorPath(m.calc)} title={m.calc.title} blurb={m.use} />
               </li>
             ))}
           </ul>
