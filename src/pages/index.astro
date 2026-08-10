@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Icon from '@components/Icon.astro';
+import PhysicalCalculator from '@components/calc/PhysicalCalculator.astro';
 import { SITE } from '@config/site';
 import {
   getCalculator,
@@ -9,6 +10,7 @@ import {
   calculatorPath,
   STATS,
 } from '@data/calculators';
+import { getPopularCalculatorIds } from '@data/popular-calculators';
 import { TASK_GROUPS_ORDERED, taskPath } from '@data/tasks';
 
 // A curated set of flagship tools — a teaser, not the full 49 (that's /calculators).
@@ -24,6 +26,14 @@ const popularRefs = [
   'finance/tip-calculator',
 ];
 const featured = popularRefs
+  .map((ref) => {
+    const [cat, slug] = ref.split('/');
+    return getCalculator(cat, slug);
+  })
+  .filter((c): c is NonNullable<typeof c> => Boolean(c));
+
+// Hero quick-links — the curated popular set (the same list the search empty-state uses).
+const popular = getPopularCalculatorIds()
   .map((ref) => {
     const [cat, slug] = ref.split('/');
     return getCalculator(cat, slug);
@@ -52,7 +62,9 @@ const valueProps = [
   description={SITE.description}
   path="/"
 >
-  <!-- Hero -->
+  <!-- Hero — product-forward (SaaS): a live Basic/Scientific calculator sits beside the headline,
+       search and popular links. Mobile order (per the §5 contract): headline → search → popular →
+       calculator, so the search comes before the calculator on small screens. -->
   <section class="relative overflow-hidden">
     <div
       class="pointer-events-none absolute inset-0 -z-10 opacity-70"
@@ -60,30 +72,58 @@ const valueProps = [
       aria-hidden="true"
     >
     </div>
-    <div class="wrap py-16 text-center sm:py-24">
-      <p class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium" style="border-color: var(--line); color: var(--muted); background: var(--card)">
-        <span class="h-2 w-2 rounded-full" style="background: var(--color-accent-500)"></span>
-        {STATS.live} tools, organised by what you want to do
-      </p>
-      <h1 class="mx-auto mt-6 max-w-3xl text-4xl font-extrabold tracking-tight sm:text-6xl">
-        What do you want to <span style="color: var(--color-brand-600)">work out?</span>
-      </h1>
-      <p class="mx-auto mt-5 max-w-2xl text-lg" style="color: var(--muted)">
-        {SITE.description}
-      </p>
+    <div class="wrap py-12 sm:py-16 lg:py-20">
+      <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+        <!-- Left: headline + search + popular quick-links -->
+        <div class="text-center lg:text-left">
+          <p class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium" style="border-color: var(--line); color: var(--muted); background: var(--card)">
+            <span class="h-2 w-2 rounded-full" style="background: var(--color-accent-500)"></span>
+            {STATS.live} tools, organised by what you want to do
+          </p>
+          <h1 class="mt-6 text-4xl font-extrabold tracking-tight sm:text-5xl">
+            What do you want to <span style="color: var(--color-brand-600)">work out?</span>
+          </h1>
+          <p class="mx-auto mt-4 max-w-xl text-lg lg:mx-0" style="color: var(--muted)">
+            {SITE.description}
+          </p>
 
-      <form action="/calculators" method="get" class="mx-auto mt-8 flex max-w-xl gap-2">
-        <label class="sr-only" for="hero-search">Search calculators</label>
-        <input
-          id="hero-search"
-          name="q"
-          type="search"
-          class="field"
-          placeholder="Search: mortgage, BMI, scientific, percentage…"
-          autocomplete="off"
-        />
-        <button type="submit" class="btn btn-primary shrink-0">Search</button>
-      </form>
+          <form action="/calculators" method="get" class="mx-auto mt-7 flex max-w-xl gap-2 lg:mx-0">
+            <label class="sr-only" for="hero-search">Search calculators</label>
+            <input
+              id="hero-search"
+              name="q"
+              type="search"
+              class="field"
+              placeholder="Search: mortgage, BMI, scientific, percentage…"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn btn-primary shrink-0">Search</button>
+          </form>
+
+          <div class="mt-5 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+            <span class="text-sm font-semibold" style="color: var(--muted)">Popular:</span>
+            {
+              popular.map((c) => (
+                <a
+                  href={calculatorPath(c)}
+                  class="rounded-full border px-3 py-1 text-sm font-medium transition-shadow hover:shadow-sm"
+                  style="border-color: var(--line); color: var(--heading); background: var(--card)"
+                >
+                  {c.title.replace(/ Calculator$/, '')}
+                </a>
+              ))
+            }
+          </div>
+        </div>
+
+        <!-- Right: the live calculator — Basic by default, one-tap switch to Scientific -->
+        <div class="mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto lg:max-w-md">
+          <PhysicalCalculator id="home-calculator" defaultMode="basic" showModeSwitch={true} size="compact" />
+          <p class="mt-3 text-center text-xs lg:text-left" style="color: var(--muted)">
+            A real calculator, right here — switch to <strong>Scientific</strong> for functions, powers and trig.
+          </p>
+        </div>
+      </div>
     </div>
   </section>
 

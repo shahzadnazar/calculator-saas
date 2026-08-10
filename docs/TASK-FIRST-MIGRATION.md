@@ -16,7 +16,8 @@ It is the reference for how calculator pages present the tool and trust signals.
 | `CalculatorLayout` task-first extension (backward-compatible) | ✅ shipped |
 | Pilots: Scientific (keypad), BMI (form), Percentage (equation), Password (generator) | ✅ shipped |
 | Category-wide migration waves | ⏳ after pilot sign-off |
-| Homepage calculator + global search | ⏳ separate approval |
+| Homepage Basic/Scientific calculator (§1) | ✅ shipped |
+| Homepage global-search dropdown + Header search (§5) | ⏳ separate approval |
 
 ---
 
@@ -43,7 +44,11 @@ The homepage first viewport must include the shared `PhysicalCalculator`.
 The dedicated Scientific page stays **Scientific by default, Deg/Rad visible, no
 Basic/Scientific switch**.
 
-> Not implemented until separately approved. This is the binding spec.
+> ✅ **Implemented** on the homepage to this contract (`id="home-calculator"`,
+> Basic default + Basic/Scientific toggle, `size="compact"`, calculator beside the
+> search and popular links on desktop, search before the calculator on mobile).
+> Guarded by `e2e/home.spec.ts`. The **global-search dropdown** (§5) — the homepage
+> `CalculatorSearch` and Header search — remains a separate, still-unapproved step.
 
 ---
 
@@ -296,7 +301,9 @@ score → coverage → searchPriority → shorter title → registryOrder.
 5. ⏳ **Shared result & monetization architecture** phase (before S2).
 6. ⏳ **S2 (search integration)** — separate approval. Order:
    (a) replace the homepage search form with `CalculatorSearch`;
-   (b) add the homepage Basic/Scientific calculator (§1);
+   (b) ✅ add the homepage Basic/Scientific calculator (§1) — done independently
+   of the search swap; the homepage keeps the simple `/calculators` search form
+   until (a);
    (c) add the compact Header search;
    (d) unify `/calculators` filtering with `rankCalculators`;
    (e) add category-scoped search only where a search input is useful;
