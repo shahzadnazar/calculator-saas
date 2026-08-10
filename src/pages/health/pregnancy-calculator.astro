@@ -14,17 +14,65 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" reviewMetadata={{ reviewedDate: '2026-07-25' }} intro="Track your pregnancy week by week from your last period — current gestational age, trimester, estimated conception and due dates, and progress." faqs={faqs}>
   <PregnancyCalculator />
   <Fragment slot="content">
-    <h2>Following your pregnancy</h2>
-    <p>Enter the first day of your last period. The calculator shows how many weeks and days along you are, your trimester, a progress bar toward your due date, and the key dates: estimated conception, the end of each trimester, and your due date.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>first day of your last menstrual period</strong> (LMP).</li>
+      <li>The calculator shows how many <strong>weeks and days</strong> along you are today, your <strong>trimester</strong> and a progress bar toward your due date.</li>
+      <li>It also lists the key dates: estimated <strong>conception</strong>, the end of the <strong>first and second trimesters</strong>, and your <strong>due date</strong>.</li>
+    </ol>
+
+    <h2>How pregnancy is dated</h2>
+    <p>
+      By long-standing convention, pregnancy is counted from the first day of your last period —
+      about two weeks before conception actually occurs. The LMP is used because it is a date most
+      people can pinpoint, while the exact moment of conception usually cannot be known. Every
+      prenatal test and milestone is scheduled against this gestational timeline.
+    </p>
+
+    <h2>Gestational age versus fetal age</h2>
+    <p>
+      <strong>Gestational age</strong> is measured from the LMP and is the standard used in prenatal
+      care. <strong>Fetal age</strong> (or conceptional age) is counted from conception and runs
+      about two weeks less. So "40 weeks pregnant" by gestational age is roughly 38 weeks since
+      conception — the same pregnancy, two different starting lines.
+    </p>
+
+    <h2>The key dates</h2>
+    <p>All the dates derive from your LMP:</p>
+    <ul>
+      <li><strong>Due date</strong> = LMP + 280 days (Naegele's rule)</li>
+      <li><strong>Estimated conception</strong> = LMP + 14 days</li>
+      <li><strong>End of the first trimester</strong> = end of week 13 (LMP + 91 days)</li>
+      <li><strong>End of the second trimester</strong> = end of week 27 (LMP + 189 days)</li>
+    </ul>
+
+    <h2>A worked example</h2>
+    <p>
+      Say your last period began on <strong>January 1, 2026</strong>. Conception is estimated around
+      <strong>January 15</strong>, the first trimester ends about <strong>April 2</strong>, the
+      second ends about <strong>July 9</strong>, and your due date is <strong>October 8, 2026</strong>.
+      If today were June 1, you would be <strong>21 weeks and 4 days</strong> along — in the second
+      trimester, just past the halfway mark.
+    </p>
 
     <h2>The three trimesters</h2>
     <ul>
-      <li><strong>First (weeks 1–13):</strong> major organs form; early symptoms and the highest developmental change.</li>
-      <li><strong>Second (weeks 14–27):</strong> often the most comfortable stretch; movement becomes noticeable.</li>
+      <li><strong>First (weeks 1–13):</strong> major organs form; early symptoms and the highest rate of developmental change.</li>
+      <li><strong>Second (weeks 14–27):</strong> often the most comfortable stretch, and when movement usually becomes noticeable.</li>
       <li><strong>Third (weeks 28–birth):</strong> rapid growth and preparation for delivery.</li>
     </ul>
 
-    <h2>Why it's dated from the LMP</h2>
-    <p>By convention, pregnancy is measured from the first day of your last menstrual period — about two weeks before conception actually occurs. That is why "40 weeks pregnant" corresponds to roughly 38 weeks since conception. This gestational-age standard is what your provider and every prenatal test uses. For just the due date, use the <a href="/health/due-date-calculator">due date calculator</a>.</p>
+    <h2>What full term means</h2>
+    <p>
+      Full term is <strong>39–40 weeks</strong>, and birth any time from <strong>37 to 42 weeks</strong>
+      is considered normal, so the 40-week due date is the midpoint of a range rather than a deadline.
+      Only about 4% of babies arrive on the exact date. For the due date on its own, use the
+      <a href="/health/due-date-calculator">due date calculator</a>.
+    </p>
+    <p>
+      This is educational information, not medical advice. Your healthcare provider tracks your
+      pregnancy with examinations and ultrasounds and can adjust these dates to your individual
+      situation.
+    </p>
   </Fragment>
 </CalculatorLayout>

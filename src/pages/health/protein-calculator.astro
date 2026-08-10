@@ -44,39 +44,69 @@ const faqs = [
   <ProteinCalculator />
 
   <Fragment slot="content">
-    <h2>How much protein is right for you</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Choose <strong>Metric</strong> or <strong>Imperial</strong> units and enter your <strong>body weight</strong>.</li>
+      <li>Select the <strong>goal</strong> that matches your training and objective.</li>
+      <li>Press <strong>Calculate</strong> to see your daily protein target, with a comparison across all the goals.</li>
+    </ol>
+
+    <h2>How protein needs scale</h2>
     <p>
-      Protein needs scale with body weight and activity. Sedentary adults need less;
-      endurance athletes, strength trainers and people dieting to preserve muscle need
-      more. The table shows the estimate for each goal so you can compare.
+      Protein requirements rise with body weight and with how hard you train. A sedentary adult
+      needs only enough to maintain everyday tissue turnover; endurance athletes, people lifting to
+      build muscle, and dieters trying to hold on to muscle all need more. The calculator expresses
+      each goal as grams of protein per kilogram of body weight.
     </p>
 
-    <h2>Grams per kilogram, explained</h2>
+    <h2>The formula</h2>
+    <p>Your target is simply your weight multiplied by a per-kilogram factor:</p>
+    <p><strong>Protein (g) = body weight (kg) × factor</strong></p>
     <ul>
-      <li><strong>0.8 g/kg</strong> — general baseline for sedentary adults.</li>
-      <li><strong>1.2–1.4 g/kg</strong> — active people and endurance athletes.</li>
-      <li><strong>1.8 g/kg</strong> — strength training and muscle gain.</li>
-      <li><strong>2.2 g/kg</strong> — preserving muscle while in a calorie deficit.</li>
+      <li><strong>0.8 g/kg</strong> — sedentary, minimal exercise (the general baseline)</li>
+      <li><strong>1.2 g/kg</strong> — active / general fitness</li>
+      <li><strong>1.4 g/kg</strong> — endurance athlete</li>
+      <li><strong>1.8 g/kg</strong> — strength training / muscle gain</li>
+      <li><strong>2.2 g/kg</strong> — preserving muscle while dieting</li>
     </ul>
+    <p>Working in pounds? Divide your weight by 2.205 to get kilograms first — or just enter imperial units and let the calculator convert.</p>
 
     <h2>A worked example</h2>
+    <p>For a <strong>70 kg (154 lb)</strong> person, the goals work out to:</p>
+    <table>
+      <thead>
+        <tr><th>Goal</th><th>Factor</th><th>Daily protein</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Sedentary</td><td>0.8 g/kg</td><td>56 g</td></tr>
+        <tr><td>Active / general fitness</td><td>1.2 g/kg</td><td>84 g</td></tr>
+        <tr><td>Endurance athlete</td><td>1.4 g/kg</td><td>98 g</td></tr>
+        <tr><td>Strength / muscle gain</td><td>1.8 g/kg</td><td>126 g</td></tr>
+        <tr><td>Preserving muscle while dieting</td><td>2.2 g/kg</td><td>154 g</td></tr>
+      </tbody>
+    </table>
+    <p>Moving from recreational training (98 g) to a muscle-gain goal (126 g) adds under 30 g a day — roughly one extra chicken breast or a large scoop of whey.</p>
+
+    <h2>Spreading it across the day</h2>
     <p>
-      A 70 kg (154 lb) person who trains recreationally, targeting 1.4 g/kg, needs about
-      <strong>98 g of protein a day</strong>. Shift the goal to muscle gain at 1.8 g/kg and
-      it rises to about <strong>126 g</strong>. Splitting that across three or four meals
-      (roughly 25–35 g each) is easier to hit and to digest than one large serving.
+      Your body uses protein most effectively when it is distributed rather than crammed into one
+      meal. Splitting a target across three or four meals — very roughly 20–40 g each — is easier to
+      digest and to hit consistently than a single large serving. Including some protein at each meal
+      also helps with fullness.
     </p>
 
-    <h2>Hitting your target with food</h2>
+    <h2>High-protein foods</h2>
     <p>
-      Protein-dense options include chicken, fish, eggs, Greek yogurt, cottage cheese,
-      lentils, beans, tofu and edamame. Pair your protein target with the
-      <a href="/health/calorie-calculator">calorie calculator</a> and the
-      <a href="/health/fat-intake-calculator">fat intake calculator</a> for a fuller picture.
+      Protein-dense options include chicken, fish, lean beef, eggs, Greek yogurt, cottage cheese and
+      milk, plus plant sources such as lentils, beans, tofu, tempeh and edamame. A varied mix covers
+      the full range of amino acids, which matters most when plant foods make up the bulk of your
+      intake.
     </p>
     <p>
-      These are general guidelines, not medical or dietary advice. People with kidney
-      conditions or specific medical needs should consult a healthcare professional.
+      Pair your protein target with the <a href="/health/calorie-calculator">calorie calculator</a>
+      and the <a href="/health/fat-intake-calculator">fat intake calculator</a> for a complete plan.
+      These are general guidelines, not medical or dietary advice; people with kidney conditions
+      should follow medical guidance, which may limit protein.
     </p>
   </Fragment>
 </CalculatorLayout>

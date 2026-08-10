@@ -49,32 +49,84 @@ const faqs = [
   <CalorieCalculator />
 
   <Fragment slot="content">
-    <h2>How to use the calorie calculator</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Choose your <strong>sex</strong> and <strong>units</strong>.</li>
+      <li>Enter your <strong>age</strong>, <strong>height</strong> and <strong>weight</strong>.</li>
+      <li>Pick the <strong>activity level</strong> that best matches a typical week.</li>
+      <li>Press <strong>Calculate</strong> to see your maintenance calories plus gradual loss and gain targets.</li>
+    </ol>
+
+    <h2>How your daily needs are worked out</h2>
     <p>
-      Choose your <strong>sex</strong> and <strong>units</strong>, then enter your
-      <strong>age</strong>, <strong>height</strong>, <strong>weight</strong> and
-      <strong>activity level</strong>. The calculator shows the calories needed to
-      maintain your weight, plus targets for gradual loss or gain.
+      The calculator first estimates your Basal Metabolic Rate — the calories you burn at rest —
+      then multiplies it by an activity factor to reach your Total Daily Energy Expenditure
+      (TDEE). TDEE is your maintenance level: eat that amount and your weight holds steady. The
+      loss and gain targets are simply that number with a deficit or surplus applied.
     </p>
 
-    <h2>The Mifflin-St Jeor equation</h2>
-    <p>
-      BMR is estimated as 10 × weight(kg) + 6.25 × height(cm) − 5 × age, plus 5 for men
-      or minus 161 for women. Multiplying BMR by an activity factor (from sedentary to
-      very active) gives your maintenance calories, or TDEE.
-    </p>
-
-    <h2>Turning calories into results</h2>
+    <h2>The Mifflin-St Jeor formula</h2>
+    <p>BMR is estimated with the Mifflin-St Jeor equation, then scaled by activity:</p>
+    <p><strong>Men: BMR = 10 × kg + 6.25 × cm − 5 × age + 5</strong></p>
+    <p><strong>Women: BMR = 10 × kg + 6.25 × cm − 5 × age − 161</strong></p>
+    <p><strong>Maintenance (TDEE) = BMR × activity factor</strong></p>
     <ul>
-      <li><strong>Maintain:</strong> eat around your TDEE.</li>
-      <li><strong>Lose:</strong> a 250–500 calorie daily deficit yields gradual, sustainable loss.</li>
-      <li><strong>Gain:</strong> a 250–500 calorie surplus supports steady gain, ideally paired with resistance training.</li>
+      <li><strong>kg / cm</strong> — weight in kilograms and height in centimetres (imperial entries are converted for you)</li>
+      <li><strong>age</strong> — age in years</li>
+      <li><strong>activity factor</strong> — 1.2 for sedentary up to 1.9 for very active</li>
     </ul>
 
+    <h2>Choosing your activity level</h2>
+    <ul>
+      <li><strong>Sedentary (1.2)</strong> — desk job, little or no exercise.</li>
+      <li><strong>Light (1.375)</strong> — light exercise 1–3 days a week.</li>
+      <li><strong>Moderate (1.55)</strong> — moderate exercise 3–5 days a week.</li>
+      <li><strong>Active (1.725)</strong> — hard exercise 6–7 days a week.</li>
+      <li><strong>Very active (1.9)</strong> — very hard exercise or a physical job.</li>
+    </ul>
+    <p>When in doubt, pick the lower of two levels — most people overestimate how active they are, which inflates the target.</p>
+
+    <h2>A worked example</h2>
     <p>
-      These are general estimates, not medical or dietary advice. Calorie needs vary with
-      body composition, health conditions and other factors. Consult a doctor or
-      registered dietitian before making significant changes to your diet.
+      Take a <strong>30-year-old woman</strong>, <strong>165 cm</strong> and <strong>68 kg</strong>,
+      who exercises a few times a week (moderate, 1.55). Her BMR is 10 × 68 + 6.25 × 165 − 5 × 30
+      − 161 ≈ <strong>1,400</strong>, so her maintenance is 1,400 × 1.55 ≈
+      <strong>2,170 calories a day</strong>. From there the calculator sets her loss and gain
+      targets in 250- and 500-calorie steps:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Goal</th><th>Daily calories</th><th>Approx. weekly change</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Lose faster</td><td>1,670</td><td>−0.5 kg (−1 lb)</td></tr>
+        <tr><td>Lose gradually</td><td>1,920</td><td>−0.25 kg</td></tr>
+        <tr><td>Maintain</td><td>2,170</td><td>—</td></tr>
+        <tr><td>Gain gradually</td><td>2,420</td><td>+0.25 kg</td></tr>
+        <tr><td>Gain faster</td><td>2,670</td><td>+0.5 kg (+1 lb)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Setting a loss or gain target</h2>
+    <p>
+      A pound of body fat stores roughly <strong>3,500 calories</strong>, so a deficit of about
+      500 a day adds up to about a pound a week (500 × 7 = 3,500). That is why the calculator's
+      targets step in 250- and 500-calorie increments. Gentler deficits are usually easier to
+      sustain, and a surplus paired with resistance training favours muscle over fat.
+    </p>
+
+    <h2>Limitations to keep in mind</h2>
+    <ul>
+      <li><strong>Estimates, not guarantees.</strong> The equation predicts an average; adjust based on how your weight actually responds over a few weeks.</li>
+      <li><strong>Activity is self-reported.</strong> The factor is the biggest source of error — an honest, slightly conservative choice serves you better.</li>
+      <li><strong>Very low intakes.</strong> Extended, very-low-calorie diets need professional supervision, not a calculator.</li>
+    </ul>
+    <p>
+      To split your target across macronutrients, see the
+      <a href="/health/protein-calculator">protein calculator</a> and
+      <a href="/health/fat-intake-calculator">fat intake calculator</a>. These are general
+      estimates, not medical or dietary advice; consult a doctor or registered dietitian before
+      making significant changes to your diet.
     </p>
   </Fragment>
 </CalculatorLayout>

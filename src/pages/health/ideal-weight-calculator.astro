@@ -44,31 +44,73 @@ const faqs = [
   <IdealWeightCalculator />
 
   <Fragment slot="content">
-    <h2>Reading the results</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Select your <strong>sex</strong> and choose <strong>Metric</strong> or <strong>Imperial</strong> units.</li>
+      <li>Enter your <strong>height</strong>.</li>
+      <li>Press <strong>Calculate</strong> to see four ideal-weight estimates side by side, plus the healthy weight range for your height.</li>
+    </ol>
+
+    <h2>What "ideal body weight" means</h2>
     <p>
-      Because the four formulas were derived differently, they produce a range of values
-      rather than one number. A realistic, healthy target usually sits somewhere within
-      that range and within the BMI-based healthy range shown alongside it.
+      Ideal body weight (IBW) formulas estimate a reference weight from height and sex alone. They
+      were originally devised for clinical purposes such as medication dosing, not as a personal
+      goal. That history is worth remembering: the output is a useful reference point, not a verdict
+      on what you should weigh.
     </p>
 
-    <h2>How the formulas work</h2>
+    <h2>The four formulas</h2>
     <p>
-      Each equation sets a base weight for a 5-foot frame and adds a set amount for every
-      inch above that. They differ only in those constants — which is why, for a 5'10" man,
-      Devine gives about 73 kg while the others land a kilogram or two either side. Seeing
-      all four at once is more honest than pretending any single one is exact.
+      Each formula sets a base weight for a 5-foot (60-inch) frame and adds a fixed amount for every
+      inch above that. They differ only in those two constants. For men, the figures are:
+    </p>
+    <ul>
+      <li><strong>Robinson (1983):</strong> 52 kg + 1.9 kg per inch over 5 ft</li>
+      <li><strong>Miller (1983):</strong> 56.2 kg + 1.41 kg per inch over 5 ft</li>
+      <li><strong>Devine (1974):</strong> 50 kg + 2.3 kg per inch over 5 ft</li>
+      <li><strong>Hamwi (1964):</strong> 48 kg + 2.7 kg per inch over 5 ft</li>
+    </ul>
+    <p>The women's versions use slightly lower base weights and increments. Below 5 ft, each formula falls back to its base weight.</p>
+
+    <h2>A worked example</h2>
+    <p>For a man who is <strong>5 ft 10 in</strong> (10 inches over 5 ft), the four formulas give:</p>
+    <table>
+      <thead>
+        <tr><th>Formula</th><th>Estimate</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Miller</td><td>70.3 kg (155 lb)</td></tr>
+        <tr><td>Robinson</td><td>71.0 kg (157 lb)</td></tr>
+        <tr><td>Devine</td><td>73.0 kg (161 lb)</td></tr>
+        <tr><td>Hamwi</td><td>75.0 kg (165 lb)</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Devine, for instance, is 50 + 2.3 × 10 = 73 kg. The four land within about five kilograms of
+      each other — close enough to read as a band rather than four competing answers.
     </p>
 
-    <h2>Beyond the formulas</h2>
+    <h2>The healthy-BMI range for context</h2>
     <p>
-      Frame size, muscle mass, age and overall health all affect what a healthy weight
-      looks like for you. Athletes in particular may weigh more than these formulas
-      suggest while being very healthy. For the weight range tied to a healthy BMI, see the
-      <a href="/health/bmi-calculator">BMI calculator</a>. Use the results as a guide, not a rule.
+      Alongside the formulas, the calculator shows the weights that correspond to a healthy BMI of
+      18.5–24.9 for your height. For 5 ft 10 in that is roughly <strong>58.5 kg to 78.7 kg</strong>
+      (about 129–174 lb) — a wider span than the formulas, and a reminder that healthy weight is a
+      range, not a single point.
+    </p>
+
+    <h2>Beyond height and sex</h2>
+    <p>
+      These formulas ignore frame size, muscle mass and age, so they fit some bodies better than
+      others. A broad-framed or muscular person can be healthy above the estimates, while a slight
+      frame may sit below them. Use the numbers as a guide, cross-check against the BMI range, and
+      treat neither as a rule.
     </p>
     <p>
-      This is general educational information, not medical advice. Talk to a healthcare
-      professional about a weight target that is right for you.
+      To screen your current weight against height, use the
+      <a href="/health/bmi-calculator">BMI calculator</a>; to gauge composition rather than weight,
+      see the <a href="/health/body-fat-calculator">body fat calculator</a>. This is educational
+      information, not medical advice — talk to a healthcare provider about a target that is right
+      for you.
     </p>
   </Fragment>
 </CalculatorLayout>

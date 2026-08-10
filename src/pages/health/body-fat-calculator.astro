@@ -49,24 +49,83 @@ const faqs = [
   <BodyFatCalculator />
 
   <Fragment slot="content">
-    <h2>Why body fat matters more than weight</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Select your <strong>sex</strong> and choose <strong>Metric</strong> or <strong>Imperial</strong> units.</li>
+      <li>Enter your <strong>height</strong>, <strong>neck</strong> and <strong>waist</strong> measurements — and, for women, your <strong>hip</strong> measurement.</li>
+      <li>Press <strong>Calculate</strong> to see your estimated body fat percentage and its category.</li>
+    </ol>
+
+    <h2>What body fat percentage tells you</h2>
     <p>
-      Two people of the same weight can have very different body compositions. Body fat
-      percentage tells you how much of your weight is fat versus lean mass, which is a
-      better health indicator than weight or BMI alone.
+      Body fat percentage is the share of your total weight that is fat rather than muscle, bone
+      and water. Two people at the same weight — or the same BMI — can have very different
+      compositions, and it is the fat share that tracks most closely with health. Because it
+      separates fat from lean mass, it is a more informative figure than weight alone.
     </p>
 
-    <h2>How to measure accurately</h2>
+    <h2>Where to measure</h2>
+    <p>The Navy method needs only a tape measure. Keep it snug but not compressing the skin, breathe normally, and measure at these points:</p>
     <ul>
-      <li><strong>Neck:</strong> just below the larynx, sloping slightly downward to the front.</li>
+      <li><strong>Neck:</strong> just below the larynx, with the tape sloping slightly downward to the front.</li>
       <li><strong>Waist:</strong> at the navel for men; at the narrowest point for women.</li>
       <li><strong>Hips (women):</strong> at the widest part of the buttocks.</li>
     </ul>
-    <p>Take each measurement twice and use the average for best results.</p>
+    <p>Take each measurement twice and average the two for a steadier result.</p>
 
+    <h2>The U.S. Navy formula</h2>
     <p>
-      This is a general estimate, not medical advice. For a clinical assessment of body
-      composition, consult a healthcare professional.
+      The method estimates body fat from body circumferences and height using a logarithmic
+      formula. The calculator works in centimetres (imperial entries are converted first) and
+      uses a different equation for each sex:
+    </p>
+    <p><strong>Men: 495 / (1.0324 − 0.19077 × log₁₀(waist − neck) + 0.15456 × log₁₀(height)) − 450</strong></p>
+    <p><strong>Women: 495 / (1.29579 − 0.35004 × log₁₀(waist + hip − neck) + 0.221 × log₁₀(height)) − 450</strong></p>
+    <p>
+      The men's version keys off the gap between waist and neck; the women's version adds the hip
+      measurement, which improves the estimate where fat is more often carried.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Take a man who is <strong>180 cm</strong> tall with a <strong>38 cm</strong> neck and a
+      <strong>90 cm</strong> waist. The waist-minus-neck term is 52 cm, so log₁₀(52) ≈ 1.716 and
+      log₁₀(180) ≈ 2.255. The denominator works out to 1.0324 − 0.19077 × 1.716 + 0.15456 × 2.255
+      ≈ 1.0536, giving 495 ÷ 1.0536 − 450 ≈ <strong>19.8%</strong> — the "Average" band for men.
+    </p>
+
+    <h2>Interpreting your result</h2>
+    <p>Typical reference ranges differ by sex:</p>
+    <table>
+      <thead>
+        <tr><th>Category</th><th>Men</th><th>Women</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Essential fat</td><td>Below 6%</td><td>Below 14%</td></tr>
+        <tr><td>Athletes</td><td>6–13%</td><td>14–20%</td></tr>
+        <tr><td>Fitness</td><td>14–17%</td><td>21–24%</td></tr>
+        <tr><td>Average</td><td>18–24%</td><td>25–31%</td></tr>
+        <tr><td>Obese</td><td>25% and above</td><td>32% and above</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Essential fat is the minimum the body needs for normal function; the athlete and fitness
+      bands reflect regular training; and the ranges rise from there. Women carry more essential
+      fat than men, which is why every band sits higher.
+    </p>
+
+    <h2>How accurate is it?</h2>
+    <ul>
+      <li><strong>It is an estimate.</strong> The Navy method can be off by several points for an individual versus a clinical measurement such as a DEXA scan.</li>
+      <li><strong>Technique matters.</strong> A tape held too tight or too loose, or placed differently each time, shifts the result — consistency is what makes trends meaningful.</li>
+      <li><strong>Body shape affects it.</strong> Because it relies on circumferences, unusual proportions can push the estimate high or low.</li>
+    </ul>
+    <p>
+      Track the trend over weeks rather than fixating on a single reading. To compare with a
+      height-and-weight screen, see the <a href="/health/bmi-calculator">BMI calculator</a>; to
+      plan a calorie deficit or surplus, use the
+      <a href="/health/calorie-calculator">calorie calculator</a>. This is educational
+      information, not medical advice.
     </p>
   </Fragment>
 </CalculatorLayout>

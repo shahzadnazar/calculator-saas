@@ -49,24 +49,86 @@ const faqs = [
   <BmrCalculator />
 
   <Fragment slot="content">
-    <h2>What your BMR tells you</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Select your <strong>sex</strong> and choose <strong>Metric</strong> or <strong>Imperial</strong> units.</li>
+      <li>Enter your <strong>age</strong>, <strong>height</strong> and <strong>weight</strong>.</li>
+      <li>Press <strong>Calculate</strong> to see your BMR and an estimate of your daily calorie needs at several activity levels.</li>
+    </ol>
+
+    <h2>What BMR measures</h2>
     <p>
-      Your BMR is the baseline number of calories you would burn if you did nothing but
-      rest all day. It is the foundation for planning nutrition: your real daily needs are
-      your BMR scaled up by how active you are.
+      Your Basal Metabolic Rate is the energy your body spends at complete rest just to keep you
+      alive — breathing, circulating blood, regulating temperature and renewing cells. For most
+      people it accounts for 60–70% of the calories burned in a day, which makes it the
+      foundation for any nutrition plan. Everything you do on top of resting — walking, working,
+      training — adds to it.
+    </p>
+
+    <h2>The Mifflin-St Jeor formula</h2>
+    <p>
+      This calculator uses the Mifflin-St Jeor equation, widely regarded as one of the most
+      accurate for healthy adults. It works in metric units and differs only by a constant at
+      the end for each sex:
+    </p>
+    <p><strong>Men: BMR = 10 × kg + 6.25 × cm − 5 × age + 5</strong></p>
+    <p><strong>Women: BMR = 10 × kg + 6.25 × cm − 5 × age − 161</strong></p>
+    <ul>
+      <li><strong>kg</strong> — body weight in kilograms</li>
+      <li><strong>cm</strong> — height in centimetres</li>
+      <li><strong>age</strong> — age in years</li>
+    </ul>
+    <p>Enter imperial figures and the calculator converts pounds and inches before applying the equation.</p>
+
+    <h2>A worked example</h2>
+    <p>
+      Take a <strong>35-year-old man</strong> who is <strong>180 cm</strong> and
+      <strong>80 kg</strong>. His BMR is 10 × 80 + 6.25 × 180 − 5 × 35 + 5 = 800 + 1,125 − 175 +
+      5 = <strong>1,755 calories a day</strong>. That is what his body would burn if he spent the
+      whole day at rest, before any movement is added.
     </p>
 
     <h2>From BMR to daily calories</h2>
     <p>
-      To find the calories you actually need, multiply BMR by an activity factor ranging
-      from about 1.2 (sedentary) to 1.9 (very active). The
-      <a href="/health/calorie-calculator">calorie calculator</a> does this for you and
+      To estimate the calories you actually need, multiply BMR by an activity factor. That
+      product is your Total Daily Energy Expenditure (TDEE). Using the 1,755 BMR above:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Activity level</th><th>Factor</th><th>Daily calories</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Sedentary (little or no exercise)</td><td>1.2</td><td>2,106</td></tr>
+        <tr><td>Light (1–3 days/week)</td><td>1.375</td><td>2,413</td></tr>
+        <tr><td>Moderate (3–5 days/week)</td><td>1.55</td><td>2,720</td></tr>
+        <tr><td>Active (6–7 days/week)</td><td>1.725</td><td>3,027</td></tr>
+        <tr><td>Very active (hard exercise / physical job)</td><td>1.9</td><td>3,334</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The <a href="/health/calorie-calculator">calorie calculator</a> runs this step for you and
       adds weight-loss and weight-gain targets.
     </p>
 
+    <h2>Why BMR varies from person to person</h2>
     <p>
-      This is general educational information, not medical advice. Individual metabolism
-      varies; consult a healthcare professional for personalised guidance.
+      Body size is the biggest driver: a larger body has more tissue to maintain, so it burns
+      more at rest. Sex and age matter too — the equation adds 5 for men and subtracts 161 for
+      women, and takes off 5 for every year of age. Muscle is more metabolically active than fat,
+      which is why two people of the same weight can have different rates.
+    </p>
+
+    <h2>Accuracy and limitations</h2>
+    <ul>
+      <li><strong>It is an estimate.</strong> Mifflin-St Jeor predicts the average for your stats; your true BMR can differ a little either way.</li>
+      <li><strong>It does not read body composition.</strong> The formula uses total weight, not your muscle-to-fat split, so very muscular or very lean people may sit off the average.</li>
+      <li><strong>Healthy adults.</strong> Pregnancy, some medical conditions and the extremes of body size are not well captured by a general equation.</li>
+    </ul>
+    <p>
+      For your full daily needs and goal targets, use the
+      <a href="/health/calorie-calculator">calorie calculator</a>; to gauge body composition,
+      see the <a href="/health/body-fat-calculator">body fat calculator</a>. This is educational
+      information, not medical advice.
     </p>
   </Fragment>
 </CalculatorLayout>
