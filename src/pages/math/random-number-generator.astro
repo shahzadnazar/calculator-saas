@@ -21,7 +21,12 @@ const faqs = [
   <RandomNumberGenerator />
   <Fragment slot="content">
     <h2>How to use the generator</h2>
-    <p>Set the minimum and maximum, choose how many numbers you want, and press Generate. Tick <strong>Unique</strong> to avoid repeats — useful for lottery numbers or drawing names.</p>
+    <ol>
+      <li>Set the <strong>Minimum</strong> and <strong>Maximum</strong> of your range (the defaults are 1 and 100).</li>
+      <li>Choose <strong>How many</strong> numbers you want — up to 1,000 at a time.</li>
+      <li>Tick <strong>No repeats</strong> if every number must be different, then press <strong>Generate Numbers</strong>.</li>
+      <li>Change any setting and the shown result is marked stale; press generate again to apply it.</li>
+    </ol>
 
     <h2>What you can use it for</h2>
     <ul>
@@ -31,7 +36,29 @@ const faqs = [
       <li>Games, decisions, and settling ties fairly</li>
     </ul>
 
-    <h2>Truly random, and private</h2>
-    <p>The numbers come from your browser's cryptographic random source, so they are unpredictable and unbiased — not the seed-based, repeatable output of a simple pseudo-random function. Nothing is sent to a server; the generation happens entirely on your device. For strong random passwords instead, see the <a href="/everyday/password-generator">password generator</a>.</p>
+    <h2>How the randomness works</h2>
+    <p>
+      The numbers come from your browser's <strong>Web Cryptography API</strong> — the same cryptographic source used for security-sensitive work — rather than the seed-based, repeatable output of a simple pseudo-random function. That makes each draw unpredictable and free of any pattern you could anticipate. For non-repeating draws the generator shuffles the available values with a Fisher-Yates shuffle, which keeps every ordering equally likely.
+    </p>
+
+    <h2>An inclusive, whole-number range</h2>
+    <p>
+      The range is <strong>inclusive at both ends</strong>: a range of 1 to 100 can return 1, can return 100, and anything between. Results are always whole numbers — a fractional minimum is rounded up and a fractional maximum rounded down before drawing — so set the bounds to the exact integers you want in play. For a coin flip use 1 to 2; for a die, 1 to 6.
+    </p>
+
+    <h2>Unique vs. repeating draws</h2>
+    <p>
+      Leave <strong>No repeats</strong> unticked and each number is drawn independently, so the same value can appear more than once — the right behaviour for dice rolls or independent trials. Tick it and every number in the result is distinct. Because you cannot draw more distinct values than the range holds, asking for more unique numbers than the range allows simply returns as many as exist — request 10 unique numbers from 1 to 6 and you get all six.
+    </p>
+
+    <h2>A worked example: lottery numbers</h2>
+    <p>
+      To mimic a 6-from-49 lottery draw, set the minimum to <strong>1</strong>, the maximum to <strong>49</strong>, how many to <strong>6</strong>, and tick <strong>No repeats</strong>. The generator returns six different numbers between 1 and 49, each equally likely — an impartial draw, though of course no generator can improve your odds of matching the real thing.
+    </p>
+
+    <h2>Private, and its limits</h2>
+    <p>
+      Every draw happens on your device and nothing is sent to a server, so your numbers stay entirely yours. Keep in mind that results are integers only and capped at 1,000 per draw, and that true unpredictability is exactly the point — a fresh press can repeat an earlier result by chance. For a strong random password rather than numbers, see the <a href="/everyday/password-generator">password generator</a>; to summarise a set of numbers once you have them, the <a href="/math/statistics-calculator">statistics calculator</a> takes over.
+    </p>
   </Fragment>
 </CalculatorLayout>

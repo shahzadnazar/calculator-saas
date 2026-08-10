@@ -15,25 +15,53 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid or capsule — select the shape and enter its dimensions." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <VolumeCalculator />
   <Fragment slot="content">
-    <h2>Volume formulas, with worked examples</h2>
-    <p>Volume is always in cubic units. Each shape has its own formula — these are the ones the calculator solves:</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Select a <strong>3D shape</strong> — cube, box, sphere, cylinder, cone, pyramid or capsule.</li>
+      <li>Enter the dimensions it asks for, all in the <strong>same unit</strong>.</li>
+      <li>Read the volume, which comes out in that unit <strong>cubed</strong> (cubic metres, cubic feet, and so on).</li>
+    </ol>
+
+    <h2>Volume formulas for every shape</h2>
+    <p>Volume is always in cubic units. Each shape has its own formula — these are the seven the calculator solves:</p>
     <table>
       <thead>
         <tr><th>Shape</th><th>Formula</th><th>Example</th></tr>
       </thead>
       <tbody>
-        <tr><td>Cube</td><td>side³</td><td>3³ = 27</td></tr>
+        <tr><td>Cube</td><td>side<sup>3</sup></td><td>3<sup>3</sup> = 27</td></tr>
         <tr><td>Box (rectangular prism)</td><td>length × width × height</td><td>2 × 3 × 4 = 24</td></tr>
-        <tr><td>Sphere</td><td>4⁄3 × π × radius³</td><td>4⁄3 × π × 3³ ≈ 113.10</td></tr>
-        <tr><td>Cylinder</td><td>π × radius² × height</td><td>π × 2² × 5 ≈ 62.83</td></tr>
-        <tr><td>Cone</td><td>⅓ × π × radius² × height</td><td>⅓ × π × 3² × 6 ≈ 56.55</td></tr>
+        <tr><td>Sphere</td><td>4⁄3 × π × radius<sup>3</sup></td><td>4⁄3 × π × 3<sup>3</sup> ≈ 113.10</td></tr>
+        <tr><td>Cylinder</td><td>π × radius<sup>2</sup> × height</td><td>π × 2<sup>2</sup> × 5 ≈ 62.83</td></tr>
+        <tr><td>Cone</td><td>⅓ × π × radius<sup>2</sup> × height</td><td>⅓ × π × 3<sup>2</sup> × 6 ≈ 56.55</td></tr>
         <tr><td>Pyramid</td><td>⅓ × base length × base width × height</td><td>⅓ × 4 × 4 × 9 = 48</td></tr>
-        <tr><td>Capsule</td><td>π × r² × (4⁄3 × r + height)</td><td>—</td></tr>
+        <tr><td>Capsule</td><td>π × r<sup>2</sup> × (4⁄3 × r + height)</td><td>π × 2<sup>2</sup> × (4⁄3 × 2 + 5) ≈ 96.34</td></tr>
       </tbody>
     </table>
-    <p>A useful pattern: a cone is exactly one third of the cylinder that would enclose it, and a pyramid is one third of its enclosing box.</p>
+
+    <h2>A worked example</h2>
+    <p>
+      Find the volume of a ball with a <strong>radius of 3</strong>. The sphere formula is 4⁄3 × π × radius<sup>3</sup> = 4⁄3 × π × 3<sup>3</sup> = 4⁄3 × π × 27 = 36π ≈ <strong>113.10 cubic units</strong>. A cylinder with a <strong>radius of 2</strong> and a <strong>height of 5</strong> is π × radius<sup>2</sup> × height = π × 4 × 5 = 20π ≈ <strong>62.83 cubic units</strong> — simply its circular base area multiplied by how tall it is.
+    </p>
+
+    <h2>The one-third pattern</h2>
+    <p>
+      Two of these formulas share a neat relationship. A <strong>cone</strong> holds exactly one third of the cylinder that would enclose it, and a <strong>pyramid</strong> holds one third of its enclosing box — both have the same base and height as the fuller shape. That is why the cone and pyramid formulas are just the cylinder and box formulas with a ⅓ in front.
+    </p>
+
+    <h2>How the capsule is built</h2>
+    <p>
+      A capsule is a cylinder with a hemisphere capped on each end — a pill shape. Its volume is the cylinder plus a full sphere (the two hemispheres together), which is why the formula reads π × r<sup>2</sup> × (4⁄3 × r + height). Here the <strong>height</strong> is only the straight cylindrical section, not the rounded caps. With a radius of 2 and a cylinder height of 5, that is π × 4 × (4⁄3 × 2 + 5) = π × 4 × 7.667 ≈ <strong>96.34 cubic units</strong>.
+    </p>
+
+    <h2>Keep your units consistent</h2>
+    <p>
+      Because volume multiplies three lengths, the units cube: metres give cubic metres, feet give cubic feet. Convert every dimension to one unit before you calculate. If you need capacity rather than raw volume, remember the standard conversions — one cubic metre is 1,000 litres, and one cubic foot is about 7.48 US gallons.
+    </p>
 
     <h2>Everyday uses</h2>
-    <p>Volume calculations help with shipping and packaging, filling a pool or tank, cooking, and construction. For pouring a concrete slab, the <a href="/everyday/concrete-calculator">concrete calculator</a> converts volume into cubic yards and bags. For flat areas, see the <a href="/math/area-calculator">area calculator</a>.</p>
+    <p>
+      Volume calculations help with shipping and packaging, filling a pool or tank, cooking, and construction. For pouring a concrete slab, the <a href="/everyday/concrete-calculator">concrete calculator</a> converts volume into cubic yards and bags. For flat areas rather than solids, see the <a href="/math/area-calculator">area calculator</a>.
+    </p>
   </Fragment>
 </CalculatorLayout>

@@ -58,6 +58,23 @@ const faqs = [
       <li>Add the squares and divide — by <strong>N</strong> for a population, or <strong>N−1</strong> for a sample — to get the <strong>variance</strong>.</li>
       <li>Take the <strong>square root</strong> of the variance. That is the standard deviation.</li>
     </ol>
+    <p>Paste your numbers into the calculator — separated by commas, spaces or line breaks — and it runs all five steps for both the population and sample cases at once.</p>
+
+    <h2>What standard deviation tells you</h2>
+    <p>
+      Standard deviation measures how far a set of numbers typically sits from its mean. A <strong>low</strong> value means the data clusters tightly around the average; a <strong>high</strong> value means it is spread out. Because it is the square root of the variance, it is expressed in the <em>same units as your data</em> — dollars, centimetres, seconds — which makes it far easier to interpret than the variance itself.
+    </p>
+
+    <h2>The formulas</h2>
+    <p>Both versions start from the same sum of squared deviations and differ only in the divisor:</p>
+    <p><strong>Population: σ = √( Σ(x − μ)<sup>2</sup> / N )</strong></p>
+    <p><strong>Sample: s = √( Σ(x − x̄)<sup>2</sup> / (N − 1) )</strong></p>
+    <ul>
+      <li><strong>x</strong> — each value in the data set</li>
+      <li><strong>μ</strong> / <strong>x̄</strong> — the mean (μ for a population, x̄ for a sample)</li>
+      <li><strong>N</strong> — the count of values</li>
+      <li><strong>Σ(x − mean)<sup>2</sup></strong> — the sum of every squared deviation; drop the square root and this over the divisor is the <strong>variance</strong></li>
+    </ul>
 
     <h2>A worked example</h2>
     <p>Take the data <strong>2, 4, 6, 8</strong>. The mean is (2 + 4 + 6 + 8) ÷ 4 = 5. The deviations are −3, −1, 1, 3, and their squares are 9, 1, 1, 9, which sum to 20. From there:</p>
@@ -68,7 +85,12 @@ const faqs = [
     <p>The sample figure is a little larger because dividing by N−1 instead of N inflates it slightly to correct for sampling.</p>
 
     <h2>Population (σ) vs. sample (s)</h2>
-    <p>Use the <strong>population</strong> standard deviation when your data is the whole group you care about. Use the <strong>sample</strong> standard deviation when your data is a sample used to estimate a larger population — the more common case in research. The only difference is dividing by N versus N−1; the calculator shows both so you never have to choose blind.</p>
+    <p>Use the <strong>population</strong> standard deviation when your data is the whole group you care about. Use the <strong>sample</strong> standard deviation when your data is a sample used to estimate a larger population — the more common case in research. The only difference is dividing by N versus N−1 (Bessel's correction); the calculator shows both so you never have to choose blind.</p>
+
+    <h2>Is a standard deviation high or low?</h2>
+    <p>
+      There is no universal threshold — the same value can be large for small numbers and trivial for large ones. To compare spread across data sets on different scales, analysts use the <strong>coefficient of variation</strong>, the standard deviation divided by the mean. For the sample above that is 2.582 ÷ 5 ≈ 0.52, or about 52%, telling you the spread is roughly half the size of the average value.
+    </p>
 
     <h2>Standard deviation in Excel or Sheets</h2>
     <p>To reproduce these in a spreadsheet, point the functions at your data range: <strong>=STDEV.S(A1:A20)</strong> for a sample, <strong>=STDEV.P(A1:A20)</strong> for a population, with <strong>=VAR.S</strong>/<strong>=VAR.P</strong> for variance and <strong>=AVERAGE</strong> for the mean. The results here match those functions, so it doubles as a quick way to check a spreadsheet.</p>
