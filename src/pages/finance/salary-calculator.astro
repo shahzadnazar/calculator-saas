@@ -15,15 +15,46 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="Convert pay between hourly, daily, weekly, biweekly, monthly and annual figures — enter any one and see them all." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-10' }}>
   <SalaryCalculator />
   <Fragment slot="content">
-    <h2>Compare offers on the same basis</h2>
-    <p>Job offers come in different units — one hourly, one annual, one monthly. Convert them to the same basis to compare fairly. Enter any figure, choose its period and press Convert; every equivalent is filled in.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter a <strong>pay amount</strong> — any single figure you already know.</li>
+      <li>Choose the <strong>period</strong> that amount is quoted in: per hour, day, week, biweekly, month or year.</li>
+      <li>Adjust the schedule assumptions — <strong>hours per week</strong>, <strong>days per week</strong> and <strong>weeks per year</strong> — to match how you actually work (the defaults are 40, 5 and 52).</li>
+      <li>Press <strong>Convert</strong> to fill in every other equivalent at once.</li>
+    </ol>
 
-    <h2>Converting annual and hourly pay</h2>
-    <p>The two conversions are simple once you fix your yearly hours (40 hours × 52 weeks = 2,080):</p>
+    <h2>How the conversion works</h2>
+    <p>
+      Job offers arrive in different units — one hourly, one annual, one monthly — which makes
+      them hard to compare. The tool solves this by first turning whatever you enter into a single
+      <strong>annual</strong> figure, then dividing that annual total back down into every other
+      period. Fixing everything to the yearly total is what keeps the six figures consistent with
+      one another.
+    </p>
+
+    <h2>The 2,080-hour year</h2>
+    <p>
+      A standard full-time year is <strong>40 hours × 52 weeks = 2,080 hours</strong>, and the two
+      headline conversions follow directly from it:
+    </p>
     <ul>
-      <li><strong>Annual → hourly:</strong> salary ÷ 2,080. A $60,000 salary is ≈ $28.85/hour.</li>
-      <li><strong>Hourly → annual:</strong> rate × 2,080. A $25/hour job is $52,000/year.</li>
+      <li><strong>Hourly → annual:</strong> rate × hours per week × weeks per year. A $25/hour job at 40 × 52 is $52,000/year.</li>
+      <li><strong>Annual → hourly:</strong> salary ÷ yearly hours. A $60,000 salary ÷ 2,080 ≈ $28.85/hour.</li>
+      <li><strong>Monthly:</strong> annual ÷ 12. <strong>Weekly:</strong> annual ÷ weeks per year. <strong>Daily:</strong> the weekly figure ÷ days per week.</li>
     </ul>
+    <p>
+      Because those middle steps depend on your hours, days and weeks, changing the schedule
+      changes the hourly and daily figures even when the annual salary stays the same.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Take a <strong>$25/hour</strong> job on the default 40 hours, 5 days, 52 weeks. The annual
+      figure is 25 × 40 × 52 = <strong>$52,000</strong>. Dividing that back down gives
+      <strong>$4,333.33</strong> a month, <strong>$2,000</strong> biweekly, <strong>$1,000</strong>
+      a week, and <strong>$200</strong> a day — and, closing the loop, $1,000 ÷ 40 hours brings you
+      right back to $25 an hour.
+    </p>
 
     <h2>Quick salary-to-hourly reference</h2>
     <table>
@@ -40,8 +71,29 @@ const faqs = [
       </tbody>
     </table>
 
+    <h2>Biweekly vs. semimonthly vs. monthly</h2>
+    <p>
+      Watch the paycheck period carefully, because "twice a month" and "every two weeks" are not
+      the same. This tool's <strong>biweekly</strong> figure divides the annual salary by 26 — the
+      26 paychecks you receive when paid every two weeks. A <strong>semimonthly</strong> schedule
+      (the 1st and 15th, say) pays only 24 times a year, so each of those checks is larger, and a
+      <strong>monthly</strong> salary divides by 12. On $52,000 that is $2,000 biweekly, about
+      $2,166.67 semimonthly, and $4,333.33 monthly.
+    </p>
+
     <h2>Match it to your real schedule</h2>
-    <p>The conversion depends on your hours per week, days per week and weeks worked per year. Adjust these to reflect overtime, part-time hours or unpaid leave for an accurate picture. To estimate take-home pay, try the <a href="/finance/income-tax-calculator">income tax calculator</a>, and for time worked see the <a href="/everyday/hours-calculator">hours calculator</a>.</p>
-    <p>These are gross figures for general use, not payroll or tax advice.</p>
+    <p>
+      The conversion is only as accurate as its assumptions. Adjust hours per week, days per week
+      and weeks worked per year to reflect overtime, part-time hours or unpaid leave — someone
+      working 37.5 hours over 48 paid weeks lands on a very different hourly figure than the 2,080
+      default. Every figure here is <strong>gross</strong> pay, before income tax, payroll tax or
+      benefits are deducted.
+    </p>
+    <p>
+      To estimate what you actually keep, try the <a href="/finance/income-tax-calculator">income
+      tax calculator</a>; to add up time actually worked, see the
+      <a href="/everyday/hours-calculator">hours calculator</a>. These are gross figures for
+      general use, not payroll or tax advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

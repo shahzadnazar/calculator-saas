@@ -49,33 +49,101 @@ const faqs = [
   <AutoLoanCalculator />
 
   <Fragment slot="content">
-    <h2>How to use the auto loan calculator</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>vehicle price</strong>, the <strong>loan term</strong> in months, the annual <strong>interest rate</strong> and your <strong>down payment</strong>.</li>
+      <li>Set the <strong>sales-tax rate</strong> for your area and any <strong>additional fees</strong> (title, registration, documentation).</li>
+      <li>Open <strong>Trade-in &amp; fees</strong> to add a trade-in value and the amount still owed on it.</li>
+      <li>Use the <strong>Finance taxes and fees in the loan</strong> checkbox to roll tax and fees into the balance or pay them upfront, then calculate.</li>
+    </ol>
     <p>
-      Enter the <strong>vehicle price</strong>, <strong>loan term</strong>,
-      <strong>interest rate</strong> and <strong>down payment</strong>, then calculate. Use the
-      <strong>Finance taxes and fees</strong> checkbox to choose whether estimated tax and fees are
-      rolled into the loan or paid upfront, and open <strong>Trade-in &amp; fees</strong> to add a
-      trade-in, the amount still owed on it, and dealer fees.
+      The result shows the amount financed, the monthly payment, the interest over the term,
+      the cash due upfront and the car's true total cost once financing is included.
+    </p>
+
+    <h2>What actually gets financed</h2>
+    <p>
+      The monthly payment is driven by the <strong>amount financed</strong>, not the sticker price.
+      Your down payment and any <strong>trade-in equity</strong> reduce it, while sales tax and
+      fees can either be added to it or paid separately. Trade-in equity is the car's value minus
+      any loan you still owe on it — positive equity works like extra cash down, and negative
+      equity (owing more than it is worth) is added to the new loan.
+    </p>
+
+    <h2>The formula</h2>
+    <p>
+      First the calculator works out the amount financed, then it amortizes that balance:
+    </p>
+    <p><strong>Financed = price + tax + fees − down payment − trade-in equity</strong></p>
+    <p><strong>M = P · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
+    <ul>
+      <li><strong>P</strong> — the amount financed (the line above)</li>
+      <li><strong>r</strong> — the monthly interest rate (annual rate ÷ 12)</li>
+      <li><strong>n</strong> — the number of monthly payments (the term)</li>
+    </ul>
+    <p>
+      If you choose to pay tax and fees upfront, they are removed from <em>P</em> and added to the
+      cash you bring on day one instead. Sales tax is applied to the full vehicle price.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Buy a <strong>$35,000</strong> car with <strong>$5,000 down</strong> at <strong>6%</strong>
+      over <strong>60 months</strong>, with a <strong>7%</strong> sales tax and
+      <strong>$500</strong> in fees, and choose to finance the tax and fees. Sales tax is
+      $35,000 × 7% = <strong>$2,450</strong>, so the amount financed is
+      $35,000 + $2,450 + $500 − $5,000 = <strong>$32,950</strong>.
+    </p>
+    <p>
+      That gives a monthly payment of about <strong>$637.02</strong> and roughly
+      <strong>$5,271</strong> of interest over five years. The car's total cost — price, tax, fees
+      and interest — comes to about <strong>$43,221</strong>, with only your $5,000 down payment
+      due upfront.
+    </p>
+
+    <h2>Finance the tax and fees, or pay them upfront?</h2>
+    <p>
+      Rolling tax and fees into the loan lowers the cash you need today but means you pay interest
+      on them. Paying upfront costs more on day one and saves interest. Using the same car:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Approach</th><th>Amount financed</th><th>Monthly payment</th><th>Total interest</th><th>Cash upfront</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Finance tax &amp; fees</td><td>$32,950</td><td>$637.02</td><td>$5,270.95</td><td>$5,000</td></tr>
+        <tr><td>Pay tax &amp; fees upfront</td><td>$30,000</td><td>$579.98</td><td>$4,799.04</td><td>$7,950</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Financing the $2,950 of tax and fees adds about $472 of interest here and roughly $57 to the
+      monthly payment — the price of keeping about $2,950 in your pocket today.
     </p>
 
     <h2>How sales tax is estimated</h2>
     <p>
-      This calculator applies the sales-tax rate you enter to the <strong>full vehicle price</strong>
-      and does not apply a trade-in tax credit. Tax rules vary by jurisdiction — some states tax the
-      price after a trade-in, and rebates and fees can be treated differently — so treat the sales-tax
-      figure as a planning estimate and confirm the exact amount with your dealer or state.
+      This calculator applies the sales-tax rate to the <strong>full vehicle price</strong> and
+      does not apply a trade-in tax credit. Tax rules vary by jurisdiction — some states tax the
+      price after a trade-in, and rebates and fees can be treated differently — so treat the
+      sales-tax figure as a planning estimate and confirm the exact amount with your dealer or
+      state.
     </p>
 
-    <h2>What "total cost" includes</h2>
-    <p>
-      The total cost combines the vehicle price, sales tax, fees and all the interest you
-      will pay over the life of the loan — the real price of the car once financing is
-      included. Watching this number is the best way to compare deals.
-    </p>
+    <h2>Tips and limitations</h2>
+    <ul>
+      <li>A common guideline is about <strong>20% down on a new car</strong> and 10% on a used one, which lowers the payment and helps you avoid owing more than the car is worth.</li>
+      <li>Longer terms (72–84 months) shrink the payment but raise total interest and the risk of going <strong>underwater</strong> as the car depreciates.</li>
+      <li>Dealers may mark up the financing rate, so a <strong>pre-approval</strong> from a bank or credit union gives you a rate to beat.</li>
+      <li>The tool does not model gap insurance, extended warranties, depreciation or dealer add-ons, so confirm the final figures on your contract.</li>
+    </ul>
 
     <p>
-      This is an estimate for planning and not a financing offer. Your actual rate, taxes
-      and fees depend on the lender, dealer and your location and credit.
+      To compare a plain fixed-rate loan without the tax-and-trade-in machinery, see the
+      <a href="/finance/loan-calculator">loan calculator</a>; to watch each payment split between
+      principal and interest, use the
+      <a href="/finance/amortization-calculator">amortization calculator</a>. This is an estimate
+      for planning, not a financing offer or financial advice — your actual rate, taxes and fees
+      depend on the lender, dealer, location and your credit.
     </p>
   </Fragment>
 </CalculatorLayout>

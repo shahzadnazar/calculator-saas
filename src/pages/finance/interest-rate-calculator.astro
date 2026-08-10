@@ -20,16 +20,69 @@ const faqs = [
 >
   <InterestRateCalculator />
   <Fragment slot="content">
-    <h2>Reverse-engineering the rate</h2>
-    <p>Lenders often lead with a monthly payment because it sounds affordable, while the rate stays buried. Enter the loan amount, the payment and the number of months, and this tool solves for the annual rate hiding inside those numbers.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>loan amount</strong> — the principal you are borrowing.</li>
+      <li>Enter the fixed <strong>monthly payment</strong> the offer quotes.</li>
+      <li>Enter the <strong>term</strong> as the total number of monthly payments (a 5-year loan is 60).</li>
+      <li>Press <strong>Calculate</strong> to reveal the annual interest rate baked into those numbers.</li>
+    </ol>
+    <p>
+      Lenders often lead with a monthly payment because it sounds affordable, while the rate
+      stays buried. This tool works backwards from the payment to the rate hiding inside it.
+    </p>
+
+    <h2>Why there is no direct formula</h2>
+    <p>
+      A fixed payment relates the loan amount, the rate and the term through the amortization
+      formula below — but that equation cannot be rearranged to isolate the rate, because the
+      rate appears both as a plain multiplier and inside an exponent. So the calculator solves it
+      the other way: it repeatedly guesses a rate, computes the payment that rate would produce,
+      and narrows the range until the computed payment matches yours. This method is called
+      <strong>bisection</strong>, and it converges to a precise answer almost instantly.
+    </p>
+
+    <h2>The formula it inverts</h2>
+    <p>The monthly payment on a fixed-rate loan is:</p>
+    <p><strong>M = P · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
+    <ul>
+      <li><strong>M</strong> — the monthly payment (known here)</li>
+      <li><strong>P</strong> — the loan amount (known)</li>
+      <li><strong>n</strong> — the number of monthly payments (known)</li>
+      <li><strong>r</strong> — the monthly interest rate (the unknown being solved for)</li>
+    </ul>
+    <p>
+      Once the monthly rate is found, the tool multiplies it by 12 to report the annual rate.
+    </p>
 
     <h2>A worked example</h2>
-    <p>Suppose a $12,000 car is offered at <strong>$238 a month for 60 months</strong>. That is $14,280 paid in total — <strong>$2,280 of interest</strong> — and the rate baked into those payments works out to about <strong>7%</strong>. Seeing that number is what lets you judge whether the "easy monthly payment" is actually a good deal.</p>
+    <p>
+      Suppose a $12,000 car is offered at <strong>$238 a month for 60 months</strong>. That is
+      $14,280 paid in total — <strong>$2,280 of interest</strong> — and the rate baked into those
+      payments works out to about <strong>7.1%</strong> a year. Seeing that number is what lets
+      you judge whether the "easy monthly payment" is actually a good deal, or compare it against
+      a loan quoted the usual way.
+    </p>
 
     <h2>Interest rate vs. APR</h2>
-    <p>The figure here is the rate implied by the payments alone. A quoted <strong>APR</strong> also includes certain fees, so it is usually slightly higher than the raw rate — worth remembering when you compare this result against an advertised APR.</p>
+    <p>
+      The figure here is the rate implied by the payments alone. A quoted <strong>APR</strong>
+      also folds in certain fees — origination charges or points — so it is usually a little
+      higher than this raw rate. When you compare this result against an advertised APR, remember
+      you are comparing a fee-free rate against one that already includes fees.
+    </p>
 
-    <h2>Comparing offers fairly</h2>
-    <p>Once you know the implied rate, you can compare a financing offer against a straightforward loan. Model the alternatives with the <a href="/finance/loan-calculator">loan calculator</a> and the <a href="/finance/payment-calculator">payment calculator</a>.</p>
+    <h2>Limitations and edge cases</h2>
+    <ul>
+      <li><strong>Fixed, equal payments assumed.</strong> The math models a standard fixed-rate loan with identical monthly payments; balloon payments, teaser rates or irregular schedules will not match.</li>
+      <li><strong>Rate, not APR.</strong> Fees are not included, so the true cost of a loan with fees is higher than the number shown.</li>
+      <li><strong>Payments must exceed the principal.</strong> If the total of all payments barely covers the amount borrowed, the implied rate is effectively 0% — there is no interest to find.</li>
+    </ul>
+    <p>
+      Once you know the implied rate, you can compare a financing offer against a straightforward
+      loan. Model the alternatives with the <a href="/finance/loan-calculator">loan calculator</a>
+      and the <a href="/finance/payment-calculator">payment calculator</a>. This is general
+      educational information, not financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

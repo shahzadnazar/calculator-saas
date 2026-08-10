@@ -14,8 +14,38 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the tip and total on any bill and split it evenly between friends. Tap a preset percentage or enter your own." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-23' }}>
   <TipCalculator />
   <Fragment slot="content">
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>bill</strong> amount.</li>
+      <li>Set a <strong>tip percentage</strong> — tap a preset or type your own.</li>
+      <li>Enter the <strong>number of people</strong> sharing the bill (a whole number, at least one).</li>
+      <li>Press <strong>Calculate</strong> to see the total per person, plus the tip, the grand total and the tip each person owes.</li>
+    </ol>
+
     <h2>How to calculate a tip</h2>
-    <p>Multiply the bill by the tip rate: a <strong>$50</strong> bill at <strong>20%</strong> is 50 × 0.20 = <strong>$10</strong>, for a $60 total. Splitting four ways, that is $15 each. The fastest mental trick for 20% is to find 10% (just move the decimal one place — $5) and double it; for 15%, take that 10% and add half of it again.</p>
+    <p>
+      Multiply the bill by the tip rate: a <strong>$50</strong> bill at <strong>20%</strong> is
+      50 × 0.20 = <strong>$10</strong>, for a $60 total. The fastest mental trick for 20% is to
+      find 10% — just move the decimal one place, to $5 — and double it; for 15%, take that 10%
+      and add half of it again. The calculator does the exact arithmetic and the split in one step.
+    </p>
+
+    <h2>The math behind the split</h2>
+    <p>From the bill and the tip rate, the tool derives four figures:</p>
+    <ul>
+      <li><strong>Tip amount</strong> = bill × (tip % ÷ 100)</li>
+      <li><strong>Total</strong> = bill + tip</li>
+      <li><strong>Tip per person</strong> = tip ÷ number of people</li>
+      <li><strong>Total per person</strong> = total ÷ number of people</li>
+    </ul>
+
+    <h2>A worked example</h2>
+    <p>
+      A <strong>$50</strong> bill at <strong>20%</strong> adds a <strong>$10</strong> tip for a
+      <strong>$60</strong> total. Split four ways, that is <strong>$15 each</strong>, of which
+      <strong>$2.50</strong> is the tip. Change any input and the rest update together — raise the
+      tip to 25% and the total climbs to $62.50, or $15.63 a head.
+    </p>
 
     <h2>How much to tip, by service</h2>
     <table>
@@ -34,7 +64,26 @@ const faqs = [
       </tbody>
     </table>
 
+    <h2>Pre-tax or post-tax?</h2>
+    <p>
+      Etiquette says to tip on the <strong>pre-tax</strong> bill, since the tax is not part of the
+      service — though many people tip on the total for simplicity, and on a typical bill the
+      difference is small. Enter whichever figure you prefer as the bill amount; the calculator
+      tips on the number you give it.
+    </p>
+
     <h2>Tipping around the world</h2>
-    <p>Customs vary widely by country — in much of Europe and Asia a service charge is often already included and tipping is minimal or rounded up rather than a set percentage. When travelling, check local norms so you neither under- nor over-tip. To add or remove sales tax from a price, see the <a href="/finance/sales-tax-calculator">sales tax calculator</a>.</p>
+    <p>
+      Customs vary widely by country — in much of Europe and Asia a service charge is often already
+      included and tipping is minimal or rounded up rather than a set percentage. When travelling,
+      check local norms so you neither under- nor over-tip. One limitation to note: this tool splits
+      the bill <em>evenly</em> across whole people, so it will not divide an uneven share or split by
+      individual orders.
+    </p>
+    <p>
+      To add or remove sales tax from a price, see the
+      <a href="/finance/sales-tax-calculator">sales tax calculator</a>. This is general information
+      to help you tip and split a bill, not etiquette or financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

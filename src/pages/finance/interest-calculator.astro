@@ -14,17 +14,86 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the interest earned on a deposit and see exactly how much extra compounding adds compared with simple interest." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-10' }}>
   <InterestCalculator />
   <Fragment slot="content">
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>principal</strong> — the amount you are depositing or lending.</li>
+      <li>Set the annual <strong>interest rate</strong> as a percentage.</li>
+      <li>Choose the <strong>time</strong> in years.</li>
+      <li>Pick how often interest <strong>compounds</strong> — annually, quarterly, monthly or daily (the default is monthly).</li>
+      <li>Press <strong>Calculate</strong> to see the interest under both methods and the compounding advantage between them.</li>
+    </ol>
+
     <h2>Simple vs. compound, side by side</h2>
-    <p>Enter a principal, rate and time and press Calculate; the calculator shows the interest under both methods plus the <strong>compounding advantage</strong> — the extra you earn purely because interest earns interest. Over long horizons, that gap becomes substantial.</p>
+    <p>
+      The two methods differ in what interest is charged on. <strong>Simple interest</strong>
+      pays only on the original principal, so it adds the same amount every period and grows in
+      a straight line. <strong>Compound interest</strong> pays on the principal <em>plus</em>
+      the interest already earned, so each period's interest is slightly larger than the last.
+      The calculator shows both, then reports the <strong>compounding advantage</strong> — the
+      extra you earn purely because interest earns interest.
+    </p>
+
+    <h2>The two formulas</h2>
+    <p>Simple interest is the straight-line case:</p>
+    <p><strong>I = P × r × t</strong></p>
+    <p>Compound interest grows the balance every period, and the interest earned is the balance minus what you put in:</p>
+    <p><strong>A = P × (1 + r/n)<sup>nt</sup></strong>, and interest = A − P</p>
+    <ul>
+      <li><strong>P</strong> — the principal you start with</li>
+      <li><strong>r</strong> — the annual interest rate as a decimal (5% = 0.05)</li>
+      <li><strong>t</strong> — the time in years</li>
+      <li><strong>n</strong> — how many times interest compounds per year (1, 4, 12 or 365 here)</li>
+    </ul>
 
     <h2>A worked example</h2>
-    <p>Put <strong>$10,000</strong> away at <strong>5%</strong> for <strong>10 years</strong>. With simple interest you earn a flat $500 a year, or <strong>$5,000</strong> total. With annual compounding the balance grows to $10,000 × 1.05¹⁰ ≈ <strong>$16,289</strong> — about <strong>$1,289 more</strong>, earned on nothing but the interest itself. Compound more often than yearly and the gap widens further.</p>
+    <p>
+      Put <strong>$10,000</strong> away at <strong>5%</strong> for <strong>10 years</strong>.
+      With simple interest you earn a flat $500 a year, or <strong>$5,000</strong> total. With
+      monthly compounding — the tool's default — the balance grows to about
+      <strong>$16,470.09</strong>, so the interest earned is <strong>$6,470.09</strong>. The
+      difference, about <strong>$1,470</strong>, is the compounding advantage: money earned on
+      nothing but the interest itself.
+    </p>
+
+    <h2>How compounding frequency changes the result</h2>
+    <p>
+      More frequent compounding adds interest to the balance sooner, so it starts earning on
+      itself sooner. The effect is real but shrinks with each step up in frequency. Using the
+      same $10,000 at 5% for 10 years:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Compounding frequency</th><th>Interest earned</th><th>Advantage over simple</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Annually</td><td>$6,288.95</td><td>$1,288.95</td></tr>
+        <tr><td>Quarterly</td><td>$6,436.19</td><td>$1,436.19</td></tr>
+        <tr><td>Monthly</td><td>$6,470.09</td><td>$1,470.09</td></tr>
+        <tr><td>Daily</td><td>$6,486.65</td><td>$1,486.65</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Every frequency beats simple interest, but moving from annual to daily adds under $200
+      here — the rate and the time horizon move the needle far more than the frequency does.
+    </p>
 
     <h2>APR vs. APY</h2>
-    <p>Rates are quoted two ways. <strong>APR</strong> is the nominal annual rate; <strong>APY</strong> folds in compounding and is the effective rate you truly earn. A 5% APR compounded monthly is an APY of about 5.12%. When comparing savings accounts, compare the APY — it is apples to apples, while APRs at different compounding frequencies are not.</p>
+    <p>
+      Rates are quoted two ways. <strong>APR</strong> is the nominal annual rate before
+      compounding; <strong>APY</strong> (annual percentage yield) folds compounding in and is the
+      effective rate you truly earn. A 5% APR compounded monthly is an APY of about
+      <strong>5.12%</strong>. When comparing savings accounts, compare the APY — it is apples to
+      apples, while APRs at different compounding frequencies are not.
+    </p>
 
-    <h2>Why compounding wins</h2>
-    <p>With simple interest, your $10,000 at 5% earns a flat $500 every year. With compounding, each year's interest joins the balance and earns its own interest, so the yearly amount keeps rising. This is the engine behind long-term saving — explore it further with the <a href="/finance/compound-interest-calculator">compound interest calculator</a> or model regular contributions in the <a href="/finance/investment-calculator">investment calculator</a>.</p>
-    <p>This is general educational information, not financial advice.</p>
+    <h2>Which type applies, and what this leaves out</h2>
+    <p>
+      Most savings accounts and investments compound, often daily or monthly, while some
+      short-term loans and bonds use simple interest — check your account terms. This tool models
+      a single lump sum: it does <em>not</em> account for regular deposits, taxes or fees. To add
+      recurring contributions, use the <a href="/finance/compound-interest-calculator">compound
+      interest calculator</a> or the <a href="/finance/investment-calculator">investment
+      calculator</a>. This is general educational information, not financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

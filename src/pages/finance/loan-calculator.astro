@@ -49,32 +49,108 @@ const faqs = [
   <LoanCalculator />
 
   <Fragment slot="content">
-    <h2>How to use the loan calculator</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>loan amount</strong> — the sum you plan to borrow.</li>
+      <li>Set the annual <strong>interest rate</strong> the lender is quoting.</li>
+      <li>Choose the <strong>term</strong> in years — how long you have to repay.</li>
+      <li>Read off the <strong>monthly payment</strong> and the <strong>total interest</strong>, then open the yearly schedule to see the balance fall.</li>
+    </ol>
     <p>
-      Enter the <strong>loan amount</strong>, the annual <strong>interest rate</strong>
-      and the <strong>term</strong> in years. You will immediately see the monthly
-      payment, the total interest you will pay, and a year-by-year breakdown of how the
-      balance falls over time.
+      The result assumes a single fixed rate and equal monthly payments — the structure of
+      most personal loans, student loans and car loans. Change any input and the payment,
+      total interest and payoff schedule update so you can compare offers side by side.
     </p>
 
-    <h2>Understanding amortization</h2>
+    <h2>What an amortizing loan is</h2>
     <p>
-      With an amortizing loan, every monthly payment is the same, but its split changes.
-      Early on, most of the payment is interest because the balance is large. As the
-      balance shrinks, more of each payment goes to principal. The yearly table shows
-      exactly how much principal and interest you pay each year and what you still owe.
+      An amortizing loan is repaid in equal instalments that each cover the month's interest
+      first, with whatever is left reducing the balance. Because the payment is fixed but the
+      balance keeps shrinking, the split shifts over time: early payments are mostly interest,
+      and later ones are mostly principal. By the final payment the balance — and the interest
+      charged on it — has fallen to almost nothing.
+    </p>
+    <p>
+      That front-loaded interest is why the total you repay is larger than the amount you
+      borrowed, and why paying extra early has an outsized effect. Every dollar you add goes
+      straight to principal, which lowers the interest charged on every remaining payment.
     </p>
 
-    <h2>Tips for borrowing smart</h2>
+    <h2>The loan payment formula</h2>
+    <p>
+      The fixed monthly payment comes from the standard amortization formula:
+    </p>
+    <p><strong>M = P · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
     <ul>
-      <li>Compare total interest, not just the monthly payment — a low payment over a long term can cost far more.</li>
-      <li>Even a small rate reduction adds up over the life of the loan; shop multiple lenders.</li>
-      <li>Making extra payments toward principal shortens the term and cuts total interest.</li>
+      <li><strong>M</strong> — the monthly payment (the figure being solved for)</li>
+      <li><strong>P</strong> — the principal, or amount borrowed</li>
+      <li><strong>r</strong> — the monthly interest rate (annual rate ÷ 12)</li>
+      <li><strong>n</strong> — the total number of payments (years × 12)</li>
+    </ul>
+    <p>
+      Each month the interest due is the current balance times <em>r</em>, and the rest of the
+      payment reduces the balance. The calculator repeats that step across every month to build
+      the schedule and total the interest.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Borrow <strong>$25,000</strong> at <strong>8%</strong> over <strong>5 years</strong>.
+      The monthly rate is 0.08 ÷ 12 ≈ 0.00667 and there are 60 payments, giving a monthly
+      payment of about <strong>$506.91</strong>. In the first month, interest is
+      $25,000 × 0.00667 ≈ <strong>$166.67</strong>, so about $340 of that first payment reduces
+      the balance.
+    </p>
+    <p>
+      Over the full term you repay roughly <strong>$30,415</strong> — about
+      <strong>$5,415</strong> of it interest on top of the $25,000 you borrowed. The yearly
+      schedule shows the interest portion of each payment shrinking as the balance comes down.
+    </p>
+
+    <h2>How the term changes the cost</h2>
+    <p>
+      A longer term lowers the monthly payment but raises the total interest, because you borrow
+      the money for longer. Using the same $25,000 at 8%:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Term</th><th>Monthly payment</th><th>Total interest</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>3 years</td><td>$783.41</td><td>$3,202.73</td></tr>
+        <tr><td>5 years</td><td>$506.91</td><td>$5,414.59</td></tr>
+        <tr><td>7 years</td><td>$389.66</td><td>$7,731.05</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Stretching from 3 to 7 years cuts the payment by about $394 a month but more than doubles
+      the interest, from roughly $3,200 to $7,700. The monthly payment is the number you feel;
+      the total interest is the number that actually measures the cost of the loan.
+    </p>
+
+    <h2>Interest rate versus APR</h2>
+    <p>
+      This calculator uses the <strong>interest rate</strong> — the cost of borrowing the
+      principal. A loan's <strong>APR</strong> (annual percentage rate) also folds in certain
+      fees, so it is usually a little higher and is the better figure for comparing offers.
+      When you shop lenders, line up APRs for the same loan amount and term rather than chasing
+      the lowest advertised rate.
+    </p>
+
+    <h2>Tips and limitations</h2>
+    <ul>
+      <li>Compare <strong>total interest</strong>, not just the monthly payment — a low payment over a long term can cost far more.</li>
+      <li>Even a <strong>0.5% lower rate</strong> adds up over the life of a loan; get quotes from several lenders.</li>
+      <li>Extra payments toward <strong>principal</strong> shorten the term and cut total interest — check for prepayment penalties first, as a few loans charge them.</li>
+      <li>The tool assumes a <strong>fixed rate</strong> and equal payments. It does not model origination fees, variable rates, late fees or insurance, so a real APR may run slightly higher.</li>
     </ul>
 
     <p>
-      This tool provides estimates for planning only and is not a loan offer or financial
-      advice. Your actual rate and terms depend on the lender and your credit profile.
+      To see exactly how each payment splits between principal and interest, use the
+      <a href="/finance/amortization-calculator">amortization calculator</a>; to solve for a
+      payoff time from a payment you can afford, try the
+      <a href="/finance/payment-calculator">payment calculator</a>. This tool provides estimates
+      for planning only and is not a loan offer or financial advice.
     </p>
   </Fragment>
 </CalculatorLayout>
