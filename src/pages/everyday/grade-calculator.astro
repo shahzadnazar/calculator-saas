@@ -21,12 +21,67 @@ const faqs = [
   <GradeCalculator />
   <Fragment slot="content">
     <h2>Two grade tools in one</h2>
-    <p><strong>Weighted average</strong> combines your scores by their weights to show your current grade. <strong>Final grade needed</strong> works backwards from a target: enter your current grade and the final's weight, and it tells you the score required.</p>
+    <p>
+      Switch between them with the mode control. <strong>Weighted average</strong> combines
+      your scores by their weights to show your current grade. <strong>Final grade needed</strong>
+      works backwards from a target: enter your current grade and how much the final is worth,
+      and it returns the score you need on that final.
+    </p>
+
+    <h2>Calculating a weighted average</h2>
+    <ol>
+      <li>Choose the <strong>weighted average</strong> mode.</li>
+      <li>Add a <strong>row per assessment</strong> — a quiz, test, project or exam.</li>
+      <li>Enter each item's <strong>score</strong> (as a percentage) and its <strong>weight</strong>.</li>
+    </ol>
+    <p>
+      The weights are treated as relative shares, so they do not have to add up to 100. The
+      tool multiplies each score by its weight, sums those, and divides by the total weight —
+      if your weights happen to total something other than 100, it normalises by that total
+      automatically.
+    </p>
 
     <h2>A worked example</h2>
-    <p>Say a course is graded on a quiz worth 20%, a midterm worth 30% and a final worth 50%. If you scored 80% and 75% on the first two and expect 90% on the final, your grade is 0.20 × 80 + 0.30 × 75 + 0.50 × 90 = <strong>83.5%</strong>. Because the final carries half the weight, it moves your grade more than the quiz and midterm combined.</p>
+    <p>
+      Say a course is graded on a quiz worth 20%, a midterm worth 30% and a final worth 50%. If
+      you scored 80% and 75% on the first two and expect 90% on the final, your grade is
+      (0.20 × 80) + (0.30 × 75) + (0.50 × 90) = <strong>83.5%</strong>. Because the final carries
+      half the weight, it moves your grade more than the quiz and midterm combined.
+    </p>
+    <p>
+      Weights need not total 100. Score 90 on an item weighted 2 and 80 on an item weighted 1,
+      and the grade is (90 × 2 + 80 × 1) ÷ 3 = <strong>86.67%</strong> — the same math, just
+      normalised by the total weight of 3.
+    </p>
+
+    <h2>What you need on the final</h2>
+    <p>
+      The second mode answers "what must I score on the final?" Enter your current grade, the
+      final's weight as a percentage of the whole course, and your target overall grade. Writing
+      the final's weight as a fraction <em>w</em>, the required score is:
+    </p>
+    <p><strong>needed = (target − (1 − w) × current) ÷ w</strong></p>
+    <p>
+      For example, with a <strong>current grade of 88%</strong>, a final worth <strong>25%</strong>
+      (so <em>w</em> = 0.25) and a <strong>target of 90%</strong>, you need (90 − 0.75 × 88) ÷ 0.25
+      = 24 ÷ 0.25 = <strong>96%</strong> on the final.
+    </p>
+
+    <h2>When the target isn't reachable</h2>
+    <p>
+      Sometimes the required score comes out above 100%, which means the target cannot be reached
+      with the final alone. Aiming for <strong>85%</strong> from a <strong>70% current grade</strong>
+      with the final worth <strong>40%</strong> needs (85 − 0.6 × 70) ÷ 0.4 = <strong>107.5%</strong>
+      — impossible, so the tool flags it as not reachable. If instead the number comes out at or
+      below zero, you have already secured the target regardless of the final.
+    </p>
 
     <h2>Understanding weights</h2>
-    <p>Assessments rarely count equally — a final exam might be worth 30% while a quiz is 5%. Weighting reflects that, so a high score on a heavily weighted item matters most. To combine grades across whole courses into a GPA, use the <a href="/everyday/gpa-calculator">GPA calculator</a>.</p>
+    <p>
+      Assessments rarely count equally — a final exam might be worth 30% while a quiz is 5%.
+      Weighting reflects that, so a high score on a heavily weighted item matters most, and it is
+      why the final so often decides a borderline grade. To combine final grades across whole
+      courses into a GPA, use the <a href="/everyday/gpa-calculator">GPA calculator</a>.
+    </p>
   </Fragment>
 </CalculatorLayout>

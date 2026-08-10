@@ -50,24 +50,75 @@ const faqs = [
 
   <Fragment slot="content">
     <h2>How to use the age calculator</h2>
+    <ol>
+      <li>Enter your <strong>date of birth</strong> in the first field.</li>
+      <li>Leave <strong>age at the date</strong> on today for your current age, or set it to any past or future date.</li>
+      <li>Press <strong>Calculate Age</strong>; after the first result, the breakdown updates as you edit either date.</li>
+    </ol>
     <p>
-      Enter a <strong>date of birth</strong>. By default the age is calculated as of
-      today, but you can change the <strong>age at the date</strong> field to any past or
-      future date — useful for working out how old someone will be at an event.
+      Both fields are read as plain calendar dates, so the time of day and your timezone
+      never shift the result. The date of birth has to fall on or before the "age at" date —
+      the tool always measures forward and never silently swaps a reversed pair.
     </p>
 
-    <h2>What the numbers mean</h2>
+    <h2>What each result means</h2>
     <ul>
-      <li><strong>Years, months, days</strong> — your exact age broken down.</li>
-      <li><strong>Total months / weeks / days</strong> — the same span expressed in a single unit.</li>
-      <li><strong>Days to birthday</strong> — the countdown to your next birthday from the selected date.</li>
+      <li><strong>Years, months and days</strong> — your exact age, the headline figure.</li>
+      <li><strong>Total months, weeks and days</strong> — the same span expressed in one unit at a time.</li>
+      <li><strong>Days until your next birthday</strong> — counted from the "age at" date.</li>
     </ul>
+    <p>
+      The totals all describe one identical span at different scales, so they are not meant to
+      be added together — the person below is 31 years old <em>and</em> 376 months old
+      <em>and</em> 11,466 days old, three views of the same life so far.
+    </p>
+
+    <h2>How the calculation works</h2>
+    <p>
+      Age is not plain subtraction, because calendar months are different lengths. The
+      calculator first counts the whole months between the two dates, advances your birth date
+      by that many months, and then measures the leftover days from that anchor. Working
+      month-first keeps years, months and days all positive and guarantees they reassemble
+      back to the exact end date.
+    </p>
+    <p>
+      The total-days figure is counted separately, straight across the calendar, so it always
+      includes the extra day in every leap year. That is why the breakdown and the single-unit
+      totals never contradict each other, whichever dates you choose.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Take a birth date of <strong>20 March 1995</strong> measured as of <strong>10 August
+      2026</strong>. There are 376 whole months between them; advancing the birth date by
+      those 376 months lands on 20 July 2026, and 10 August is 21 days further on. So the
+      exact age is <strong>31 years, 4 months and 21 days</strong>.
+    </p>
+    <p>
+      Expressed as single units, that same span is <strong>376 months</strong>, <strong>1,638
+      weeks</strong> or <strong>11,466 days</strong> — with every leap day from 1996 through
+      2024 folded into that day count.
+    </p>
 
     <h2>Why month and day counting is tricky</h2>
     <p>
-      Months have different lengths and leap years add a day, so simple arithmetic can be
-      off by a day or two. This calculator borrows correctly from the previous month when
-      needed and counts leap days, so the result is accurate for any dates you choose.
+      When a birth day lands on a date the destination month does not have, the calculator
+      uses that month's last day instead. Count from <strong>31 January 2024</strong> to
+      <strong>1 March 2024</strong> and the answer is <strong>0 years, 1 month, 1 day</strong>:
+      one whole month reaches 29 February — February's last day in a leap year — and 1 March
+      is a single day beyond it. Naive subtraction tends to produce an impossible "negative
+      day" in cases like this; the month-first method never does.
+    </p>
+
+    <h2>Tips and common questions</h2>
+    <ul>
+      <li>To find someone's age at a <strong>future event</strong>, set the "age at" date to the event's date.</li>
+      <li>For a <strong>birthday countdown</strong>, read the days-until-next-birthday figure — it recalculates from whatever "age at" date you set.</li>
+      <li>Two age tools can disagree by a day when they treat month-ends or leap days differently; this one counts every actual calendar day, so its breakdown and totals stay consistent.</li>
+    </ul>
+    <p>
+      To measure the gap between two arbitrary dates, or to add and subtract days from a date,
+      use the <a href="/everyday/date-calculator">date calculator</a>.
     </p>
   </Fragment>
 </CalculatorLayout>

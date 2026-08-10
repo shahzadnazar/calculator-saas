@@ -15,20 +15,56 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate how much concrete a slab or footing needs — in cubic yards, cubic metres and pre-mix bags — with an optional waste allowance." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <ConcreteCalculator />
   <Fragment slot="content">
-    <h2>How to estimate how much concrete you need</h2>
-    <p>Concrete is ordered by volume, so the goal is to turn your slab's dimensions into cubic yards. The method is always the same:</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>length</strong>, <strong>width</strong> and <strong>depth</strong> of your slab or footing.</li>
+      <li>Choose the <strong>unit</strong> — feet or metres. Switching it converts the three dimensions you have already typed rather than reinterpreting them.</li>
+      <li>Optionally add a <strong>waste allowance</strong> as a percentage (leave it blank for none).</li>
+      <li>Read the result in <strong>cubic yards</strong>, with cubic-metre and cubic-foot equivalents and the number of 40, 60 and 80-lb bags.</li>
+    </ol>
+    <p>
+      All three dimensions use the same unit, so a slab thickness quoted in inches has to be
+      converted first: divide inches by 12 to get feet, which makes a 4-inch pour 0.333 ft.
+      Switch the unit to metres if your measurements are metric.
+    </p>
+
+    <h2>How concrete estimating works</h2>
+    <p>
+      Concrete is sold by volume, so every estimate comes down to turning a slab's dimensions
+      into cubic yards. Multiply length by width by depth for the volume in cubic feet, then
+      divide by 27 — there are 27 cubic feet in a cubic yard. The bag counts come from dividing
+      that volume by how much each pre-mix bag yields once mixed.
+    </p>
+
+    <h2>The formula</h2>
+    <p>For dimensions measured in feet:</p>
+    <p><strong>cubic yards = (length × width × depth) ÷ 27</strong></p>
     <ul>
-      <li>Convert every dimension to <strong>feet</strong> — a 4-inch slab thickness is 4 ÷ 12 = 0.33 ft.</li>
-      <li>Multiply <strong>length × width × thickness</strong> to get cubic feet.</li>
-      <li>Divide by <strong>27</strong> (the number of cubic feet in a cubic yard).</li>
+      <li><strong>length × width × depth</strong> — the volume in cubic feet, with depth in feet (a 4-inch slab is 0.333 ft).</li>
+      <li><strong>÷ 27</strong> — converts cubic feet to cubic yards, the unit ready-mix is ordered in.</li>
+      <li>A <strong>waste allowance</strong>, if entered, multiplies the volume by 1 + the percentage before the bag counts are worked out.</li>
     </ul>
-    <p>Enter the length, width and depth above and the calculator returns cubic yards, cubic metres and cubic feet, plus how many 40, 60 or 80-lb bags the job would take.</p>
+    <p>
+      Choose metres instead and the tool converts the dimensions to feet first, so the method
+      and the 27-cubic-feet-per-yard constant stay the same underneath.
+    </p>
 
     <h2>A worked example</h2>
-    <p>Say you are pouring a <strong>10 ft × 10 ft patio, 4 inches thick</strong>. In feet that is 10 × 10 × 0.33 = 33 cubic feet, or 33 ÷ 27 ≈ <strong>1.24 cubic yards</strong>. Add a 10% waste allowance and you would order about <strong>1.4 cubic yards</strong> — roughly 61 × 80-lb bags, which is exactly the point at which a ready-mix truck starts to make sense.</p>
+    <p>
+      Say you are pouring a <strong>12 ft × 12 ft patio, 4 inches thick</strong>. Four inches
+      is one-third of a foot, so the volume is 12 × 12 × 0.333 = <strong>48 cubic feet</strong>.
+      Divide by 27 and that is <strong>1.78 cubic yards</strong>, or about <strong>1.36 cubic
+      metres</strong>.
+    </p>
+    <p>
+      As bags, 48 cubic feet works out to <strong>80 × 80-lb bags</strong> (about 107 × 60-lb
+      or 160 × 40-lb) — a lot of hauling and mixing, which is exactly why a pour this size is
+      usually ordered as ready-mix. Add a 10% waste allowance and the order rises to roughly
+      <strong>1.96 cubic yards</strong>.
+    </p>
 
     <h2>Bags or ready-mix?</h2>
-    <p>Bagged pre-mix suits small jobs — footings, fence posts, a small pad. Each bag covers only a fraction of a cubic foot, so the count climbs fast:</p>
+    <p>Bagged pre-mix suits small jobs — footings, fence posts, a single small pad. Each bag covers only a fraction of a cubic foot, so the count climbs fast:</p>
     <table>
       <thead>
         <tr><th>Bag size</th><th>Yield per bag</th><th>Bags per cubic yard</th></tr>
@@ -39,10 +75,18 @@ const faqs = [
         <tr><td>80 lb</td><td>~0.60 cu ft</td><td>~45</td></tr>
       </tbody>
     </table>
-    <p>For anything over roughly a cubic yard, ordering ready-mix by the yard is usually cheaper and far less work than mixing dozens of bags by hand.</p>
+    <p>For anything much over a cubic yard, ordering ready-mix by the yard is usually cheaper and far less work than mixing dozens of bags by hand.</p>
+
+    <h2>Why add a waste allowance</h2>
+    <p>
+      Some concrete is always lost to spillage, an uneven subgrade and slight over-excavation,
+      and running short mid-pour is far more costly than a little leftover. A margin of about
+      <strong>5–10%</strong> covers it on a typical slab; add more for a rough or sloping site.
+      The bag counts above already include whatever percentage you enter.
+    </p>
 
     <h2>How long concrete takes to set and cure</h2>
-    <p>Fresh concrete is firm enough to walk on within 24–48 hours and strong enough to drive on after about a week, but it continues to gain strength for weeks, reaching most of its rated value at <strong>28 days</strong>. Keeping the surface damp during the first days (curing) meaningfully increases the finished strength.</p>
-    <p>These are estimates; confirm quantities with your supplier and account for your site conditions. For a room's floor area rather than a pour, see the <a href="/everyday/square-footage-calculator">square footage calculator</a>, or the <a href="/math/volume-calculator">volume calculator</a> for other shapes.</p>
+    <p>Fresh concrete is firm enough to walk on within 24–48 hours and strong enough to drive on after about a week, but it keeps gaining strength for weeks, reaching most of its rated value at <strong>28 days</strong>. Keeping the surface damp through the first days — curing — measurably increases the finished strength.</p>
+    <p>These are estimates; confirm quantities with your supplier and allow for your own site conditions. For a room's floor area rather than a pour, see the <a href="/everyday/square-footage-calculator">square footage calculator</a>, or the <a href="/math/volume-calculator">volume calculator</a> for cylinders, columns and other shapes.</p>
   </Fragment>
 </CalculatorLayout>

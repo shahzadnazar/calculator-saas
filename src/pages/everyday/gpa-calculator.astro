@@ -22,13 +22,25 @@ const faqs = [
   <GpaCalculator />
   <Fragment slot="content">
     <h2>How to calculate your GPA</h2>
-    <p>GPA turns letter grades into a single number in three steps: convert each grade to grade points, weight it by the course's credit hours, and average across all your credits. Above, just add a row per course, pick its grade and enter its credits — but here is what the calculator is doing behind the scenes, using the standard unweighted scale:</p>
+    <ol>
+      <li>Add a <strong>row for each course</strong> you want to include.</li>
+      <li>Pick the <strong>letter grade</strong> from the list and enter the course's <strong>credit hours</strong>.</li>
+      <li>Add more rows as needed; the credit-weighted GPA updates from every course at once.</li>
+    </ol>
+    <p>
+      A course with zero credits is accepted but does not move the average — handy for a
+      pass/fail class you want to list without counting. You need at least one course carrying
+      credit hours before the tool can return a GPA.
+    </p>
+
+    <h2>The grade-point scale</h2>
+    <p>Behind the scenes each letter maps to a fixed number of grade points on the standard unweighted 4.0 scale:</p>
     <table>
       <thead>
         <tr><th>Letter grade</th><th>Grade points</th></tr>
       </thead>
       <tbody>
-        <tr><td>A / A+</td><td>4.0</td></tr>
+        <tr><td>A</td><td>4.0</td></tr>
         <tr><td>A−</td><td>3.7</td></tr>
         <tr><td>B+</td><td>3.3</td></tr>
         <tr><td>B</td><td>3.0</td></tr>
@@ -38,25 +50,53 @@ const faqs = [
         <tr><td>C−</td><td>1.7</td></tr>
         <tr><td>D+</td><td>1.3</td></tr>
         <tr><td>D</td><td>1.0</td></tr>
-        <tr><td>D−</td><td>0.7</td></tr>
         <tr><td>F</td><td>0.0</td></tr>
       </tbody>
     </table>
+    <p>
+      The scale tops out at <strong>4.0</strong> for an A. Some schools award a 4.0 for an A+
+      as well, or run their pluses and minuses a little differently, so check your
+      institution's official scale if it does not match this one.
+    </p>
+
+    <h2>The formula</h2>
+    <p>
+      GPA is a credit-weighted average, not a plain one. For each course, multiply its grade
+      points by its credit hours to get that course's <strong>quality points</strong>; add the
+      quality points across all courses, then divide by the total credit hours:
+    </p>
+    <p><strong>GPA = total quality points ÷ total credit hours</strong></p>
+    <p>
+      Weighting by credits is why a heavier course pulls harder: a strong grade in a 4-credit
+      class moves your GPA more than the same grade in a 1-credit class, and a poor grade in a
+      heavy course hurts more.
+    </p>
 
     <h2>A worked example</h2>
-    <p>Suppose you took three courses: an A in a 3-credit class, a B+ in a 4-credit class, and an A− in a 3-credit class. Multiply grade points by credits for each, then divide by total credits:</p>
+    <p>Suppose you took three courses this term:</p>
     <ul>
-      <li>A (4.0) × 3 credits = 12.0</li>
-      <li>B+ (3.3) × 4 credits = 13.2</li>
-      <li>A− (3.7) × 3 credits = 11.1</li>
-      <li>Total: 36.3 grade points ÷ 10 credits = <strong>3.63 GPA</strong></li>
+      <li>A (4.0) × 4 credits = 16.0 quality points</li>
+      <li>B+ (3.3) × 3 credits = 9.9 quality points</li>
+      <li>B− (2.7) × 3 credits = 8.1 quality points</li>
     </ul>
+    <p>
+      That is <strong>34.0 quality points</strong> across <strong>10 credit hours</strong>, so
+      the GPA is 34.0 ÷ 10 = <strong>3.40</strong>. Notice it is not the simple average of 4.0,
+      3.3 and 2.7 (which would be 3.33) — the extra weight on the 4-credit A nudges it upward.
+    </p>
 
     <h2>Weighted vs. unweighted GPA</h2>
-    <p>This calculator uses the <strong>unweighted</strong> 4.0 scale, where every course maxes out at 4.0. Many high schools also report a <strong>weighted</strong> GPA that rewards course difficulty — commonly +0.5 for honors and +1.0 for AP or IB classes — which is why some transcripts show GPAs above 4.0. Colleges often recalculate to their own scale, so know which number a form is asking for.</p>
+    <p>This calculator uses the <strong>unweighted</strong> 4.0 scale, where every course maxes out at 4.0. Many high schools also report a <strong>weighted</strong> GPA that rewards course difficulty — commonly +0.5 for honors and +1.0 for AP or IB classes — which is why some transcripts show GPAs above 4.0. Colleges often recalculate to their own scale, so know which number a given form is asking for.</p>
+
+    <h2>Cumulative GPA across semesters</h2>
+    <p>
+      A cumulative GPA uses the same method over every course you have taken: add up the quality
+      points from all terms and divide by all the credit hours. It is <em>not</em> the average
+      of each semester's GPA unless every semester carried exactly the same number of credits.
+      To roll several terms together here, enter each course as its own row.
+    </p>
 
     <h2>What counts as a good GPA</h2>
-    <p>As a rough guide, 3.0 is a solid B average, 3.5+ is competitive for many programs, and 3.8+ is excellent. But context matters more than the number: a strong GPA in a demanding major can outweigh a higher one in an easier track. To work out an individual course grade from your assignments and exams, use the <a href="/everyday/grade-calculator">grade calculator</a>.</p>
-    <p>This uses the standard unweighted 4.0 scale; your institution's scale may differ.</p>
+    <p>As a rough guide, 3.0 is a solid B average, 3.5+ is competitive for many programs, and 3.8+ is excellent. Context matters more than the number, though: a strong GPA in a demanding major can outweigh a higher one in an easier track. To work out an individual course grade from your assignments and exams, use the <a href="/everyday/grade-calculator">grade calculator</a>. This uses the standard unweighted 4.0 scale; your institution's scale may differ.</p>
   </Fragment>
 </CalculatorLayout>

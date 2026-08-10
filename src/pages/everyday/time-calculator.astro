@@ -20,8 +20,36 @@ const faqs = [
 >
   <TimeCalculator />
   <Fragment slot="content">
-    <h2>Working with durations</h2>
-    <p>Time is awkward to add by hand because it is in base 60, not base 10. Enter two durations and pick add or subtract; the calculator carries the minutes and hours correctly and shows a tidy result.</p>
+    <h2>How to use the time calculator</h2>
+    <ol>
+      <li>Enter the first duration in <strong>days, hours, minutes and seconds</strong> (leave any field blank for zero).</li>
+      <li>Choose <strong>add</strong> or <strong>subtract</strong>, then enter the second duration.</li>
+      <li>Press <strong>Calculate Time</strong> to see the normalised result and the total in seconds.</li>
+    </ol>
+
+    <h2>How duration arithmetic works</h2>
+    <p>
+      Time is awkward to add by hand because it runs in base 60, not base 10 — 60 minutes roll
+      over into an hour, not 100. The calculator sidesteps that by converting each duration to a
+      single number of seconds, adding or subtracting those, and then breaking the total back
+      into days, hours, minutes and seconds so the carrying is always right.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Add <strong>2h 30m</strong> and <strong>1h 45m</strong>. As seconds that is 9,000 + 6,300 =
+      <strong>15,300 seconds</strong>; broken back down, the answer is <strong>4h 15m</strong> —
+      not 3h 75m. The minutes past 60 correctly carry into an extra hour, which is the step that
+      trips up mental arithmetic.
+    </p>
+
+    <h2>Subtracting durations</h2>
+    <p>
+      Subtraction works the same way. <strong>5h 15m</strong> minus <strong>2h 50m</strong> is
+      18,900 − 10,200 = 8,700 seconds, or <strong>2h 25m</strong>. If the second duration is
+      larger than the first, the result is negative and shown with a minus sign rather than
+      wrapping around.
+    </p>
 
     <h2>Time unit conversions</h2>
     <table>
@@ -35,7 +63,13 @@ const faqs = [
       </tbody>
     </table>
 
-    <h2>Related time tools</h2>
-    <p>To calculate hours worked between two clock times (with breaks), use the <a href="/everyday/hours-calculator">hours calculator</a>. To count days between calendar dates, use the <a href="/everyday/date-calculator">date calculator</a>.</p>
+    <h2>How this differs from the hours calculator</h2>
+    <p>
+      This tool adds and subtracts <strong>durations</strong> — spans of time with no particular
+      start or end. To work out time elapsed between two <strong>clock times</strong>, such as a
+      shift from 9:00 to 17:30 with a break, use the
+      <a href="/everyday/hours-calculator">hours calculator</a> instead. To count days between
+      calendar dates, use the <a href="/everyday/date-calculator">date calculator</a>.
+    </p>
   </Fragment>
 </CalculatorLayout>
