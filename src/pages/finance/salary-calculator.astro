@@ -12,11 +12,11 @@ const faqs = [
   { question: 'Is this gross or net pay?', answer: 'These figures are gross (before tax). To estimate what you keep, use the income tax calculator.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Convert pay between hourly, daily, weekly, biweekly, monthly and annual figures — enter any one and see them all." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Convert pay between hourly, daily, weekly, biweekly, monthly and annual figures — enter any one and see them all." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-10' }}>
   <SalaryCalculator />
   <Fragment slot="content">
     <h2>Compare offers on the same basis</h2>
-    <p>Job offers come in different units — one hourly, one annual, one monthly. Convert them to the same basis to compare fairly. Enter any figure and choose its period; the table fills in every equivalent.</p>
+    <p>Job offers come in different units — one hourly, one annual, one monthly. Convert them to the same basis to compare fairly. Enter any figure, choose its period and press Convert; every equivalent is filled in.</p>
 
     <h2>Converting annual and hourly pay</h2>
     <p>The two conversions are simple once you fix your yearly hours (40 hours × 52 weeks = 2,080):</p>
