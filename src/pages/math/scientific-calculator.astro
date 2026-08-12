@@ -36,22 +36,25 @@ const faqs = [
 
   <Fragment slot="content">
     <h2>How to use the scientific calculator</h2>
+    <ol>
+      <li>Build a <strong>complete expression</strong> — for example <strong>sin(45) + √2 × 3</strong> — by typing or tapping the keypad.</li>
+      <li>Set the angle mode with <strong>Deg</strong> or <strong>Rad</strong> before using any trig function.</li>
+      <li>Press <strong>=</strong> (or Enter) to evaluate. Use <strong>Ans</strong> to feed the previous result into a new calculation.</li>
+    </ol>
+
+    <h2>Expression-based, not step-by-step</h2>
     <p>
-      Enter a complete expression — for example <strong>sin(45) + √2 × 3</strong> — and press
-      <strong>=</strong>. Unlike a basic calculator that computes each step as you go, this calculator
-      reads your whole expression and applies the correct order of operations, so you can build complex
-      formulas naturally and review them before evaluating. Type directly or tap the keypad; press
-      <strong>Deg</strong> or <strong>Rad</strong> to set the angle mode.
+      Unlike a basic calculator that computes each key as you press it, this one reads your <em>whole</em> expression before evaluating. It parses what you type and applies the correct order of operations, so you can write a formula the way it appears on paper — nested parentheses and all — and check it on the display before committing. Nothing is sent to a server; every calculation runs on your device.
     </p>
 
     <h2>Supported functions and constants</h2>
     <ul>
       <li><strong>Trigonometry:</strong> sin, cos, tan and their inverses (sin⁻¹, cos⁻¹, tan⁻¹). Respects the Deg/Rad toggle.</li>
       <li><strong>Logarithms:</strong> <strong>ln</strong> is the natural log (base e) and <strong>log</strong> is base 10.</li>
-      <li><strong>Powers &amp; roots:</strong> x², x³, xʸ, eˣ, 10ˣ, √ (square root) and ∛ (cube root).</li>
+      <li><strong>Powers &amp; roots:</strong> x², x³, xʸ, eˣ, 10ˣ, √ (square root) and ∛ (cube root). You can also type the caret <strong>^</strong> directly, so 3^4 = 81.</li>
       <li><strong>Factorial:</strong> <strong>n!</strong> multiplies all whole numbers up to n (5! = 120).</li>
       <li><strong>Constants:</strong> <strong>π</strong> ≈ 3.14159 and <strong>e</strong> ≈ 2.71828.</li>
-      <li><strong>mod</strong> (modulo), <strong>EXP</strong> (scientific-notation exponent, ×10ˣ), <strong>Ans</strong> (previous answer) and <strong>1/x</strong> (reciprocal).</li>
+      <li><strong>mod</strong> (remainder after division), <strong>EXP</strong> (scientific-notation exponent, inserts ×10^), <strong>Ans</strong> (previous answer) and <strong>1/x</strong> (reciprocal).</li>
     </ul>
 
     <h2>Order of operations (PEMDAS)</h2>
@@ -60,21 +63,37 @@ const faqs = [
       <strong>E</strong>xponents, <strong>M</strong>ultiplication and <strong>D</strong>ivision
       (left to right), then <strong>A</strong>ddition and <strong>S</strong>ubtraction (left to right).
       For instance, <strong>2 + 3 × 4</strong> equals <strong>14</strong>, not 20, because multiplication
-      is applied before addition.
+      is applied before addition. When in doubt, add parentheses — they force the order you intend.
     </p>
 
     <h2>Degrees vs. radians</h2>
     <p>
       Switch between <strong>Deg</strong> and <strong>Rad</strong> at the top of the keypad. Use degrees
-      for everyday geometry and navigation; use radians for calculus and most physics. In radian mode,
-      <strong>sin(π / 2)</strong> equals 1.
+      for everyday geometry and navigation; use radians for calculus and most physics. The same keys give
+      different answers in each mode: <strong>sin(90)</strong> is 1 in degrees, while <strong>sin(π / 2)</strong>
+      is 1 in radians. Set the mode before you evaluate, not after.
     </p>
 
-    <h2>Worked examples</h2>
+    <h2>A worked example, key by key</h2>
+    <p>
+      To find the hypotenuse of a 3-4 right triangle, compute √(3<sup>2</sup> + 4<sup>2</sup>). Press
+      <strong>√</strong> (which opens <strong>sqrt(</strong>), then <strong>3</strong> <strong>x²</strong>
+      <strong>+</strong> <strong>4</strong> <strong>x²</strong> <strong>)</strong> and <strong>=</strong>. The
+      calculator evaluates 9 + 16 = 25 inside the root and returns <strong>5</strong>. A few more to try:
+    </p>
     <ul>
-      <li><strong>Compound growth:</strong> 1000 × (1 + 0.05)^10 estimates a balance after 10 years at 5%.</li>
-      <li><strong>Right-triangle side:</strong> √(3² + 4²) = 5.</li>
-      <li><strong>Probability:</strong> combinations use factorials, e.g. 10! / (3! × 7!).</li>
+      <li><strong>Compound growth:</strong> 1000 × (1 + 0.05)^10 ≈ 1628.89 — a balance after 10 years at 5%.</li>
+      <li><strong>Combinations:</strong> 10! / (3! × 7!) = <strong>120</strong>, the number of ways to choose 3 from 10.</li>
+      <li><strong>Scientific notation:</strong> 6.022 <strong>EXP</strong> 23 enters 6.022 ×10<sup>23</sup>.</li>
     </ul>
+
+    <h2>Accuracy and limits</h2>
+    <p>
+      Results use standard double-precision arithmetic, so a value that should be exact can occasionally show a
+      tiny rounding tail — round the display to the precision your problem needs. Factorials are exact up to 170!;
+      beyond that the true value exceeds what the format can hold and the calculator returns infinity. For a full
+      list of descriptive statistics on a data set, use the <a href="/math/statistics-calculator">statistics
+      calculator</a>; for percentage math, the <a href="/math/percent-calculator">percentage calculator</a>.
+    </p>
   </Fragment>
 </CalculatorLayout>

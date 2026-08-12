@@ -49,39 +49,72 @@ const faqs = [
   <SalesTaxCalculator />
 
   <Fragment slot="content">
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Choose a mode: <strong>Add tax</strong> to go from a pre-tax price to a total, or <strong>Remove tax</strong> to pull the pre-tax price out of a tax-inclusive total.</li>
+      <li>Enter the <strong>amount</strong> — the pre-tax price when adding, or the receipt total when removing.</li>
+      <li>Enter the <strong>sales-tax rate</strong> as a percentage (the combined state-plus-local rate where the sale happens).</li>
+      <li>Press <strong>Calculate</strong> to see the tax, the pre-tax amount and the total — all three, whichever mode you are in.</li>
+    </ol>
+
     <h2>Adding vs. removing tax</h2>
     <p>
-      Use <strong>Add tax</strong> when you know the pre-tax price and want the total.
-      Use <strong>Remove tax</strong> when you have a receipt total and want to know how
-      much of it was tax — handy for expense reports and bookkeeping.
+      The two modes run the calculation in opposite directions. Use <strong>Add tax</strong> when
+      you know the shelf price and want the checkout total. Use <strong>Remove tax</strong> when a
+      receipt shows a single tax-inclusive figure and you need to split out how much of it was tax
+      — the everyday case for expense reports, VAT-style bookkeeping and reclaiming tax on
+      business purchases.
     </p>
 
     <h2>The formulas</h2>
+    <p>Adding tax is a straight markup on the pre-tax price:</p>
     <ul>
-      <li><strong>Tax:</strong> price × (rate ÷ 100)</li>
-      <li><strong>Total:</strong> price + tax</li>
-      <li><strong>Pre-tax from total:</strong> total ÷ (1 + rate ÷ 100)</li>
+      <li><strong>Tax</strong> = price × (rate ÷ 100)</li>
+      <li><strong>Total</strong> = price + tax</li>
+    </ul>
+    <p>Removing tax is the reverse — you cannot just subtract the rate, because the tax was charged on the smaller pre-tax figure, not the total:</p>
+    <ul>
+      <li><strong>Pre-tax price</strong> = total ÷ (1 + rate ÷ 100)</li>
+      <li><strong>Tax included</strong> = total − pre-tax price</li>
     </ul>
 
     <h2>A worked example</h2>
     <p>
       A $100 item at a 7.25% rate has $100 × 0.0725 = <strong>$7.25</strong> in tax, for a
-      <strong>$107.25</strong> total. Working backwards from a $107.25 receipt: $107.25 ÷
-      1.0725 = <strong>$100</strong> before tax, so $7.25 was tax. The same two steps scale
-      to any price and rate.
+      <strong>$107.25</strong> total. Working backwards from a $107.25 receipt: $107.25 ÷ 1.0725 =
+      <strong>$100</strong> before tax, so $7.25 was tax. Note why subtracting 7.25% of $107.25
+      gives the wrong answer — that would be $7.78, because the rate applies to the $100 base, not
+      the tax-inclusive total.
     </p>
 
     <h2>States with no sales tax</h2>
     <p>
-      Five states levy no statewide sales tax — <strong>New Hampshire, Oregon, Montana,
-      Alaska and Delaware</strong> (remembered as "NOMAD"). Alaska is the asterisk: it has
-      no state rate but lets cities and boroughs add their own, so a purchase there may
-      still be taxed locally. Everywhere else, the combined state-and-local rate applies.
+      Five states levy no statewide sales tax — <strong>New Hampshire, Oregon, Montana, Alaska and
+      Delaware</strong> (remembered as "NOMAD"). Alaska is the asterisk: it has no state rate but
+      lets cities and boroughs add their own, so a purchase there may still be taxed locally.
+      Everywhere else, the combined state-and-local rate applies.
     </p>
+
+    <h2>Choosing the right rate</h2>
     <p>
-      Rates and exemptions differ by jurisdiction; confirm the correct combined rate for
-      your location. To split a tip on a taxed restaurant bill, see the
-      <a href="/finance/tip-calculator">tip calculator</a>. This tool is for estimation only.
+      There is no national U.S. sales tax; the rate is set by state, county and city, so the figure
+      that applies is the <strong>combined</strong> rate at the point of sale. Once local taxes are
+      added, rates range from 0% to over 10%, and many states exempt or reduce tax on necessities
+      such as groceries and prescription medicine. Enter the rate that actually applies to your item
+      and location rather than a statewide headline number.
+    </p>
+
+    <h2>What this tool does not do</h2>
+    <ul>
+      <li><strong>It does not know your local rate.</strong> You supply the percentage; look up the correct combined rate for the exact address.</li>
+      <li><strong>It does not handle item-level exemptions.</strong> If part of a cart is taxable and part is exempt, calculate each portion separately.</li>
+      <li><strong>It assumes a single flat rate</strong> — not tiered or category-specific rates that a few jurisdictions apply.</li>
+    </ul>
+    <p>
+      Rates and exemptions differ by jurisdiction; confirm the correct combined rate for your
+      location. To split a tip on a taxed restaurant bill, see the
+      <a href="/finance/tip-calculator">tip calculator</a>. This tool is for estimation only and is
+      not tax advice.
     </p>
   </Fragment>
 </CalculatorLayout>

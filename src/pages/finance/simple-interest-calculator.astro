@@ -49,27 +49,47 @@ const faqs = [
   <SimpleInterestCalculator />
 
   <Fragment slot="content">
-    <h2>How simple interest works</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>principal</strong> — the amount borrowed or invested.</li>
+      <li>Set the annual <strong>rate</strong> as a percentage.</li>
+      <li>Enter the <strong>time</strong> in years (decimals are fine — 0.5 for six months).</li>
+      <li>Press <strong>Calculate</strong> to see the interest and the total value at the end.</li>
+    </ol>
+
+    <h2>What simple interest is</h2>
     <p>
       Simple interest is charged only on the original principal, never on interest already
-      accrued. Enter the <strong>principal</strong>, the annual <strong>rate</strong> and
-      the <strong>time</strong> in years to see the interest and the total value.
+      accrued. Because the base never changes, the interest is the same amount every period and
+      the balance grows in a straight line. That makes it easy to predict, which is why it turns
+      up on many short-term and fixed-term arrangements.
     </p>
+
+    <h2>The formula</h2>
+    <p>The interest is a single multiplication, and the total simply adds it back to the principal:</p>
+    <p><strong>I = P × r × t</strong>, and total = P + I</p>
+    <ul>
+      <li><strong>I</strong> — the interest earned or owed</li>
+      <li><strong>P</strong> — the principal, your starting amount</li>
+      <li><strong>r</strong> — the annual interest rate as a decimal (5% = 0.05)</li>
+      <li><strong>t</strong> — the time in years</li>
+    </ul>
 
     <h2>A worked example</h2>
     <p>
-      Borrow $5,000 at 5% for 3 years: the interest is 5,000 × 0.05 × 3 = $750, so you
-      repay $5,750 in total. Because the interest does not compound, it is the same $250
-      every year.
+      Borrow <strong>$5,000</strong> at <strong>5%</strong> for <strong>3 years</strong>: the
+      interest is 5,000 × 0.05 × 3 = <strong>$750</strong>, so you repay <strong>$5,750</strong>
+      in total. Because the interest does not compound, it is the same <strong>$250</strong> every
+      year — 5,000 × 0.05 — no matter how long the term runs.
     </p>
 
     <h2>Simple vs. compound — why the term matters</h2>
     <p>
-      Over that 3-year loan, compound interest would add about $788 instead of $750 — a
-      small gap. Stretch the same $5,000 at 5% to <strong>30 years</strong> and simple
-      interest totals $7,500, while compound interest totals over <strong>$16,000</strong>.
-      The longer the horizon, the more compounding pulls ahead — which is why it is the
-      friend of savers and the cost of long-term debt.
+      Over that 3-year loan, interest compounded annually would add about $788 instead of $750 — a
+      small gap. Stretch the same $5,000 at 5% to <strong>30 years</strong> and simple interest
+      totals <strong>$7,500</strong>, while annual compounding earns about <strong>$16,610</strong>.
+      The longer the horizon, the more compounding pulls ahead — which is why it is the friend of
+      savers and the cost of long-term debt.
     </p>
 
     <h2>Rearranging the formula</h2>
@@ -79,11 +99,19 @@ const faqs = [
       <li><strong>Principal:</strong> P = I ÷ (r × t)</li>
       <li><strong>Time:</strong> t = I ÷ (P × r)</li>
     </ul>
+
+    <h2>Where simple interest is used</h2>
+    <p>
+      Simple interest is common on short-term and fixed personal loans, many car loans, and some
+      bonds, where interest is figured on the original balance. Savings accounts and most long-term
+      investments compound instead, so their interest earns interest — a difference that is minor
+      over months but enormous over decades.
+    </p>
     <p>
       For savings and long-term investments where interest compounds, use the
-      <a href="/finance/compound-interest-calculator">compound interest calculator</a>, or
-      compare both side by side in the <a href="/finance/interest-calculator">interest calculator</a>.
-      This tool is for estimation and is not financial advice.
+      <a href="/finance/compound-interest-calculator">compound interest calculator</a>, or compare
+      both methods side by side in the <a href="/finance/interest-calculator">interest
+      calculator</a>. This tool is for estimation and is not financial advice.
     </p>
   </Fragment>
 </CalculatorLayout>

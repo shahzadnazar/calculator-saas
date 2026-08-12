@@ -1,74 +1,228 @@
 ---
-import { calculateHomeEquity } from '@lib/calculators/home-equity';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-
-const d = { homeValue: 450000, mortgageBalance: 250000, maxLtvPct: 85, loanAmount: 50000, annualRatePct: 8.5, termYears: 15 };
-const r = calculateHomeEquity(d);
+/**
+ * Home Equity Loan calculator island (R15B2 — Loan family follow-on, 2 of 3; task-first migration).
+ *
+ * Task-first, direct-intent: all fields start EMPTY, the result is an instruction, and the visitor
+ * presses "Calculate Home Equity Loan" for the first result; live-after-first afterwards. Compute,
+ * validation, state, announcement and focus are owned by the shared runtime + the Home Equity binding
+ * (@lib/calculators/home-equity-loan-form), which wraps the UNCHANGED calculateHomeEquity / @lib/finance
+ * `pmt` engine. The complete-result guard lives in the binding's resultValue (a NaN sentinel → the
+ * runtime's default finite gate) — there is NO isUsableResult.
+ *
+ * INDEPENDENT of Loan and Amortization: this island imports the Home Equity binding only and shares no
+ * implementation file with any other calculator (the mirror-not-share discipline). The dominant result
+ * is the estimated monthly payment; the equity held and the LTV-capped maximum you can borrow are the
+ * prominent secondary. The frozen result exposes no total-paid / total-interest / schedule, so NONE is
+ * invented — and, unlike Loan, there is no amortization disclosure (and therefore no row-clearing
+ * MutationObserver: nothing island-owned outlives a state change).
+ *
+ * A requested loan ABOVE the LTV-capped maximum is a SHOWN informational outcome, not a rejection: the
+ * payment, equity and maximum-borrow figures still render, with a neutral over-limit note. The borrowing
+ * DISCLAIMER lives HERE (island-owned) so it appears exactly once on both the full page and the embed
+ * (the embed renders only this island); it sits outside the live region and is not gated to a result.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-heloc>
-  <form class="card p-5 sm:p-6" data-he-form novalidate>
-    <div class="space-y-4">
-      <div>
+<div class="he mx-auto w-full max-w-4xl space-y-6" data-he>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Home equity loan calculator">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div data-field="homeValue">
         <label class="field-label" for="he-value">Home value</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="he-value" name="homeValue" type="number" min="0" step="5000" value={d.homeValue} inputmode="decimal" /></div>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="he-value" name="homeValue" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 400000" aria-describedby="he-value-error" />
+        </div>
+        <p class="he-field-error" id="he-value-error" data-error-for="homeValue" hidden></p>
       </div>
-      <div>
+
+      <div data-field="mortgageBalance">
         <label class="field-label" for="he-balance">Mortgage balance</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="he-balance" name="mortgageBalance" type="number" min="0" step="5000" value={d.mortgageBalance} inputmode="decimal" /></div>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="he-balance" name="mortgageBalance" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 250000" aria-describedby="he-balance-error" />
+        </div>
+        <p class="he-field-error" id="he-balance-error" data-error-for="mortgageBalance" hidden></p>
       </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="field-label" for="he-ltv">Max LTV</label>
-          <div class="flex"><input class="field rounded-r-none" id="he-ltv" name="maxLtvPct" type="number" min="0" max="100" step="1" value={d.maxLtvPct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+
+      <div data-field="maxLtvPct">
+        <label class="field-label" for="he-ltv">Maximum loan-to-value</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="he-ltv" name="maxLtvPct" type="number" min="0" max="100" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 85" aria-describedby="he-ltv-error" />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
-        <div>
-          <label class="field-label" for="he-loan">Loan amount</label>
-          <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="he-loan" name="loanAmount" type="number" min="0" step="5000" value={d.loanAmount} inputmode="decimal" /></div>
-        </div>
+        <p class="he-field-error" id="he-ltv-error" data-error-for="maxLtvPct" hidden></p>
       </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="field-label" for="he-rate">Interest rate</label>
-          <div class="flex"><input class="field rounded-r-none" id="he-rate" name="annualRatePct" type="number" min="0" step="0.1" value={d.annualRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+
+      <div data-field="loanAmount">
+        <label class="field-label" for="he-loan">Loan amount you want</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="he-loan" name="loanAmount" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 50000" aria-describedby="he-loan-error" />
         </div>
-        <div>
-          <label class="field-label" for="he-term">Term (years)</label>
-          <input class="field" id="he-term" name="termYears" type="number" min="1" step="1" value={d.termYears} inputmode="decimal" />
+        <p class="he-field-error" id="he-loan-error" data-error-for="loanAmount" hidden></p>
+      </div>
+
+      <div data-field="annualRatePct">
+        <label class="field-label" for="he-rate">Interest rate</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="he-rate" name="annualRatePct" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 8" aria-describedby="he-rate-error" />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
+        <p class="he-field-error" id="he-rate-error" data-error-for="annualRatePct" hidden></p>
+      </div>
+
+      <div data-field="termYears">
+        <label class="field-label" for="he-term">Term (years)</label>
+        <input class="field" id="he-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="he-term-error" />
+        <p class="he-field-error" id="he-term-error" data-error-for="termYears" hidden></p>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-he-submit>Calculate Home Equity Loan</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="he-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Estimated monthly payment</p>
-    <p class="mt-1 text-4xl result-value" data-he-payment>{formatCurrency(r.monthlyPayment)}</p>
-    <p class="mt-2 text-sm" style="color: var(--color-danger)" data-he-warn hidden>Requested loan exceeds your available equity.</p>
-    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
-      <div class="flex justify-between"><dt style="color: var(--muted)">Your equity</dt><dd class="font-semibold" data-he-equity>{formatCurrencyRounded(r.equity)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Max you can borrow</dt><dd class="font-semibold" style="color: var(--color-accent-600)" data-he-max>{formatCurrencyRounded(r.maxBorrow)}</dd></div>
-    </dl>
-  </div>
+  <!-- Result -->
+  <ResultShell id="he-result" state="empty" density="standard" label="Home equity loan result" minHeight="15rem">
+    <EmptyResult message="Enter your home value, mortgage balance, loan-to-value cap, loan amount, rate and term, then calculate to see your monthly payment and how much you can borrow." />
+
+    <div data-result-when="valid">
+      <div class="he-summary">
+        <ResultSummary label="Estimated monthly payment">
+          <ResultValue value="—" size="text-4xl" />
+        </ResultSummary>
+        <dl class="he-metrics">
+          <div><dt>Your equity</dt><dd data-he-equity>—</dd></div>
+          <div><dt>Maximum you can borrow</dt><dd data-he-max>—</dd></div>
+        </dl>
+      </div>
+
+      <p class="he-interpretation" data-he-interpretation>—</p>
+      <p class="he-overlimit" data-he-overlimit role="note" hidden></p>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a home value, mortgage balance, loan-to-value between 0 and 100 percent, loan amount, interest rate, and a whole loan term from 1 to 30 years."
+    />
+
+    <ResultAnnouncement id="he-live" />
+  </ResultShell>
+
+  <!-- Island-owned borrowing disclaimer: rendered once on both the full page and the embed. -->
+  <p class="he-disclaimer" role="note">
+    A home equity loan is secured by your home — missing payments can put the property at risk. These
+    figures are educational estimates, not financial advice or a loan offer.
+  </p>
 </div>
 
-<script>
-  import { calculateHomeEquity } from '@lib/calculators/home-equity';
-  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-  document.querySelectorAll<HTMLElement>('[data-heloc]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-he-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const r = calculateHomeEquity({
-        homeValue: num('homeValue'), mortgageBalance: num('mortgageBalance'), maxLtvPct: num('maxLtvPct'),
-        loanAmount: num('loanAmount'), annualRatePct: num('annualRatePct'), termYears: num('termYears'),
-      });
-      set('[data-he-payment]', formatCurrency(r.monthlyPayment));
-      set('[data-he-equity]', formatCurrencyRounded(r.equity));
-      set('[data-he-max]', formatCurrencyRounded(r.maxBorrow));
-      root.querySelector<HTMLElement>('[data-he-warn]')!.hidden = !r.exceedsMax;
+<style>
+  .he-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .he-field-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .he-field-error {
+    color: #fca5a5;
+  }
+
+  .he-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* Summary: dominant payment + supporting equity / max-borrow */
+  .he-summary {
+    display: grid;
+    gap: 1rem;
+    align-items: center;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) {
+    .he-summary {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    }
+  }
+  .he-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+    align-self: center;
+  }
+  .he-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .he-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .he-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .he-interpretation {
+    margin: 1.25rem 0 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+
+  /* Over-limit note: the frozen estimator warning, shown only when the requested
+     loan exceeds the LTV-capped maximum (the result itself stays valid). */
+  .he-overlimit {
+    margin: 0.85rem 0 0;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+    background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--heading);
+  }
+
+  .he-disclaimer {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { homeEquityBinding } from '@lib/calculators/home-equity-loan-form';
+
+  document.querySelectorAll<HTMLElement>('[data-he]').forEach((root) => {
+    mountFormCalculator(root, homeEquityBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Home Equity Loan',
+    });
   });
 </script>

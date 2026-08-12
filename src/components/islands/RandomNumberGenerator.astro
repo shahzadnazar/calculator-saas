@@ -1,38 +1,233 @@
 ---
-/** Random number generator — runs client-side using the Web Crypto API. */
+/**
+ * Random number generator island (R18B2 — task-first; bounded Math singleton; random-data
+ * generator family, on the UNCHANGED generator runtime).
+ *
+ * A settings form on the UNCHANGED generator runtime (@lib/result/generator-runtime) +
+ * the RNG binding (@lib/calculators/random-number-form), which wraps the UNCHANGED
+ * `randomIntegers` (crypto-strength, inclusive integer range, optional unique). Task-first:
+ * the settings are prefilled with sensible defaults (1 / 100 / 5 / repeats-allowed) but the
+ * OUTPUT starts EMPTY on the server AND after hydration — no numbers generated on load (the
+ * legacy island auto-generated on mount). The visitor presses "Generate Numbers" for the
+ * first output; changing a setting afterward marks the shown output STALE (kept visible,
+ * with a note) rather than silently regenerating — there is NO live regeneration. Reset
+ * returns to the empty pre-generation state. NO Copy (a list of numbers is not a single
+ * copyable secret, and the legacy tool had none). Randomness is client-only via the Web
+ * Crypto API; the server never bakes random output. NO runtime change; NO generic
+ * random-number / numeric-generator / range / list-output / uniqueness abstraction.
+ *
+ * Static ids are namespaced per-instance WHEN more than one generator shares a document
+ * (the R16B2.1 discipline), so an embed gallery has no duplicate ids and every instance's
+ * inputs / unique toggle / output / announcement / reset stay independent.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto w-full max-w-3xl" data-rng>
-  <div class="card p-5 sm:p-6">
-    <form class="grid grid-cols-2 gap-4 sm:grid-cols-4" data-rng-form>
-      <div><label class="field-label" for="rng-min">Min</label><input class="field" id="rng-min" name="min" type="number" value="1" inputmode="numeric" /></div>
-      <div><label class="field-label" for="rng-max">Max</label><input class="field" id="rng-max" name="max" type="number" value="100" inputmode="numeric" /></div>
-      <div><label class="field-label" for="rng-count">How many</label><input class="field" id="rng-count" name="count" type="number" min="1" max="1000" value="5" inputmode="numeric" /></div>
-      <label class="flex items-end gap-2 pb-2 text-sm font-medium"><input type="checkbox" name="unique" /> Unique</label>
-    </form>
-    <button type="button" class="btn btn-primary mt-4 w-full" data-rng-go>Generate</button>
-    <div class="mt-5 min-h-16 rounded-lg p-4 text-center" style="background: var(--subtle)">
-      <p class="flex flex-wrap justify-center gap-2 text-lg font-bold" style="color: var(--heading)" data-rng-out aria-live="polite"></p>
+<div class="rng mx-auto w-full max-w-2xl" data-rng>
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Random number generator settings">
+    <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div data-field="min">
+        <label class="field-label" for="rng-min">Minimum</label>
+        <input
+          class="field"
+          id="rng-min"
+          name="min"
+          type="number"
+          step="1"
+          value="1"
+          inputmode="numeric"
+          autocomplete="off"
+          aria-describedby="rng-min-error"
+        />
+        <p class="rng-error" id="rng-min-error" data-error-for="min" hidden></p>
+      </div>
+      <div data-field="max">
+        <label class="field-label" for="rng-max">Maximum</label>
+        <input
+          class="field"
+          id="rng-max"
+          name="max"
+          type="number"
+          step="1"
+          value="100"
+          inputmode="numeric"
+          autocomplete="off"
+          aria-describedby="rng-max-error"
+        />
+        <p class="rng-error" id="rng-max-error" data-error-for="max" hidden></p>
+      </div>
+      <div data-field="count">
+        <label class="field-label" for="rng-count">How many</label>
+        <input
+          class="field"
+          id="rng-count"
+          name="count"
+          type="number"
+          step="1"
+          min="1"
+          max="1000"
+          value="5"
+          inputmode="numeric"
+          autocomplete="off"
+          aria-describedby="rng-count-error"
+        />
+        <p class="rng-error" id="rng-count-error" data-error-for="count" hidden></p>
+      </div>
+      <label class="rng-unique">
+        <input type="checkbox" name="unique" /> <span>No repeats</span>
+      </label>
     </div>
-  </div>
+
+    <div class="mt-6 flex flex-wrap items-center gap-3">
+      <button type="submit" class="btn btn-primary">Generate Numbers</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+  </form>
+
+  <ResultShell
+    id="rng-result"
+    class="mt-6"
+    density="standard"
+    minHeight="10rem"
+    placeholderAlignment="center"
+    label="Generated numbers"
+  >
+    <EmptyResult message="Choose a range and how many, then generate your random numbers." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Generated numbers">
+        <div class="rng-list" data-rng-list></div>
+      </ResultSummary>
+
+      <p class="rng-stale-note" id="rng-stale-note" data-stale-note hidden>Settings changed. Generate again to apply them.</p>
+      <p class="rng-meta" data-rng-meta></p>
+      <p class="rng-capped" data-rng-capped hidden></p>
+    </div>
+
+    <InvalidResult title="Check your settings" message="Enter a whole-number range and how many numbers to generate." />
+
+    <ResultAnnouncement id="rng-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { randomIntegers } from '@lib/calculators/random-number';
-  document.querySelectorAll<HTMLElement>('[data-rng]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-rng-form]')!;
-    const out = root.querySelector<HTMLElement>('[data-rng-out]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement).value) || 0;
-    function generate() {
-      const nums = randomIntegers({
-        min: num('min'), max: num('max'), count: num('count'),
-        unique: (form.elements.namedItem('unique') as HTMLInputElement).checked,
-      });
-      out.innerHTML = nums.length
-        ? nums.map((n) => `<span class="rounded-md px-2 py-1" style="background: var(--card)">${n}</span>`).join('')
-        : '<span style="color: var(--muted)">Check your range and count.</span>';
+<style>
+  .rng-unique {
+    display: flex;
+    align-items: end;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .rng-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .rng-error {
+      color: #fca5a5;
     }
-    root.querySelector('[data-rng-go]')!.addEventListener('click', generate);
-    generate();
+  }
+  :root[data-theme='dark'] .rng-error {
+    color: #fca5a5;
+  }
+
+  .rng-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  .rng-chip {
+    display: inline-block;
+    padding: 0.3rem 0.7rem;
+    border-radius: 0.5rem;
+    background: var(--subtle);
+    color: var(--heading);
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Stale output reads as clearly not-current (with the note; not colour alone). */
+  [data-stale='true'] .rng-list {
+    opacity: 0.5;
+  }
+  .rng-stale-note {
+    margin: 0.75rem 0 0;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .rng-stale-note {
+      color: #fbbf24;
+    }
+  }
+  :root[data-theme='dark'] .rng-stale-note {
+    color: #fbbf24;
+  }
+  .rng-meta {
+    margin: 0.75rem 0 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .rng-capped {
+    margin: 0.4rem 0 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountGeneratorCalculator } from '@lib/result/generator-runtime';
+  import { randomNumberBinding } from '@lib/calculators/random-number-form';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // When more than one generator shares a document (e.g. an embed gallery), the
+  // server-static ids (the three settings fields + their error slots, the result shell,
+  // the stale note, the live region) collide. Namespace THIS root's ids and repoint its
+  // in-root references so associations stay instance-local; a lone instance is left
+  // untouched. The runtime targets fields by [name] / [data-*], never these ids.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-rng]').forEach((root) => {
+    if (document.querySelectorAll('[data-rng]').length > 1) uniquifyStaticIds(root, `rng${++ns}`);
+
+    mountGeneratorCalculator(root, randomNumberBinding, {
+      generateButtonLabel: 'Generate Numbers',
+      regenerateButtonLabel: 'Generate New Numbers',
+      liveRegeneration: false,
+      invalidateOutputOnSettingsChange: true,
+    });
   });
 </script>

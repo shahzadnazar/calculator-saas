@@ -21,22 +21,92 @@ const faqs = [
 >
   <CreditCardPayoffCalculator />
   <Fragment slot="content">
-    <h2>Two ways to plan your payoff</h2>
-    <p><strong>Monthly payment:</strong> see how long a chosen monthly payment takes and the total interest. <strong>Target payoff time:</strong> pick a payoff date and see the payment required. Either way, the goal is to pay as far above the monthly interest charge as you can.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Under <strong>Calculate by</strong>, choose <strong>Monthly payment</strong> or <strong>Target payoff time</strong>.</li>
+      <li>Enter your <strong>card balance</strong> and its <strong>APR</strong>.</li>
+      <li>In Monthly-payment mode, add the <strong>payment</strong> you will make each month; in Target mode, add the number of <strong>months</strong> you want to be debt-free in.</li>
+      <li>Read the payoff time (or the required payment) along with the total interest you'll pay.</li>
+    </ol>
+    <p>
+      Either way, the goal is the same: pay as far above the monthly interest charge as you can, so
+      more of every payment attacks the balance.
+    </p>
 
-    <h2>The minimum-payment trap</h2>
-    <p>At a typical 22% APR, a <strong>$5,000</strong> balance accrues about <strong>$92 in interest in the first month alone</strong>. Pay $120 and only $28 actually reduces the balance — dragging the payoff past a decade. Bump the payment to $250 and the same debt is gone in roughly <strong>two years</strong>, for a fraction of the interest. That is the entire game: every dollar above the interest charge attacks the principal directly.</p>
+    <h2>How credit card interest works</h2>
+    <p>
+      Card interest is quoted as an <strong>APR</strong> but usually charged on your balance, so
+      carrying a balance costs money every month. Divide the APR by 12 for the monthly rate: a 22%
+      APR is about 1.83% a month. Because the charge is based on what you owe, the interest shrinks
+      as the balance falls — which is why extra payments snowball. Paying the statement in full each
+      month avoids interest entirely.
+    </p>
+
+    <h2>The formula</h2>
+    <p>In Monthly-payment mode, the months to clear the balance are:</p>
+    <p><strong>n = −ln(1 − B · r / M) / ln(1 + r)</strong></p>
+    <p>In Target mode, the required payment uses the amortization formula:</p>
+    <p><strong>M = B · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
+    <ul>
+      <li><strong>B</strong> — the current card balance</li>
+      <li><strong>r</strong> — the monthly rate (APR ÷ 12)</li>
+      <li><strong>M</strong> — the monthly payment</li>
+      <li><strong>n</strong> — the number of months</li>
+    </ul>
+
+    <h2>A worked example: the minimum-payment trap</h2>
+    <p>
+      Take a <strong>$5,000</strong> balance at a typical <strong>22% APR</strong>. The first
+      month's interest alone is $5,000 × (22% ÷ 12) ≈ <strong>$91.67</strong>. Pay
+      <strong>$120</strong> and only about <strong>$28</strong> reduces the balance — the payoff
+      drags out to about <strong>6 years, 8 months</strong> and roughly <strong>$4,600</strong> in
+      interest, nearly the size of the original balance.
+    </p>
+    <p>
+      Bump the payment to <strong>$250</strong> and about $158 of the first payment hits principal.
+      The same debt clears in roughly <strong>2 years, 2 months</strong> for about
+      <strong>$1,500</strong> of interest. That is the entire game: every dollar above the interest
+      charge attacks the principal directly.
+    </p>
+
+    <h2>Setting a target payoff date</h2>
+    <p>
+      Switch to <strong>Target payoff time</strong> to work backwards. To clear that same
+      <strong>$5,000</strong> at <strong>22%</strong> in <strong>24 months</strong>, the calculator
+      returns a required payment of about <strong>$259.39 a month</strong>, for roughly
+      <strong>$1,225</strong> of total interest. Shorten the target and the payment rises but the
+      interest falls — a direct way to price the trade-off between monthly cash and total cost.
+    </p>
 
     <h2>Strategies to clear it faster</h2>
     <ul>
       <li><strong>Avalanche</strong> — with multiple cards, pay extra on the highest-APR card first. This costs the least total interest.</li>
       <li><strong>Snowball</strong> — pay the smallest balance first for a quick, motivating win, then roll that payment into the next card.</li>
-      <li><strong>Balance transfer</strong> — a 0% intro-APR card pauses interest; clear the balance before the promo ends and mind the transfer fee.</li>
-      <li><strong>Pay biweekly</strong> — half-payments every two weeks make one extra monthly payment a year and cut the daily-interest base.</li>
+      <li><strong>Balance transfer</strong> — a 0% intro-APR card pauses interest; clear the balance before the promo ends and mind the transfer fee (typically 3–5%).</li>
+      <li><strong>Pay biweekly</strong> — half-payments every two weeks make one extra monthly payment a year and cut the balance the interest is charged on.</li>
     </ul>
 
     <h2>Why paying it down beats saving</h2>
-    <p>If you carry a balance at 20%+, clearing it is effectively a guaranteed, tax-free 20% return — more than almost any investment reliably earns. Prioritising high-interest debt is usually the highest-value thing you can do with a spare dollar. To see the same compounding working <em>for</em> you instead, use the <a href="/finance/compound-interest-calculator">compound interest calculator</a>.</p>
-    <p>Payoff totals assume a full final monthly payment, so they may slightly overstate the last payment. This is general educational information, not financial advice.</p>
+    <p>
+      If you carry a balance at 20% or more, clearing it is effectively a guaranteed, tax-free 20%
+      return — more than almost any investment reliably earns. Prioritising high-interest debt is
+      usually the highest-value thing you can do with a spare dollar. To see that same compounding
+      working <em>for</em> you instead, use the
+      <a href="/finance/compound-interest-calculator">compound interest calculator</a>.
+    </p>
+
+    <h2>Limitations</h2>
+    <ul>
+      <li>It assumes a <strong>fixed payment</strong> and a <strong>fixed APR</strong>; real minimum payments shrink as the balance falls, which stretches payoff much longer.</li>
+      <li>It assumes you <strong>stop adding new charges</strong> — fresh purchases restart the cycle.</li>
+      <li>Payoff totals assume a <strong>full final payment</strong>, so they may slightly overstate the last payment and the interest.</li>
+    </ul>
+
+    <p>
+      For a general fixed-rate debt with a set term, see the
+      <a href="/finance/payment-calculator">payment calculator</a>; to grow savings once the cards
+      are clear, try the <a href="/finance/savings-calculator">savings calculator</a>. This is
+      general educational information, not financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

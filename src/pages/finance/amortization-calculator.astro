@@ -15,17 +15,93 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="See exactly how each payment on a loan splits between principal and interest, and how the balance falls over the full term — month by month or year by year." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <AmortizationCalculator />
   <Fragment slot="content">
-    <h2>How amortization works</h2>
-    <p>An amortized loan has equal payments, but the makeup of each payment changes over time. Because interest is charged on the remaining balance, early payments are mostly interest and later payments are mostly principal. The schedule above lets you switch between a yearly summary and the full monthly breakdown.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>loan amount</strong>, the annual <strong>interest rate</strong> and the <strong>term</strong> in years.</li>
+      <li>Read the fixed monthly payment, then open the schedule below it.</li>
+      <li>Toggle the <strong>schedule view</strong> between a <strong>yearly</strong> summary and the full <strong>monthly</strong> breakdown.</li>
+      <li>Follow the interest and principal columns down the table to see where each payment goes and what you still owe.</li>
+    </ol>
+
+    <h2>What amortization is</h2>
+    <p>
+      Amortization is paying off a debt in equal, regular instalments over a set term. Each payment
+      is the same, but the split changes: because interest is charged on the outstanding balance,
+      early payments are mostly interest and later payments are mostly principal, until the balance
+      reaches zero on the final payment. It is the structure behind mortgages, car loans, personal
+      loans and most fixed-rate debt.
+    </p>
+
+    <h2>The formula</h2>
+    <p>
+      The fixed payment comes from the amortization formula, then the schedule is built one month
+      at a time:
+    </p>
+    <p><strong>M = P · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
+    <ul>
+      <li><strong>M</strong> — the fixed monthly payment</li>
+      <li><strong>P</strong> — the loan amount</li>
+      <li><strong>r</strong> — the monthly interest rate (annual rate ÷ 12)</li>
+      <li><strong>n</strong> — the total number of payments (years × 12)</li>
+    </ul>
+    <p>
+      For each month, <strong>interest = balance × r</strong>, <strong>principal = M − interest</strong>,
+      and the <strong>new balance = balance − principal</strong>. Repeat until the balance is zero,
+      and you have the full schedule.
+    </p>
 
     <h2>A worked example</h2>
-    <p>Take a <strong>$20,000</strong> car loan at <strong>6%</strong> over <strong>5 years</strong>. The fixed payment works out to about <strong>$387/month</strong>. In the very first payment, interest is $20,000 × (6% ÷ 12) = $100 and the other $287 reduces the principal. By the final payment almost the entire $387 is principal, because the balance — and therefore the interest on it — has shrunk to nearly nothing. That shift is the whole story of amortization.</p>
+    <p>
+      Take a <strong>$20,000</strong> car loan at <strong>6%</strong> over <strong>5 years</strong>.
+      The fixed payment works out to about <strong>$386.66 a month</strong>. In the very first
+      payment, interest is $20,000 × (6% ÷ 12) = <strong>$100.00</strong> and the other
+      <strong>$286.66</strong> reduces the principal.
+    </p>
+    <p>
+      By the final payment, interest has fallen to about <strong>$1.92</strong> and roughly
+      <strong>$384.73</strong> is principal — because the balance, and therefore the interest on
+      it, has shrunk to almost nothing. Across all 60 payments you pay about <strong>$3,199</strong>
+      in interest on top of the $20,000 borrowed. That shift is the whole story of amortization.
+    </p>
 
     <h2>Reading the schedule</h2>
-    <p>Each row shows the principal paid, interest paid and the balance left. Watch the interest column shrink and the principal column grow as the loan matures — the point where principal overtakes interest is the crossover that marks the halfway point of the loan's cost, not its calendar.</p>
+    <p>
+      Each row shows the principal paid, the interest paid and the balance left. On a long loan
+      like a 30-year mortgage, interest dominates for years and the point where principal overtakes
+      it — the crossover — arrives well past the calendar midpoint. On a short loan like this
+      5-year example, principal leads from the very first payment, because the balance is small
+      relative to the payment. Either way, the interest column always shrinks as the balance falls.
+    </p>
 
-    <h2>Using it to your advantage</h2>
-    <p>The schedule reveals why extra early payments are so powerful: they attack the balance while interest still dominates, saving interest on every remaining payment. Compare scenarios with the <a href="/finance/loan-calculator">loan calculator</a> and <a href="/finance/mortgage-calculator">mortgage calculator</a>.</p>
-    <p>This tool is for planning and education, not financial advice.</p>
+    <h2>Using it to pay off faster</h2>
+    <p>
+      The schedule reveals why extra early payments are so powerful. Any amount above the scheduled
+      payment goes straight to principal, which lowers the interest charged on every remaining
+      payment and pulls the payoff date forward. Because interest is front-loaded, a little extra
+      early in the loan saves far more than the same amount added near the end.
+    </p>
+
+    <h2>Negative amortization</h2>
+    <p>
+      Normal amortization shrinks the balance every month. <strong>Negative amortization</strong> is
+      the opposite: if a payment is smaller than the interest due, the unpaid interest is added to
+      the balance and the debt grows. It can appear with some adjustable-rate or minimum-payment
+      "option" loans and deferred plans, and it is a warning sign — this calculator models a
+      standard fully-amortizing loan, where the balance always reaches zero.
+    </p>
+
+    <h2>Limitations</h2>
+    <ul>
+      <li>It assumes a <strong>fixed rate</strong> and equal payments; adjustable-rate loans re-amortize when the rate changes.</li>
+      <li>It does not include <strong>taxes, insurance, escrow or fees</strong> — only principal and interest.</li>
+      <li>Extra payments are not modeled here; use the payment tools below to compare payoff scenarios.</li>
+    </ul>
+
+    <p>
+      To see totals and compare terms, use the
+      <a href="/finance/loan-calculator">loan calculator</a>; for a home loan with taxes, insurance
+      and PMI, use the <a href="/finance/mortgage-calculator">mortgage calculator</a>. This tool is
+      for planning and education, not financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

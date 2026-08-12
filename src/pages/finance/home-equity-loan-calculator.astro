@@ -12,20 +12,104 @@ const faqs = [
   { question: 'Can you refinance a home equity loan?', answer: 'Yes. You can refinance a home equity loan into a new one, roll it into a HELOC, or fold it into a cash-out refinance of your first mortgage — usually to get a lower rate or a different term. Weigh any closing costs against the savings.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate how much you can borrow against your home equity and the monthly payment on a home equity loan." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  reviewMetadata={{ reviewedDate: '2026-08-03' }}
+  intro="Estimate how much you can borrow against your home equity and the monthly payment on a home equity loan."
+  faqs={faqs}
+>
   <HomeEquityLoanCalculator />
   <Fragment slot="content">
-    <h2>How borrowing power is calculated</h2>
-    <p>Enter your home value, mortgage balance and the lender's maximum LTV. The calculator shows your total equity and the most you could borrow within that cap, plus the monthly payment for the loan amount you choose. If your requested loan exceeds the limit, it flags it.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter your <strong>home value</strong> and current <strong>mortgage balance</strong> — the gap is your equity.</li>
+      <li>Set the lender's <strong>maximum loan-to-value</strong> (the CLTV cap, often 80–85%).</li>
+      <li>Enter the <strong>loan amount you want</strong>, an <strong>interest rate</strong> and a <strong>term</strong> in years.</li>
+      <li>Read your equity, the most you could borrow within the cap, and the monthly payment — the tool flags a request that exceeds the limit.</li>
+    </ol>
+
+    <h2>Equity versus what you can borrow</h2>
+    <p>
+      Your <strong>equity</strong> is the home's value minus what you still owe, but lenders rarely
+      let you borrow all of it. They cap your <strong>combined loan-to-value</strong> (CLTV) — the
+      total of your first mortgage plus the new loan — at a percentage of the home's value. Your
+      borrowing room is that capped total minus the mortgage you already carry, which is usually
+      well below your full equity.
+    </p>
+
+    <h2>The formulas</h2>
+    <p>The calculator works out three figures:</p>
+    <ul>
+      <li><strong>Equity = home value − mortgage balance</strong></li>
+      <li><strong>Max borrow = home value × max LTV − mortgage balance</strong></li>
+      <li><strong>Payment = L · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></li>
+    </ul>
+    <p>
+      In the payment formula, <strong>L</strong> is the loan amount you request, <strong>r</strong>
+      is the monthly rate (annual rate ÷ 12), and <strong>n</strong> is the number of payments
+      (years × 12) — the same fixed-rate amortization used for a mortgage.
+    </p>
 
     <h2>A worked example</h2>
-    <p>Say your home is worth <strong>$400,000</strong> and you still owe <strong>$250,000</strong>. Your equity is $150,000, but you can't borrow all of it. At an <strong>85% CLTV</strong> limit, total debt against the home is capped at 0.85 × $400,000 = $340,000. Subtract the $250,000 you already owe and about <strong>$90,000</strong> is available to borrow. Lenders also check your income and credit, so your approved amount may be lower.</p>
+    <p>
+      Say your home is worth <strong>$400,000</strong> and you still owe <strong>$250,000</strong>.
+      Your equity is <strong>$150,000</strong>, but you can't borrow all of it. At an
+      <strong>85% CLTV</strong> limit, total debt against the home is capped at
+      0.85 × $400,000 = $340,000. Subtract the $250,000 you already owe and about
+      <strong>$90,000</strong> is available to borrow.
+    </p>
+    <p>
+      Borrow that <strong>$90,000</strong> at <strong>8%</strong> over <strong>15 years</strong> and
+      the payment is about <strong>$860.09 a month</strong>, with roughly <strong>$64,816</strong>
+      of interest over the full term. Lenders also weigh your income, credit and debt-to-income
+      ratio, so your approved amount may be lower than the equity-based maximum.
+    </p>
 
-    <h2>Home equity loan vs. HELOC</h2>
-    <p>Both borrow against equity, but they suit different needs. A <strong>home equity loan</strong> hands you a fixed lump sum at a fixed rate — ideal when you know the exact cost, like a set renovation or debt consolidation. A <strong>HELOC</strong> is a revolving line you draw on over time at a variable rate — better for staged or uncertain expenses. This tool models the fixed lump-sum loan.</p>
+    <h2>Home equity loan versus HELOC</h2>
+    <p>
+      Both borrow against equity, but they suit different needs. This tool models the fixed
+      lump-sum loan:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Feature</th><th>Home equity loan</th><th>HELOC</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>How you receive it</td><td>One lump sum</td><td>Revolving line, draw as needed</td></tr>
+        <tr><td>Interest rate</td><td>Fixed</td><td>Usually variable</td></tr>
+        <tr><td>Payment</td><td>Fixed principal &amp; interest</td><td>Varies with balance and rate</td></tr>
+        <tr><td>Best for</td><td>A known, one-time cost</td><td>Staged or uncertain expenses</td></tr>
+      </tbody>
+    </table>
+    <p>
+      A home equity loan is ideal when you know the exact cost — a set renovation or a debt
+      consolidation — while a HELOC gives flexibility when the total is uncertain or spread over
+      time.
+    </p>
+
+    <h2>What lenders check beyond equity</h2>
+    <p>
+      Available equity sets the ceiling, but approval depends on more. Lenders look at your
+      <strong>credit score</strong>, your <strong>income</strong> and your
+      <strong>debt-to-income ratio</strong> — how much of your monthly income already goes to debt.
+      A home equity loan adds a second lien on your property, so they underwrite it much like a
+      mortgage, and your final amount and rate reflect that whole picture.
+    </p>
 
     <h2>Borrow carefully</h2>
-    <p>A home equity loan is secured by your home, which raises the stakes above an unsecured loan — missed payments can put the property at risk. Compare the payment against your budget, and see the full amortization with the <a href="/finance/amortization-calculator">amortization calculator</a> or weigh it against your primary loan using the <a href="/finance/mortgage-calculator">mortgage calculator</a>.</p>
-    <p>This is general educational information, not financial advice.</p>
+    <ul>
+      <li>The loan is <strong>secured by your home</strong>, so missed payments can put the property at risk — a higher-stakes trade than unsecured borrowing.</li>
+      <li>It is best suited to <strong>large, one-time costs</strong> that add value or replace higher-interest debt, not discretionary spending.</li>
+      <li>Watch for <strong>closing costs and fees</strong>, which this calculator does not include — weigh them against the interest you would save.</li>
+      <li>The estimate uses one fixed rate and does not model taxes, insurance or a lender's income and credit checks.</li>
+    </ul>
+
+    <p>
+      To see the full principal-and-interest breakdown of the loan, use the
+      <a href="/finance/amortization-calculator">amortization calculator</a>; to weigh it against
+      your primary home loan, use the <a href="/finance/mortgage-calculator">mortgage calculator</a>.
+      This is educational information for planning, not a loan offer or financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

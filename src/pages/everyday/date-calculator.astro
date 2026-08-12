@@ -36,36 +36,71 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-18"
+  presentation="task-first"
   intro="Find the number of days between two dates, or add and subtract days from any date. Leap years and month lengths are handled automatically."
   faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-08-09' }}
 >
   <DateCalculator />
 
   <Fragment slot="content">
     <h2>Two date tools in one</h2>
     <p>
-      The first tool measures the <strong>duration between two dates</strong> — useful for
-      counting down to an event, tracking project timelines or working out someone's age
-      on a specific day. The second <strong>adds or subtracts days</strong> from a date,
-      handy for deadlines, due dates and return-by dates.
+      Pick a mode with the selector at the top. <strong>Days between two dates</strong>
+      measures the duration between a start and an end date — useful for counting down to an
+      event, tracking a project timeline or checking someone's age on a specific day.
+      <strong>Add or subtract days</strong> shifts a single date forward or back by a whole
+      number of days, handy for deadlines, due dates and return-by dates.
+    </p>
+
+    <h2>Finding the days between two dates</h2>
+    <ol>
+      <li>Choose the <strong>days between</strong> mode.</li>
+      <li>Enter a <strong>start date</strong> and an <strong>end date</strong>.</li>
+      <li>Press <strong>Calculate</strong> to see the total days, the span in weeks, and a breakdown in years, months and days.</li>
+    </ol>
+    <p>
+      The two dates are order-independent: put the later one first and the tool still reports
+      the same span, simply noting the direction rather than flagging an error. Two identical
+      dates return zero.
     </p>
 
     <h2>Counting days: the endpoint question</h2>
     <p>
-      "How many days between" almost always means the difference — subtract the earlier
-      date from the later one. From July 1 to July 10 that is <strong>9 days</strong>. If
-      you actually want to include both the first and last day (as when counting the days
-      of a trip), add one to get <strong>10</strong>. Deciding which you need up front
-      avoids the classic off-by-one error.
+      "How many days between" almost always means the difference — the later date minus the
+      earlier one. From July 1 to July 10 that is <strong>9 days</strong>. If you actually want
+      to include both the first and last day, as when counting the days of a trip, add one to
+      get <strong>10</strong>. Deciding which you need up front avoids the classic off-by-one
+      error.
+    </p>
+
+    <h2>Adding or subtracting days</h2>
+    <ol>
+      <li>Switch to the <strong>add or subtract</strong> mode.</li>
+      <li>Enter a <strong>start date</strong>, choose <strong>add</strong> or <strong>subtract</strong>, and type a whole number of days.</li>
+      <li>The resulting calendar date appears, with the weekday spelled out.</li>
+    </ol>
+    <p>
+      Because the count is applied straight to the calendar, month lengths and leap days are
+      handled for you — there is no need to work out which months have 30 or 31 days.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      From <strong>15 January 2026</strong> to <strong>10 August 2026</strong> is
+      <strong>207 days</strong> — that is <strong>29 weeks and 4 days</strong>, or 6 months and
+      26 days in the calendar breakdown. Switch to the other mode and adding
+      <strong>90 days</strong> to 10 August 2026 lands on <strong>8 November 2026</strong>.
     </p>
 
     <h2>Accurate calendar math</h2>
     <p>
       Because months vary in length and leap years add a day, counting dates by hand is
-      error-prone. This calculator works directly on the calendar so every result is
-      exact, no matter which dates you choose. Looking for an exact age instead? Try the
-      <a href="/everyday/age-calculator">age calculator</a>.
+      error-prone. This calculator works directly on the calendar, so every result is exact no
+      matter which dates you choose, and the total-day count and the year-month-day breakdown
+      always agree. Looking for an exact age from a birth date instead? Try the
+      <a href="/everyday/age-calculator">age calculator</a>; to add up spans of hours and
+      minutes, use the <a href="/everyday/time-calculator">time calculator</a>.
     </p>
   </Fragment>
 </CalculatorLayout>

@@ -1,101 +1,283 @@
 ---
 /**
- * Date calculator island — two tools: duration between dates, and add/subtract
- * days. SSR defaults render real results; client recomputes via
- * src/lib/calculators/date-duration.ts + age date parsing.
+ * Date calculator island (R18C2 — task-first; everyday date/duration; standard-form runtime
+ * UNCHANGED).
+ *
+ * ONE public route, ONE island, TWO calculator-owned STRUCTURAL modes on the UNCHANGED standard-form
+ * runtime + the Date binding (@lib/calculators/date-form), which wraps the UNCHANGED
+ * diffDates / addDays / toISODateUTC (frozen by date-duration.test.ts → the R18C0-repaired
+ * calculateAge) and the UNCHANGED parseISODateUTC. The mode is a plain <select name="mode"> the
+ * runtime recomputes on (exactly like Area's shape selector) — NOT a new runtime mode; NO generic
+ * date runtime, shared Age/Date binding or civil-date form abstraction.
+ *
+ * Task-first, summary-first: every date field starts EMPTY (the legacy island auto-calculated a
+ * 2020→2025 / +90-day example on load; the source never used TODAY, so nothing prefills — SSR ==
+ * hydrated empty), and the visitor presses Calculate for the first result (live-after-first).
+ *   • DIFFERENCE: the DOMINANT result is the calendar breakdown (years / months / days); total days
+ *     and weeks are supporting, and a direction sentence distinguishes a reverse pair. A same-date
+ *     pair is a valid 0y 0m 0d.
+ *   • ADD / SUBTRACT: the DOMINANT result is the resulting date; the original date + operation +
+ *     magnitude are supporting. Add vs Subtract is a structural selector; the magnitude is a whole,
+ *     non-negative day count.
+ * NO isUsableResult — each mode's complete-result guard lives in the binding's resultValue (a finite
+ * scalar). The island owns mode-group visibility (show + enable the active mode, hide + disable the
+ * rest, so inactive fields never parse, validate, receive errors or take focus) and the primary
+ * button label; the binding shows only the active mode's result panel.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Date calculator shares a document
+ * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
  */
-import { diffDates, addDays, toISODateUTC } from '@lib/calculators/date-duration';
-import { parseISODateUTC } from '@lib/calculators/age';
-
-const from = parseISODateUTC('2020-01-01')!;
-const to = parseISODateUTC('2025-01-01')!;
-const d = diffDates(from, to);
-const start = parseISODateUTC('2024-01-01')!;
-const added = addDays(start, 90);
-const nf = new Intl.NumberFormat('en-US');
-const longDate = (iso: string) =>
-  new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
-  });
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-datecalc>
-  <!-- Duration -->
-  <div class="card p-5 sm:p-6" data-dc-diff>
-    <h3 class="text-lg font-bold">Days between two dates</h3>
-    <div class="mt-4 grid grid-cols-2 gap-3">
-      <div><label class="field-label" for="dc-from">From</label><input class="field" id="dc-from" type="date" value="2020-01-01" /></div>
-      <div><label class="field-label" for="dc-to">To</label><input class="field" id="dc-to" type="date" value="2025-01-01" /></div>
+<div class="datecalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-date>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Date calculator">
+    <div data-field="mode">
+      <label class="field-label" for="dc-mode">Task</label>
+      <select class="field mt-1" id="dc-mode" name="mode" data-dc-mode>
+        <option value="diff" selected>Days between two dates</option>
+        <option value="add">Add or subtract days</option>
+      </select>
     </div>
-    <div class="mt-5 rounded-lg p-4 text-center" style="background: var(--subtle)">
-      <p class="text-3xl result-value"><span data-dc-total>{nf.format(d.totalDays)}</span> days</p>
-      <p class="mt-1 text-sm" style="color: var(--muted)" data-dc-break>{d.breakdown.years}y {d.breakdown.months}m {d.breakdown.days}d · {nf.format(d.weeks)} weeks</p>
-    </div>
-  </div>
 
-  <!-- Add / subtract -->
-  <div class="card p-5 sm:p-6" data-dc-add>
-    <h3 class="text-lg font-bold">Add or subtract days</h3>
-    <div class="mt-4 space-y-3">
-      <div><label class="field-label" for="dc-start">Start date</label><input class="field" id="dc-start" type="date" value="2024-01-01" /></div>
+    <!-- DIFFERENCE mode -->
+    <div class="dc-group mt-4 space-y-3" data-dc-group="diff">
+      <div data-field="from">
+        <label class="field-label" for="dc-from">Start date</label>
+        <input class="field mt-1" id="dc-from" name="from" type="date" autocomplete="off" aria-describedby="dc-from-error" />
+        <p class="dc-error" id="dc-from-error" data-error-for="from" hidden></p>
+      </div>
+      <div data-field="to">
+        <label class="field-label" for="dc-to">End date</label>
+        <input class="field mt-1" id="dc-to" name="to" type="date" autocomplete="off" aria-describedby="dc-to-error" />
+        <p class="dc-error" id="dc-to-error" data-error-for="to" hidden></p>
+      </div>
+    </div>
+
+    <!-- ADD / SUBTRACT mode -->
+    <div class="dc-group mt-4 space-y-3" data-dc-group="add" hidden>
+      <div data-field="start">
+        <label class="field-label" for="dc-start">Start date</label>
+        <input class="field mt-1" id="dc-start" name="start" type="date" autocomplete="off" disabled aria-describedby="dc-start-error" />
+        <p class="dc-error" id="dc-start-error" data-error-for="start" hidden></p>
+      </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label" for="dc-op">Operation</label>
-          <select class="field" id="dc-op"><option value="add">Add</option><option value="sub">Subtract</option></select>
+          <select class="field mt-1" id="dc-op" name="op" disabled>
+            <option value="add" selected>Add</option>
+            <option value="sub">Subtract</option>
+          </select>
         </div>
-        <div><label class="field-label" for="dc-days">Days</label><input class="field" id="dc-days" type="number" min="0" step="1" value="90" inputmode="decimal" /></div>
+        <div data-field="days">
+          <label class="field-label" for="dc-days">Days</label>
+          <input class="field mt-1" id="dc-days" name="days" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" disabled aria-describedby="dc-days-error" />
+          <p class="dc-error" id="dc-days-error" data-error-for="days" hidden></p>
+        </div>
       </div>
     </div>
-    <div class="mt-5 rounded-lg p-4 text-center" style="background: var(--subtle)">
-      <p class="text-sm" style="color: var(--muted)">Result date</p>
-      <p class="mt-1 text-xl font-bold" style="color: var(--heading)" data-dc-result>{longDate(toISODateUTC(added))}</p>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-dc-submit>Calculate Difference</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
-  </div>
+    <p class="dc-live-note" data-live-note hidden>Changes update automatically.</p>
+  </form>
+
+  <!-- Result -->
+  <ResultShell id="dc-result" state="empty" density="standard" label="Date result" minHeight="16rem" placeholderAlignment="center">
+    <EmptyResult message="Choose a task and enter your dates to calculate." />
+
+    <div data-result-when="valid">
+      <!-- DIFFERENCE result -->
+      <div data-dc-panel="diff">
+        <ResultSummary label="Difference">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+
+        <ResultBreakdown title="In other units">
+          <dl class="dc-metrics">
+            <div><dt>Total days</dt><dd data-dc-total-days>—</dd></div>
+            <div><dt>Total weeks</dt><dd data-dc-total-weeks>—</dd></div>
+          </dl>
+        </ResultBreakdown>
+
+        <ResultInterpretation>
+          <span data-dc-diff-interpretation></span>
+        </ResultInterpretation>
+      </div>
+
+      <!-- ADD / SUBTRACT result -->
+      <div data-dc-panel="add" hidden>
+        <ResultSummary label="Resulting date">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+
+        <ResultInterpretation>
+          <span data-dc-add-interpretation></span>
+        </ResultInterpretation>
+      </div>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter valid dates — and, for add or subtract, a whole number of days — for the selected task."
+    />
+
+    <ResultAnnouncement id="dc-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { diffDates, addDays, toISODateUTC } from '@lib/calculators/date-duration';
-  import { parseISODateUTC } from '@lib/calculators/age';
+<style>
+  .dc-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .dc-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .dc-error {
+    color: #fca5a5;
+  }
 
-  const nf = new Intl.NumberFormat('en-US');
-  const longDate = (iso: string) =>
-    new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
+  .dc-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .dc-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .dc-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .dc-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .dc-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { dateBinding, DEFAULT_MODE } from '@lib/calculators/date-form';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // When more than one Date calculator shares a document (e.g. an embed gallery), the server-static
+  // ids (the mode select, both modes' fields + error slots, the result shell, the live region)
+  // collide. Namespace THIS root's ids and repoint its in-root references so associations stay
+  // instance-local; a lone instance is left untouched. The runtime targets fields by [name] /
+  // [data-*], never these ids.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
+  const SUBMIT_LABEL: Record<string, string> = {
+    diff: 'Calculate Difference',
+    add: 'Calculate Date',
+  };
+
+  document.querySelectorAll<HTMLElement>('[data-date]').forEach((root) => {
+    if (document.querySelectorAll('[data-date]').length > 1) uniquifyStaticIds(root, `d${++ns}`);
+
+    mountFormCalculator(root, dateBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate',
     });
 
-  document.querySelectorAll<HTMLElement>('[data-datecalc]').forEach((root) => {
-    const q = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
-    const fromEl = q<HTMLInputElement>('#dc-from');
-    const toEl = q<HTMLInputElement>('#dc-to');
-    const startEl = q<HTMLInputElement>('#dc-start');
-    const opEl = q<HTMLSelectElement>('#dc-op');
-    const daysEl = q<HTMLInputElement>('#dc-days');
+    const modeSel = root.querySelector<HTMLSelectElement>('[data-dc-mode]');
+    const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-dc-group]'));
+    const submit = root.querySelector<HTMLElement>('[data-dc-submit]');
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
 
-    function recomputeDiff() {
-      const a = parseISODateUTC(fromEl.value);
-      const b = parseISODateUTC(toEl.value);
-      if (!a || !b) {
-        q('[data-dc-total]').textContent = '—';
-        q('[data-dc-break]').textContent = '—';
-        return;
+    // The island owns conditional-field visibility: show + enable only the active mode's group; hide
+    // + DISABLE every other mode's controls so they never parse, validate, receive errors or take
+    // focus. Values in the inactive (disabled) controls are retained so switching back restores the
+    // visitor's work. The primary button label follows the active task.
+    const applyModeVisibility = () => {
+      const active = modeSel?.value ?? DEFAULT_MODE;
+      for (const g of groups) {
+        const on = g.dataset.dcGroup === active;
+        g.hidden = !on;
+        g.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select').forEach((el) => {
+          el.disabled = !on;
+        });
       }
-      const d = diffDates(a, b);
-      q('[data-dc-total]').textContent = nf.format(d.totalDays);
-      q('[data-dc-break]').textContent = `${d.breakdown.years}y ${d.breakdown.months}m ${d.breakdown.days}d · ${nf.format(d.weeks)} weeks`;
+      if (submit) submit.textContent = SUBMIT_LABEL[active] ?? 'Calculate';
+    };
+
+    modeSel?.addEventListener('change', applyModeVisibility);
+    applyModeVisibility();
+
+    // Clear the stale result panels whenever the shell leaves the valid state (an invalid live edit,
+    // a mode switch to an empty mode, or Reset), so no stale result lingers behind the hidden valid
+    // region. On Reset the runtime restores mode → diff and clears every field (binding); re-sync the
+    // island-owned visibility + button label when the shell returns to `empty`. Presentation only.
+    if (shell) {
+      const clearPanels = () => {
+        ['[data-dc-total-days]', '[data-dc-total-weeks]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.textContent = '—';
+        });
+        root.querySelectorAll<HTMLElement>('[data-dc-panel] [data-result-value], [data-dc-panel] [data-result-value-a11y]').forEach((el) => {
+          el.textContent = '—';
+        });
+        ['[data-dc-diff-interpretation]', '[data-dc-add-interpretation]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.textContent = '';
+        });
+      };
+      new MutationObserver(() => {
+        const state = shell.dataset.resultState;
+        if (state !== 'valid') clearPanels();
+        if (state === 'empty') applyModeVisibility();
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-    function recomputeAdd() {
-      const s = parseISODateUTC(startEl.value);
-      if (!s) {
-        q('[data-dc-result]').textContent = '—';
-        return;
-      }
-      const days = Number(daysEl.value) || 0;
-      const signed = opEl.value === 'sub' ? -days : days;
-      q('[data-dc-result]').textContent = longDate(toISODateUTC(addDays(s, signed)));
-    }
-    q('[data-dc-diff]').addEventListener('input', recomputeDiff);
-    q('[data-dc-add]').addEventListener('input', recomputeAdd);
-    recomputeDiff();
-    recomputeAdd();
   });
 </script>

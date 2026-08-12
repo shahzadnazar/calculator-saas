@@ -14,24 +14,56 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the area of a rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse — just pick the shape and enter its dimensions." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <AreaCalculator />
   <Fragment slot="content">
-    <h2>Area formulas, with worked examples</h2>
-    <p>Every shape has its own formula, but they all give a result in square units. Here are the ones this calculator handles:</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Choose your <strong>shape</strong> — rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse.</li>
+      <li>Enter the dimensions the shape asks for, all in the <strong>same unit</strong>.</li>
+      <li>Read the area, which comes out in that unit <strong>squared</strong>.</li>
+      <li>Pick a unit label (cm, m, in, ft, yd) so the result is written as square centimetres, square feet and so on.</li>
+    </ol>
+
+    <h2>Area formulas for every shape</h2>
+    <p>Each shape has its own formula, but they all return a result in square units. These are the seven the calculator handles:</p>
     <table>
       <thead>
         <tr><th>Shape</th><th>Formula</th><th>Example</th></tr>
       </thead>
       <tbody>
         <tr><td>Rectangle</td><td>length × width</td><td>8 × 5 = 40</td></tr>
-        <tr><td>Square</td><td>side²</td><td>4² = 16</td></tr>
+        <tr><td>Square</td><td>side<sup>2</sup></td><td>4<sup>2</sup> = 16</td></tr>
         <tr><td>Triangle</td><td>½ × base × height</td><td>½ × 6 × 4 = 12</td></tr>
-        <tr><td>Circle</td><td>π × radius²</td><td>π × 5² ≈ 78.54</td></tr>
+        <tr><td>Circle</td><td>π × radius<sup>2</sup></td><td>π × 5<sup>2</sup> ≈ 78.54</td></tr>
         <tr><td>Trapezoid</td><td>½ × (a + b) × height</td><td>½ × (6 + 4) × 3 = 15</td></tr>
         <tr><td>Parallelogram</td><td>base × height</td><td>6 × 4 = 24</td></tr>
         <tr><td>Ellipse</td><td>π × a × b</td><td>π × 5 × 3 ≈ 47.12</td></tr>
       </tbody>
     </table>
+    <p>For the triangle, <em>height</em> is the perpendicular distance from the base to the opposite corner, not the slanted side. For the ellipse, <em>a</em> and <em>b</em> are the two semi-axes — the distances from the centre to the edge along each direction.</p>
 
-    <h2>Keep your units consistent</h2>
-    <p>Area is always in squared units. If you measure in metres, the area is in square metres; in feet, square feet. For a floor or room specifically, the <a href="/everyday/square-footage-calculator">square footage calculator</a> also estimates material cost. For 3D shapes, use the <a href="/math/volume-calculator">volume calculator</a>, and for a triangle from its three sides, the <a href="/math/triangle-calculator">triangle calculator</a> finds the area and every angle.</p>
+    <h2>A worked example</h2>
+    <p>
+      Take a circular patio with a <strong>radius of 5</strong> metres. The area is π × radius<sup>2</sup> = π × 5<sup>2</sup> = π × 25 ≈ <strong>78.54 square metres</strong>. If you only know the diameter, halve it first — a 10-metre diameter is a 5-metre radius. A trapezoidal garden bed with parallel sides of 6 and 4 and a height of 3 works out to ½ × (6 + 4) × 3 = <strong>15 square units</strong>.
+    </p>
+
+    <h2>Why area is always in squared units</h2>
+    <p>
+      Area measures a two-dimensional surface, so it multiplies one length by another and the units multiply too. Measure in metres and the area is in square metres; measure in feet and it is in square feet. This is also why you must convert to a single unit <em>before</em> calculating — mixing feet and inches in the same shape gives a meaningless number.
+    </p>
+
+    <h2>Measuring an irregular space</h2>
+    <p>
+      Real rooms and lots are rarely one clean shape. The reliable trick is to split an awkward outline into rectangles, triangles and circle segments, find each area separately, and add them. An L-shaped room, for instance, is just two rectangles. For a piece cut out — a circular pond in a rectangular yard — find both areas and subtract the hole from the whole.
+    </p>
+
+    <h2>Common mistakes to avoid</h2>
+    <ul>
+      <li><strong>Using diameter instead of radius</strong> in a circle. The formula needs the radius; the diameter is twice too big and quadruples the area.</li>
+      <li><strong>Using a slanted side as the height</strong> of a triangle or parallelogram. Height is always measured at a right angle to the base.</li>
+      <li><strong>Mixing units.</strong> Convert everything to one unit before you calculate, not after.</li>
+    </ul>
+
+    <p>
+      For a floor or room specifically, the <a href="/everyday/square-footage-calculator">square footage calculator</a> also estimates material cost. For 3D shapes, use the <a href="/math/volume-calculator">volume calculator</a>, and for a triangle from its three side lengths, the <a href="/math/triangle-calculator">triangle calculator</a> finds the area and every angle.
+    </p>
   </Fragment>
 </CalculatorLayout>

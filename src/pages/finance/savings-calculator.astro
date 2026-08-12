@@ -20,17 +20,94 @@ const faqs = [
 >
   <SavingsCalculator />
   <Fragment slot="content">
-    <h2>Two ways to plan</h2>
-    <p><strong>Project savings</strong> shows where consistent deposits will take you. <strong>Reach a savings goal</strong> flips the question: tell it your target and timeline, and it tells you the monthly deposit required. Both account for compound growth on your balance.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Pick a mode: <strong>Project savings</strong> to grow deposits forward, or <strong>Reach a savings goal</strong> to solve for the deposit you need.</li>
+      <li>In Project mode, enter your <strong>starting balance</strong>, <strong>monthly deposit</strong>, expected <strong>annual return</strong> and number of <strong>years</strong>.</li>
+      <li>In Goal mode, enter your <strong>savings goal</strong>, starting balance, return and years instead.</li>
+      <li>Read the <strong>projected balance</strong> (or the <strong>required monthly deposit</strong>) and the split between what you put in and what growth added.</li>
+    </ol>
 
-    <h2>A worked example</h2>
-    <p>Save <strong>$500 a month</strong> in an account earning <strong>4%</strong> for <strong>5 years</strong> and you end with about <strong>$33,000</strong> — roughly $30,000 of deposits plus $3,000 of interest. Push the same habit to 10 years and the interest portion grows far faster than the deposits, because each dollar has more time to compound.</p>
+    <h2>Two ways to plan</h2>
+    <p>
+      <strong>Project savings</strong> shows where a consistent habit will take you — future
+      balance, total deposited and interest earned. <strong>Reach a savings goal</strong> flips
+      the question: name a target and a timeline, and it returns the monthly deposit required,
+      after crediting the growth on your starting balance. Both assume deposits are made monthly
+      with monthly compounding.
+    </p>
+
+    <h2>The formula</h2>
+    <p>
+      Projecting forward combines the growth of your starting balance with the future value of a
+      stream of monthly deposits:
+    </p>
+    <p><strong>FV = P(1 + i)<sup>n</sup> + D · ((1 + i)<sup>n</sup> − 1) / i</strong></p>
+    <ul>
+      <li><strong>FV</strong> — the projected future balance</li>
+      <li><strong>P</strong> — your starting balance</li>
+      <li><strong>D</strong> — the monthly deposit</li>
+      <li><strong>i</strong> — the monthly return (annual rate ÷ 12)</li>
+      <li><strong>n</strong> — the number of months (years × 12)</li>
+    </ul>
+    <p>
+      Goal mode rearranges the same equation to solve for <em>D</em>: it grows your starting
+      balance to the target date, subtracts that from the goal, and divides the shortfall by the
+      annuity factor ((1 + i)<sup>n</sup> − 1) / i.
+    </p>
+
+    <h2>A worked example: projecting forward</h2>
+    <p>
+      Save <strong>$500 a month</strong> in an account earning <strong>4%</strong> for
+      <strong>5 years</strong>, starting from zero. You finish with about
+      <strong>$33,149</strong> — roughly <strong>$30,000</strong> of deposits plus
+      <strong>$3,149</strong> of interest. Push the same habit to <strong>10 years</strong> and
+      the balance grows to about <strong>$73,625</strong>: the deposits double to $60,000, but the
+      interest more than quadruples to about $13,625, because each dollar has longer to compound.
+    </p>
+
+    <h2>Solving for a goal</h2>
+    <p>
+      Now flip it: you want <strong>$30,000</strong> in <strong>5 years</strong> at
+      <strong>4%</strong>, starting from zero. The calculator returns a required deposit of about
+      <strong>$452.50 a month</strong>. Begin with a <strong>$5,000</strong> balance instead and
+      that starting sum grows to about $6,105 on its own, cutting the required deposit to roughly
+      <strong>$360.41 a month</strong> — a concrete illustration of how a head start does part of
+      the work for you.
+    </p>
 
     <h2>How much should you save?</h2>
-    <p>Two rules of thumb make a plan concrete. The <strong>50/30/20 rule</strong> puts about 20% of take-home pay toward saving and debt. And an <strong>emergency fund</strong> of three to six months of essential expenses comes first, in an accessible account, before longer-term investing — it is what keeps a surprise bill from turning into debt.</p>
+    <p>
+      Two rules of thumb make a plan concrete. The <strong>50/30/20 rule</strong> puts about
+      50% of take-home pay toward needs, 30% toward wants and 20% toward saving and debt. And an
+      <strong>emergency fund</strong> of three to six months of essential expenses comes first, in
+      an accessible account, before longer-term investing — it is what keeps a surprise bill from
+      turning into debt.
+    </p>
 
-    <h2>Make saving automatic</h2>
-    <p>The single most effective savings habit is automation — a fixed monthly transfer you never have to think about. Small, consistent amounts compound into large balances over time, as the interest figure makes clear. Projections assume deposits are made monthly with monthly compounding, and whole years. To model longer-term investing, see the <a href="/finance/investment-calculator">investment calculator</a>.</p>
-    <p>This is general educational information, not financial advice.</p>
+    <h2>Choosing a realistic return</h2>
+    <p>
+      Use a rate that matches where the money will actually sit. A high-yield savings account
+      might return roughly 3–5%, while long-term investments have historically returned more with
+      more risk and more year-to-year swings. Cash you may need within a year or two belongs in a
+      safe, accessible account; only money you can leave untouched for years suits higher-return,
+      higher-volatility investments.
+    </p>
+
+    <h2>Tips and limitations</h2>
+    <ul>
+      <li><strong>Automate it.</strong> A fixed transfer on payday is the single most reliable savings habit — you never have to decide to save.</li>
+      <li><strong>Whole years and monthly deposits.</strong> The projection assumes monthly deposits, monthly compounding and whole years, at one steady rate.</li>
+      <li><strong>Before tax and inflation.</strong> Interest in a taxable account is usually taxed, and results are in today's nominal dollars, so real buying power grows more slowly.</li>
+      <li><strong>Rates change.</strong> Savings rates move over time, so revisit the projection as your actual rate shifts.</li>
+    </ul>
+
+    <p>
+      To model longer-term, higher-return investing with a contributions-versus-earnings split,
+      see the <a href="/finance/investment-calculator">investment calculator</a>; to explore how
+      compounding frequency changes growth, use the
+      <a href="/finance/compound-interest-calculator">compound interest calculator</a>. This is
+      general educational information, not financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

@@ -41,32 +41,116 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
+  presentation="task-first"
   intro="Project your retirement savings from your current age and contributions, and estimate the yearly and monthly income it could provide using a safe withdrawal rate."
   faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-08-09' }}
 >
   <RetirementCalculator />
 
   <Fragment slot="content">
-    <h2>How to use the retirement calculator</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter your <strong>current age</strong> and target <strong>retirement age</strong> — the gap is your years to save.</li>
+      <li>Add your <strong>current savings</strong> and the <strong>monthly contribution</strong> you make (include any employer match).</li>
+      <li>Set an expected <strong>annual return</strong> and the <strong>withdrawal rate</strong> you plan to draw in retirement.</li>
+      <li>Read the projected <strong>nest egg</strong> and the yearly and monthly income it could support.</li>
+    </ol>
+
+    <h2>How the projection works</h2>
     <p>
-      Enter your <strong>current age</strong> and target <strong>retirement age</strong>,
-      your <strong>current savings</strong>, your <strong>monthly contribution</strong>,
-      an expected <strong>annual return</strong>, and a <strong>withdrawal rate</strong>.
-      The calculator projects your nest egg and the income it could support.
+      The calculator runs in two stages. First it <strong>accumulates</strong>: your current
+      savings and every monthly contribution compound at your expected return until your
+      retirement age, compounding monthly. Then it turns that balance into income by applying your
+      <strong>withdrawal rate</strong> — the share of the nest egg you draw in the first year. A
+      lower rate is more conservative and more likely to last through a long retirement.
     </p>
 
-    <h2>From nest egg to income</h2>
+    <h2>The formula</h2>
     <p>
-      The estimated income applies your withdrawal rate to the projected balance. A 4%
-      rate on a $1,000,000 nest egg is $40,000 per year. Lower rates are more
-      conservative and more likely to last through a long retirement.
+      The nest egg is the future value of your starting balance plus the future value of your
+      monthly contributions:
+    </p>
+    <p><strong>Nest egg = P(1 + i)<sup>n</sup> + C · ((1 + i)<sup>n</sup> − 1) / i</strong></p>
+    <ul>
+      <li><strong>P</strong> — your current savings</li>
+      <li><strong>C</strong> — your monthly contribution</li>
+      <li><strong>i</strong> — the monthly return (annual return ÷ 12)</li>
+      <li><strong>n</strong> — months until retirement (years × 12)</li>
+    </ul>
+    <p>
+      The estimated income is then <strong>nest egg × withdrawal rate</strong>, divided by 12 for
+      the monthly figure.
     </p>
 
+    <h2>A worked example</h2>
     <p>
-      This is a simplified projection for planning and education, not financial advice.
-      It does not model taxes, Social Security, market volatility or inflation in detail —
-      consider speaking with a qualified financial planner.
+      Suppose you are <strong>30</strong>, aiming to retire at <strong>65</strong> (35 years),
+      with <strong>$20,000</strong> saved and <strong>$500 a month</strong> going in at a
+      <strong>7%</strong> return. The projection grows to a nest egg of about
+      <strong>$1,130,650</strong>. You contributed $210,000 over those years and started with
+      $20,000, so roughly <strong>$900,650</strong> of the total is compounding growth.
+    </p>
+    <p>
+      Applying a <strong>4%</strong> withdrawal rate gives about <strong>$45,226</strong> a year,
+      or roughly <strong>$3,769</strong> a month, in first-year retirement income — before taxes,
+      Social Security or any pension.
+    </p>
+
+    <h2>The 4% rule and how much you need</h2>
+    <p>
+      The <strong>4% rule</strong> is a rule of thumb: withdraw about 4% of your savings in the
+      first year, adjust for inflation thereafter, and the money has historically had a good
+      chance of lasting 30 years. Turned around, it implies a target of roughly
+      <strong>25 times</strong> your desired annual spending — to draw $40,000 a year, about
+      $1,000,000 saved. The withdrawal rate you choose changes the income sharply:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Withdrawal rate</th><th>Annual income</th><th>Monthly income</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>3% (conservative)</td><td>$33,920</td><td>$2,827</td></tr>
+        <tr><td>4% (classic)</td><td>$45,226</td><td>$3,769</td></tr>
+        <tr><td>5% (aggressive)</td><td>$56,533</td><td>$4,711</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Figures use the $1,130,650 nest egg above. A higher rate pays more now but raises the risk
+      of outliving your savings, especially if a market downturn hits early in retirement.
+    </p>
+
+    <h2>Nominal versus real returns</h2>
+    <p>
+      The projection uses a <strong>nominal</strong> return, so the nest egg is stated in future
+      dollars that will buy less than today's. To think in today's money, enter a lower
+      <strong>real</strong> return — your expected return minus inflation, often around 4–5%. That
+      produces a more sober figure but one that reflects actual buying power at retirement.
+    </p>
+
+    <h2>How much should you contribute?</h2>
+    <p>
+      A common guideline is to save <strong>10–15% of income</strong> for retirement, including
+      any employer match — which is effectively free money and worth capturing in full first.
+      Because contributions compound for decades, starting even a few years earlier can matter
+      more than contributing more later. Nudge the monthly contribution up and down to see how
+      much each change moves the nest egg.
+    </p>
+
+    <h2>Limitations</h2>
+    <ul>
+      <li>It assumes a <strong>constant return</strong> every year; real markets fluctuate, and a bad early stretch (sequence-of-returns risk) can hurt a portfolio you are drawing down.</li>
+      <li>It does not model <strong>taxes</strong>, Social Security, pensions or required minimum distributions.</li>
+      <li>Withdrawal-rate rules are <strong>guidelines, not guarantees</strong> — your safe rate depends on your horizon, asset mix and spending flexibility.</li>
+    </ul>
+
+    <p>
+      To explore the underlying growth, use the
+      <a href="/finance/compound-interest-calculator">compound interest calculator</a>; to translate
+      a nominal projection into today's dollars, try the
+      <a href="/finance/investment-calculator">investment calculator</a>. This is a simplified
+      projection for planning and education, not financial advice — consider speaking with a
+      qualified financial planner.
     </p>
   </Fragment>
 </CalculatorLayout>

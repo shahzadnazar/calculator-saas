@@ -49,19 +49,35 @@ const faqs = [
   <PercentCalculator />
 
   <Fragment slot="content">
-    <h2>Percentage formulas</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Pick the equation that matches your question — the three are independent, so use whichever one fits.</li>
+      <li>Fill in the two numbers. Each equation reads like a sentence, so the fields sit where the words go.</li>
+      <li>Press <strong>Calculate</strong>. After the first result, editing either number updates the answer live.</li>
+      <li>For a percentage change, the tool also states the <strong>direction</strong> in words — increase, decrease or no change — so the sign is never ambiguous.</li>
+    </ol>
+
+    <h2>The three percentage formulas</h2>
+    <p>Almost every percentage question is one of these three. Each solves for a different unknown:</p>
     <ul>
-      <li><strong>Percentage of a number:</strong> value × (percent ÷ 100).</li>
-      <li><strong>What percent A is of B:</strong> (A ÷ B) × 100.</li>
-      <li><strong>Percentage change:</strong> ((new − old) ÷ old) × 100.</li>
+      <li><strong>Percentage of a number:</strong> value × (percent ÷ 100). The share of a total.</li>
+      <li><strong>What percent A is of B:</strong> (A ÷ B) × 100. The relationship between a part and a whole.</li>
+      <li><strong>Percentage change:</strong> ((new − old) ÷ old) × 100. Growth or shrinkage against a starting point (the tool divides by the absolute value of the start, so it needs a starting value above zero).</li>
     </ul>
 
     <h2>A worked example</h2>
     <p>
-      A $80 jacket is marked down by 25%. Using "what is 25% of 80" gives $20 off, so you
-      pay $60. If it later rises from $60 back to $80, the "percentage change" tool shows
-      a 33.3% increase — a reminder that a percentage decrease and the increase that
-      reverses it are not the same size.
+      Follow the calculator's own default numbers through all three equations. Ask <strong>what is 15% of 200</strong>: multiply 200 × (15 ÷ 100) = <strong>30</strong>. Ask <strong>50 is what percent of 200</strong>: divide 50 ÷ 200 = 0.25, then × 100 = <strong>25%</strong>. Ask the change <strong>from 80 to 100</strong>: (100 − 80) ÷ 80 = 0.25, so a <strong>25% increase</strong>.
+    </p>
+
+    <h2>Increases and decreases are not symmetric</h2>
+    <p>
+      Reversing a percentage does not use the same percentage. Going from 80 up to 100 is a 25% increase, but going from 100 back down to 80 is only a <strong>20% decrease</strong> — the base changed from 80 to 100, so the same 20-unit gap is a smaller share. A price cut of 20% followed by a 20% rise never returns you to where you started.
+    </p>
+
+    <h2>Reverse percentages: finding the original</h2>
+    <p>
+      When you know the price <em>after</em> a discount and want the original, divide rather than add the percentage back. A jacket costing $60 after <strong>25% off</strong> was 60 ÷ (1 − 0.25) = 60 ÷ 0.75 = <strong>$80</strong> before the sale. The same move strips a known tax rate out of a gross total. There is no dedicated reverse mode here, but the arithmetic is a single division.
     </p>
 
     <h2>Percentage points vs. percent</h2>

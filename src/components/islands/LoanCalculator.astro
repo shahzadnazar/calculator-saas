@@ -1,120 +1,291 @@
 ---
 /**
- * Loan calculator island. Server-renders a default scenario; recomputes live
- * via src/lib/calculators/loan.ts.
+ * Loan calculator island (R15B1 — Loan family pilot, 1 of 3; task-first migration).
+ *
+ * Task-first, direct-intent: all fields start EMPTY, the result is an instruction, and the visitor
+ * presses "Calculate Loan Payment" for the first result; live-after-first afterwards. Compute,
+ * validation, state, announcement and focus are owned by the shared runtime + the Loan binding
+ * (@lib/calculators/loan-form), which wraps the UNCHANGED calculateLoan / @lib/finance engine. The
+ * complete-result guard lives in the binding's resultValue (a NaN sentinel → the runtime's default
+ * finite gate) — there is NO isUsableResult.
+ *
+ * INDEPENDENT of Amortization: this island imports the Loan binding only and shares no
+ * implementation file with the Amortization calculator (the mirror-not-share discipline). Loan shows
+ * the dominant monthly payment + total interest / total paid / payoff period, and the YEARLY
+ * amortization schedule inside a native <details> disclosure (closed by default). The schedule is
+ * built with the DOM API (never innerHTML) into a semantic <table> (caption + scoped headers). The
+ * island reacts to runtime state changes it does not itself cause: leaving `valid` (an invalid live
+ * edit) drops the stale rows; returning to `empty` (Reset) also closes the disclosure.
  */
-import { calculateLoan } from '@lib/calculators/loan';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-
-const defaults = { amount: 25000, annualInterestRate: 7, termYears: 5 };
-const r = calculateLoan(defaults);
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div
-  class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-  data-loan
->
-  <form class="card p-5 sm:p-6" data-loan-form novalidate>
-    <div class="space-y-4">
-      <div>
+<div class="loan mx-auto w-full max-w-4xl space-y-6" data-loan>
+  <!-- Inputs -->
+  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Loan calculator">
+    <div class="grid gap-4 sm:grid-cols-3">
+      <div data-field="amount">
         <label class="field-label" for="loan-amount">Loan amount</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="loan-amount" name="amount" type="number" min="0" step="500" value={defaults.amount} inputmode="decimal" />
+          <input class="field rounded-l-none" id="loan-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 25000" aria-describedby="loan-amount-error" />
         </div>
+        <p class="loan-field-error" id="loan-amount-error" data-error-for="amount" hidden></p>
       </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="field-label" for="loan-rate">Interest rate</label>
-          <div class="flex">
-            <input class="field rounded-r-none" id="loan-rate" name="annualInterestRate" type="number" min="0" step="0.05" value={defaults.annualInterestRate} inputmode="decimal" />
-            <span class="field-affix rounded-r-lg border-l-0">%</span>
-          </div>
+
+      <div data-field="annualInterestRate">
+        <label class="field-label" for="loan-rate">Interest rate</label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="loan-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 7" aria-describedby="loan-rate-error" />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
-        <div>
-          <label class="field-label" for="loan-term">Term (years)</label>
-          <input class="field" id="loan-term" name="termYears" type="number" min="1" step="1" value={defaults.termYears} inputmode="decimal" />
-        </div>
+        <p class="loan-field-error" id="loan-rate-error" data-error-for="annualInterestRate" hidden></p>
+      </div>
+
+      <div data-field="termYears">
+        <label class="field-label" for="loan-term">Term (years)</label>
+        <input class="field" id="loan-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 5" aria-describedby="loan-term-error" />
+        <p class="loan-field-error" id="loan-term-error" data-error-for="termYears" hidden></p>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-loan-submit>Calculate Loan Payment</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="loan-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Monthly payment</p>
-    <p class="mt-1 text-4xl result-value" data-loan-monthly>
-      {formatCurrency(r.monthlyPayment)}
-    </p>
-    <div class="mt-5 grid grid-cols-2 gap-3 border-t pt-5 text-center" style="border-color: var(--line)">
-      <div>
-        <p class="text-xs" style="color: var(--muted)">Total interest</p>
-        <p class="mt-1 font-bold" data-loan-interest>{formatCurrencyRounded(r.totalInterest)}</p>
-      </div>
-      <div>
-        <p class="text-xs" style="color: var(--muted)">Total paid</p>
-        <p class="mt-1 font-bold" data-loan-total>{formatCurrencyRounded(r.totalPaid)}</p>
-      </div>
-    </div>
-  </div>
+  <!-- Result -->
+  <ResultShell id="loan-result" state="empty" density="standard" label="Loan result" minHeight="16rem">
+    <EmptyResult message="Enter your loan amount, interest rate, and term, then calculate to see your monthly payment and payoff schedule." />
 
-  <div class="card p-5 sm:p-6 lg:col-span-2">
-    <h3 class="text-lg font-bold">Amortization (yearly)</h3>
-    <div class="mt-4 max-h-72 overflow-auto rounded-lg border" style="border-color: var(--line)">
-      <table class="w-full text-sm">
-        <thead class="sticky top-0" style="background: var(--subtle)">
-          <tr>
-            <th class="px-3 py-2 text-left font-semibold">Year</th>
-            <th class="px-3 py-2 text-right font-semibold">Principal</th>
-            <th class="px-3 py-2 text-right font-semibold">Interest</th>
-            <th class="px-3 py-2 text-right font-semibold">Balance</th>
-          </tr>
-        </thead>
-        <tbody data-loan-schedule>
-          {
-            r.yearlySchedule.map((row) => (
-              <tr class="border-t" style="border-color: var(--line)">
-                <td class="px-3 py-2">{row.period}</td>
-                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.principal)}</td>
-                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.interest)}</td>
-                <td class="px-3 py-2 text-right">{formatCurrencyRounded(row.balance)}</td>
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
+    <div data-result-when="valid">
+      <div class="loan-summary">
+        <ResultSummary label="Estimated monthly payment">
+          <ResultValue value="—" size="text-4xl" />
+        </ResultSummary>
+        <dl class="loan-metrics">
+          <div><dt>Total interest</dt><dd data-loan-interest>—</dd></div>
+          <div><dt>Total paid</dt><dd data-loan-total>—</dd></div>
+          <div><dt>Payoff period</dt><dd data-loan-payoff>—</dd></div>
+        </dl>
+      </div>
+
+      <details class="loan-disclosure" data-loan-disclosure>
+        <summary class="loan-disclosure__summary">
+          <span>View yearly amortization schedule</span>
+          <svg class="loan-disclosure__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+
+        <div class="loan-schedule">
+          <div class="loan-table-wrap">
+            <table class="loan-table">
+              <caption class="sr-only">Yearly amortization schedule showing principal paid, interest paid and remaining balance for each year.</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="loan-th-period">Year</th>
+                  <th scope="col" class="loan-num">Principal</th>
+                  <th scope="col" class="loan-num">Interest</th>
+                  <th scope="col" class="loan-num">Balance</th>
+                </tr>
+              </thead>
+              <tbody data-loan-rows></tbody>
+            </table>
+          </div>
+          <p class="loan-schedule__note">Balances are shown to the nearest dollar. Amounts are in US dollars (USD).</p>
+        </div>
+      </details>
     </div>
-  </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a loan amount, an interest rate, and a whole loan term from 1 to 30 years."
+    />
+
+    <ResultAnnouncement id="loan-live" />
+  </ResultShell>
 </div>
 
+<style>
+  .loan-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .loan-field-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .loan-field-error {
+    color: #fca5a5;
+  }
+
+  .loan-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* Summary: dominant payment + supporting totals */
+  .loan-summary {
+    display: grid;
+    gap: 1rem;
+    align-items: center;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) {
+    .loan-summary {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    }
+  }
+  .loan-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+    align-self: center;
+  }
+  .loan-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .loan-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .loan-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* Disclosure */
+  .loan-disclosure {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+  .loan-disclosure__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.35rem 0;
+  }
+  .loan-disclosure__summary::-webkit-details-marker {
+    display: none;
+  }
+  .loan-disclosure__summary:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 0.35rem;
+  }
+  .loan-disclosure__chevron {
+    flex: none;
+    transition: transform 0.15s ease;
+    color: var(--muted);
+  }
+  .loan-disclosure[open] .loan-disclosure__chevron {
+    transform: rotate(180deg);
+  }
+
+  .loan-schedule {
+    margin-top: 0.75rem;
+  }
+  .loan-table-wrap {
+    max-height: 20rem;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+  }
+  .loan-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  .loan-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--subtle);
+    padding: 0.55rem 0.75rem;
+    font-weight: 600;
+    text-align: left;
+    color: var(--fg);
+    white-space: nowrap;
+  }
+  .loan-table th.loan-num,
+  .loan-table td.loan-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .loan-table :global(.loan-row) {
+    border-top: 1px solid var(--line);
+  }
+  .loan-table :global(.loan-cell) {
+    padding: 0.5rem 0.75rem;
+  }
+  .loan-table :global(.loan-cell--period) {
+    text-align: left;
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  .loan-schedule__note {
+    margin: 0.75rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+</style>
+
 <script>
-  import { calculateLoan } from '@lib/calculators/loan';
-  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { loanBinding } from '@lib/calculators/loan-form';
 
   document.querySelectorAll<HTMLElement>('[data-loan]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-loan-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => {
-      const el = root.querySelector<HTMLElement>(sel);
-      if (el) el.textContent = v;
-    };
+    mountFormCalculator(root, loanBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Loan Payment',
+    });
 
-    function recompute() {
-      const r = calculateLoan({
-        amount: num('amount'),
-        annualInterestRate: num('annualInterestRate'),
-        termYears: num('termYears'),
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    const disclosure = root.querySelector<HTMLDetailsElement>('[data-loan-disclosure]');
+
+    const clearRows = () =>
+      root.querySelectorAll<HTMLElement>('[data-loan-rows]').forEach((tb) => tb.replaceChildren());
+
+    // React to runtime state transitions the island does not itself cause. Leaving `valid` (an
+    // invalid live edit) drops the stale/possibly-malformed rows; returning to `empty` (Reset) also
+    // closes the disclosure. A `valid` update is owned by the binding's renderResult (fills the rows),
+    // so the observer never touches it.
+    if (shell) {
+      const observer = new MutationObserver(() => {
+        const state = shell.dataset.resultState;
+        if (state === 'valid') return;
+        clearRows();
+        if (state === 'empty' && disclosure) disclosure.open = false;
       });
-      set('[data-loan-monthly]', formatCurrency(r.monthlyPayment));
-      set('[data-loan-interest]', formatCurrencyRounded(r.totalInterest));
-      set('[data-loan-total]', formatCurrencyRounded(r.totalPaid));
-      const body = root.querySelector<HTMLElement>('[data-loan-schedule]')!;
-      body.innerHTML = r.yearlySchedule
-        .map(
-          (row) =>
-            `<tr class="border-t" style="border-color: var(--line)"><td class="px-3 py-2">${row.period}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.principal)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.interest)}</td><td class="px-3 py-2 text-right">${formatCurrencyRounded(row.balance)}</td></tr>`,
-        )
-        .join('');
+      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-    form.addEventListener('input', recompute);
-    recompute();
   });
 </script>

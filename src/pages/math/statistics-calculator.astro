@@ -12,7 +12,7 @@ const faqs = [
   { question: 'Can a data set have more than one mode?', answer: 'Yes. If two or more values tie for the highest frequency, the set is multimodal and the calculator lists them all. If every value appears exactly once, there is no mode.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Calculate every descriptive statistic from a data set — mean, median, mode, range, variance, standard deviation and the full five-number summary — with population and sample results." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate every descriptive statistic from a data set — mean, median, mode, range, variance, standard deviation and the full five-number summary — with population and sample results." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <StatisticsCalculator primary="summary" />
   <Fragment slot="content">
     <h2>Everything the calculator gives you</h2>
@@ -22,6 +22,11 @@ const faqs = [
       <li><strong>Dispersion</strong> — range, variance, standard deviation and the interquartile range: how spread out it is.</li>
       <li><strong>Five-number summary</strong> — minimum, Q1, median, Q3 and maximum: the basis of a box plot.</li>
     </ul>
+
+    <h2>How to enter your data</h2>
+    <p>
+      Type or paste your values into the box, separated by <strong>commas, spaces or line breaks</strong> — you can mix them, and the calculator ignores blank entries. It sorts the numbers for you, so the order you enter them in does not matter. Both population and sample figures appear together, so you never have to pick before you see the numbers.
+    </p>
 
     <h2>Mean, median and mode — a worked example</h2>
     <p>Take the data set <strong>2, 3, 3, 5, 12</strong>:</p>
@@ -45,8 +50,15 @@ const faqs = [
       </tbody>
     </table>
 
-    <h2>Spread and the five-number summary</h2>
-    <p>The <strong>variance</strong> and <strong>standard deviation</strong> measure how far values sit from the mean on average; the <strong>five-number summary</strong> and the <strong>interquartile range</strong> (Q3 − Q1) describe spread using position rather than distance, which makes them resistant to outliers. For the full standard-deviation method, worked example and the population-vs-sample distinction, see the <a href="/math/standard-deviation-calculator">standard deviation calculator</a>.</p>
+    <h2>The five-number summary and quartiles</h2>
+    <p>
+      The five-number summary describes the data by position: minimum, first quartile (Q1), median, third quartile (Q3) and maximum. For the set <strong>2, 3, 3, 5, 12</strong> the median (3) splits it, and the quartiles are the medians of the halves on either side — Q1 is the median of the lower pair 2 and 3 = <strong>2.5</strong>, and Q3 is the median of the upper pair 5 and 12 = <strong>8.5</strong>. The <strong>interquartile range</strong>, Q3 − Q1 = 8.5 − 2.5 = <strong>6</strong>, captures the middle half of the data.
+    </p>
+
+    <h2>Variance and standard deviation</h2>
+    <p>
+      For the same five values, each deviation from the mean of 5 squared and summed gives 66. Divide by N = 5 for the <strong>population variance</strong> of 13.2 (σ ≈ 3.63), or by N − 1 = 4 for the <strong>sample variance</strong> of 16.5 (s ≈ 4.06). These measure spread as an average distance from the mean, complementing the position-based interquartile range above. For the full step-by-step method and the population-vs-sample distinction, see the <a href="/math/standard-deviation-calculator">standard deviation calculator</a>.
+    </p>
 
     <h2>A note on quartiles</h2>
     <p>Quartiles here use the median-of-halves method (Tukey's hinges), excluding the overall median from each half when the count is odd. This is the convention taught in most introductory courses; some spreadsheet functions interpolate and can give slightly different Q1/Q3 values on small data sets. For percentages of a whole, the <a href="/math/percent-calculator">percentage calculator</a> helps, and the <a href="/math/scientific-calculator">scientific calculator</a> handles individual formulas.</p>

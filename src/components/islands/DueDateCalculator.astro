@@ -1,56 +1,142 @@
 ---
-import { dueDateFromLMP } from '@lib/calculators/due-date';
-import { toISODateUTC } from '@lib/calculators/date-duration';
-import { parseISODateUTC } from '@lib/calculators/age';
-
-const defaultLmp = '2026-01-01';
-const due = dueDateFromLMP(parseISODateUTC(defaultLmp)!);
-const longDate = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+/**
+ * Due Date island (R14B1 — Gestational pilot, 1 of 2; task-first migration).
+ *
+ * The fleet's FIRST date-input migration. Task-first: the LMP starts EMPTY, the
+ * result is empty, and the visitor presses "Calculate Due Date" for the first
+ * result; live-after-first thereafter. Compute, validation, state, announcement
+ * and focus are owned by the shared runtime + the due-date binding
+ * (@lib/calculators/due-date-form), which wraps the UNCHANGED dueDateFromLMP /
+ * gestationalAge and the shared date primitives. The complete-result guard lives
+ * in the binding's resultValue (a NaN sentinel → the runtime's default finite
+ * gate on the due-date timestamp) — there is NO isUsableResult.
+ *
+ * The dominant result is the estimated due date (a clock-free function of the
+ * LMP). "How far along" + trimester are secondary and render only while the
+ * pregnancy is ongoing; a past-due date shows a neutral "has passed" note without
+ * unbounded progress. A future LMP is rejected (the picker max is capped at the
+ * visitor's local today client-side AND the binding validates independently).
+ *
+ * The medical disclaimer lives INSIDE this island (not only on the page), so the
+ * generated embed carries it too — exactly one instance, visible without
+ * interaction, outside the result live region.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-duedate>
-  <form class="card p-5 sm:p-6" data-dd-form novalidate>
-    <label class="field-label" for="dd-lmp">First day of your last period (LMP)</label>
-    <input class="field" id="dd-lmp" name="lmp" type="date" value={defaultLmp} max="9999-12-31" />
-    <p class="mt-3 text-xs" style="color: var(--muted)">Uses Naegele's rule: due date is 280 days (40 weeks) after the LMP.</p>
-  </form>
+<div class="duedate mx-auto w-full max-w-4xl" data-duedate>
+  <div class="grid gap-6 md:grid-cols-2 md:items-start">
+    <!-- Input -->
+    <form class="card p-5 sm:p-6" data-form novalidate aria-label="Due date calculator">
+      <label class="field-label" for="dd-lmp">First day of your last period (LMP)</label>
+      <input
+        class="field mt-1"
+        id="dd-lmp"
+        name="lmp"
+        type="date"
+        autocomplete="off"
+        aria-describedby="dd-help dd-lmp-error"
+      />
+      <p class="dd-field-error" id="dd-lmp-error" data-error-for="lmp" hidden></p>
+      <p class="dd-help" id="dd-help">Uses Naegele's rule: the due date is 280 days (40 weeks) after the LMP.</p>
 
-  <div class="card p-5 sm:p-6 text-center">
-    <p class="result-label">Estimated due date</p>
-    <p class="mt-1 text-2xl result-value" data-dd-due>{longDate(toISODateUTC(due))}</p>
-    <div class="mt-5 grid grid-cols-2 gap-4 border-t pt-4 text-center" style="border-color: var(--line)">
-      <div><p class="text-2xl font-bold" data-dd-along>—</p><p class="text-xs" style="color: var(--muted)">how far along</p></div>
-      <div><p class="text-2xl font-bold" data-dd-trimester>—</p><p class="text-xs" style="color: var(--muted)">trimester</p></div>
-    </div>
+      <div class="mt-5 flex items-center gap-3">
+        <button type="submit" class="btn btn-primary" data-dd-submit>Calculate Due Date</button>
+        <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+      </div>
+      <p class="dd-live-note" data-live-note hidden>Changes update automatically.</p>
+    </form>
+
+    <!-- Result -->
+    <ResultShell id="dd-result" state="empty" density="standard" label="Due date result" minHeight="14rem">
+      <EmptyResult message="Enter the first day of your last period and calculate your estimated due date." />
+
+      <div data-result-when="valid" class="text-center">
+        <p class="result-label">Estimated due date</p>
+        <p class="dd-due-value" data-dd-due data-result-value>—</p>
+        <div class="dd-secondary mt-5 grid grid-cols-2 gap-4 border-t pt-4" style="border-color: var(--line)">
+          <div><p class="dd-stat" data-dd-along>—</p><p class="dd-sub">how far along</p></div>
+          <div><p class="dd-stat" data-dd-trimester>—</p><p class="dd-sub">trimester</p></div>
+        </div>
+        <p class="dd-interpretation" data-dd-interpretation></p>
+      </div>
+
+      <InvalidResult title="Check the date" message="Enter the first day of your last menstrual period." />
+
+      <ResultAnnouncement id="dd-live" />
+    </ResultShell>
   </div>
+
+  <p class="dd-disclaimer" data-dd-disclaimer>
+    This is general information, not medical advice. Always follow guidance from your healthcare provider.
+  </p>
 </div>
 
+<style>
+  .dd-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .dd-field-error { color: #fca5a5; }
+  }
+  :root[data-theme='dark'] .dd-field-error { color: #fca5a5; }
+
+  .dd-help { margin-top: 0.75rem; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+  .dd-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  .dd-due-value { margin-top: 0.25rem; font-size: 1.5rem; line-height: 1.2; font-weight: 800; color: var(--heading); }
+  @media (min-width: 640px) { .dd-due-value { font-size: 1.875rem; } }
+  .dd-stat { font-size: 1.5rem; font-weight: 700; color: var(--heading); }
+  .dd-sub { font-size: 0.75rem; color: var(--muted); }
+  .dd-interpretation { margin: 0.9rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+
+  .dd-disclaimer {
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+
 <script>
-  import { dueDateFromLMP, gestationalAge } from '@lib/calculators/due-date';
-  import { toISODateUTC } from '@lib/calculators/date-duration';
-  import { parseISODateUTC } from '@lib/calculators/age';
-  const longDate = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-  const todayUTC = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); };
-  const ord = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : '3rd');
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { dueDateBinding, todayISO } from '@lib/calculators/due-date-form';
 
   document.querySelectorAll<HTMLElement>('[data-duedate]').forEach((root) => {
-    const input = root.querySelector<HTMLInputElement>('#dd-lmp')!;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const lmp = parseISODateUTC(input.value);
-      if (!lmp) {
-        // Cleared/invalid date — degrade to placeholders, don't leave a stale due date on screen.
-        set('[data-dd-due]', '—');
-        set('[data-dd-along]', '—');
-        set('[data-dd-trimester]', '—');
-        return;
-      }
-      set('[data-dd-due]', longDate(toISODateUTC(dueDateFromLMP(lmp))));
-      const g = gestationalAge(lmp, todayUTC());
-      set('[data-dd-along]', g.totalDays > 0 ? `${g.weeks}w ${g.days}d` : '—');
-      set('[data-dd-trimester]', g.totalDays > 0 ? ord(g.trimester) : '—');
+    // Cap the picker at the visitor's local today so a future LMP can't be
+    // selected; the binding rejects a future LMP independently (§3).
+    const input = root.querySelector<HTMLInputElement>('#dd-lmp');
+    if (input) input.max = todayISO();
+
+    mountFormCalculator(root, dueDateBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Due Date',
+    });
+
+    // Clear the stale result whenever the shell leaves the valid state (an invalid
+    // live edit, or Reset), so no stale due date lingers behind the hidden valid
+    // region. Presentation only — the runtime still owns state + announcement.
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    if (shell) {
+      const clear = () => {
+        ['[data-dd-due]', '[data-dd-along]', '[data-dd-trimester]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.textContent = '—';
+        });
+        const interp = root.querySelector<HTMLElement>('[data-dd-interpretation]');
+        if (interp) interp.textContent = '';
+      };
+      const observer = new MutationObserver(() => {
+        if (shell.dataset.resultState !== 'valid') clear();
+      });
+      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-    input.addEventListener('input', recompute);
-    recompute();
   });
 </script>

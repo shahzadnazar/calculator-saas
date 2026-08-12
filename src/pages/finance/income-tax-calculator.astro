@@ -12,11 +12,37 @@ const faqs = [
   { question: 'Does this include state tax, FICA and credits?', answer: 'No — this is a federal income tax estimate only. It excludes state and local income taxes, FICA payroll taxes, and credits such as the Earned Income Tax Credit or Child Tax Credit, which can substantially lower (or, for refundable credits, reverse) your actual bill.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate your U.S. federal income tax using the 2024 brackets and standard deduction, with your effective and marginal rates and after-tax income." faqs={faqs}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Estimate your U.S. federal income tax using the 2024 brackets and standard deduction, with your effective and marginal rates and after-tax income."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-08-09' }}
+>
   <IncomeTaxCalculator />
   <Fragment slot="content">
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter your <strong>gross annual income</strong> — total pay before any tax is taken out.</li>
+      <li>Choose your <strong>filing status</strong>: single or married filing jointly. Each uses its own bracket table and standard deduction.</li>
+      <li>Optionally add <strong>pre-tax deductions</strong> such as traditional 401(k) or HSA contributions, which come off your income on top of the standard deduction.</li>
+      <li>Press <strong>Calculate</strong> to see your estimated federal tax, taxable income, after-tax income, and both your marginal and effective rates.</li>
+    </ol>
+    <p>
+      The result is a federal-only estimate for the 2024 tax year. It applies the standard
+      deduction automatically, so you enter gross income and the tool handles the deduction
+      and the bracket-by-bracket arithmetic.
+    </p>
+
     <h2>How progressive tax brackets work</h2>
-    <p>A higher salary does not push your <em>whole</em> income into a higher rate — only the portion that falls inside each bracket is taxed at that bracket's rate. That is the single most misunderstood part of the tax system, and it is why your <strong>effective</strong> rate (total tax ÷ income) is always lower than your <strong>marginal</strong> rate (your top bracket). These are the 2024 federal rates for a single filer:</p>
+    <p>
+      A higher salary does not push your <em>whole</em> income into a higher rate — only the
+      portion that falls inside each bracket is taxed at that bracket's rate. That is the
+      single most misunderstood part of the tax system, and it is why your
+      <strong>effective</strong> rate (total tax ÷ income) is always lower than your
+      <strong>marginal</strong> rate (your top bracket). These are the 2024 federal rates for
+      a single filer, applied to income after the standard deduction:
+    </p>
     <table>
       <thead>
         <tr><th>Tax rate</th><th>Taxable income (single filer, 2024)</th></tr>
@@ -31,25 +57,90 @@ const faqs = [
         <tr><td>37%</td><td>Over $609,350</td></tr>
       </tbody>
     </table>
-    <p>Married-filing-jointly and head-of-household filers use the same rates over wider bands.</p>
+
+    <h2>Single vs. married filing jointly</h2>
+    <p>
+      Married-filing-jointly couples use the same seven rates but over roughly doubled bands,
+      and a larger standard deduction ($29,200 versus $14,600 for 2024). Because the lower
+      brackets stretch twice as far, a couple with one earner keeps more than a single filer
+      on the identical income:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Tax rate</th><th>Taxable income (married filing jointly, 2024)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>10%</td><td>$0 – $23,200</td></tr>
+        <tr><td>12%</td><td>$23,200 – $94,300</td></tr>
+        <tr><td>22%</td><td>$94,300 – $201,050</td></tr>
+        <tr><td>24%</td><td>$201,050 – $383,900</td></tr>
+        <tr><td>32%</td><td>$383,900 – $487,450</td></tr>
+        <tr><td>35%</td><td>$487,450 – $731,200</td></tr>
+        <tr><td>37%</td><td>Over $731,200</td></tr>
+      </tbody>
+    </table>
+    <p>
+      On a $120,000 income, a single filer owes about $18,339, while a married-jointly filer
+      with the same income owes roughly $10,432 — the wider bands and bigger deduction cut the
+      bill by nearly half. Switch the filing status above to see the difference on your own
+      numbers.
+    </p>
 
     <h2>A worked example</h2>
-    <p>Take a single filer earning <strong>$60,000</strong>. Subtract the 2024 standard deduction of $14,600 and taxable income is $45,400. The tax is built up bracket by bracket:</p>
+    <p>
+      Take a single filer earning <strong>$60,000</strong>. Subtract the 2024 standard
+      deduction of $14,600 and taxable income is <strong>$45,400</strong>. The tax is built up
+      one bracket at a time:
+    </p>
     <ul>
       <li>10% on the first $11,600 = <strong>$1,160</strong></li>
       <li>12% on the remaining $33,800 = <strong>$4,056</strong></li>
       <li>Total federal tax ≈ <strong>$5,216</strong></li>
     </ul>
-    <p>That is a 12% marginal rate but an effective rate of just 8.7% of the $60,000 salary. Contributing to a 401(k) or HSA lowers taxable income further, trimming the bill from the top bracket down.</p>
+    <p>
+      That $45,400 sits entirely inside the 12% bracket, so 12% is the marginal rate — but the
+      $5,216 bill is only <strong>8.7%</strong> of the $60,000 salary, because the first
+      $11,600 was taxed at just 10% and the deduction escaped tax entirely.
+    </p>
 
-    <h2>Deductions and credits</h2>
-    <p>Taxable income is your gross income minus deductions. Most people take the <strong>standard deduction</strong> ($14,600 single, $29,200 married filing jointly for 2024) rather than itemizing. <em>Credits</em> are even more powerful than deductions because they cut tax dollar-for-dollar — the Earned Income Tax Credit and Child Tax Credit are the most common, and refundable credits can produce a refund larger than the tax withheld.</p>
+    <h2>Marginal vs. effective rate</h2>
+    <p>
+      The gap between the two rates widens as income climbs. A single filer on $120,000 reaches
+      the <strong>24% marginal</strong> bracket, yet pays an <strong>effective rate of about
+      15.3%</strong> — because only the slice above $100,525 is taxed at 24%, while earlier
+      dollars were taxed at 10%, 12% and 22%. When people say they are "in the 24% bracket,"
+      they almost never pay 24% of their income; the effective rate is the number that reflects
+      what you actually owe.
+    </p>
 
-    <h2>States with no income tax</h2>
-    <p>Federal tax is only part of the picture. Nine states — <strong>Alaska, Florida, Nevada, South Dakota, Tennessee, Texas, Washington, Wyoming and New Hampshire</strong> — charge no tax on wages, so residents there keep more of each paycheck. Everywhere else, add your state's rate on top of the federal estimate.</p>
+    <h2>How deductions lower your bill</h2>
+    <p>
+      Taxable income is gross income minus deductions, and this tool always applies the
+      <strong>standard deduction</strong> for your filing status. Traditional 401(k) and HSA
+      contributions reduce taxable income further, and each dollar removed is saved at your
+      <em>marginal</em> rate. Add $5,000 of pre-tax 401(k) to the $60,000 example and taxable
+      income drops to $40,400, cutting the tax to about $4,616 — a $600 saving, exactly 12% of
+      the $5,000.
+    </p>
+    <p>
+      Deductions differ from <em>credits</em>, which the tool does not model. A deduction lowers
+      the income that gets taxed; a credit cuts the tax itself, dollar for dollar. The Earned
+      Income Tax Credit and Child Tax Credit are the most common, and refundable credits can
+      exceed the tax withheld and produce a net refund.
+    </p>
 
     <h2>What this estimate leaves out</h2>
-    <p>This is a simplified federal figure for the 2024 tax year. It ignores itemized deductions, tax credits, state and local taxes, and FICA payroll taxes, so treat it as a planning estimate rather than a filing figure. For an official calculation, consult a tax professional or the IRS. To see your pay in other terms, use the <a href="/finance/salary-calculator">salary calculator</a>; to plan pre-tax retirement contributions, try the <a href="/finance/retirement-calculator">retirement calculator</a>.</p>
-    <p>This is general educational information, not tax advice.</p>
+    <ul>
+      <li><strong>State and local income tax.</strong> Only federal tax is shown; most states add their own on top. Nine — Alaska, Florida, Nevada, South Dakota, Tennessee, Texas, Washington, Wyoming and New Hampshire — tax no wage income.</li>
+      <li><strong>FICA payroll tax.</strong> Social Security and Medicare (7.65% of wages) are separate from income tax and are not included here.</li>
+      <li><strong>Credits and itemized deductions.</strong> The tool uses the standard deduction and no credits, so an actual return with children, education costs or large itemized deductions can differ substantially.</li>
+    </ul>
+    <p>
+      Treat the figure as a planning estimate for the 2024 tax year, not a filing number; for an
+      official calculation, consult a tax professional or the IRS. To see your pay in other
+      terms, use the <a href="/finance/salary-calculator">salary calculator</a>; to plan pre-tax
+      retirement contributions, try the <a href="/finance/retirement-calculator">retirement
+      calculator</a>. This is general educational information, not tax advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

@@ -41,41 +41,63 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-18"
+  presentation="task-first"
+  reviewMetadata={{ reviewedDate: '2026-08-04' }}
   intro="Add, subtract, multiply and divide fractions and get the answer as a simplified fraction, a mixed number and a decimal."
   faqs={faqs}
 >
   <FractionCalculator />
 
   <Fragment slot="content">
-    <h2>How to use the fraction calculator</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>numerator</strong> (top) and <strong>denominator</strong> (bottom) of the first fraction.</li>
+      <li>Choose an operation — add, subtract, multiply or divide.</li>
+      <li>Enter the second fraction and calculate.</li>
+      <li>Read the answer three ways: a fraction in <strong>lowest terms</strong>, a <strong>mixed number</strong>, and a <strong>decimal</strong>. Negative numerators are supported.</li>
+    </ol>
+
+    <h2>What a fraction is</h2>
     <p>
-      Enter the numerator and denominator of each fraction, choose an operation, and read
-      the simplified result along with its mixed-number and decimal forms. Negative
-      numerators are supported.
+      A fraction writes one quantity as parts of a whole: the <strong>numerator</strong> counts the parts you have and the <strong>denominator</strong> says how many equal parts make one whole. So 3/4 means three of the four pieces a unit is cut into. When the numerator is larger than the denominator — like 9/8 — the fraction is <em>improper</em> and represents more than one whole.
     </p>
 
-    <h2>The rules, briefly</h2>
+    <h2>The four operations, rule by rule</h2>
     <ul>
-      <li><strong>Add / subtract:</strong> convert to a common denominator, then combine the numerators.</li>
-      <li><strong>Multiply:</strong> numerator × numerator over denominator × denominator.</li>
-      <li><strong>Divide:</strong> multiply by the reciprocal (flip the second fraction).</li>
-      <li><strong>Simplify:</strong> divide the numerator and denominator by their greatest common divisor.</li>
+      <li><strong>Add / subtract:</strong> give both fractions a common denominator, then combine only the numerators. The calculator does this by cross-multiplying — <em>a</em>/<em>b</em> ± <em>c</em>/<em>d</em> becomes (<em>ad</em> ± <em>cb</em>) / <em>bd</em>.</li>
+      <li><strong>Multiply:</strong> numerator × numerator over denominator × denominator — no common denominator needed.</li>
+      <li><strong>Divide:</strong> flip the second fraction and multiply by that reciprocal.</li>
     </ul>
+
+    <h2>How the calculator simplifies</h2>
+    <p>
+      Every result is reduced to lowest terms by dividing the top and bottom by their <strong>greatest common divisor</strong> (GCD). For 6/12 the GCD is 6, so it collapses to 1/2. The sign is always carried on the numerator, so a negative result reads as −3/4 rather than 3/−4, and any improper fraction is also shown as a mixed number.
+    </p>
 
     <h2>Worked examples</h2>
     <ul>
-      <li><strong>Add:</strong> 1/2 + 1/3 → 3/6 + 2/6 = <strong>5/6</strong></li>
+      <li><strong>Add:</strong> 1/2 + 1/3 → cross-multiply to 3/6 + 2/6 = <strong>5/6</strong></li>
+      <li><strong>Subtract:</strong> 3/4 − 1/6 → 18/24 − 4/24 = 14/24, which reduces (GCD 2) to <strong>7/12</strong></li>
       <li><strong>Multiply:</strong> 2/3 × 3/4 = 6/12 = <strong>1/2</strong></li>
       <li><strong>Divide:</strong> 3/4 ÷ 2/3 = 3/4 × 3/2 = 9/8 = <strong>1 1/8</strong></li>
     </ul>
 
-    <h2>Fractions, decimals and percentages</h2>
+    <h2>Fractions, decimals and mixed numbers</h2>
     <p>
-      Every fraction is also a decimal and a percentage: 3/4 = 0.75 = 75%. Divide the top
-      by the bottom to get the decimal, then multiply by 100 for the percentage. Working
-      the other way or with percentages? Try the
-      <a href="/math/percent-calculator">percentage calculator</a>.
+      Every fraction is also a decimal and a percentage: 3/4 = 0.75 = 75%. Divide the numerator by the denominator to get the decimal, then multiply by 100 for the percentage. A mixed number splits an improper fraction into a whole part and a remainder — 9/8 becomes 1 1/8, because 8 goes into 9 once with 1 left over.
+    </p>
+
+    <h2>Common mistakes to avoid</h2>
+    <ul>
+      <li><strong>Adding across the top and bottom.</strong> 1/2 + 1/3 is not 2/5 — you must find a common denominator first.</li>
+      <li><strong>Flipping the wrong fraction when dividing.</strong> Take the reciprocal of the <em>second</em> fraction, not the first.</li>
+      <li><strong>Stopping before lowest terms.</strong> 6/12 is correct but not simplified; the calculator always reduces it to 1/2.</li>
+    </ul>
+
+    <p>
+      Working the other way, or with percentages instead? Try the
+      <a href="/math/percent-calculator">percentage calculator</a>, and for individual sums
+      the <a href="/math/scientific-calculator">scientific calculator</a> evaluates full expressions.
     </p>
   </Fragment>
 </CalculatorLayout>
