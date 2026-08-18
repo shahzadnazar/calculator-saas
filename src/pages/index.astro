@@ -72,21 +72,10 @@ const valueProps = [
       aria-hidden="true"
     >
     </div>
-    <div class="wrap py-12 sm:py-16 lg:py-20">
+    <div class="wrap py-5">
       <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
         <!-- Left: headline + search + popular quick-links -->
         <div class="text-center lg:text-left">
-          <p class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium" style="border-color: var(--line); color: var(--muted); background: var(--card)">
-            <span class="h-2 w-2 rounded-full" style="background: var(--color-accent-500)"></span>
-            {STATS.live} tools, organised by what you want to do
-          </p>
-          <h1 class="mt-6 text-4xl font-extrabold tracking-tight sm:text-5xl">
-            What do you want to <span style="color: var(--color-brand-600)">work out?</span>
-          </h1>
-          <p class="mx-auto mt-4 max-w-xl text-lg lg:mx-0" style="color: var(--muted)">
-            {SITE.description}
-          </p>
-
           <form action="/calculators" method="get" class="mx-auto mt-7 flex max-w-xl gap-2 lg:mx-0">
             <label class="sr-only" for="hero-search">Search calculators</label>
             <input
@@ -100,7 +89,7 @@ const valueProps = [
             <button type="submit" class="btn btn-primary shrink-0">Search</button>
           </form>
 
-          <div class="mt-5 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+           <div class="mt-5 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
             <span class="text-sm font-semibold" style="color: var(--muted)">Popular:</span>
             {
               popular.map((c) => (
@@ -114,15 +103,35 @@ const valueProps = [
               ))
             }
           </div>
+         
+          <h1 class="mt-6 text-4xl font-extrabold tracking-tight sm:text-5xl">
+            What do you want to <span style="color: var(--color-brand-600)">work out?</span>
+          </h1>
+          <p class="mx-auto mt-4 max-w-xl text-lg lg:mx-0" style="color: var(--muted)">
+            {SITE.description}
+          </p>
+
+         <p class="inline-flex items-center gap-2 rounded-full border px-3 mt-4 py-1 text-sm font-medium" style="border-color: var(--line); color: var(--muted); background: var(--card)">
+            <span class="h-2 w-2 rounded-full" style="background: var(--color-accent-500)"></span>
+            {STATS.live} tools, organised by what you want to do
+          </p>
+
+         
         </div>
 
         <!-- Right: the live calculator — Basic by default, one-tap switch to Scientific -->
-        <div class="mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto lg:max-w-md">
-          <PhysicalCalculator id="home-calculator" defaultMode="basic" showModeSwitch={true} size="compact" />
-          <p class="mt-3 text-center text-xs lg:text-left" style="color: var(--muted)">
-            A real calculator, right here — switch to <strong>Scientific</strong> for functions, powers and trig.
-          </p>
-        </div>
+       <div class="home-calculator-wrap mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto lg:max-w-md">
+  <PhysicalCalculator
+    id="home-calculator"
+    defaultMode="basic"
+    showModeSwitch={true}
+    size="compact"
+  />
+
+  <p class="mt-3 text-center text-xs lg:text-left" style="color: var(--muted)">
+    A real calculator, right here — switch to <strong>Scientific</strong> for functions, powers and trig.
+  </p>
+</div>
       </div>
     </div>
   </section>
@@ -134,10 +143,10 @@ const valueProps = [
       {
         TASK_GROUPS_ORDERED.map((group) => (
           <li>
-            <a href={taskPath(group)} class="card flex h-full flex-col p-6 transition-shadow hover:shadow-lg">
+            <a href={taskPath(group)} class="card flex h-full flex-col p-4 transition-shadow hover:shadow-lg">
               <div class="flex items-center gap-3">
-                <span class="icon-chip h-11 w-11 shrink-0"><Icon name={group.icon} size={22} /></span>
-                <span class="text-lg font-bold" style="color: var(--heading)">{group.title}</span>
+                <span class="icon-chip h-10 w-10 shrink-0"><Icon name={group.icon} size={22} /></span>
+                <span class="text-md font-bold" style="color: var(--heading)">{group.title}</span>
               </div>
               <span class="mt-3 font-semibold" style="color: var(--color-brand-600)">{group.question}</span>
               <span class="mt-1 text-sm" style="color: var(--muted)">{group.description}</span>
@@ -157,16 +166,16 @@ const valueProps = [
   </section>
 
   <!-- Featured -->
-  <section class="wrap py-14">
+  <section class="wrap py-2">
     <div class="flex items-end justify-between">
-      <h2 class="text-2xl font-bold">Popular calculators</h2>
+      <h2 class="text-2xl font-bold pl-2">Popular calculators </h2>
       <a href="/calculators" class="text-sm font-semibold hover:underline" style="color: var(--color-brand-600)">View all →</a>
     </div>
     <ul class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {
         featured.map((c) => (
           <li>
-            <a href={calculatorPath(c)} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
+            <a href={calculatorPath(c)} class="card flex h-full flex-col gap-2 p-4 transition-shadow hover:shadow-lg">
               <span class="text-lg font-bold" style="color: var(--heading)">{c.title}</span>
               <span class="text-sm" style="color: var(--muted)">{c.description}</span>
               <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Open →</span>
@@ -190,7 +199,7 @@ const valueProps = [
             const cat = getCategory(g.data.category);
             return (
               <li>
-                <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-6 transition-shadow hover:shadow-lg">
+                <a href={`/guides/${g.id}`} class="card flex h-full flex-col gap-2 p-4 transition-shadow hover:shadow-lg">
                   <span class="inline-flex items-center gap-1.5 text-sm font-semibold" style="color: var(--color-brand-600)">
                     {cat && <Icon name={cat.icon} size={16} />}
                     {cat?.shortName}
@@ -226,7 +235,7 @@ const valueProps = [
   </section>
 
   <!-- Trust -->
-  <section class="wrap py-16">
+  <section class="wrap py-7">
     <div class="mx-auto max-w-3xl text-center">
       <h2 class="text-2xl font-bold">Tools you can trust</h2>
       <p class="mt-4" style="color: var(--muted)">
@@ -240,3 +249,23 @@ const valueProps = [
     </div>
   </section>
 </BaseLayout>
+
+
+<style>
+  /* Homepage calculator: give Scientific mode more room on desktop */
+  @media (min-width: 1024px) {
+    :global(.home-calculator-wrap:has(.sci-panel:not([hidden]))) {
+      max-width: 36rem;
+    }
+  }
+
+  /* Homepage calculator: use the available mobile width */
+  @media (max-width: 1023px) {
+    :global(.home-calculator-wrap) {
+      width: calc(100% + 2rem);
+      max-width: none;
+      margin-left: -1rem;
+      margin-right: -1rem;
+    }
+  }
+</style>

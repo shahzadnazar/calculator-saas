@@ -27,8 +27,8 @@ import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="rng mx-auto w-full max-w-2xl" data-rng>
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Random number generator settings">
+<div class="rng mx-auto grid w-full max-w-5xl grid-cols-1 items-stretch gap-4 md:grid-cols-2" data-rng>
+  <form class="card p-4 h-full" data-form novalidate aria-label="Random number generator settings">
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <div data-field="min">
         <label class="field-label" for="rng-min">Minimum</label>
@@ -90,7 +90,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <ResultShell
     id="rng-result"
-    class="mt-6"
+    class="h-full"
     density="standard"
     minHeight="10rem"
     placeholderAlignment="center"

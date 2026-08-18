@@ -29,10 +29,10 @@ import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mortgage mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-2 lg:items-start" data-mortgage>
+<div class="mortgage mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2 lg:items-start" data-mortgage>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Mortgage calculator">
-    <div class="space-y-4">
+  <form class="card p-4" data-form novalidate aria-label="Mortgage calculator">
+    <div class="space-y-3">
       <div data-field="homePrice">
         <label class="field-label" for="mc-home-price">Home price</label>
         <div class="flex">
@@ -77,7 +77,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           <span>Taxes, insurance &amp; fees</span>
           <span class="mc-costs__hint">optional</span>
         </summary>
-        <div class="mt-4 grid grid-cols-2 gap-4">
+        <div class="mt-2 grid grid-cols-2 gap-4">
           <div data-field="propertyTaxAnnual">
             <label class="field-label" for="mc-tax-in">Property tax /yr</label>
             <div class="flex">
@@ -127,7 +127,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     <div data-result-when="valid">
       <ResultSummary label="Estimated monthly payment">
-        <ResultValue value="—" size="text-4xl" />
+        <ResultValue value="—" size="text-3xl" />
       </ResultSummary>
 
       <p class="mc-interpretation" data-mc-interpretation></p>

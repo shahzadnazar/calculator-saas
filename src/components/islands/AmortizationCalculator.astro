@@ -27,9 +27,9 @@ import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="amort mx-auto w-full max-w-4xl space-y-6" data-amort>
+<div class="amort mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2" data-amort>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Amortization calculator">
+  <form class="card p-4" data-form novalidate aria-label="Amortization calculator">
     <div class="grid gap-4 sm:grid-cols-3">
       <div data-field="amount">
         <label class="field-label" for="am-amount">Loan amount</label>
@@ -64,13 +64,13 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   </form>
 
   <!-- Result -->
-  <ResultShell id="am-result" state="empty" density="complex" label="Amortization result" minHeight="18rem">
+  <ResultShell id="am-result" state="empty" density="complex" label="Amortization result" minHeight="12rem">
     <EmptyResult message="Enter your loan amount, interest rate, and term, then calculate to see your monthly payment and full amortization schedule." />
 
     <div data-result-when="valid">
       <div class="am-summary">
         <ResultSummary label="Estimated monthly payment">
-          <ResultValue value="—" size="text-4xl" />
+          <ResultValue value="—" size="text-3xl" />
         </ResultSummary>
         <dl class="am-metrics">
           <div><dt>Total interest</dt><dd data-am-interest>—</dd></div>

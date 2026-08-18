@@ -26,8 +26,8 @@ import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="grade mx-auto w-full max-w-3xl space-y-6" data-grade>
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Grade calculator">
+<div class="grade  mx-auto w-full max-w-3xl grid grid-cols-2 gap-4" data-grade>
+  <form class="card p-4" data-form novalidate aria-label="Grade calculator">
     <fieldset class="grade-modes">
       <legend class="field-label">What do you want to work out?</legend>
       <div class="seg-group">
@@ -37,7 +37,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     </fieldset>
 
     <!-- Weighted average -->
-    <div class="grade-panel mt-5" data-grade-average>
+    <div class="grade-panel mt-4" data-grade-average>
       <div class="grade-head" aria-hidden="true">
         <span>Score (%)</span>
         <span>Weight</span>
@@ -90,7 +90,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     <div data-result-when="valid">
       <div class="grade-summary">
         <ResultSummary label="Weighted grade">
-          <ResultValue value="—" size="text-4xl" />
+          <ResultValue value="—" size="text-3xl" />
         </ResultSummary>
         <dl class="grade-metrics">
           <div><dt data-grade-secondary-label>Total weight</dt><dd data-grade-secondary-value>—</dd></div>

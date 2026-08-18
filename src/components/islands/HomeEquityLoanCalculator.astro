@@ -29,9 +29,9 @@ import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="he mx-auto w-full max-w-4xl space-y-6" data-he>
+<div class="he mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-he>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Home equity loan calculator">
+  <form class="card p-4" data-form novalidate aria-label="Home equity loan calculator">
     <div class="grid gap-4 sm:grid-cols-2">
       <div data-field="homeValue">
         <label class="field-label" for="he-value">Home value</label>
@@ -85,7 +85,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
+    <div class="mt-3 flex items-center gap-3">
       <button type="submit" class="btn btn-primary" data-he-submit>Calculate Home Equity Loan</button>
       <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>

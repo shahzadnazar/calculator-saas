@@ -28,9 +28,9 @@ import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="ir mx-auto w-full max-w-4xl space-y-6" data-ir>
+<div class="ir mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-ir>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Interest rate calculator">
+  <form class="card p-4" data-form novalidate aria-label="Interest rate calculator">
     <div class="grid gap-4 sm:grid-cols-3">
       <div data-field="amount">
         <label class="field-label" for="ir-amount">Loan amount</label>
@@ -65,7 +65,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   </form>
 
   <!-- Result -->
-  <ResultShell id="ir-result" state="empty" density="standard" label="Interest rate result" minHeight="15rem">
+  <ResultShell id="ir-result" state="empty" density="standard" label="Interest rate result" minHeight="11rem">
     <EmptyResult message="Enter the loan amount, the monthly payment and the term in months, then calculate to see the annual interest rate those payments imply." />
 
     <div data-result-when="valid">

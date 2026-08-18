@@ -1,11 +1,9 @@
 @import "tailwindcss";
 
 /* --------------------------------------------------------------------------
-   Inter (self-hosted variable, latin subset). Preloaded in BaseHead and paired
-   with a metric-matched fallback (size-adjust) so the swap causes no layout
-   shift — premium typography that keeps the site's fast, low-CLS edge.
-   Source: @fontsource-variable/inter (inter-latin-wght-normal.woff2).
+   Inter (self-hosted variable, latin subset)
    -------------------------------------------------------------------------- */
+
 @font-face {
   font-family: "Inter Variable";
   font-style: normal;
@@ -13,6 +11,7 @@
   font-display: swap;
   src: url("/fonts/inter-var.woff2") format("woff2");
 }
+
 @font-face {
   font-family: "Inter Fallback";
   src: local("Arial");
@@ -24,46 +23,74 @@
 
 /* ==========================================================================
    AllCalculators — Design System
-   --------------------------------------------------------------------------
-   Tokens first (@theme), then runtime theming (light/dark via CSS variables),
-   then base element styles, then a small set of reusable component classes.
-   The goal: one consistent visual language every calculator inherits for free.
+
+   Visual direction:
+   Plum + Rose + Apricot
+
+   Plum   = primary brand / actions / links
+   Rose   = secondary accent
+   Apricot = subtle warmth / highlights
+   Neutral = clean calculator-focused surfaces
    ========================================================================== */
 
 @theme {
-  /* Typography — self-hosted Inter (preloaded + metric-matched fallback), then a
-     system stack. Per-glyph fallback covers math symbols Inter's subset lacks. */
+  /* ------------------------------------------------------------------------
+     Typography
+     ------------------------------------------------------------------------ */
+
   --font-sans: "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui,
-    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  --font-mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", "Roboto Mono",
-    Menlo, Consolas, monospace;
+    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    sans-serif;
 
-  /* Brand scale (blue — trust, precision) */
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-800: #1e40af;
-  --color-brand-900: #1e3a8a;
-  --color-brand-950: #172554;
+  --font-mono: "SFMono-Regular", ui-monospace, "JetBrains Mono",
+    "Roboto Mono", Menlo, Consolas, monospace;
 
-  /* Accent (emerald — "free", positive, growth) */
-  --color-accent-400: #34d399;
-  --color-accent-500: #10b981;
-  --color-accent-600: #059669;
-  --color-accent-700: #047857;
+  /* ------------------------------------------------------------------------
+     Brand — Plum
+     ------------------------------------------------------------------------ */
 
-  /* Semantic */
+  --color-brand-50: #FAF5FF;
+  --color-brand-100: #F3E8FF;
+  --color-brand-200: #E9D5FF;
+  --color-brand-300: #D8B4FE;
+  --color-brand-400: #C084FC;
+  --color-brand-500: #A855F7;
+  --color-brand-600: #7C3AED;
+  --color-brand-700: #6D28D9;
+  --color-brand-800: #5B21B6;
+  --color-brand-900: #4C1D95;
+  --color-brand-950: #2E1065;
+
+  /* ------------------------------------------------------------------------
+     Accent — Rose
+     ------------------------------------------------------------------------ */
+
+  --color-accent-400: #FB7185;
+  --color-accent-500: #F43F5E;
+  --color-accent-600: #E11D48;
+  --color-accent-700: #BE123C;
+
+  /* ------------------------------------------------------------------------
+     Warm highlight — Apricot
+     ------------------------------------------------------------------------ */
+
+  --color-warm-400: #FDBA74;
+  --color-warm-500: #F97316;
+  --color-warm-600: #EA580C;
+  --color-warm-700: #C2410C;
+
+  /* ------------------------------------------------------------------------
+     Semantic
+     ------------------------------------------------------------------------ */
+
   --color-success: #059669;
-  --color-warning: #d97706;
-  --color-danger: #e11d48;
+  --color-warning: #D97706;
+  --color-danger: #DC2626;
 
-  /* Semantic surfaces — mapped to runtime CSS vars so utilities like
-     `bg-card`, `text-fg`, `border-line` follow the active theme. */
+  /* ------------------------------------------------------------------------
+     Semantic surfaces
+     ------------------------------------------------------------------------ */
+
   --color-page: var(--page);
   --color-card: var(--card);
   --color-subtle: var(--subtle);
@@ -72,47 +99,76 @@
   --color-muted: var(--muted);
   --color-heading: var(--heading);
 
-  /* Container width for reading comfort */
-  --spacing-wrap: 80rem; /* 1280px */
+  /* Container width */
+  --spacing-wrap: 80rem;
 }
 
-/* -------- Runtime theme variables ---------------------------------------- */
+/* ==========================================================================
+   Runtime theme variables — Light
+   ========================================================================== */
+
 :root {
-  --page: #f6f8fb;
-  --card: #ffffff;
-  --subtle: #f1f5f9;
-  --line: #e2e8f0;
-  --fg: #334155;
-  --muted: #64748b;
-  --heading: #0f172a;
+  /* Very light warm-neutral background.
+     Keeps the purple from becoming visually overwhelming. */
+  --page: #FCFAFD;
+
+  /* Clean white cards */
+  --card: #FFFFFF;
+
+  /* Slightly tinted surface */
+  --subtle: #F7F3FA;
+
+  /* Soft neutral-purple border */
+  --line: #E9E1EF;
+
+  /* Body text */
+  --fg: #51465A;
+
+  /* Secondary text */
+  --muted: #766B80;
+
+  /* Deep plum heading */
+  --heading: #2B193D;
+
   color-scheme: light;
 }
 
+/* ==========================================================================
+   Runtime theme variables — Dark
+   ========================================================================== */
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --page: #0b1120;
-    --card: #111a2e;
-    --subtle: #172136;
-    --line: #24314d;
-    --fg: #cbd5e1;
-    --muted: #94a3b8;
-    --heading: #f1f5f9;
+    --page: #110B17;
+    --card: #1B1223;
+    --subtle: #26192F;
+    --line: #3A2944;
+
+    --fg: #D8CFDE;
+    --muted: #A99BAF;
+    --heading: #FAF7FC;
+
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --page: #0b1120;
-  --card: #111a2e;
-  --subtle: #172136;
-  --line: #24314d;
-  --fg: #cbd5e1;
-  --muted: #94a3b8;
-  --heading: #f1f5f9;
+  --page: #110B17;
+  --card: #1B1223;
+  --subtle: #26192F;
+  --line: #3A2944;
+
+  --fg: #D8CFDE;
+  --muted: #A99BAF;
+  --heading: #FAF7FC;
+
   color-scheme: dark;
 }
 
-/* -------- Base --------------------------------------------------------- */
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -128,6 +184,7 @@
     html {
       scroll-behavior: auto;
     }
+
     *,
     *::before,
     *::after {
@@ -143,8 +200,8 @@
     color: var(--fg);
     font-family: var(--font-sans);
     line-height: 1.6;
-    letter-spacing: -0.011em; /* Inter reads slightly wide at body sizes */
-    font-feature-settings: "cv11"; /* single-story a — the refined Inter look */
+    letter-spacing: -0.011em;
+    font-feature-settings: "cv11";
     font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -159,16 +216,14 @@
   h6 {
     color: var(--heading);
     line-height: 1.15;
-    letter-spacing: -0.021em; /* tighter tracking on headings — modern, premium */
+    letter-spacing: -0.021em;
     text-wrap: balance;
   }
-  /* Larger headings want proportionally tighter tracking (optical). */
+
   h1 {
     letter-spacing: -0.032em;
   }
 
-  /* Tabular figures for anything numeric-heavy the user compares column to
-     column — results and reference tables read as aligned, precise, premium. */
   table,
   output,
   [data-stat],
@@ -180,70 +235,98 @@
     color: var(--color-brand-600);
   }
 
-  /* Visible, consistent keyboard focus everywhere. */
+  /* Accessible keyboard focus */
   :focus-visible {
     outline: 2px solid var(--color-brand-500);
     outline-offset: 2px;
     border-radius: 4px;
   }
 
+  /* Text selection */
   ::selection {
     background: var(--color-brand-200);
     color: var(--color-brand-950);
   }
 }
 
-/* -------- Reusable components ------------------------------------------ */
+/* ==========================================================================
+   Reusable components
+   ========================================================================== */
+
 @layer components {
+  /* ------------------------------------------------------------------------
+     Container
+     ------------------------------------------------------------------------ */
+
   .wrap {
     width: 100%;
     max-width: var(--spacing-wrap);
     margin-inline: auto;
     padding-inline: 1rem;
   }
+
   @media (min-width: 640px) {
     .wrap {
       padding-inline: 1.5rem;
     }
   }
 
+  /* ------------------------------------------------------------------------
+     Cards
+     ------------------------------------------------------------------------ */
+
   .card {
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 1rem;
-    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-  }
-  /* Interactive cards (links) get a subtle premium lift on hover. */
-  a.card:hover {
-    border-color: color-mix(in srgb, var(--color-brand-500) 45%, var(--line));
+
+    box-shadow:
+      0 1px 2px rgb(43 25 61 / 0.04),
+      0 8px 24px -12px rgb(43 25 61 / 0.14);
+
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      transform 0.15s ease;
   }
 
-  /* Icon in a soft brand chip — the premium "product icon" treatment. Uses a
-     translucent brand tint so it sits well on both light and dark surfaces. */
+  a.card:hover {
+    border-color: color-mix(
+      in srgb,
+      var(--color-brand-500) 45%,
+      var(--line)
+    );
+  }
+
+  /* ------------------------------------------------------------------------
+     Icon chips
+     ------------------------------------------------------------------------ */
+
   .icon-chip {
     display: grid;
     place-items: center;
     border-radius: 0.75rem;
-    background: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
+
+    background: color-mix(
+      in srgb,
+      var(--color-brand-500) 11%,
+      transparent
+    );
+
     color: var(--color-brand-600);
   }
 
-  /* ---- Result readout -----------------------------------------------------
-     The shared "answer" pattern every calculator card shows: a small muted
-     label above a large emphasized figure. Codifying it as tokens (instead of
-     repeating utilities in 48 islands) guarantees one visual language for the
-     result across the whole site, and lets us add tabular figures in ONE place
-     so live-updating numbers never jitter in width. The size utility on the
-     value element (text-4xl, text-5xl…) still sets the emphasis tier, so a
-     hero single-number and a longer composite result can differ intentionally
-     while sharing weight, tracking, color and figure alignment. */
+  /* ------------------------------------------------------------------------
+     Result readout
+     ------------------------------------------------------------------------ */
+
   .result-label {
     font-size: 0.875rem;
     line-height: 1.25rem;
     font-weight: 600;
     color: var(--muted);
   }
+
   .result-value {
     color: var(--heading);
     font-weight: 800;
@@ -251,45 +334,69 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Buttons */
+  /* ------------------------------------------------------------------------
+     Buttons
+     ------------------------------------------------------------------------ */
+
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+
     font-weight: 600;
     border-radius: 0.625rem;
     padding: 0.625rem 1.1rem;
+
     cursor: pointer;
-    transition: background-color 0.15s ease, transform 0.15s ease,
-      box-shadow 0.15s ease, border-color 0.15s ease;
+
+    transition:
+      background-color 0.15s ease,
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease;
+
     text-decoration: none;
     border: 1px solid transparent;
     line-height: 1.2;
   }
+
   .btn:active {
     transform: translateY(1px);
   }
+
+  /* Primary button — Plum */
+
   .btn-primary {
     background: var(--color-brand-600);
-    color: #fff;
-    /* Subtle inset top-highlight + soft shadow = premium "raised" key, not a glow. */
-    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(15 23 42 / 0.14);
+    color: #FFFFFF;
+
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      0 1px 2px rgb(43 25 61 / 0.16);
   }
+
   .btn-primary:hover {
     background: var(--color-brand-700);
   }
+
+  /* Secondary button */
+
   .btn-secondary {
     background: var(--card);
     color: var(--heading);
     border-color: var(--line);
   }
+
   .btn-secondary:hover {
     border-color: var(--color-brand-400);
     color: var(--color-brand-700);
   }
 
-  /* Form fields */
+  /* ------------------------------------------------------------------------
+     Form fields
+     ------------------------------------------------------------------------ */
+
   .field-label {
     display: block;
     font-size: 0.875rem;
@@ -297,86 +404,116 @@
     color: var(--heading);
     margin-bottom: 0.35rem;
   }
+
   .field {
     width: 100%;
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 0.625rem;
+
     padding: 0.6rem 0.75rem;
+
     color: var(--fg);
     font-size: 1rem;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
   }
+
   .field:focus {
     outline: none;
     border-color: var(--color-brand-500);
-    box-shadow: 0 0 0 3px var(--color-brand-100);
+
+    box-shadow:
+      0 0 0 3px var(--color-brand-100);
   }
+
   .field-affix {
     display: inline-flex;
     align-items: center;
+
     color: var(--muted);
     background: var(--subtle);
     border: 1px solid var(--line);
+
     padding-inline: 0.65rem;
     font-size: 0.9rem;
   }
 
-  /* Long-form article typography for calculator explainer content. */
+  /* ------------------------------------------------------------------------
+     Long-form article typography
+     ------------------------------------------------------------------------ */
+
   .prose {
     color: var(--fg);
     max-width: 68ch;
   }
+
   .prose > * + * {
     margin-top: 1rem;
   }
+
   .prose h2 {
     font-size: 1.5rem;
     font-weight: 700;
     margin-top: 2.25rem;
     margin-bottom: 0.75rem;
   }
+
   .prose h3 {
     font-size: 1.2rem;
     font-weight: 700;
     margin-top: 1.75rem;
     margin-bottom: 0.5rem;
   }
+
   .prose p,
   .prose li {
     line-height: 1.7;
   }
+
   .prose ul,
   .prose ol {
     padding-left: 1.25rem;
   }
+
   .prose ul {
     list-style: disc;
   }
+
   .prose ol {
     list-style: decimal;
   }
+
   .prose li + li {
     margin-top: 0.35rem;
   }
+
   .prose a {
     color: var(--color-brand-600);
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+
   .prose strong {
     color: var(--heading);
   }
-  /* Tables inside long-form content (tax brackets, grade scales, comparisons).
-     display:block + overflow-x keeps wide tables from breaking mobile layout. */
+
+  /* ------------------------------------------------------------------------
+     Tables
+     ------------------------------------------------------------------------ */
+
   .prose table {
     width: 100%;
     margin-top: 1.25rem;
     border-collapse: collapse;
     font-size: 0.9375rem;
+
     display: block;
     overflow-x: auto;
   }
+
   .prose thead th {
     background: var(--subtle);
     color: var(--heading);
@@ -384,6 +521,7 @@
     text-align: left;
     white-space: nowrap;
   }
+
   .prose th,
   .prose td {
     border: 1px solid var(--line);
@@ -391,36 +529,48 @@
     vertical-align: top;
   }
 
-  /* Theme-toggle icon visibility — mirrors the theme-variable logic exactly so
-     the correct icon shows whether the theme is system-driven or overridden. */
+  /* ------------------------------------------------------------------------
+     Theme-toggle icon visibility
+     ------------------------------------------------------------------------ */
+
   [data-theme-icon="dark"] {
     display: none;
   }
+
   [data-theme-icon="light"] {
     display: block;
   }
+
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) [data-theme-icon="light"] {
       display: none;
     }
+
     :root:not([data-theme="light"]) [data-theme-icon="dark"] {
       display: block;
     }
   }
+
   :root[data-theme="dark"] [data-theme-icon="light"] {
     display: none;
   }
+
   :root[data-theme="dark"] [data-theme-icon="dark"] {
     display: block;
   }
+
   :root[data-theme="light"] [data-theme-icon="light"] {
     display: block;
   }
+
   :root[data-theme="light"] [data-theme-icon="dark"] {
     display: none;
   }
 
-  /* Accessible visually-hidden helper */
+  /* ------------------------------------------------------------------------
+     Accessible visually-hidden helper
+     ------------------------------------------------------------------------ */
+
   .sr-only {
     position: absolute;
     width: 1px;

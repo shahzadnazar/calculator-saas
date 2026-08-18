@@ -27,8 +27,8 @@ import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="gpa mx-auto w-full max-w-3xl space-y-6" data-gpa>
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="GPA calculator">
+<div class="gpa grid grid-cols-2 gap-4 mx-auto w-full" data-gpa>
+  <form class="card p-4" data-form novalidate aria-label="GPA calculator">
     <div class="gpa-head" aria-hidden="true">
       <span>Grade</span>
       <span>Credit hours</span>
@@ -46,13 +46,13 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     <p class="gpa-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <ResultShell id="gpa-result" state="empty" density="standard" label="GPA result" minHeight="14rem">
+  <ResultShell id="gpa-result" state="empty" density="standard" label="GPA result" minHeight="4rem">
     <EmptyResult message="Add each course's grade and credit hours, then calculate to see your credit-weighted GPA." />
 
     <div data-result-when="valid">
       <div class="gpa-summary">
         <ResultSummary label="GPA">
-          <ResultValue value="—" size="text-5xl" />
+          <ResultValue value="—" size="text-3xl" />
         </ResultSummary>
         <dl class="gpa-metrics">
           <div><dt>Total credit hours</dt><dd data-gpa-credits-total>—</dd></div>
