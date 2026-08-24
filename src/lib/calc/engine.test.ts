@@ -492,3 +492,73 @@ describe('function-entry parentheses are completed at equals', () => {
     expect(e.view().ans).toBeCloseTo(2, 12);
   });
 });
+
+describe('equals-line expression echoes the completed parentheses', () => {
+  const sci = () => createEngine({ feature: 'scientific' });
+  const digits = (e: ReturnType<typeof sci>, str: string) => {
+    for (const ch of str) (ch === '.' ? e.inputDot() : e.inputDigit(ch));
+  };
+
+  it('shows "sin(2) =" for "sin(2" — the expression actually evaluated', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); digits(e, '2');
+    e.equals();
+    const v = e.view();
+    expect(v.sub).toBe('sin(2) =');
+    expect(v.main).toBe('0.0348994967025'); // result unchanged
+  });
+
+  it('echoes BOTH closers for a nested call — "sin(cos(0.5) )"', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); e.inputToken('cos(', 'cos('); digits(e, '0.5');
+    e.equals();
+    expect(e.view().sub).toBe('sin(cos(0.5)) =');
+  });
+
+  it('echoes the closer inside a wider expression — "2 + sin(30) ="', () => {
+    const e = sci();
+    digits(e, '2'); e.inputOp('+'); e.inputToken('sin(', 'sin('); digits(e, '30');
+    e.equals();
+    expect(e.view().sub).toBe('2 + sin(30) =');
+    expect(e.view().main).toBe('2.5');
+  });
+
+  it('does not double up when the visitor typed ")" themselves', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); digits(e, '30'); e.inputToken(')', ')');
+    e.equals();
+    expect(e.view().sub).toBe('sin(30) =');
+  });
+
+  it('leaves a manually opened "(" out of the echo (it is never completed)', () => {
+    const e = sci();
+    e.inputToken('sqrt(', 'sqrt('); e.inputToken('(', '('); digits(e, '9');
+    e.inputToken(')', ')');
+    e.equals();
+    // Only the sqrt( closer is added; the visitor's "(" was already closed.
+    expect(e.view().sub).toBe('sqrt((9)) =');
+  });
+
+  it('leaves plain arithmetic echoes untouched — "5 + 6 ="', () => {
+    const e = sci();
+    digits(e, '5'); e.inputOp('+'); digits(e, '6');
+    e.equals();
+    expect(e.view().sub).toBe('5 + 6 =');
+  });
+
+  it('does not complete the echo while the visitor is still typing', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); digits(e, '2');
+    // Before '=' the open paren is accurate feedback that input continues.
+    expect(e.view().sub).toBe('sin(');
+    expect(e.view().main).toBe('2');
+  });
+
+  it('shows no completed echo when the expression errors', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin(');
+    e.equals();
+    expect(e.view().error).toBe('Check the parentheses');
+    expect(e.view().sub).toBe('');
+  });
+});

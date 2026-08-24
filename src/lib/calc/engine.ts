@@ -223,6 +223,18 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
       })
       .join('') + ')'.repeat(pendingFunctionClosers(tokens));
 
+  /**
+   * The expression echoed on the "… =" line after a calculation. It carries the
+   * SAME completed function parentheses `evalString` used, so the line the
+   * visitor reads always matches what was actually evaluated ("sin(2 =" would
+   * otherwise echo an expression the calculator did not compute). Both come from
+   * `pendingFunctionClosers`, so the two can never disagree. The live entry
+   * display is deliberately NOT completed — while typing, an open "sin(" is
+   * accurate feedback that the argument is still being entered.
+   */
+  const exprString = (): string =>
+    tokens.map(renderTok).join('').trim() + ')'.repeat(pendingFunctionClosers(tokens));
+
   /** Evaluate the whole buffer → number (throws CalculatorError on failure). */
   const evalTokens = (): number => {
     if (tokens.length === 0) throw new CalculatorError('Empty expression');
@@ -427,7 +439,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
       let exprDisplay: string | null = null;
       const hasOp = tokens.some((t) => t.t === 'op') && last()?.t === 'num';
       if (hasOp) {
-        exprDisplay = tokens.map(renderTok).join('').trim();
+        exprDisplay = exprString();
         result = evalTokens();
         // Remember the last binary op + operand for repeated '='.
         let opIdx = -1;
@@ -446,7 +458,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
       } else if (tokens.length === 1 && tokens[0].t === 'num') {
         result = numValue(tokens[0] as NumTok); // just "n =" — no expression to show
       } else {
-        exprDisplay = tokens.map(renderTok).join('').trim();
+        exprDisplay = exprString();
         result = evalTokens();
       }
       // The safe parser returns Infinity for x/0 (it only throws on NaN); in a
