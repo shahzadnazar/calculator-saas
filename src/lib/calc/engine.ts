@@ -86,6 +86,55 @@ function friendlyError(err: unknown): string {
   return 'Not a valid calculation';
 }
 
+/**
+ * Scientific tokens that END a value — the only ones a ')' may legally follow.
+ * Mirrors the parser's own `isValueEnd` notion (const / rparen / bang), plus the
+ * x²/x³ power suffixes, which finish on their exponent. Anything absent (a
+ * function or plain "(", "10^", EXP, mod) leaves the buffer mid-expression;
+ * a token added later is treated the same way, so the safe default is always
+ * "do not complete".
+ */
+const VALUE_END_SCI = new Set([')', 'π', 'e', '!', '^2', '^3']);
+
+/**
+ * How many ')' the evaluator string still needs to complete the parentheses the
+ * CALCULATOR opened on the visitor's behalf.
+ *
+ * A function key enters "name(" for them (see keys.ts: sin( cos( tan( asin(
+ * acos( atan( ln( log( sqrt( cbrt( exp( ), so at '=' an expression like
+ * "sin(30" is a task the visitor fully expressed — only the closer they were
+ * never asked to type is missing. Those we complete.
+ *
+ * Three things are deliberately left alone, so each keeps whatever error it
+ * already produced rather than trading it for a different one:
+ *   • a buffer that does not end on a complete value ("sin(", "sin(2*",
+ *     "sin(10^") — it is mid-expression, not merely missing a closer;
+ *   • a parenthesis the visitor opened themselves with the "(" key — that
+ *     intent is not knowable. Returning 0 when ANY still-open paren is manual
+ *     also means a partial completion can never manufacture a new mismatch;
+ *   • a surplus ')' — the parser's call.
+ * Deterministic: derived only from the token list, which is keypress-built,
+ * never free text.
+ */
+function pendingFunctionClosers(toks: readonly Tok[]): number {
+  const tail = toks[toks.length - 1];
+  const endsOnValue =
+    tail != null && (tail.t === 'num' || (tail.t === 'sci' && VALUE_END_SCI.has(tail.s)));
+  if (!endsOnValue) return 0;
+
+  const openedByFunction: boolean[] = [];
+  for (const t of toks) {
+    if (t.t !== 'sci') continue;
+    if (t.s.endsWith('(')) {
+      openedByFunction.push(t.s.length > 1); // "sin(" → function; "(" → manual
+    } else if (t.s === ')') {
+      if (openedByFunction.length === 0) return 0; // surplus ')' — parser's call
+      openedByFunction.pop();
+    }
+  }
+  return openedByFunction.every(Boolean) ? openedByFunction.length : 0;
+}
+
 /* ------------------------------------------------------------------ engine */
 
 export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}) {
@@ -158,8 +207,9 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
   /**
    * Assemble an evaluator-ready string. Unlike the display, this substitutes a
    * percent token's RESOLVED value and a result token's FULL-PRECISION value,
-   * and parenthesises negatives/results — so the safe parser gets correct maths
-   * even for "200 + 10%" or a continued high-precision result.
+   * parenthesises negatives/results, and completes the function parentheses the
+   * calculator opened for the visitor — so the safe parser gets correct maths
+   * even for "200 + 10%", a continued high-precision result, or "sin(30".
    */
   const evalString = (): string =>
     tokens
@@ -171,7 +221,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
         const body = t.s === '' ? '0' : t.s;
         return t.neg ? `(-${body})` : body;
       })
-      .join('');
+      .join('') + ')'.repeat(pendingFunctionClosers(tokens));
 
   /** Evaluate the whole buffer → number (throws CalculatorError on failure). */
   const evalTokens = (): number => {

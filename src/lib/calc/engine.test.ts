@@ -278,3 +278,217 @@ describe('mode switch preserves state', () => {
     expect(e.view().main).toBe('15');
   });
 });
+
+describe('function-entry parentheses are completed at equals', () => {
+  /**
+   * Pressing a function key inserts "name(" for the visitor (keys.ts), so the
+   * closing ")" is the one character they were never asked to type. At '=' the
+   * engine completes exactly those. A "(" the visitor opened themselves is NOT
+   * completed — that intent is not knowable, so it keeps the existing error.
+   *
+   * Values are asserted numerically (view().ans) because the behaviour under
+   * test is the parenthesis completion, not the display formatter.
+   */
+  const sci = () => createEngine({ feature: 'scientific' });
+  const digits = (e: ReturnType<typeof sci>, s: string) => {
+    for (const ch of s) (ch === '.' ? e.inputDot() : e.inputDigit(ch));
+  };
+  /** Enter `fn` + digits, press equals, return the view. Angle mode stays deg. */
+  const evalFn = (token: string, value: string) => {
+    const e = sci();
+    e.inputToken(token, token);
+    digits(e, value);
+    e.equals();
+    return e.view();
+  };
+
+  it('completes cos⁻¹ — "acos(0.5" = 60 in degrees', () => {
+    const v = evalFn('acos(', '0.5');
+    expect(v.error).toBeNull();
+    expect(v.ans).toBeCloseTo(60, 10);
+  });
+
+  it('completes sin — "sin(0.5" evaluates in degrees', () => {
+    const v = evalFn('sin(', '0.5');
+    expect(v.error).toBeNull();
+    expect(v.ans).toBeCloseTo(Math.sin((0.5 * Math.PI) / 180), 12);
+  });
+
+  it('completes tan — "tan(0.5" evaluates in degrees', () => {
+    const v = evalFn('tan(', '0.5');
+    expect(v.error).toBeNull();
+    expect(v.ans).toBeCloseTo(Math.tan((0.5 * Math.PI) / 180), 12);
+  });
+
+  it('completes ln — "ln(10" = Math.log(10)', () => {
+    const v = evalFn('ln(', '10');
+    expect(v.error).toBeNull();
+    expect(v.ans).toBeCloseTo(Math.log(10), 12);
+  });
+
+  it('completes log — "log(100" = 2', () => {
+    const v = evalFn('log(', '100');
+    expect(v.error).toBeNull();
+    expect(v.ans).toBeCloseTo(2, 12);
+  });
+
+  it('completes sin⁻¹ — "asin(0.5" = 30 in degrees', () => {
+    const v = evalFn('asin(', '0.5');
+    expect(v.error).toBeNull();
+    expect(v.ans).toBeCloseTo(30, 10);
+  });
+
+  it('completes tan⁻¹ — "atan(1" = 45 in degrees', () => {
+    const v = evalFn('atan(', '1');
+    expect(v.error).toBeNull();
+    expect(v.ans).toBeCloseTo(45, 10);
+  });
+
+  it('completes eˣ — "exp(2" = e squared', () => {
+    const v = evalFn('exp(', '2');
+    expect(v.error).toBeNull();
+    expect(v.ans).toBeCloseTo(Math.exp(2), 10);
+  });
+
+  it('completes √ and ∛ — "sqrt(9" and "cbrt(27"', () => {
+    expect(evalFn('sqrt(', '9').ans).toBeCloseTo(3, 12);
+    expect(evalFn('cbrt(', '27').ans).toBeCloseTo(3, 12);
+  });
+
+  it('10ˣ needs no completion — it enters "10^", which opens no parenthesis', () => {
+    const e = sci();
+    e.inputToken('10^', '10^');
+    digits(e, '2');
+    e.equals();
+    expect(e.view().error).toBeNull();
+    expect(e.view().ans).toBeCloseTo(100, 12);
+  });
+
+  it('completes NESTED function parentheses — "sin(cos(0.5" closes both', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); e.inputToken('cos(', 'cos(');
+    digits(e, '0.5');
+    e.equals();
+    const inner = Math.cos((0.5 * Math.PI) / 180);
+    expect(e.view().error).toBeNull();
+    expect(e.view().ans).toBeCloseTo(Math.sin((inner * Math.PI) / 180), 12);
+  });
+
+  it('completes a function parenthesis inside a wider expression — "2 + sin(30"', () => {
+    const e = sci();
+    digits(e, '2'); e.inputOp('+');
+    e.inputToken('sin(', 'sin('); digits(e, '30');
+    e.equals();
+    expect(e.view().error).toBeNull();
+    expect(e.view().ans).toBeCloseTo(2.5, 12);
+  });
+
+  it('leaves a manually closed expression unchanged — "sin(30)" still = 0.5', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); digits(e, '30'); e.inputToken(')', ')');
+    e.equals();
+    expect(e.view().error).toBeNull();
+    expect(e.view().main).toBe('0.5');
+  });
+
+  it('leaves an already-balanced expression unchanged — "(2 + 3) * 4" = 20', () => {
+    const e = sci();
+    e.inputToken('(', '('); digits(e, '2'); e.inputOp('+'); digits(e, '3');
+    e.inputToken(')', ')'); e.inputOp('*'); digits(e, '4');
+    e.equals();
+    expect(e.view().error).toBeNull();
+    expect(e.view().ans).toBeCloseTo(20, 12);
+  });
+
+  it('does NOT complete a visitor-opened "(" — "2 + (3 * 4" still reports the error', () => {
+    const e = sci();
+    digits(e, '2'); e.inputOp('+'); e.inputToken('(', '(');
+    digits(e, '3'); e.inputOp('*'); digits(e, '4');
+    e.equals();
+    expect(e.view().error).toBe('Check the parentheses');
+  });
+
+  it('does NOT complete when a visitor-opened "(" is also unclosed — "sin((2"', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); e.inputToken('(', '(');
+    digits(e, '2');
+    e.equals();
+    expect(e.view().error).toBe('Check the parentheses');
+  });
+
+  it('still rejects a surplus closing parenthesis — "sin(2))"', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); digits(e, '2');
+    e.inputToken(')', ')'); e.inputToken(')', ')');
+    e.equals();
+    expect(e.view().error).toBe('Check the parentheses');
+  });
+
+  // An incomplete buffer is NOT merely missing a closer — it is mid-expression.
+  // Completing it would swap one parser complaint for another, so each of these
+  // keeps the error it produced before function-paren completion existed.
+  it('preserves "Check the parentheses" for an empty function call — "sin(" then =', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin(');
+    e.equals();
+    expect(e.view().error).toBe('Check the parentheses');
+  });
+
+  it('preserves "Check the parentheses" for an empty function call — "sin(" then 1/x', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin(');
+    e.reciprocal();
+    expect(e.view().error).toBe('Check the parentheses');
+  });
+
+  it('preserves "Check the parentheses" for every mid-expression tail', () => {
+    const tail = (steps: (e: ReturnType<typeof sci>) => void) => {
+      const e = sci();
+      e.inputToken('sin(', 'sin(');
+      steps(e);
+      e.equals();
+      return e.view().error;
+    };
+    expect(tail((e) => e.inputToken('cos(', 'cos('))).toBe('Check the parentheses');
+    expect(tail((e) => e.inputOp('+'))).toBe('Check the parentheses');
+    expect(tail((e) => { digits(e, '2'); e.inputOp('*'); })).toBe('Check the parentheses');
+    expect(tail((e) => e.inputToken('10^', '10^'))).toBe('Check the parentheses');
+    expect(tail((e) => { digits(e, '2'); e.inputToken('mod', ' mod '); })).toBe('Check the parentheses');
+    expect(tail((e) => { digits(e, '2'); e.inputToken('*10^', '\u00d710^'); })).toBe('Check the parentheses');
+  });
+
+  it('preserves "Check the parentheses" for a trailing function inside a wider expression', () => {
+    const e = sci();
+    digits(e, '2'); e.inputOp('+'); e.inputToken('sin(', 'sin(');
+    e.equals();
+    expect(e.view().error).toBe('Check the parentheses');
+  });
+
+  it('completes when the buffer ends on a value token — pi, factorial, x\u00b2, ")"', () => {
+    const endsOn = (steps: (e: ReturnType<typeof sci>) => void) => {
+      const e = sci();
+      e.inputToken('sin(', 'sin(');
+      steps(e);
+      e.equals();
+      return e.view();
+    };
+    expect(endsOn((e) => e.inputToken('\u03c0', '\u03c0')).error).toBeNull();
+    expect(endsOn((e) => e.inputToken('\u03c0', '\u03c0')).ans)
+      .toBeCloseTo(Math.sin((Math.PI * Math.PI) / 180), 12);
+    expect(endsOn((e) => { digits(e, '5'); e.inputToken('!', '!'); }).ans)
+      .toBeCloseTo(Math.sin((120 * Math.PI) / 180), 12);
+    expect(endsOn((e) => { digits(e, '5'); e.inputToken('^2', '^2'); }).ans)
+      .toBeCloseTo(Math.sin((25 * Math.PI) / 180), 12);
+    // "sin((2)" — the manual paren is closed, so only the function one remains.
+    expect(endsOn((e) => { e.inputToken('(', '('); digits(e, '2'); e.inputToken(')', ')'); }).ans)
+      .toBeCloseTo(Math.sin((2 * Math.PI) / 180), 12);
+  });
+
+  it('completion survives a continued calculation — "sin(30" then "× 4" = 2', () => {
+    const e = sci();
+    e.inputToken('sin(', 'sin('); digits(e, '30'); e.equals();
+    e.inputOp('*'); digits(e, '4'); e.equals();
+    expect(e.view().error).toBeNull();
+    expect(e.view().ans).toBeCloseTo(2, 12);
+  });
+});
