@@ -1,114 +1,468 @@
 ---
-import { weightedGrade, finalScoreNeeded } from '@lib/calculators/grade';
-import { formatNumber } from '@lib/format';
-
-const initialItems = [
-  { score: 92, weight: 20 },
-  { score: 85, weight: 30 },
-  { score: 78, weight: 50 },
-];
-const wg = weightedGrade(initialItems);
-const needed = finalScoreNeeded(88, 30, 90);
+/**
+ * Grade calculator island (R16B2 — Academic family follow-on, 2 of 2; task-first, MULTI-MODE migration).
+ *
+ * Two modes of one coherent academic tool, on the UNCHANGED standard-form runtime + the Grade binding
+ * (@lib/calculators/grade-form), which wraps the UNCHANGED weightedGrade / finalScoreNeeded:
+ *   • Weighted average — calculator-owned dynamic score/weight rows (default mode);
+ *   • Final grade needed — current / final-weight / target → the score required on the final.
+ *
+ * The mode is a native radio group inside the form (the runtime recomputes on its structural `input`);
+ * the ISLAND owns the visible presentation — it shows exactly one panel, updates the Calculate label, and
+ * on a switch blanks the mode-owned result so no stale value shows under the new mode. The binding reads
+ * ONLY the active mode, so hidden-mode fields never validate or compute. The weighted rows are
+ * calculator-owned (built via the DOM API, never innerHTML; globally-unique ids; per-row [data-error-for]
+ * slots the runtime targets; Add/Remove dispatch `input` for live-after-first; a MutationObserver keeps
+ * remove disabled at one row) — mirroring GPA's PRINCIPLES, not its code. No runtime change; NO shared
+ * GPA/Grade binding; NO generic repeater/mode abstraction. The complete-result guard lives in the
+ * binding's resultValue (a NaN sentinel → the default finite gate) — NO isUsableResult; the final score
+ * is finite even when already-met or unreachable (shown as a clear STATUS, not a raw out-of-range %).
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto w-full max-w-3xl" data-grade>
-  <div class="mb-4 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Mode" style="border-color: var(--line)">
-    <button type="button" class="gmode-btn is-active" data-gmode="average" role="radio" aria-checked="true">Weighted average</button>
-    <button type="button" class="gmode-btn" data-gmode="final" role="radio" aria-checked="false">Final grade needed</button>
-  </div>
+<div class="grade  mx-auto w-full max-w-3xl grid grid-cols-2 gap-4" data-grade>
+  <form class="card p-4" data-form novalidate aria-label="Grade calculator">
+    <fieldset class="grade-modes">
+      <legend class="field-label">What do you want to work out?</legend>
+      <div class="seg-group">
+        <label class="seg"><input type="radio" name="gmode" value="average" checked /><span>Weighted average</span></label>
+        <label class="seg"><input type="radio" name="gmode" value="final" /><span>Final grade needed</span></label>
+      </div>
+    </fieldset>
 
-  <!-- Weighted average -->
-  <div class="card p-5 sm:p-6" data-grade-average>
-    <div class="grid grid-cols-[1fr_1fr_auto] items-center gap-3 border-b pb-2 text-xs font-semibold" style="border-color: var(--line); color: var(--muted)">
-      <span>Score (%)</span><span>Weight</span><span></span>
+    <!-- Weighted average -->
+    <div class="grade-panel mt-4" data-grade-average>
+      <div class="grade-head" aria-hidden="true">
+        <span>Score (%)</span>
+        <span>Weight</span>
+        <span></span>
+      </div>
+      <div data-grade-rows></div>
+      <button type="button" class="btn btn-secondary mt-3" data-grade-add>+ Add item</button>
     </div>
-    <div data-grade-rows>
-      {initialItems.map((it) => (
-        <div class="grid grid-cols-[1fr_1fr_auto] items-center gap-3 py-2" data-grade-row>
-          <input class="field" data-grade-score type="number" min="0" step="1" value={it.score} aria-label="Score" inputmode="decimal" />
-          <input class="field" data-grade-weight type="number" min="0" step="1" value={it.weight} aria-label="Weight" inputmode="decimal" />
-          <button type="button" class="grid h-9 w-9 place-items-center rounded-lg border" style="border-color: var(--line); color: var(--color-danger)" data-grade-remove aria-label="Remove">×</button>
+
+    <!-- Final grade needed -->
+    <div class="grade-panel mt-5" data-grade-final hidden>
+      <div class="grid gap-4 sm:grid-cols-3">
+        <div data-field="current">
+          <label class="field-label" for="grade-current">Current grade</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="grade-current" name="current" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 88" aria-describedby="grade-current-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="grade-field-error" id="grade-current-error" data-error-for="current" hidden></p>
         </div>
-      ))}
+        <div data-field="finalWeight">
+          <label class="field-label" for="grade-finalweight">Final is worth</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="grade-finalweight" name="finalWeight" type="number" min="0" max="100" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 30" aria-describedby="grade-finalweight-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="grade-field-error" id="grade-finalweight-error" data-error-for="finalWeight" hidden></p>
+        </div>
+        <div data-field="target">
+          <label class="field-label" for="grade-target">Target grade</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="grade-target" name="target" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 90" aria-describedby="grade-target-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="grade-field-error" id="grade-target-error" data-error-for="target" hidden></p>
+        </div>
+      </div>
     </div>
-    <button type="button" class="btn btn-secondary mt-3" data-grade-add>+ Add item</button>
-    <div class="mt-6 border-t pt-5 text-center" style="border-color: var(--line)">
-      <p class="text-sm" style="color: var(--muted)">Current weighted grade</p>
-      <p class="text-4xl result-value"><span data-grade-avg>{formatNumber(wg.grade, 2)}</span>%</p>
-    </div>
-  </div>
 
-  <!-- Final needed -->
-  <div class="card p-5 sm:p-6" data-grade-final hidden>
-    <div class="grid gap-4 sm:grid-cols-3">
-      <div><label class="field-label" for="gf-current">Current grade (%)</label><input class="field" id="gf-current" name="current" type="number" min="0" value="88" inputmode="decimal" /></div>
-      <div><label class="field-label" for="gf-weight">Final worth (%)</label><input class="field" id="gf-weight" name="finalWeight" type="number" min="0" max="100" value="30" inputmode="decimal" /></div>
-      <div><label class="field-label" for="gf-target">Target grade (%)</label><input class="field" id="gf-target" name="target" type="number" min="0" value="90" inputmode="decimal" /></div>
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-grade-submit>Calculate Weighted Grade</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
-    <div class="mt-6 border-t pt-5 text-center" style="border-color: var(--line)">
-      <p class="text-sm" style="color: var(--muted)">Score needed on the final</p>
-      <p class="text-4xl result-value"><span data-grade-needed>{formatNumber(needed, 1)}</span>%</p>
-      <p class="mt-2 text-sm" data-grade-note></p>
+    <p class="grade-live-note" data-live-note hidden>Changes update automatically.</p>
+  </form>
+
+  <ResultShell id="grade-result" state="empty" density="standard" label="Grade result" minHeight="15rem">
+    <EmptyResult message="Pick a mode, enter your figures, then calculate your weighted grade or the score you need on the final." />
+
+    <div data-result-when="valid">
+      <div class="grade-summary">
+        <ResultSummary label="Weighted grade">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+        <dl class="grade-metrics">
+          <div><dt data-grade-secondary-label>Total weight</dt><dd data-grade-secondary-value>—</dd></div>
+        </dl>
+      </div>
+      <p class="grade-interpretation" data-grade-interpretation>—</p>
     </div>
-  </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter the figures for the selected mode — grade items with weights, or your current grade, the final's weight and your target."
+    />
+
+    <ResultAnnouncement id="grade-live" />
+  </ResultShell>
 </div>
 
 <style>
-  .gmode-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
-  .gmode-btn.is-active { background: var(--color-brand-600); color: #fff; }
+  .grade-modes {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+  }
+  .seg-group {
+    display: inline-flex;
+    margin-top: 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    padding: 0.125rem;
+  }
+  .seg {
+    position: relative;
+    display: inline-flex;
+  }
+  .seg input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+  .seg span {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .seg:has(input:checked) span {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+  .seg:has(input:focus-visible) span {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  .grade-head {
+    display: grid;
+    grid-template-columns: 1fr 8rem 2.5rem;
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .grade :global(.grade-row) {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .grade :global(.grade-row__controls) {
+    display: grid;
+    grid-template-columns: 1fr 8rem 2.5rem;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .grade :global(.grade-remove) {
+    display: grid;
+    place-items: center;
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--line);
+    color: var(--color-danger);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .grade :global(.grade-remove:disabled) {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .grade :global(.grade-remove:focus-visible) {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+  .grade :global(.grade-field-error) {
+    margin: 0.35rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  .grade-field-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .grade :global(.grade-field-error),
+    :root:not([data-theme='light']) .grade-field-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .grade :global(.grade-field-error),
+  :root[data-theme='dark'] .grade-field-error {
+    color: #fca5a5;
+  }
+
+  .grade-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .grade-summary {
+    display: grid;
+    gap: 1rem;
+    align-items: center;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) {
+    .grade-summary {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+  }
+  .grade-metrics {
+    margin: 0;
+    align-self: center;
+  }
+  .grade-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .grade-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .grade-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .grade-interpretation {
+    margin: 1.25rem 0 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
 </style>
 
 <script>
-  import { weightedGrade, finalScoreNeeded } from '@lib/calculators/grade';
-  const nf = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(v));
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { gradeBinding } from '@lib/calculators/grade-form';
+
+  let uid = 0; // module-global → weighted-row ids unique across instances on a page
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // The weighted rows already carry per-instance-unique ids (via `uid`), but the
+  // final-mode fields + result shell + live region are server-STATIC ids. When more
+  // than one Grade calculator shares a document (e.g. an embed gallery), those ids
+  // collide. This namespaces THIS root's static ids and repoints its in-root
+  // references (label `for`, `aria-describedby`, …) so associations stay
+  // instance-local and the document has no duplicate ids. It runs BEFORE the first
+  // row is seeded, so it only touches the static markup; a lone instance skips it
+  // entirely (single-instance output is unchanged). The runtime targets fields by
+  // `[name]` / `[data-*]`, never by these ids, so re-id-ing has no effect on it.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
+  function buildRow(): HTMLElement {
+    const id = `grade-r${++uid}`;
+    const row = document.createElement('div');
+    row.className = 'grade-row';
+    row.dataset.gradeRow = '';
+    row.dataset.rowId = id;
+
+    const controls = document.createElement('div');
+    controls.className = 'grade-row__controls';
+
+    const score = document.createElement('input');
+    score.className = 'field';
+    score.type = 'number';
+    score.min = '0';
+    score.step = '1';
+    score.inputMode = 'decimal';
+    score.autocomplete = 'off';
+    score.dataset.gradeScore = '';
+    score.name = `score-${id}`;
+    score.id = `${id}-score`;
+    score.placeholder = 'e.g. 90';
+    score.setAttribute('aria-label', 'Score percent');
+    score.setAttribute('aria-describedby', `${id}-score-error`);
+
+    const weight = document.createElement('input');
+    weight.className = 'field';
+    weight.type = 'number';
+    weight.min = '0';
+    weight.step = '1';
+    weight.inputMode = 'decimal';
+    weight.autocomplete = 'off';
+    weight.dataset.gradeWeight = '';
+    weight.name = `weight-${id}`;
+    weight.id = `${id}-weight`;
+    weight.placeholder = 'e.g. 20';
+    weight.setAttribute('aria-label', 'Weight');
+    weight.setAttribute('aria-describedby', `${id}-weight-error`);
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'grade-remove';
+    remove.dataset.gradeRemove = '';
+    remove.setAttribute('aria-label', 'Remove item');
+    remove.textContent = '×';
+
+    controls.append(score, weight, remove);
+
+    const errors = document.createElement('div');
+    errors.className = 'grade-row__errors';
+    const scoreErr = document.createElement('p');
+    scoreErr.className = 'grade-field-error';
+    scoreErr.id = `${id}-score-error`;
+    scoreErr.dataset.errorFor = `score-${id}`;
+    scoreErr.hidden = true;
+    const weightErr = document.createElement('p');
+    weightErr.className = 'grade-field-error';
+    weightErr.id = `${id}-weight-error`;
+    weightErr.dataset.errorFor = `weight-${id}`;
+    weightErr.hidden = true;
+    errors.append(scoreErr, weightErr);
+
+    row.append(controls, errors);
+    return row;
+  }
+
   document.querySelectorAll<HTMLElement>('[data-grade]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-form]')!;
+    const rowsEl = root.querySelector<HTMLElement>('[data-grade-rows]')!;
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    const addBtn = root.querySelector<HTMLButtonElement>('[data-grade-add]')!;
+    const submitBtn = root.querySelector<HTMLElement>('[data-grade-submit]')!;
     const avgPanel = root.querySelector<HTMLElement>('[data-grade-average]')!;
     const finalPanel = root.querySelector<HTMLElement>('[data-grade-final]')!;
-    const rowsEl = root.querySelector<HTMLElement>('[data-grade-rows]')!;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
 
-    function recomputeAvg() {
-      const items = Array.from(rowsEl.querySelectorAll<HTMLElement>('[data-grade-row]')).map((r) => ({
-        score: Number(r.querySelector<HTMLInputElement>('[data-grade-score]')!.value) || 0,
-        weight: Number(r.querySelector<HTMLInputElement>('[data-grade-weight]')!.value) || 0,
-      }));
-      set('[data-grade-avg]', nf(weightedGrade(items).grade));
-    }
-    function recomputeFinal() {
-      const val = (n: string) => Number((finalPanel.querySelector(`[name="${n}"]`) as HTMLInputElement).value) || 0;
-      const need = finalScoreNeeded(val('current'), val('finalWeight'), val('target'));
-      set('[data-grade-needed]', nf(need));
-      const note = root.querySelector<HTMLElement>('[data-grade-note]')!;
-      if (Number.isNaN(need)) { note.textContent = ''; }
-      else if (need > 100) { note.textContent = 'That target is not reachable with this final alone.'; note.style.color = 'var(--color-danger)'; }
-      else if (need <= 0) { note.textContent = 'You have already secured your target.'; note.style.color = 'var(--color-accent-600)'; }
-      else { note.textContent = 'Achievable — aim for this score.'; note.style.color = 'var(--muted)'; }
-    }
+    // Namespace the server-static ids first (only when not alone in the document),
+    // before any dynamic rows exist, so associations stay instance-local.
+    if (document.querySelectorAll('[data-grade]').length > 1) uniquifyStaticIds(root, `g${++ns}`);
 
-    root.querySelector('[data-grade-add]')!.addEventListener('click', () => {
-      const rows = rowsEl.querySelectorAll('[data-grade-row]');
-      const clone = rows[rows.length - 1].cloneNode(true) as HTMLElement;
-      clone.querySelectorAll('input').forEach((i) => (i.value = ''));
-      rowsEl.appendChild(clone);
-      recomputeAvg();
+    if (!rowsEl.querySelector('[data-grade-row]')) rowsEl.appendChild(buildRow());
+
+    const updateRemoveState = () => {
+      const rows = rowsEl.querySelectorAll<HTMLElement>('[data-grade-row]');
+      const onlyOne = rows.length <= 1;
+      rows.forEach((r) => {
+        const btn = r.querySelector<HTMLButtonElement>('[data-grade-remove]');
+        if (btn) btn.disabled = onlyOne;
+      });
+    };
+    updateRemoveState();
+
+    const isFinal = () => root.querySelector<HTMLInputElement>('[name="gmode"]:checked')?.value === 'final';
+
+    const blankResult = () => {
+      for (const sel of [
+        '[data-result-when~="valid"] [data-result-value]',
+        '[data-result-when~="valid"] [data-result-value-a11y]',
+        '[data-grade-secondary-value]',
+        '[data-grade-interpretation]',
+      ]) {
+        const el = root.querySelector<HTMLElement>(sel);
+        if (el) el.textContent = '—';
+      }
+    };
+
+    // The island owns the visible mode: one panel shown, the Calculate label, and a result blank on
+    // switch. The panels use `hidden` (out of the tab + a11y order); the binding reads only the active
+    // mode so hidden-mode fields never validate.
+    const syncMode = () => {
+      const final = isFinal();
+      avgPanel.hidden = final;
+      finalPanel.hidden = !final;
+      submitBtn.textContent = final ? 'Calculate Final Grade Needed' : 'Calculate Weighted Grade';
+    };
+
+    mountFormCalculator(root, gradeBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Weighted Grade',
     });
+
+    const notifyInput = () => form.dispatchEvent(new Event('input', { bubbles: true }));
+
+    addBtn.addEventListener('click', () => {
+      rowsEl.appendChild(buildRow());
+      updateRemoveState();
+      notifyInput();
+    });
+
     rowsEl.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-grade-remove]');
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-grade-remove]');
       if (!btn) return;
-      if (rowsEl.querySelectorAll('[data-grade-row]').length > 1) btn.closest('[data-grade-row]')!.remove();
-      recomputeAvg();
+      if (rowsEl.querySelectorAll('[data-grade-row]').length > 1) {
+        btn.closest('[data-grade-row]')!.remove();
+        updateRemoveState();
+        notifyInput();
+      }
     });
-    rowsEl.addEventListener('input', recomputeAvg);
-    finalPanel.addEventListener('input', recomputeFinal);
 
-    root.querySelectorAll<HTMLButtonElement>('.gmode-btn').forEach((b) => b.addEventListener('click', () => {
-      const mode = b.dataset.gmode;
-      root.querySelectorAll('.gmode-btn').forEach((x) => { const a = x === b; x.classList.toggle('is-active', a); x.setAttribute('aria-checked', String(a)); });
-      avgPanel.hidden = mode !== 'average';
-      finalPanel.hidden = mode !== 'final';
-    }));
+    new MutationObserver(updateRemoveState).observe(rowsEl, { childList: true });
 
-    recomputeAvg();
-    recomputeFinal();
+    // Mode switch: sync visible panel/label first (synchronous), blank a stale mode-owned result, and
+    // let the runtime's debounced live recompute (from the radio's `input`) evaluate the new mode.
+    root.querySelectorAll<HTMLInputElement>('[name="gmode"]').forEach((r) =>
+      r.addEventListener('change', () => {
+        syncMode();
+        if (shell?.dataset.resultState === 'valid') blankResult();
+      }),
+    );
+
+    // Reset restores the default (average) mode + its panel, on top of the binding's value reset.
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      const avgRadio = root.querySelector<HTMLInputElement>('[name="gmode"][value="average"]');
+      if (avgRadio) avgRadio.checked = true;
+      syncMode();
+    });
+
+    // Form-level error focus (Triangle/GPA precedent): on an explicit invalid submit in weighted mode
+    // with no field marked invalid (the "add an item" form error), focus the first score field.
+    form.addEventListener('submit', () => {
+      if (shell?.dataset.resultState === 'invalid' && !root.querySelector('[aria-invalid="true"]')) {
+        root.querySelector<HTMLElement>('[data-grade-score]')?.focus();
+      }
+    });
+
+    syncMode();
   });
 </script>

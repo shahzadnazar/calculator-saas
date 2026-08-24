@@ -16,7 +16,36 @@ const faqs = [
   <SquareFootageCalculator />
   <Fragment slot="content">
     <h2>How to calculate square footage</h2>
-    <p>Square footage is simply <strong>length × width</strong> measured in feet. A bedroom that is 12 ft long and 15 ft wide is 12 × 15 = <strong>180 square feet</strong>. If you measure in inches, yards or metres, this calculator converts everything to feet first, then to square feet, square metres and square yards so you can order in whatever unit your material is sold in.</p>
+    <ol>
+      <li>Enter the <strong>length</strong> and <strong>width</strong> of the area.</li>
+      <li>Choose the <strong>unit</strong> you measured in — feet, inches, yards or metres. Switching it converts the numbers you have already typed.</li>
+      <li>Set the <strong>number of areas</strong> if you have several identical rooms, and optionally a <strong>price per square foot</strong> for a cost estimate.</li>
+    </ol>
+    <p>
+      The result is the total in square feet, with square-metre and square-yard equivalents so
+      you can order in whatever unit your material is sold in. Whatever unit you enter, the tool
+      converts the two dimensions to feet before multiplying.
+    </p>
+
+    <h2>The formula</h2>
+    <p>Square footage is simply length times width, once both are in feet:</p>
+    <p><strong>square feet = length (ft) × width (ft)</strong></p>
+    <p>
+      A bedroom 12 ft long and 15 ft wide is 12 × 15 = <strong>180 square feet</strong>. Measure
+      in another unit and each dimension is converted first — 1 inch is 1/12 ft, 1 yard is 3 ft,
+      and 1 metre is about 3.28 ft — then the same multiplication applies. Setting a number of
+      identical areas multiplies that result; a price per square foot multiplies it again for a
+      cost.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      That 12 ft × 15 ft bedroom is <strong>180 square feet</strong>, which is about
+      <strong>16.72 square metres</strong> or exactly <strong>20 square yards</strong>. Have two
+      identical rooms and the total becomes 360 square feet; enter a flooring price of
+      <strong>$3.50</strong> per square foot and the estimate is 360 × 3.50 =
+      <strong>$1,260</strong> before any waste allowance.
+    </p>
 
     <h2>Measuring a room accurately</h2>
     <p>Run a tape measure or laser measure along the longest wall for the length and the widest wall for the width, at floor level. Round to the nearest few inches — flooring and paint are estimates, not engineering. Measure into doorways and closets only if you intend to floor them. A quick sketch with each wall's length noted saves re-measuring later.</p>

@@ -4,18 +4,60 @@ import ConversionCalculator from '@components/islands/ConversionCalculator.astro
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'conversion-calculator')!;
 const faqs = [
-  { question: 'What units can I convert?', answer: 'Length, weight/mass, volume, area, speed, digital storage and temperature. Pick a category, choose your "from" and "to" units, and enter a value — the result updates instantly.' },
+  { question: 'What units can I convert?', answer: 'Length, weight/mass, volume, area, speed, digital storage and temperature. Pick a category, choose your "from" and "to" units, enter a value and press Convert.' },
   { question: 'How many kilometres are in a mile?', answer: 'One mile is 1.609 kilometres, and one kilometre is 0.621 miles. Other everyday ones: 1 kg = 2.205 lb, 1 inch = 2.54 cm, and 1 US gallon = 3.785 litres.' },
   { question: 'How is temperature converted?', answer: 'Temperature uses formulas rather than simple multipliers. For example, Celsius to Fahrenheit is (°C × 9/5) + 32, and Celsius to Kelvin is °C + 273.15. The calculator applies the correct formula automatically.' },
   { question: 'What is the difference between KB and KiB?', answer: 'A kilobyte (KB) is 1,000 bytes, while a kibibyte (KiB) is 1,024 bytes. The calculator supports both decimal (KB, MB, GB) and binary (KiB, MiB, GiB) units in the digital storage category.' },
   { question: 'Are the conversion factors exact?', answer: 'Yes — they use internationally defined values, such as one inch being exactly 2.54 cm and one mile exactly 1,609.344 m. Results are rounded for display but computed from the exact factors.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Convert between units of length, weight, volume, area, speed, digital storage and temperature — instantly and accurately." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Convert between units of length, weight, volume, area, speed, digital storage and temperature — accurately, using internationally standard factors." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-09' }}>
   <ConversionCalculator />
   <Fragment slot="content">
     <h2>How to use the converter</h2>
-    <p>Choose a category, then select the unit you're converting <strong>from</strong> and the unit you're converting <strong>to</strong>. Enter a value and read the result. Switching category automatically updates the available units.</p>
+    <ol>
+      <li>Pick a <strong>category</strong> — length, weight, volume, area, speed, digital storage or temperature.</li>
+      <li>Select the unit you are converting <strong>from</strong> and the unit you are converting <strong>to</strong>.</li>
+      <li>Enter a <strong>value</strong> and press <strong>Convert</strong> to read the result.</li>
+    </ol>
+    <p>
+      Switching category refreshes the available units automatically, so the "from" and "to"
+      lists always match what you are measuring. You can swap the direction just by reversing
+      your unit choices.
+    </p>
+
+    <h2>What it converts</h2>
+    <p>Each category holds the units that people most often need to move between:</p>
+    <ul>
+      <li><strong>Length</strong> — millimetres, centimetres, metres, kilometres, inches, feet, yards and miles.</li>
+      <li><strong>Weight / mass</strong> — milligrams, grams, kilograms, tonnes, ounces, pounds and stone.</li>
+      <li><strong>Volume</strong> — millilitres, litres, cubic metres and US teaspoons, tablespoons, fluid ounces, cups, pints, quarts and gallons.</li>
+      <li><strong>Area</strong> — square centimetres, square metres, hectares, square kilometres, square feet, acres and square miles.</li>
+      <li><strong>Speed</strong> — metres per second, km/h, mph, knots and feet per second.</li>
+      <li><strong>Digital storage</strong> — bytes through terabytes, in both decimal (KB, MB, GB) and binary (KiB, MiB, GiB) units.</li>
+      <li><strong>Temperature</strong> — Celsius, Fahrenheit and Kelvin.</li>
+    </ul>
+
+    <h2>How factor-based conversion works</h2>
+    <p>
+      Every unit in a category stores a factor to that category's base unit — metres for
+      length, kilograms for mass, litres for volume, square metres for area, metres per second
+      for speed and bytes for storage. To convert, the tool multiplies your value by the "from"
+      factor to reach the base unit, then divides by the "to" factor to reach the target unit.
+    </p>
+    <p>
+      That two-step design keeps every pair consistent: because one mile is defined as exactly
+      1,609.344 metres and one kilometre as 1,000, a mile is always precisely 1.609344
+      kilometres, with no rounding drift between them.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Convert <strong>5 miles</strong> to kilometres. Miles carry a factor of 1,609.344 metres
+      and kilometres a factor of 1,000, so the result is 5 × (1,609.344 ÷ 1,000) = 5 × 1.609344
+      = <strong>8.047 kilometres</strong>. Reverse it and 100 km is 100 × (1,000 ÷ 1,609.344) ≈
+      <strong>62.14 miles</strong>.
+    </p>
 
     <h2>Common conversions at a glance</h2>
     <table>
@@ -31,7 +73,37 @@ const faqs = [
       </tbody>
     </table>
 
-    <h2>Accurate, standard factors</h2>
-    <p>Conversions use internationally standard factors — for example, one mile is exactly 1,609.344 metres and one pound is 0.453592 kilograms. Temperature is handled with the correct formulas rather than multipliers. For currency-style financial conversions, see our <a href="/finance">financial calculators</a>.</p>
+    <h2>Why temperature is different</h2>
+    <p>
+      Temperature scales do not share a zero point, so they use formulas rather than a single
+      multiplier. The converter routes every temperature through Celsius and applies the
+      standard relationships:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Conversion</th><th>Formula</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Celsius → Fahrenheit</td><td>(°C × 9/5) + 32</td></tr>
+        <tr><td>Fahrenheit → Celsius</td><td>(°F − 32) × 5/9</td></tr>
+        <tr><td>Celsius → Kelvin</td><td>°C + 273.15</td></tr>
+      </tbody>
+    </table>
+    <p>So 20°C is (20 × 9/5) + 32 = <strong>68°F</strong>, and also 20 + 273.15 = <strong>293.15 K</strong>.</p>
+
+    <h2>Decimal vs binary storage</h2>
+    <p>
+      Digital storage has two conventions, and the calculator supports both. Decimal units step
+      by 1,000 — a kilobyte is 1,000 bytes — while binary units step by 1,024, so a kibibyte
+      (KiB) is 1,024 bytes and a mebibyte (MiB) is 1,048,576. Drive makers quote decimal
+      gigabytes while operating systems often report binary ones, which is why a "1 TB" disk can
+      look slightly smaller once installed.
+    </p>
+    <p>
+      All factors are the internationally defined values, so results are exact and only rounded
+      for display. For currency-style financial conversions, see our
+      <a href="/finance">financial calculators</a>; to turn a floor measurement into an area,
+      try the <a href="/everyday/square-footage-calculator">square footage calculator</a>.
+    </p>
   </Fragment>
 </CalculatorLayout>

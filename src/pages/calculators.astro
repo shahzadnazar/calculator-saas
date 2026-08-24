@@ -2,6 +2,7 @@
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import Icon from '@components/Icon.astro';
+import CalculatorCard from '@components/CalculatorCard.astro';
 import {
   CATEGORIES_ORDERED,
   getCalculatorsByCategory,
@@ -21,7 +22,7 @@ const crumbs = [
   description={`Browse every calculator on AllCalculators — ${STATS.live} live tools across ${STATS.categories} categories, with more added regularly. Search to find the one you need.`}
   path="/calculators"
 >
-  <div class="wrap py-8">
+  <div class="wrap py-4">
     <Breadcrumbs crumbs={crumbs} />
 
     <header class="mt-5 max-w-3xl">
@@ -57,21 +58,15 @@ const crumbs = [
                   <a href={categoryPath(cat)} class="hover:underline">{cat.name}</a>
                 </h2>
               </div>
-              <ul class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <ul class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
                 {items.map((c) => {
                   const isLive = c.status === 'live';
                   return (
                     <li data-calc-item data-title={c.title.toLowerCase()} data-keywords={c.keywords.join(' ').toLowerCase()}>
                       {isLive ? (
-                        <a href={calculatorPath(c)} class="card flex h-full items-start justify-between gap-2 p-4 transition-shadow hover:shadow-lg">
-                          <span>
-                            <span class="font-semibold" style="color: var(--heading)">{c.title}</span>
-                            <span class="mt-0.5 block text-sm" style="color: var(--muted)">{c.description}</span>
-                          </span>
-                          <span aria-hidden="true" style="color: var(--color-brand-600)">→</span>
-                        </a>
+                        <CalculatorCard href={calculatorPath(c)} title={c.title} blurb={c.description} />
                       ) : (
-                        <div class="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed p-4" style="border-color: var(--line)">
+                        <div class="flex h-full items-center justify-between gap-2 rounded-2xl border border-dashed p-5" style="border-color: var(--line)">
                           <span class="font-medium" style="color: var(--muted)">{c.title}</span>
                           <span class="rounded-full px-2 py-0.5 text-xs" style="background: var(--subtle); color: var(--muted)">Soon</span>
                         </div>

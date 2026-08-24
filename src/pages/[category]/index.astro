@@ -3,6 +3,7 @@ import type { GetStaticPaths } from 'astro';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import Icon from '@components/Icon.astro';
+import CalculatorCard from '@components/CalculatorCard.astro';
 import {
   CATEGORIES,
   type Category,
@@ -40,27 +41,31 @@ const crumbs = [
   ogImage={`/og/cat-${category.slug}.png`}
   jsonLd={[breadcrumbSchema(crumbs)]}
 >
-  <div class="wrap py-8">
+  <div class="wrap py-4">
     <Breadcrumbs crumbs={crumbs} />
 
     <header class="mt-5 max-w-3xl">
       <span class="icon-chip h-14 w-14"><Icon name={category.icon} size={28} /></span>
       <h1 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{category.name}</h1>
       <p class="mt-3 text-lg" style="color: var(--muted)">{category.description}</p>
+      {
+        live.length > 0 && (
+          <p class="mt-4 inline-flex items-center gap-2 text-sm font-semibold" style="color: var(--muted)">
+            <span class="h-2 w-2 rounded-full" style="background: var(--color-accent-500)" />
+            {live.length} {live.length === 1 ? 'calculator' : 'calculators'} · free, no sign-up
+          </p>
+        )
+      }
     </header>
 
     {
       live.length > 0 && (
         <section class="mt-10">
           <h2 class="sr-only">Available {category.shortName} calculators</h2>
-          <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul class="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {live.map((c) => (
               <li>
-                <a href={calculatorPath(c)} class="card flex h-full flex-col gap-2 p-5 transition-shadow hover:shadow-lg">
-                  <span class="text-lg font-bold" style="color: var(--heading)">{c.title}</span>
-                  <span class="text-sm" style="color: var(--muted)">{c.description}</span>
-                  <span class="mt-auto pt-2 text-sm font-semibold" style="color: var(--color-brand-600)">Open calculator →</span>
-                </a>
+                <CalculatorCard href={calculatorPath(c)} title={c.title} blurb={c.description} />
               </li>
             ))}
           </ul>

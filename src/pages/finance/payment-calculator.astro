@@ -20,14 +20,91 @@ const faqs = [
 >
   <PaymentCalculator />
   <Fragment slot="content">
-    <h2>Two questions, one tool</h2>
-    <p>Choose <strong>Monthly payment</strong> when you know how long you want the loan to run (the term) and need the payment. Choose <strong>Payoff time</strong> when you know what you can afford each month and want to know how long you'll be paying.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Under <strong>Solve for</strong>, choose <strong>Monthly payment</strong> or <strong>Payoff time</strong>.</li>
+      <li>Enter the <strong>loan amount</strong> and the <strong>interest rate</strong>.</li>
+      <li>In Monthly-payment mode, add the <strong>loan term</strong> in years; in Payoff-time mode, add the <strong>monthly payment</strong> you can afford.</li>
+      <li>Read the result — either the required monthly payment or how long the debt takes to clear.</li>
+    </ol>
 
-    <h2>A worked example</h2>
-    <p>For a <strong>$20,000</strong> loan at <strong>6%</strong> over <strong>5 years</strong>, the monthly rate is 6% ÷ 12 = 0.5% and there are 60 payments. The formula returns a payment of about <strong>$387 a month</strong>, and over the full term you repay roughly $23,200 — about $3,200 of it interest. Raise the rate or lengthen the term and both the payment and that interest figure move.</p>
+    <h2>Two questions, one tool</h2>
+    <p>
+      Choose <strong>Monthly payment</strong> when you know how long you want the loan to run and
+      need the payment that fits that term. Choose <strong>Payoff time</strong> when you know what
+      you can pay each month and want to know how long you'll be paying. They are two sides of the
+      same amortization math, approached from opposite ends.
+    </p>
+
+    <h2>The formulas</h2>
+    <p>Monthly-payment mode uses the standard amortization formula:</p>
+    <p><strong>M = P · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
+    <p>Payoff-time mode rearranges it to solve for the number of months:</p>
+    <p><strong>n = −ln(1 − P · r / M) / ln(1 + r)</strong></p>
+    <ul>
+      <li><strong>M</strong> — the monthly payment</li>
+      <li><strong>P</strong> — the loan amount</li>
+      <li><strong>r</strong> — the monthly interest rate (annual rate ÷ 12)</li>
+      <li><strong>n</strong> — the number of monthly payments</li>
+    </ul>
+
+    <h2>A worked example: solving for the payment</h2>
+    <p>
+      For a <strong>$20,000</strong> loan at <strong>6%</strong> over <strong>5 years</strong>, the
+      monthly rate is 6% ÷ 12 = 0.5% and there are 60 payments. The formula returns a payment of
+      about <strong>$386.66 a month</strong>. Over the full term you repay roughly
+      <strong>$23,199</strong> — about <strong>$3,199</strong> of it interest on top of the $20,000
+      borrowed.
+    </p>
+
+    <h2>A worked example: solving for the payoff time</h2>
+    <p>
+      Flip to Payoff-time mode with the same <strong>$20,000</strong> at <strong>6%</strong>, and
+      say you can pay <strong>$500 a month</strong> — more than the $386.66 a 5-year term requires.
+      The calculator returns a payoff time of about <strong>3 years, 9 months</strong>. Paying more
+      each month clears the debt sooner and cuts the interest, because the balance falls faster.
+    </p>
+
+    <h2>When a loan never pays off</h2>
+    <p>
+      In Payoff-time mode, if your monthly payment is smaller than the monthly interest charge, the
+      balance grows instead of shrinking and the loan is never repaid. The calculator recognizes
+      this and shows <strong>Never</strong> rather than a misleading number — the fix is simply a
+      larger payment that clears the interest with something left over for principal.
+    </p>
 
     <h2>The payment–term trade-off</h2>
-    <p>Stretching a loan lowers the monthly payment but increases total interest, because you borrow the money for longer. A higher payment clears the debt faster and cheaper. For a full breakdown of where each payment goes, see the <a href="/finance/amortization-calculator">amortization calculator</a>, or the <a href="/finance/loan-calculator">loan calculator</a> for totals.</p>
-    <p>This is general educational information, not financial advice.</p>
+    <p>
+      Stretching a loan lowers the monthly payment but raises total interest, because you borrow the
+      money for longer. Using the same $20,000 at 6%:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Term</th><th>Monthly payment</th><th>Total interest</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>3 years</td><td>$608.44</td><td>$1,903.79</td></tr>
+        <tr><td>5 years</td><td>$386.66</td><td>$3,199.36</td></tr>
+        <tr><td>7 years</td><td>$292.17</td><td>$4,542.37</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The 7-year term is about $316 a month cheaper than the 3-year, but costs roughly $2,640 more
+      in interest — the payment you feel each month versus the total the loan actually costs.
+    </p>
+
+    <h2>Tips and limitations</h2>
+    <ul>
+      <li>Lower the payment with a <strong>longer term</strong> or a <strong>lower rate</strong>; weigh the lower payment against the extra total interest a longer term brings.</li>
+      <li>The tool assumes a <strong>fixed rate</strong> and equal payments, and does not model fees, insurance or variable rates.</li>
+      <li>Payoff totals assume a <strong>full final payment</strong>, so the very last payment may be slightly smaller in practice.</li>
+    </ul>
+
+    <p>
+      For a full breakdown of where each payment goes, see the
+      <a href="/finance/amortization-calculator">amortization calculator</a>; for totals and a
+      year-by-year schedule, use the <a href="/finance/loan-calculator">loan calculator</a>. This is
+      general educational information, not financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

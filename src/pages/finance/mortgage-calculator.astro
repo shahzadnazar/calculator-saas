@@ -44,20 +44,19 @@ const faqs = [
   <MortgageCalculator />
 
   <Fragment slot="content">
-    <h2>How to use this mortgage calculator</h2>
-    <p>
-      Enter the <strong>home price</strong>, your <strong>down payment</strong>, the
-      <strong>loan term</strong> and the <strong>interest rate</strong>, then press
-      <strong>Calculate</strong>. Your estimated monthly payment and its breakdown appear,
-      and after the first result any edit updates it live. Expand
-      <strong>Taxes, insurance &amp; fees</strong> to include property tax, home
-      insurance, HOA dues and PMI for a complete picture of your monthly housing cost.
-    </p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the <strong>home price</strong> and your <strong>down payment</strong> — the percentage down updates automatically.</li>
+      <li>Set the <strong>loan term</strong> (usually 15 or 30 years) and the <strong>interest rate</strong>.</li>
+      <li>Press <strong>Calculate</strong> to see your estimated monthly payment and its breakdown; after the first result, any edit updates it live.</li>
+      <li>Expand <strong>Taxes, insurance &amp; fees</strong> to add property tax, home insurance, HOA dues and PMI for your true monthly cost.</li>
+    </ol>
 
     <h2>Understanding your payment breakdown</h2>
     <p>
-      A mortgage payment is more than principal and interest. The colored bar splits
-      your total into five parts:
+      A mortgage payment is more than principal and interest — lenders call the full
+      figure <strong>PITI</strong> (principal, interest, taxes, insurance). The colored bar
+      splits your total into five parts:
     </p>
     <ul>
       <li><strong>Principal &amp; interest</strong> — repaying the loan plus the cost of borrowing.</li>
@@ -69,10 +68,56 @@ const faqs = [
 
     <h2>The amortization formula</h2>
     <p>
-      The core calculation uses the fixed-rate amortization formula. At a 6.5% annual
-      rate, a $288,000 loan over 30 years has a monthly rate of about 0.0054 and 360
-      payments. Early on, most of each payment covers interest; over time the balance
-      falls and more goes to principal — which is exactly what the yearly schedule shows.
+      The principal-and-interest portion uses the fixed-rate amortization formula:
+    </p>
+    <p><strong>M = P · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
+    <ul>
+      <li><strong>M</strong> — the monthly principal-and-interest payment</li>
+      <li><strong>P</strong> — the loan amount (home price minus down payment)</li>
+      <li><strong>r</strong> — the monthly interest rate (annual rate ÷ 12)</li>
+      <li><strong>n</strong> — the total number of payments (years × 12)</li>
+    </ul>
+    <p>
+      Early payments are mostly interest; as the balance falls, more of each payment goes
+      to principal. The yearly schedule on this page shows that shift and your remaining
+      balance at the end of every year.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Buy a <strong>$360,000</strong> home with <strong>20% down</strong> ($72,000), leaving
+      a <strong>$288,000</strong> loan at <strong>6.5%</strong> over <strong>30 years</strong>.
+      The monthly rate is 0.065 ÷ 12 ≈ 0.00542 and there are 360 payments, giving a
+      principal-and-interest payment of about <strong>$1,820</strong>. Over the full term you
+      repay roughly $655,000 — about <strong>$367,000</strong> of it interest.
+    </p>
+
+    <h2>15-year vs. 30-year</h2>
+    <p>
+      A shorter term means a higher monthly payment but dramatically less interest, because
+      the balance is repaid far faster. On that same $288,000 loan at 6.5%:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Term</th><th>Monthly P&amp;I</th><th>Total interest</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>30-year</td><td>$1,820</td><td>~$367,300</td></tr>
+        <tr><td>15-year</td><td>$2,510</td><td>~$163,700</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The 15-year costs about $690 more a month but saves roughly <strong>$200,000</strong>
+      in interest — the classic trade-off between monthly cash flow and lifetime cost.
+    </p>
+
+    <h2>How much house can you afford?</h2>
+    <p>
+      A common guideline is the <strong>28/36 rule</strong>: keep housing costs (PITI) under
+      28% of gross monthly income, and all debt payments under 36%. On a $6,000 monthly
+      income that is roughly $1,680 for housing. Lenders also weigh your credit score, down
+      payment and existing debts, so treat any figure here as a planning estimate, not an
+      approval.
     </p>
 
     <h2>Tips to lower your mortgage cost</h2>
@@ -80,12 +125,14 @@ const faqs = [
       <li>Increase your down payment to 20% to eliminate PMI.</li>
       <li>Compare a 15-year term: a higher monthly payment but far less total interest.</li>
       <li>Even a 0.25% lower rate can save thousands over the life of the loan — shop lenders.</li>
+      <li>Making one extra payment a year shortens a 30-year loan by several years.</li>
     </ul>
 
     <p>
       This tool provides estimates for planning and does not constitute a loan offer or
       financial advice. Your actual rate, taxes and insurance will depend on your lender,
-      location and credit profile.
+      location and credit profile. To see the full split of interest and principal over
+      time, use the <a href="/finance/amortization-calculator">amortization calculator</a>.
     </p>
   </Fragment>
 </CalculatorLayout>

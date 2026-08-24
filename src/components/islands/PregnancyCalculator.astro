@@ -1,62 +1,229 @@
 ---
-const defaultLmp = '2026-01-01';
+/**
+ * Pregnancy island (R14B2 — Gestational follow-on, 2 of 2; task-first migration).
+ *
+ * The fleet's SECOND date-input migration. Task-first: the LMP starts EMPTY, the
+ * result is empty, and the visitor presses "Calculate Pregnancy Progress" for the
+ * first result; live-after-first thereafter. Compute, validation, state,
+ * announcement and focus are owned by the shared runtime + the Pregnancy binding
+ * (@lib/calculators/pregnancy-form), which wraps the UNCHANGED `pregnancyInfo`
+ * engine and the shared date primitives and is fully SELF-CONTAINED (it imports
+ * nothing from the Due Date island/binding — the two gestational islands stay
+ * independent). The complete-result guard lives in the binding's resultValue (a
+ * NaN sentinel → the runtime's default finite gate) — there is NO isUsableResult.
+ *
+ * The dominant result is the CURRENT gestational age while ongoing (how far along
+ * — the calculator's purpose); once the estimated due date has PASSED it becomes
+ * the due date with a neutral note and no unbounded progress. Two calculator-owned
+ * milestones (LMP+91 and LMP+189) are labelled by the trimester they BEGIN — they
+ * are exactly the first days of the 2nd and 3rd trimesters — alongside a
+ * calculator-owned progress bar. A future LMP is rejected (the picker max is
+ * capped at the visitor's local today client-side AND the binding validates
+ * independently).
+ *
+ * The medical disclaimer lives INSIDE this island (not only on the page), so the
+ * generated embed carries it too — exactly one instance, visible without
+ * interaction, outside the result live region.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto w-full max-w-3xl" data-pregnancy>
-  <form class="card p-5 sm:p-6" data-pg-form novalidate>
-    <label class="field-label" for="pg-lmp">First day of your last period (LMP)</label>
-    <input class="field" id="pg-lmp" name="lmp" type="date" value={defaultLmp} max="9999-12-31" />
-  </form>
+<div class="pregnancy mx-auto w-full max-w-4xl" data-pregnancy>
+  <div class="grid gap-6 md:grid-cols-2 md:items-start">
+    <!-- Input -->
+    <form class="card p-4" data-form novalidate aria-label="Pregnancy calculator">
+      <label class="field-label" for="pg-lmp">First day of your last period (LMP)</label>
+      <input
+        class="field mt-1"
+        id="pg-lmp"
+        name="lmp"
+        type="date"
+        autocomplete="off"
+        aria-describedby="pg-help pg-lmp-error"
+      />
+      <p class="pg-field-error" id="pg-lmp-error" data-error-for="lmp" hidden></p>
+      <p class="pg-help" id="pg-help">
+        Pregnancy is dated from the first day of your last period (LMP) — about two weeks before conception.
+      </p>
 
-  <div class="card mt-6 p-6">
-    <div class="text-center">
-      <p class="result-label">You are approximately</p>
-      <p class="mt-1 text-3xl result-value" data-pg-along>—</p>
-      <p class="mt-1 text-sm" style="color: var(--muted)"><span data-pg-trimester>—</span> · <span data-pg-remaining>—</span> to go</p>
-    </div>
-    <div class="mt-5 h-3 w-full overflow-hidden rounded-full" style="background: var(--subtle)">
-      <span class="block h-full" style="width: 0%; background: var(--color-brand-600)" data-pg-bar></span>
-    </div>
-    <dl class="mt-6 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><dt style="color: var(--muted)">Conception (est.)</dt><dd class="font-semibold" data-pg-conception>—</dd></div>
-      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><dt style="color: var(--muted)">End of 1st trimester</dt><dd class="font-semibold" data-pg-t1>—</dd></div>
-      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><dt style="color: var(--muted)">End of 2nd trimester</dt><dd class="font-semibold" data-pg-t2>—</dd></div>
-      <div class="flex justify-between rounded-lg px-3 py-2" style="background: var(--subtle)"><dt style="color: var(--muted)">Due date</dt><dd class="font-semibold" style="color: var(--color-brand-700)" data-pg-due>—</dd></div>
-    </dl>
+      <div class="mt-5 flex items-center gap-3">
+        <button type="submit" class="btn btn-primary" data-pg-submit>Calculate Pregnancy Progress</button>
+        <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+      </div>
+      <p class="pg-live-note" data-live-note hidden>Changes update automatically.</p>
+    </form>
+
+    <!-- Result -->
+    <ResultShell
+      id="pg-result"
+      state="empty"
+      density="standard"
+      label="Pregnancy progress result"
+      minHeight="18rem"
+      placeholderAlignment="center"
+    >
+      <EmptyResult message="Enter the first day of your last period and calculate how far along you are." />
+
+      <div data-result-when="valid">
+        <!-- Dominant: current gestational age (ongoing) / estimated due date (past-due) -->
+        <div class="text-center">
+          <p class="result-label" data-pg-headline-label>Pregnancy progress</p>
+          <p class="pg-headline" data-pg-headline data-result-value>—</p>
+        </div>
+
+        <!-- Prominent secondary: current trimester + estimated due date (hidden past-due) -->
+        <div class="pg-secondary mt-5" data-pg-secondary>
+          <div><p class="pg-stat" data-pg-trimester>—</p><p class="pg-sub">trimester</p></div>
+          <div><p class="pg-stat" data-pg-due-secondary>—</p><p class="pg-sub">estimated due date</p></div>
+        </div>
+
+        <!-- Progress toward the due date (hidden past-due); time-remaining is supporting -->
+        <div class="pg-progress mt-5" data-pg-progress>
+          <div class="pg-track" role="presentation">
+            <span class="pg-bar" data-pg-bar style="width: 0%"></span>
+          </div>
+          <p class="pg-remaining" data-pg-remaining></p>
+        </div>
+
+        <!-- Supporting: source-confirmed milestone timeline -->
+        <dl class="pg-timeline mt-5">
+          <div class="pg-row"><dt>Conception (est.)</dt><dd data-pg-conception>—</dd></div>
+          <div class="pg-row"><dt>Second trimester begins</dt><dd data-pg-second>—</dd></div>
+          <div class="pg-row"><dt>Third trimester begins</dt><dd data-pg-third>—</dd></div>
+          <div class="pg-row pg-row--due"><dt>Estimated due date</dt><dd data-pg-due>—</dd></div>
+        </dl>
+
+        <p class="pg-interpretation" data-pg-interpretation></p>
+      </div>
+
+      <InvalidResult title="Check the date" message="Enter your last menstrual period date." />
+
+      <ResultAnnouncement id="pg-live" />
+    </ResultShell>
   </div>
+
+  <p class="pg-disclaimer" data-pg-disclaimer>
+    This is general information, not medical advice. Your healthcare provider's dating takes precedence.
+  </p>
 </div>
 
+<style>
+  .pg-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .pg-field-error { color: #fca5a5; }
+  }
+  :root[data-theme='dark'] .pg-field-error { color: #fca5a5; }
+
+  .pg-help { margin-top: 0.75rem; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+  .pg-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  .pg-headline { margin-top: 0.25rem; font-size: 1.75rem; line-height: 1.15; font-weight: 800; color: var(--heading); }
+  @media (min-width: 640px) { .pg-headline { font-size: 2rem; } }
+
+  .pg-secondary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+    text-align: center;
+  }
+  .pg-stat { font-size: 1.25rem; font-weight: 700; line-height: 1.2; color: var(--heading); }
+  @media (min-width: 640px) { .pg-stat { font-size: 1.5rem; } }
+  .pg-sub { margin-top: 0.15rem; font-size: 0.75rem; color: var(--muted); }
+  .pg-remaining { margin-top: 0.5rem; font-size: 0.8rem; text-align: center; color: var(--muted); }
+
+  .pg-track {
+    height: 0.75rem;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: var(--subtle);
+  }
+  .pg-bar {
+    display: block;
+    height: 100%;
+    border-radius: 9999px;
+    background: var(--color-brand-600);
+    transition: width 0.3s ease;
+  }
+  @media (prefers-reduced-motion: reduce) { .pg-bar { transition: none; } }
+
+  .pg-timeline { display: grid; grid-template-columns: 1fr; gap: 0.5rem; margin: 0; }
+  .pg-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--subtle);
+    font-size: 0.875rem;
+  }
+  .pg-row dt { color: var(--muted); }
+  .pg-row dd { margin: 0; font-weight: 600; color: var(--heading); }
+  .pg-row--due dd { color: var(--color-brand-700); }
+
+  .pg-interpretation { margin: 0.9rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+
+  .pg-disclaimer {
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+
 <script>
-  import { pregnancyInfo } from '@lib/calculators/pregnancy';
-  import { toISODateUTC } from '@lib/calculators/date-duration';
-  import { parseISODateUTC } from '@lib/calculators/age';
-  const shortDate = (d: Date) => new Date(toISODateUTC(d) + 'T00:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
-  const todayUTC = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); };
-  const ord = (n: number) => (n === 1 ? '1st trimester' : n === 2 ? '2nd trimester' : '3rd trimester');
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { pregnancyBinding, todayISO } from '@lib/calculators/pregnancy-form';
 
   document.querySelectorAll<HTMLElement>('[data-pregnancy]').forEach((root) => {
-    const input = root.querySelector<HTMLInputElement>('#pg-lmp')!;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const lmp = parseISODateUTC(input.value);
-      if (!lmp) {
-        // Cleared/invalid date — reset every field instead of leaving stale results on screen.
-        ['[data-pg-along]', '[data-pg-trimester]', '[data-pg-remaining]', '[data-pg-conception]', '[data-pg-t1]', '[data-pg-t2]', '[data-pg-due]'].forEach((s) => set(s, '—'));
+    // Cap the picker at the visitor's local today so a future LMP can't be
+    // selected; the binding rejects a future LMP independently.
+    const input = root.querySelector<HTMLInputElement>('#pg-lmp');
+    if (input) input.max = todayISO();
+
+    mountFormCalculator(root, pregnancyBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Pregnancy Progress',
+    });
+
+    // Clear the stale result whenever the shell leaves the valid state (an invalid
+    // live edit, or Reset), so no stale progress lingers behind the hidden valid
+    // region. Presentation only — the runtime still owns state + announcement.
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    if (shell) {
+      const clear = () => {
+        ['[data-pg-headline]', '[data-pg-trimester]', '[data-pg-due-secondary]', '[data-pg-conception]', '[data-pg-second]', '[data-pg-third]', '[data-pg-due]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.textContent = '—';
+        });
+        ['[data-pg-remaining]', '[data-pg-interpretation]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.textContent = '';
+        });
+        const label = root.querySelector<HTMLElement>('[data-pg-headline-label]');
+        if (label) label.textContent = 'Pregnancy progress';
         const bar = root.querySelector<HTMLElement>('[data-pg-bar]');
         if (bar) bar.style.width = '0%';
-        return;
-      }
-      const p = pregnancyInfo(lmp, todayUTC());
-      set('[data-pg-along]', p.age.totalDays > 0 ? `${p.age.weeks} weeks, ${p.age.days} days` : 'Not started');
-      set('[data-pg-trimester]', p.age.totalDays > 0 ? ord(p.age.trimester) : '—');
-      set('[data-pg-remaining]', `${Math.ceil(p.age.daysRemaining / 7)} weeks`);
-      root.querySelector<HTMLElement>('[data-pg-bar]')!.style.width = `${p.age.progressPct}%`;
-      set('[data-pg-conception]', shortDate(p.conceptionDate));
-      set('[data-pg-t1]', shortDate(p.firstTrimesterEnd));
-      set('[data-pg-t2]', shortDate(p.secondTrimesterEnd));
-      set('[data-pg-due]', shortDate(p.dueDate));
+        ['[data-pg-secondary]', '[data-pg-progress]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.hidden = false;
+        });
+      };
+      const observer = new MutationObserver(() => {
+        if (shell.dataset.resultState !== 'valid') clear();
+      });
+      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-    input.addEventListener('input', recompute);
-    recompute();
   });
 </script>

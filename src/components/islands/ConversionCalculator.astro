@@ -1,74 +1,216 @@
 ---
-import { CATEGORIES, convert } from '@lib/calculators/conversion';
-import { formatNumber } from '@lib/format';
+/**
+ * Conversion calculator island (R18C3 — task-first; everyday; standard-form runtime UNCHANGED).
+ *
+ * A single form on the UNCHANGED standard-form runtime + the Conversion binding
+ * (@lib/calculators/conversion-form), which wraps the UNCHANGED `convert` / `CATEGORIES` (frozen by
+ * conversion.test.ts) — factor-based across six multiplicative categories plus the one AFFINE category
+ * (temperature). Task-first: the numeric value starts at the neutral converter value 1, the From/To
+ * units default deterministically to each category's first two distinct units (units[0] → units[1]),
+ * the result is EMPTY on the server AND after hydration (the legacy island auto-calculated a
+ * 1 km → mi example on load), and the visitor presses "Convert" for the first result
+ * (live-after-first). No calculation on load merely because Value = 1.
+ *
+ * The category → From/To dependency is CALCULATOR-OWNED here (the island rebuilds the From/To options
+ * on a category change and re-selects the deterministic defaults) — there is NO generic converter
+ * runtime, units framework, dependent-dropdown runtime or shared unit-selector abstraction. The
+ * DOMINANT result is the converted value; the full equation is supporting. NO isUsableResult — the
+ * complete-result guard lives in the binding's resultValue.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Conversion calculator shares a document
+ * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
+ */
+import { CATEGORIES } from '@lib/calculators/conversion';
+import { DEFAULT_CATEGORY, defaultUnits } from '@lib/calculators/conversion-form';
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
-const initialCategory = CATEGORIES[0]; // length
-const from = 'km';
-const to = 'mi';
-const value = 1;
-const result = convert(value, from, to, initialCategory.key);
+const defCat = CATEGORIES.find((c) => c.key === DEFAULT_CATEGORY)!; // length
+const { from: defFrom, to: defTo } = defaultUnits(DEFAULT_CATEGORY); // mm → cm
 ---
 
-<div class="mx-auto w-full max-w-3xl" data-convert>
-  <div class="card p-5 sm:p-6">
-    <label class="field-label" for="cv-cat">Category</label>
-    <select class="field" id="cv-cat" data-cv-cat>
-      {CATEGORIES.map((c) => (<option value={c.key} selected={c.key === initialCategory.key}>{c.label}</option>))}
-    </select>
-
-    <div class="mt-5 grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
-      <div>
-        <label class="field-label" for="cv-value">From</label>
-        <input class="field" id="cv-value" data-cv-value type="number" step="any" value={value} inputmode="decimal" />
-        <select class="field mt-2" data-cv-from aria-label="From unit">
-          {initialCategory.units.map((u) => (<option value={u.key} selected={u.key === from}>{u.label}</option>))}
+<div class="cvcalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-convert>
+  <!-- Inputs -->
+  <form class="card p-4" data-form novalidate aria-label="Unit conversion calculator">
+    <div class="space-y-4">
+      <div data-field="category">
+        <label class="field-label" for="cv-cat">Category</label>
+        <select class="field mt-1" id="cv-cat" name="category" data-cv-cat>
+          {CATEGORIES.map((c) => <option value={c.key} selected={c.key === DEFAULT_CATEGORY}>{c.label}</option>)}
         </select>
       </div>
-      <div class="hidden pb-9 text-center text-xl sm:block" style="color: var(--muted)" aria-hidden="true">→</div>
-      <div>
-        <label class="field-label" for="cv-result">To</label>
-        <input class="field font-bold" id="cv-result" data-cv-result value={formatNumber(result, 6)} readonly aria-label="Result" />
-        <select class="field mt-2" data-cv-to aria-label="To unit">
-          {initialCategory.units.map((u) => (<option value={u.key} selected={u.key === to}>{u.label}</option>))}
-        </select>
+
+      <div data-field="value">
+        <label class="field-label" for="cv-value">Value</label>
+        <input class="field mt-1" id="cv-value" name="value" type="number" step="any" inputmode="decimal" autocomplete="off" value="1" aria-describedby="cv-value-error" />
+        <p class="cv-error" id="cv-value-error" data-error-for="value" hidden></p>
+      </div>
+
+      <div class="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+        <div>
+          <label class="field-label" for="cv-from">From</label>
+          <select class="field mt-1" id="cv-from" name="from" data-cv-from>
+            {defCat.units.map((u) => <option value={u.key} selected={u.key === defFrom}>{u.label}</option>)}
+          </select>
+        </div>
+        <div class="pb-2 text-center text-xl" style="color: var(--muted)" aria-hidden="true">→</div>
+        <div>
+          <label class="field-label" for="cv-to">To</label>
+          <select class="field mt-1" id="cv-to" name="to" data-cv-to>
+            {defCat.units.map((u) => <option value={u.key} selected={u.key === defTo}>{u.label}</option>)}
+          </select>
+        </div>
       </div>
     </div>
-    <p class="mt-4 text-center text-sm" style="color: var(--muted)" data-cv-summary></p>
-  </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Convert</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="cv-live-note" data-live-note hidden>Changes update automatically.</p>
+  </form>
+
+  <!-- Result -->
+  <ResultShell id="cv-result" state="empty" density="standard" label="Conversion result" minHeight="14rem" placeholderAlignment="center">
+    <EmptyResult message="Choose a category and units, enter a value, then convert." />
+
+    <div data-result-when="valid" class="text-center">
+      <ResultSummary label="Converted value">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+      <p class="cv-unit"><span data-cv-unit>—</span></p>
+
+      <ResultInterpretation>
+        <span data-cv-equation></span>
+      </ResultInterpretation>
+    </div>
+
+    <InvalidResult
+      title="Check your value"
+      message="Enter a number to convert, then choose the units."
+    />
+
+    <ResultAnnouncement id="cv-live" />
+  </ResultShell>
 </div>
 
+<style>
+  .cv-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .cv-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .cv-error {
+    color: #fca5a5;
+  }
+
+  .cv-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .cv-unit {
+    margin: 0.25rem 0 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+</style>
+
 <script>
-  import { CATEGORIES, convert } from '@lib/calculators/conversion';
-  const nf = (v: number) => (Number.isNaN(v) ? '—' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(v));
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { conversionBinding, defaultUnits } from '@lib/calculators/conversion-form';
+  import { CATEGORIES } from '@lib/calculators/conversion';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
   const catMap = new Map(CATEGORIES.map((c) => [c.key, c]));
 
+  // When more than one Conversion calculator shares a document (e.g. an embed gallery), the
+  // server-static ids (category / value + its error slot, From / To, the result shell, the live
+  // region) collide. Namespace THIS root's ids and repoint its in-root references so associations stay
+  // instance-local; a lone instance is left untouched. The runtime targets fields by [name] / [data-*].
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
   document.querySelectorAll<HTMLElement>('[data-convert]').forEach((root) => {
+    if (document.querySelectorAll('[data-convert]').length > 1) uniquifyStaticIds(root, `c${++ns}`);
+
     const catSel = root.querySelector<HTMLSelectElement>('[data-cv-cat]')!;
     const fromSel = root.querySelector<HTMLSelectElement>('[data-cv-from]')!;
     const toSel = root.querySelector<HTMLSelectElement>('[data-cv-to]')!;
-    const valueEl = root.querySelector<HTMLInputElement>('[data-cv-value]')!;
-    const resultEl = root.querySelector<HTMLInputElement>('[data-cv-result]')!;
-    const summary = root.querySelector<HTMLElement>('[data-cv-summary]')!;
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
 
-    function fillUnits() {
-      const cat = catMap.get(catSel.value)!;
+    // The category → From/To dependency is calculator-owned: on a category change, rebuild both unit
+    // lists and re-select the deterministic defaults (units[0] → units[1]). The numeric value is
+    // preserved (never reinterpreted). The runtime recomputes on the same structural `input` — but
+    // only after the first explicit Convert, and by then the selectors have reached this valid state.
+    const fillUnits = () => {
+      const cat = catMap.get(catSel.value) ?? CATEGORIES[0];
       const opts = cat.units.map((u) => `<option value="${u.key}">${u.label}</option>`).join('');
       fromSel.innerHTML = opts;
       toSel.innerHTML = opts;
-      // sensible defaults: first two distinct units
-      fromSel.selectedIndex = 0;
-      toSel.selectedIndex = Math.min(1, cat.units.length - 1);
+      const { from, to } = defaultUnits(cat.key);
+      fromSel.value = from;
+      toSel.value = to;
+    };
+    catSel.addEventListener('change', fillUnits);
+
+    mountFormCalculator(root, conversionBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Convert',
+    });
+
+    // On Reset the runtime restores category → length + value → 1 (binding) and returns the shell to
+    // `empty`; re-sync the calculator-owned From/To options for the default category, and clear the
+    // stale result whenever the shell leaves the valid state. Presentation only.
+    if (shell) {
+      const clear = () => {
+        ['[data-cv-unit]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.textContent = '—';
+        });
+        root.querySelectorAll<HTMLElement>('[data-result-when~="valid"] [data-result-value], [data-result-when~="valid"] [data-result-value-a11y]').forEach((el) => {
+          el.textContent = '—';
+        });
+        const eq = root.querySelector<HTMLElement>('[data-cv-equation]');
+        if (eq) eq.textContent = '';
+      };
+      new MutationObserver(() => {
+        const state = shell.dataset.resultState;
+        if (state !== 'valid') clear();
+        if (state === 'empty') fillUnits(); // reset restored category → length; rebuild its units
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-    function recompute() {
-      const value = Number(valueEl.value) || 0;
-      const r = convert(value, fromSel.value, toSel.value, catSel.value);
-      resultEl.value = nf(r);
-      const fromLabel = fromSel.options[fromSel.selectedIndex]?.text ?? '';
-      const toLabel = toSel.options[toSel.selectedIndex]?.text ?? '';
-      summary.textContent = Number.isNaN(r) ? '' : `${nf(value)} ${fromLabel} = ${nf(r)} ${toLabel}`;
-    }
-    catSel.addEventListener('change', () => { fillUnits(); recompute(); });
-    [fromSel, toSel, valueEl].forEach((el) => el.addEventListener('input', recompute));
-    recompute();
   });
 </script>

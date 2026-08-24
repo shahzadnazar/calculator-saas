@@ -20,28 +20,78 @@ const faqs = [
 >
   <TargetHeartRateCalculator />
   <Fragment slot="content">
-    <h2>Training by heart rate</h2>
-    <p>Your maximum heart rate is estimated as <strong>220 minus your age</strong>. The zones below express training intensities as percentages of that maximum. Enter your resting heart rate for more accurate, personalised zones using the Karvonen method.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter your <strong>age</strong> to estimate your maximum heart rate and training zones.</li>
+      <li>Optionally add your <strong>resting heart rate</strong> to switch to the more personalised Karvonen method.</li>
+      <li>Press <strong>Calculate</strong> to see the beats-per-minute range for each of five training zones.</li>
+    </ol>
+
+    <h2>How training by heart rate works</h2>
+    <p>
+      Heart rate is a direct read-out of exercise intensity: the harder you work, the faster your
+      heart beats, up to a personal maximum. By expressing intensity as a percentage of that
+      maximum, you can aim for a specific zone — easy, moderate or hard — and keep your effort where
+      you intend it, rather than guessing.
+    </p>
+
+    <h2>The formulas</h2>
+    <p>Maximum heart rate is estimated from your age:</p>
+    <p><strong>Max HR = 220 − age</strong></p>
+    <p>
+      With just an age, each zone is a straight percentage of that maximum. Add a resting heart rate
+      and the calculator switches to the <strong>Karvonen method</strong>, which works from your
+      heart-rate reserve (the gap between maximum and resting):
+    </p>
+    <p><strong>Target = resting + intensity% × (max − resting)</strong></p>
+    <ul>
+      <li><strong>max</strong> — your estimated maximum heart rate</li>
+      <li><strong>resting</strong> — your resting heart rate, ideally measured on waking</li>
+      <li><strong>intensity%</strong> — the target percentage for the zone</li>
+    </ul>
+
+    <h2>A worked example</h2>
+    <p>
+      At <strong>age 30</strong>, estimated maximum heart rate is 220 − 30 = <strong>190 bpm</strong>.
+      A moderate 70% target is therefore 0.70 × 190 ≈ <strong>133 bpm</strong> by the simple method.
+      Add a resting rate of 60 bpm and Karvonen gives 60 + 0.70 × (190 − 60) = <strong>151 bpm</strong>
+      — higher, because it accounts for your fitness. That difference is why the resting-rate field is
+      worth filling in.
+    </p>
 
     <h2>The five training zones</h2>
+    <p>Using the simple method at age 30 (max 190 bpm):</p>
     <table>
       <thead>
-        <tr><th>Zone</th><th>% of max HR</th><th>What it does</th></tr>
+        <tr><th>Zone</th><th>% of max HR</th><th>Example (age 30)</th></tr>
       </thead>
       <tbody>
-        <tr><td>Warm-up</td><td>50–60%</td><td>Recovery, warm-up, cool-down</td></tr>
-        <tr><td>Fat burn</td><td>60–70%</td><td>Base endurance; fat as fuel</td></tr>
-        <tr><td>Aerobic</td><td>70–80%</td><td>Cardiovascular fitness</td></tr>
-        <tr><td>Anaerobic</td><td>80–90%</td><td>Speed and performance</td></tr>
-        <tr><td>Maximum</td><td>90–100%</td><td>Short, all-out efforts</td></tr>
+        <tr><td>Warm up / recovery</td><td>50–60%</td><td>95–114 bpm</td></tr>
+        <tr><td>Fat burn (light)</td><td>60–70%</td><td>114–133 bpm</td></tr>
+        <tr><td>Aerobic (moderate)</td><td>70–80%</td><td>133–152 bpm</td></tr>
+        <tr><td>Anaerobic (hard)</td><td>80–90%</td><td>152–171 bpm</td></tr>
+        <tr><td>Maximum effort</td><td>90–100%</td><td>171–190 bpm</td></tr>
       </tbody>
     </table>
 
-    <h2>A worked example</h2>
-    <p>At <strong>age 30</strong>, maximum heart rate ≈ 220 − 30 = <strong>190 bpm</strong>. A moderate 50–70% zone is about <strong>95–133 bpm</strong>. Using Karvonen with a resting rate of 60 bpm, the 70% target becomes 60 + 0.70 × (190 − 60) = <strong>151 bpm</strong> — higher, because it factors in your fitness. That personalisation is why the resting-rate field is worth filling in.</p>
+    <h2>Which zone should you train in?</h2>
+    <p>
+      Different intensities build different systems. Lower zones develop aerobic endurance and let
+      you accumulate volume; higher zones sharpen cardiovascular fitness and speed. Most balanced
+      programs keep easy days genuinely easy (warm-up to aerobic) and reserve the anaerobic zone for
+      shorter, harder efforts.
+    </p>
 
-    <h2>Which zone should I train in?</h2>
-    <p>Easy days should feel easy (fat-burn/aerobic zones), while hard intervals belong in the anaerobic zone — most balanced training mixes both. To gauge running effort by pace instead, see the <a href="/health/pace-calculator">pace calculator</a>.</p>
-    <p>Consult a doctor before beginning intense exercise, especially if you have a heart condition. This is general information, not medical advice.</p>
+    <h2>Cautions and accuracy</h2>
+    <ul>
+      <li><strong>220 − age is an average.</strong> Individual maximums vary by 10–20 bpm, so treat the zones as starting points and adjust to how efforts actually feel.</li>
+      <li><strong>Medications and conditions.</strong> Some medications, such as beta-blockers, lower heart rate and shift every zone.</li>
+      <li><strong>Check first if in doubt.</strong> Consult a doctor before beginning intense exercise, especially with a heart condition.</li>
+    </ul>
+    <p>
+      To gauge running effort by pace as well, see the
+      <a href="/health/pace-calculator">pace calculator</a>. This is educational information, not
+      medical advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

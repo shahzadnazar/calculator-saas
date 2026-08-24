@@ -1,77 +1,245 @@
 ---
 /**
- * Age calculator island. Age depends on "today", so it computes on the client
- * via src/lib/calculators/age.ts. Logic is unit-tested with fixed dates.
+ * Age calculator island (R18C1 — task-first; everyday date/duration; standard-form runtime
+ * UNCHANGED).
+ *
+ * A single form on the UNCHANGED standard-form runtime + the Age binding (@lib/calculators/age-form),
+ * which wraps the UNCHANGED calculateAge (frozen by age.test.ts, incl. the R18C0 month-end repair)
+ * and the shared parseISODateUTC / toISODateUTC primitives. Task-first, summary-first: the date of
+ * birth starts EMPTY, the "age at" date defaults to the visitor's local TODAY (client-set on
+ * hydration — the legacy island treated an empty as-of as today), the result is empty on the server
+ * AND after hydration (the legacy island auto-calculated a 2000-01-01 → today example on load), and
+ * the visitor presses "Calculate Age" for the first result (live-after-first).
+ *
+ * The DOMINANT result is the exact age (years / months / days); total months / weeks / days and the
+ * days-to-next-birthday are supporting. NO isUsableResult — the complete-result guard lives in the
+ * binding's resultValue (a finite totalDays sentinel; a same-date 0y 0m 0d is a valid finite 0). No
+ * runtime change; NO shared Age/Date binding, civil-date form abstraction or shared UI component;
+ * DateCalculator is untouched.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Age calculator shares a document (the
+ * R16B2.1 discipline), so an embed gallery has no duplicate ids.
  */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto w-full max-w-3xl" data-age>
-  <form class="card p-5 sm:p-6" data-age-form novalidate>
-    <div class="grid gap-4 sm:grid-cols-2">
-      <div>
+<div class="agecalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-age>
+  <!-- Inputs -->
+  <form class="card p-4" data-form novalidate aria-label="Age calculator">
+    <div class="space-y-4">
+      <div data-field="dob">
         <label class="field-label" for="age-dob">Date of birth</label>
-        <input class="field" id="age-dob" name="dob" type="date" value="2000-01-01" max="9999-12-31" />
+        <input class="field mt-1" id="age-dob" name="dob" type="date" autocomplete="off" aria-describedby="age-dob-error" />
+        <p class="age-error" id="age-dob-error" data-error-for="dob" hidden></p>
       </div>
-      <div>
+      <div data-field="at">
         <label class="field-label" for="age-at">Age at the date</label>
-        <input class="field" id="age-at" name="at" type="date" max="9999-12-31" />
+        <input class="field mt-1" id="age-at" name="at" type="date" autocomplete="off" aria-describedby="age-at-help age-at-error" />
+        <p class="age-help" id="age-at-help">Defaults to today — change it to find the age at any past or future date.</p>
+        <p class="age-error" id="age-at-error" data-error-for="at" hidden></p>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Age</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="age-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card mt-6 p-6 text-center" data-age-result>
-    <p class="result-label">Your age</p>
-    <p class="mt-2 text-3xl sm:text-4xl result-value" data-age-main>—</p>
-    <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <div><p class="text-2xl font-bold" data-age-months>—</p><p class="text-xs" style="color: var(--muted)">months</p></div>
-      <div><p class="text-2xl font-bold" data-age-weeks>—</p><p class="text-xs" style="color: var(--muted)">weeks</p></div>
-      <div><p class="text-2xl font-bold" data-age-days>—</p><p class="text-xs" style="color: var(--muted)">days</p></div>
-      <div><p class="text-2xl font-bold" data-age-next>—</p><p class="text-xs" style="color: var(--muted)">days to birthday</p></div>
+  <!-- Result -->
+  <ResultShell id="age-result" state="empty" density="standard" label="Age result" minHeight="18rem" placeholderAlignment="center">
+    <EmptyResult message="Enter a date of birth and calculate the exact age." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Exact age">
+        <ResultValue value="—" size="text-3xl" />
+      </ResultSummary>
+
+      <ResultBreakdown title="In other units">
+        <dl class="age-metrics">
+          <div><dt>Total months</dt><dd data-age-months>—</dd></div>
+          <div><dt>Total weeks</dt><dd data-age-weeks>—</dd></div>
+          <div><dt>Total days</dt><dd data-age-days>—</dd></div>
+        </dl>
+      </ResultBreakdown>
+
+      <div class="age-next">
+        <p class="age-next-label">Next birthday</p>
+        <p class="age-next-value"><span data-age-next>—</span> <span class="age-next-unit">days</span></p>
+      </div>
+
+      <ResultInterpretation>
+        <span data-age-interpretation></span>
+      </ResultInterpretation>
     </div>
-  </div>
+
+    <InvalidResult
+      title="Check your dates"
+      message="Enter a valid date of birth on or before the date to calculate the age at."
+    />
+
+    <ResultAnnouncement id="age-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { calculateAge, parseISODateUTC } from '@lib/calculators/age';
+<style>
+  .age-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .age-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .age-error {
+    color: #fca5a5;
+  }
 
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const todayISO = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  };
-  const nf = new Intl.NumberFormat('en-US');
+  .age-help {
+    margin: 0.35rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .age-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .age-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .age-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .age-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .age-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .age-next {
+    margin-top: 1.1rem;
+    border-radius: 0.6rem;
+    padding: 0.8rem 1rem;
+    background: var(--subtle);
+  }
+  .age-next-label {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .age-next-value {
+    margin: 0.15rem 0 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--color-accent-600);
+  }
+  .age-next-unit {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { ageBinding, todayISO } from '@lib/calculators/age-form';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // When more than one Age calculator shares a document (e.g. an embed gallery), the server-static
+  // ids (the two fields + their error slots + help, the result shell, the live region) collide.
+  // Namespace THIS root's ids and repoint its in-root references so associations stay
+  // instance-local; a lone instance is left untouched. The runtime targets fields by [name] /
+  // [data-*], never these ids.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
 
   document.querySelectorAll<HTMLElement>('[data-age]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-age-form]')!;
-    const dobEl = form.elements.namedItem('dob') as HTMLInputElement;
-    const atEl = form.elements.namedItem('at') as HTMLInputElement;
-    if (!atEl.value) atEl.value = todayISO();
+    if (document.querySelectorAll('[data-age]').length > 1) uniquifyStaticIds(root, `a${++ns}`);
 
-    const set = (sel: string, v: string) => {
-      const el = root.querySelector<HTMLElement>(sel);
-      if (el) el.textContent = v;
-    };
+    // "age at" defaults to the visitor's local today (client-derived → SSR stays empty, so the
+    // baked HTML has no stale date and no baked result); DOB cannot be after today via the picker,
+    // while the binding still enforces DOB <= as-of independently.
+    const today = todayISO();
+    const dob = root.querySelector<HTMLInputElement>('[name="dob"]');
+    const at = root.querySelector<HTMLInputElement>('[name="at"]');
+    if (dob) dob.max = today;
+    if (at && !at.value) at.value = today;
 
-    function recompute() {
-      const dob = parseISODateUTC(dobEl.value);
-      const at = parseISODateUTC(atEl.value);
-      if (!dob || !at) {
-        set('[data-age-main]', '—');
-        return;
-      }
-      const r = calculateAge(dob, at);
-      if (!r.valid) {
-        set('[data-age-main]', 'Birth date is in the future');
-        ['[data-age-months]', '[data-age-weeks]', '[data-age-days]', '[data-age-next]'].forEach((s) => set(s, '—'));
-        return;
-      }
-      set('[data-age-main]', `${r.years} years, ${r.months} months, ${r.days} days`);
-      set('[data-age-months]', nf.format(r.totalMonths));
-      set('[data-age-weeks]', nf.format(r.totalWeeks));
-      set('[data-age-days]', nf.format(r.totalDays));
-      set('[data-age-next]', nf.format(r.nextBirthdayInDays));
+    mountFormCalculator(root, ageBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Age',
+    });
+
+    // Reset clears both dates (binding) then restores the "age at" default (today), analogous to
+    // the Retirement withdrawal-rate / Sales Tax mode-default restore.
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      const atEl = root.querySelector<HTMLInputElement>('[name="at"]');
+      if (atEl) atEl.value = todayISO();
+    });
+
+    // Clear the stale result whenever the shell leaves the valid state (an invalid live edit, or
+    // Reset), so no stale age lingers behind the hidden valid region. Presentation only.
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    if (shell) {
+      const clear = () => {
+        ['[data-age-months]', '[data-age-weeks]', '[data-age-days]', '[data-age-next]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.textContent = '—';
+        });
+        const interp = root.querySelector<HTMLElement>('[data-age-interpretation]');
+        if (interp) interp.textContent = '';
+      };
+      new MutationObserver(() => {
+        if (shell.dataset.resultState !== 'valid') clear();
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-    form.addEventListener('input', recompute);
-    recompute();
   });
 </script>

@@ -41,38 +41,137 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-17"
-  intro="See how your savings or investments grow with compound interest and regular contributions. Adjust the rate, time and compounding frequency to watch the difference compounding makes."
+  presentation="task-first"
+  intro="See how your savings or investments grow with compound interest and regular contributions. Adjust the rate, time and compounding frequency and press Calculate to see the difference compounding makes."
   faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-08-10' }}
 >
   <CompoundInterestCalculator />
 
   <Fragment slot="content">
-    <h2>How to use this compound interest calculator</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter your <strong>initial amount</strong> — the lump sum you are starting with (enter 0 if you are starting from nothing).</li>
+      <li>Set the expected <strong>annual interest rate</strong> as a percentage.</li>
+      <li>Choose the number of <strong>years</strong> the money will stay invested.</li>
+      <li>Pick how often interest <strong>compounds</strong> — annually, monthly or daily.</li>
+      <li>Optionally add a <strong>regular contribution</strong> you will make each period.</li>
+    </ol>
     <p>
-      Enter your <strong>initial amount</strong>, the expected <strong>annual rate</strong>,
-      the number of <strong>years</strong>, how often interest <strong>compounds</strong>,
-      and any amount you <strong>add each period</strong>. The calculator shows your future
-      value and splits it into principal, contributions and interest earned.
+      The calculator returns your future balance and splits it into three parts: the
+      principal you started with, the contributions you added along the way, and the
+      interest those amounts earned. The balance-by-year table shows the growth curve
+      steepening as interest compounds on itself.
     </p>
 
-    <h2>The power of time</h2>
+    <h2>What compound interest is</h2>
     <p>
-      Compounding rewards patience. Because interest earns interest, the balance curve
-      steepens the longer you stay invested — which is why starting early usually beats
-      investing more later. The "balance by year" table makes this visible.
+      Compound interest is interest paid on your original money <em>and</em> on the
+      interest it has already earned. <strong>Simple interest</strong> pays only on the
+      original principal, so a balance grows in a straight line. <strong>Compound
+      interest</strong> pays on the growing balance, so each period's interest is slightly
+      larger than the last and the curve bends upward.
+    </p>
+    <p>
+      Put $1,000 in an account paying 10% and the difference is stark. Simple interest
+      adds a flat $100 every year. Compounded annually, you earn $100 in year one, $110 in
+      year two (you now have $1,100 working for you), then $121 — the gap widens every
+      year and never stops. See the <a href="/finance/simple-interest-calculator">simple
+      interest calculator</a> for the straight-line contrast.
     </p>
 
-    <h2>Principal vs. contributions vs. interest</h2>
+    <h2>The compound interest formula</h2>
     <p>
-      Over long horizons, the interest portion often grows to exceed everything you put
-      in. The colored bar shows the three components of your ending balance at a glance,
-      so you can see how much the market (rather than your deposits) is doing the work.
+      For a one-time deposit with no further contributions, the future value is:
+    </p>
+    <p><strong>A = P(1 + r/n)<sup>nt</sup></strong></p>
+    <ul>
+      <li><strong>A</strong> — the ending balance (the number you are solving for)</li>
+      <li><strong>P</strong> — the principal, your starting amount</li>
+      <li><strong>r</strong> — the annual interest rate as a decimal (5% = 0.05)</li>
+      <li><strong>n</strong> — how many times interest compounds per year</li>
+      <li><strong>t</strong> — the number of years</li>
+    </ul>
+    <p>
+      When you add a fixed amount every period, each deposit begins compounding from the
+      day it lands, so the calculator adds the future value of that stream of
+      contributions on top of the balance above. The maths is fiddlier by hand, which is
+      exactly what the tool is for.
     </p>
 
+    <h2>A worked example</h2>
     <p>
-      Results are estimates that assume a constant rate of return. Real investment returns
-      vary and can be negative. This is educational information, not financial advice.
+      Say you deposit <strong>$10,000</strong> at a <strong>5%</strong> annual rate,
+      compounded <strong>monthly</strong>, for <strong>10 years</strong>, with no extra
+      contributions. Here <em>P</em> = 10,000, <em>r</em> = 0.05, <em>n</em> = 12 and
+      <em>t</em> = 10, so:
+    </p>
+    <p><strong>A = 10,000 × (1 + 0.05/12)<sup>12 × 10</sup> ≈ $16,470</strong></p>
+    <p>
+      You put in $10,000 and finished with about $16,470 — roughly <strong>$6,470</strong>
+      of interest, without adding a single dollar. Stretch the same deposit to 30 years
+      and it grows to about $44,700: the extra two decades more than triple the interest,
+      because the later years compound on a much bigger balance.
+    </p>
+
+    <h2>How compounding frequency affects growth</h2>
+    <p>
+      More frequent compounding adds interest to your balance sooner, so it starts earning
+      on itself sooner. The effect is real but modest — and it shrinks with each step up in
+      frequency. Using the same $10,000 at 5% for 10 years with no contributions:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Compounding frequency</th><th>Ending balance</th><th>Interest earned</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Annually</td><td>$16,288.95</td><td>$6,288.95</td></tr>
+        <tr><td>Quarterly</td><td>$16,436.19</td><td>$6,436.19</td></tr>
+        <tr><td>Monthly</td><td>$16,470.09</td><td>$6,470.09</td></tr>
+        <tr><td>Daily</td><td>$16,486.65</td><td>$6,486.65</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Moving from annual to monthly compounding adds about $181 here; going all the way to
+      daily adds only $17 more. The rate and the time horizon move the needle far more than
+      the compounding frequency does.
+    </p>
+
+    <h2>Why starting early beats saving more later</h2>
+    <p>
+      Because interest earns interest, the years at the <em>end</em> of a long horizon do
+      the heaviest lifting — and you only get those years by starting early. An investor
+      who saves modestly through their twenties often ends up ahead of someone who saves
+      far more but doesn't begin until their forties. Time in the market, not the size of
+      any single deposit, is usually the deciding factor.
+    </p>
+    <p>
+      Regular contributions amplify this, because <strong>every deposit starts its own
+      compounding clock</strong>. Add $200 a month to that $10,000 at 5% and you finish the
+      10 years with roughly $47,000 — the contributions total $24,000, and compounding
+      supplies the rest.
+    </p>
+
+    <h2>The rule of 72</h2>
+    <p>
+      For a quick estimate of how long an amount takes to double, divide 72 by the annual
+      rate. At 8% that is about <strong>9 years</strong>; at 6%, about <strong>12
+      years</strong>. It is an approximation — use the calculator for an exact figure — but
+      it is a handy way to sanity-check whether a given rate is doing much for you.
+    </p>
+
+    <h2>Limitations to keep in mind</h2>
+    <ul>
+      <li><strong>Constant-rate assumption.</strong> The tool applies one steady rate. Real savings and investment returns fluctuate and can be negative in any given year.</li>
+      <li><strong>Before inflation.</strong> Results are in today's nominal dollars; inflation erodes real buying power over time. Translate a projection with the <a href="/finance/inflation-calculator">inflation calculator</a>.</li>
+      <li><strong>Before tax and fees.</strong> Interest in a taxable account is usually taxed, and investment fees reduce returns — neither is deducted here.</li>
+    </ul>
+    <p>
+      To model a portfolio with monthly contributions, use the
+      <a href="/finance/investment-calculator">investment calculator</a>; to project
+      compounding all the way to retirement, try the
+      <a href="/finance/retirement-calculator">retirement calculator</a>. This is
+      educational information, not financial advice.
     </p>
   </Fragment>
 </CalculatorLayout>

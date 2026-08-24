@@ -1,149 +1,244 @@
 ---
 /**
- * Descriptive-statistics island. Computes central tendency, dispersion and the
- * five-number summary from a free-form list of numbers, server-rendered from a
- * sample and progressively enhanced to recompute live as the user types.
+ * Descriptive-statistics island (R13B1 — task-first ATOMIC migration of the
+ * Statistics + Standard Deviation routes).
  *
- * `primary` chooses which result(s) are featured at the top: the standard-
- * deviation pair (for the standard-deviation page) or the mean/median/mode
- * summary (for the general statistics page). Both variants show the full grid.
+ * Task-first: the data-set textarea starts EMPTY, the result is empty, and the
+ * visitor presses "Calculate Statistics" / "Calculate Standard Deviation" for
+ * the first result; live-after-first thereafter. Compute, validation, state,
+ * announcement and focus are owned by the shared runtime + the statistics
+ * binding (@lib/calculators/statistics-form), which wraps the UNCHANGED
+ * parseNumberList / calculateStats. The complete-result guard lives in the
+ * binding's resultValue (a NaN sentinel → the runtime's default finite gate) —
+ * there is NO isUsableResult.
+ *
+ * ONE shared island serves BOTH routes. `primary` is route CONFIGURATION
+ * ('summary' → mean/median/mode hero; 'sd' → sample/population SD hero). It
+ * changes ONLY the featured hero, the primary action label, the announcement and
+ * the interpretation — the textarea, tokenising, validation, formulas, the full
+ * descriptive grid below and the Reset lifecycle are identical for both routes.
+ * There is no StandardDeviationCalculator and no generic multi-stat abstraction.
  */
-import { calculateStats, parseNumberList } from '@lib/calculators/statistics';
-import { formatNumber } from '@lib/format';
+import { DEFAULT_PRIMARY, type StatPrimary } from '@lib/calculators/statistics-form';
+import ResultShell from '@components/result/ResultShell.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 interface Props {
-  primary?: 'summary' | 'sd';
+  primary?: StatPrimary;
 }
-const { primary = 'summary' } = Astro.props;
+const { primary = DEFAULT_PRIMARY } = Astro.props;
 
-const sample = '2, 4, 4, 4, 5, 5, 7, 9';
-const r = calculateStats(parseNumberList(sample));
-const S = (v: number) => formatNumber(v, 4);
-const modeText = (m: number[]) => (m.length ? m.map((v) => S(v)).join(', ') : 'No mode');
+const isSd = primary === 'sd';
+const actionLabel = isSd ? 'Calculate Standard Deviation' : 'Calculate Statistics';
+const noun = isSd ? 'Standard deviation' : 'Statistics';
 
-const featured =
-  primary === 'sd'
-    ? [
-        { key: 'sampleSD', label: 'Sample standard deviation (s)', val: S(r.sampleSD) },
-        { key: 'popSD', label: 'Population standard deviation (σ)', val: S(r.populationSD) },
-      ]
-    : [
-        { key: 'mean', label: 'Mean', val: S(r.mean) },
-        { key: 'median', label: 'Median', val: S(r.median) },
-        { key: 'mode', label: 'Mode', val: modeText(r.mode) },
-      ];
+// Route-specific hero — labels only; the binding fills the values on calculate.
+// The first (dominant) card carries `data-result-value` as the stable selector.
+const hero = isSd
+  ? [
+      { key: 'sampleSD', label: 'Sample standard deviation (s)', dominant: true },
+      { key: 'popSD', label: 'Population standard deviation (σ)', dominant: false },
+    ]
+  : [
+      { key: 'mean', label: 'Mean', dominant: true },
+      { key: 'median', label: 'Median', dominant: false },
+      { key: 'mode', label: 'Mode', dominant: false },
+    ];
 
+// The full descriptive grid — IDENTICAL for both routes.
 const groups = [
   {
     title: 'Central tendency',
     rows: [
-      { key: 'mean', label: 'Mean (average)', val: S(r.mean) },
-      { key: 'median', label: 'Median', val: S(r.median) },
-      { key: 'mode', label: 'Mode', val: modeText(r.mode) },
+      { key: 'mean', label: 'Mean (average)' },
+      { key: 'median', label: 'Median' },
+      { key: 'mode', label: 'Mode' },
     ],
   },
   {
     title: 'Dispersion',
     rows: [
-      { key: 'sampleSD', label: 'Sample SD (s)', val: S(r.sampleSD) },
-      { key: 'popSD', label: 'Population SD (σ)', val: S(r.populationSD) },
-      { key: 'sampleVar', label: 'Sample variance (s²)', val: S(r.sampleVariance) },
-      { key: 'popVar', label: 'Population variance (σ²)', val: S(r.populationVariance) },
-      { key: 'range', label: 'Range', val: S(r.range) },
-      { key: 'iqr', label: 'Interquartile range (IQR)', val: S(r.iqr) },
+      { key: 'sampleSD', label: 'Sample SD (s)' },
+      { key: 'popSD', label: 'Population SD (σ)' },
+      { key: 'sampleVar', label: 'Sample variance (s²)' },
+      { key: 'popVar', label: 'Population variance (σ²)' },
+      { key: 'range', label: 'Range' },
+      { key: 'iqr', label: 'Interquartile range (IQR)' },
     ],
   },
   {
     title: 'Five-number summary',
     rows: [
-      { key: 'min', label: 'Minimum', val: S(r.min) },
-      { key: 'q1', label: 'Q1 (25th percentile)', val: S(r.q1) },
-      { key: 'median', label: 'Median (Q2)', val: S(r.median) },
-      { key: 'q3', label: 'Q3 (75th percentile)', val: S(r.q3) },
-      { key: 'max', label: 'Maximum', val: S(r.max) },
+      { key: 'min', label: 'Minimum' },
+      { key: 'q1', label: 'Q1 (25th percentile)' },
+      { key: 'median', label: 'Median (Q2)' },
+      { key: 'q3', label: 'Q3 (75th percentile)' },
+      { key: 'max', label: 'Maximum' },
     ],
   },
   {
     title: 'Totals',
     rows: [
-      { key: 'count', label: 'Count (n)', val: String(r.count) },
-      { key: 'sum', label: 'Sum', val: S(r.sum) },
+      { key: 'count', label: 'Count (n)' },
+      { key: 'sum', label: 'Sum' },
     ],
   },
 ];
 ---
 
-<div class="mx-auto w-full max-w-4xl" data-stats>
-  <div class="grid gap-6 lg:grid-cols-5">
-    <form class="card p-5 sm:p-6 lg:col-span-2" novalidate>
-      <label class="field-label" for="stat-input">Enter your numbers</label>
-      <textarea class="field mt-1 min-h-44 font-mono" id="stat-input" name="values" rows="9" spellcheck="false">{sample}</textarea>
-      <p class="mt-2 text-xs" style="color: var(--muted)">
-        Separate with commas, spaces or new lines · <span data-stat="count">{r.count}</span> values
-      </p>
-    </form>
+<div class="statistics mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-5 lg:items-start" data-stats data-primary={primary}>
+  <!-- Inputs -->
+  <form class="card p-4 lg:col-span-2" data-form novalidate aria-label={`${noun} calculator`}>
+    <label class="field-label" for="stat-input">Data set</label>
+    <textarea
+      class="field mt-1 min-h-44 font-mono"
+      id="stat-input"
+      name="values"
+      rows="8"
+      spellcheck="false"
+      inputmode="decimal"
+      autocomplete="off"
+      placeholder="e.g. 4, 8, 15, 16, 23, 42"
+      aria-describedby="stat-help stat-values-error"></textarea>
+    <p class="stat-field-error" id="stat-values-error" data-error-for="values" hidden></p>
+    <p class="stat-help" id="stat-help">Enter numbers separated by commas, spaces or new lines.</p>
 
-    <div class="lg:col-span-3">
-      <div class={`grid gap-3 ${featured.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
-        {featured.map((f) => (
-          <div class="card p-5 text-center">
-            <p class="text-xs font-medium" style="color: var(--muted)">{f.label}</p>
-            <p class="mt-1 text-2xl font-extrabold" style="color: var(--color-brand-700)" data-stat={f.key}>{f.val}</p>
-          </div>
-        ))}
-      </div>
+    <div class="mt-5 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-stat-submit>{actionLabel}</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
-  </div>
+    <p class="stat-live-note" data-live-note hidden>Changes update automatically.</p>
+  </form>
 
-  <div class="mt-6 grid gap-4 sm:grid-cols-2">
-    {groups.map((g) => (
-      <div class="card p-5">
-        <h3 class="text-xs font-bold uppercase tracking-wide" style="color: var(--muted)">{g.title}</h3>
-        <dl class="mt-3 space-y-2 text-sm">
-          {g.rows.map((row) => (
-            <div class="flex items-center justify-between gap-4">
-              <dt style="color: var(--muted)">{row.label}</dt>
-              <dd class="font-semibold tabular-nums" style="color: var(--heading)" data-stat={row.key}>{row.val}</dd>
+  <!-- Result -->
+  <div class="lg:col-span-3">
+    <ResultShell id="stat-result" state="empty" density="complex" label={`${noun} result`} minHeight="18rem">
+      <EmptyResult message={isSd
+        ? 'Enter a data set and calculate to see the sample and population standard deviation, variance and the full summary.'
+        : 'Enter a data set and calculate to see the mean, median, mode and the full five-number summary.'} />
+
+      <div data-result-when="valid">
+        <!-- Route-specific hero -->
+        <div class={`grid gap-3 ${hero.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+          {hero.map((h) => (
+            <div class="stat-hero">
+              <p class="stat-hero__label">{h.label}</p>
+              <p
+                class:list={['stat-hero__value tabular-nums', h.dominant ? 'text-4xl' : 'text-2xl']}
+                data-stat={h.key}
+                data-result-value={h.dominant ? '' : undefined}
+              >—</p>
             </div>
           ))}
-        </dl>
+        </div>
+
+        <!-- Full descriptive grid (identical for both routes) -->
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          {groups.map((g) => (
+            <div class="stat-group">
+              <h3 class="stat-group__title">{g.title}</h3>
+              <dl class="mt-2 space-y-1.5 text-sm">
+                {g.rows.map((row) => (
+                  <div class="flex items-center justify-between gap-4">
+                    <dt style="color: var(--muted)">{row.label}</dt>
+                    <dd class="font-semibold tabular-nums" style="color: var(--heading)" data-stat={row.key}>—</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+
+        <p class="stat-interpretation" data-stat-interpretation></p>
+        <p class="stat-assumptions">Sample figures (s, s²) divide by n − 1; population figures (σ, σ²) divide by n. Quartiles use the median-of-halves method (Tukey's hinges).</p>
       </div>
-    ))}
+
+      <InvalidResult
+        title="Check your data set"
+        message="Enter at least one number, separated by commas, spaces or new lines."
+      />
+
+      <ResultAnnouncement id="stat-live" />
+    </ResultShell>
   </div>
 </div>
 
+<style>
+  .stat-field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .stat-field-error { color: #fca5a5; }
+  }
+  :root[data-theme='dark'] .stat-field-error { color: #fca5a5; }
+
+  .stat-help { margin-top: 0.6rem; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+  .stat-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  .stat-hero {
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    padding: 0.85rem 0.75rem;
+    text-align: center;
+    background: color-mix(in srgb, var(--card) 55%, transparent);
+  }
+  .stat-hero__label { font-size: 0.72rem; font-weight: 600; color: var(--muted); }
+  .stat-hero__value { margin-top: 0.15rem; font-weight: 800; line-height: 1.1; color: var(--color-brand-700); }
+  :root[data-theme='dark'] .stat-hero__value { color: var(--color-brand-400); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .stat-hero__value { color: var(--color-brand-400); }
+  }
+
+  .stat-group {
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    padding: 0.85rem 0.9rem;
+  }
+  .stat-group__title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+  }
+
+  .stat-interpretation { margin: 1rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+  .stat-assumptions { margin: 0.75rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+</style>
+
 <script>
-  import { calculateStats, parseNumberList } from '@lib/calculators/statistics';
-  const fmt = (v: number) =>
-    Number.isFinite(v) ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(v) : '—';
-  const modeText = (m: number[]) => (m.length ? m.map(fmt).join(', ') : 'No mode');
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { statisticsBinding } from '@lib/calculators/statistics-form';
 
   document.querySelectorAll<HTMLElement>('[data-stats]').forEach((root) => {
-    const input = root.querySelector<HTMLTextAreaElement>('#stat-input');
-    if (!input) return;
-    const setAll = (key: string, v: string) =>
-      root.querySelectorAll<HTMLElement>(`[data-stat="${key}"]`).forEach((el) => {
-        el.textContent = v;
+    const isSd = root.getAttribute('data-primary') === 'sd';
+    mountFormCalculator(root, statisticsBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: isSd ? 'Calculate Standard Deviation' : 'Calculate Statistics',
+    });
+
+    // The island clears the hero + grid + interpretation whenever the shell
+    // leaves the valid state (an invalid live edit, or Reset), so a stale result
+    // is never left behind the (CSS-hidden) valid region. Presentation only — the
+    // runtime still owns the result state, compute and announcement.
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    if (shell) {
+      const clearCells = () => {
+        root.querySelectorAll<HTMLElement>('[data-stat]').forEach((el) => {
+          el.textContent = '—';
+        });
+        const interp = root.querySelector<HTMLElement>('[data-stat-interpretation]');
+        if (interp) interp.textContent = '';
+      };
+      const observer = new MutationObserver(() => {
+        if (shell.dataset.resultState !== 'valid') clearCells();
       });
-    function recompute() {
-      const r = calculateStats(parseNumberList(input!.value));
-      setAll('count', String(r.count));
-      setAll('sum', fmt(r.sum));
-      setAll('mean', fmt(r.mean));
-      setAll('median', fmt(r.median));
-      setAll('mode', modeText(r.mode));
-      setAll('min', fmt(r.min));
-      setAll('max', fmt(r.max));
-      setAll('range', fmt(r.range));
-      setAll('q1', fmt(r.q1));
-      setAll('q3', fmt(r.q3));
-      setAll('iqr', fmt(r.iqr));
-      setAll('sampleSD', fmt(r.sampleSD));
-      setAll('sampleVar', fmt(r.sampleVariance));
-      setAll('popSD', fmt(r.populationSD));
-      setAll('popVar', fmt(r.populationVariance));
+      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
-    input.addEventListener('input', recompute);
-    recompute();
   });
 </script>

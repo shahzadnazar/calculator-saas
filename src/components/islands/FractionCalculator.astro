@@ -1,65 +1,221 @@
 ---
-import { computeFraction } from '@lib/calculators/fraction';
-import { formatNumber } from '@lib/format';
-
-const r = computeFraction({ num: 1, den: 2 }, 'add', { num: 1, den: 3 });
+/**
+ * Fraction calculator island (R17B1 — bounded singleton; task-first).
+ *
+ * A single form on the UNCHANGED standard-form runtime + the Fraction binding
+ * (@lib/calculators/fraction-form), which wraps the UNCHANGED computeFraction / simplify. Two
+ * fractions and one operation (add / subtract / multiply / divide) chosen from a native <select>
+ * PARAMETER — NOT structural modes, no panels. All fields start EMPTY (the legacy prefilled
+ * 1/2 + 1/3 and auto-calculated); the visitor presses "Calculate Fraction" for the first result,
+ * then live-after-first. The dominant result is the simplified fraction; a mixed number (only when
+ * it differs — improper/whole) and the decimal are secondaries. NO isUsableResult — the complete-
+ * result guard lives in the binding's resultValue (a NaN sentinel → the default finite gate; a valid
+ * 0 passes). No runtime change; NO generic fraction / operation / equation / rational abstraction.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Fraction shares a document (the R16B2.1
+ * discipline), so an embed gallery has no duplicate ids and every association stays instance-local.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto w-full max-w-3xl" data-fraction>
-  <form class="card p-5 sm:p-6" data-fr-form novalidate>
-    <div class="flex flex-wrap items-center justify-center gap-4">
-      <div class="flex flex-col items-center">
-        <input class="field w-20 text-center" name="an" type="number" value="1" aria-label="first numerator" inputmode="numeric" />
-        <div class="my-1 h-px w-16" style="background: var(--fg)"></div>
-        <input class="field w-20 text-center" name="ad" type="number" value="2" aria-label="first denominator" inputmode="numeric" />
+<div class="fraction mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-fraction>
+  <!-- Inputs -->
+  <form class="card p-4" data-form novalidate aria-label="Fraction calculator">
+    <div class="fr-row">
+      <div class="fr-stack" role="group" aria-label="First fraction">
+        <label class="sr-only" for="fr-an">First numerator</label>
+        <input class="field fr-num" id="fr-an" name="an" type="number" step="1" inputmode="numeric" autocomplete="off" placeholder="1" aria-describedby="fr-an-error" />
+        <div class="fr-bar" aria-hidden="true"></div>
+        <label class="sr-only" for="fr-ad">First denominator</label>
+        <input class="field fr-num" id="fr-ad" name="ad" type="number" step="1" inputmode="numeric" autocomplete="off" placeholder="2" aria-describedby="fr-ad-error" />
       </div>
 
-      <select class="field w-16 text-center text-xl" name="op" aria-label="operation">
+      <label class="sr-only" for="fr-op">Operation</label>
+      <select class="field fr-op" id="fr-op" name="op" aria-label="Operation">
         <option value="add">+</option>
         <option value="subtract">−</option>
         <option value="multiply">×</option>
         <option value="divide">÷</option>
       </select>
 
-      <div class="flex flex-col items-center">
-        <input class="field w-20 text-center" name="bn" type="number" value="1" aria-label="second numerator" inputmode="numeric" />
-        <div class="my-1 h-px w-16" style="background: var(--fg)"></div>
-        <input class="field w-20 text-center" name="bd" type="number" value="3" aria-label="second denominator" inputmode="numeric" />
-      </div>
-
-      <span class="text-2xl font-bold">=</span>
-
-      <div class="text-center">
-        <p class="text-3xl result-value" style="color: var(--color-brand-700)" data-fr-result>{r.fraction.num}/{r.fraction.den}</p>
+      <div class="fr-stack" role="group" aria-label="Second fraction">
+        <label class="sr-only" for="fr-bn">Second numerator</label>
+        <input class="field fr-num" id="fr-bn" name="bn" type="number" step="1" inputmode="numeric" autocomplete="off" placeholder="1" aria-describedby="fr-bn-error" />
+        <div class="fr-bar" aria-hidden="true"></div>
+        <label class="sr-only" for="fr-bd">Second denominator</label>
+        <input class="field fr-num" id="fr-bd" name="bd" type="number" step="1" inputmode="numeric" autocomplete="off" placeholder="3" aria-describedby="fr-bd-error" />
       </div>
     </div>
 
-    <div class="mt-6 grid grid-cols-2 gap-3 text-center text-sm">
-      <div class="rounded-lg p-3" style="background: var(--subtle)"><p style="color: var(--muted)">Mixed number</p><p class="mt-1 text-lg font-bold" data-fr-mixed>{r.mixed}</p></div>
-      <div class="rounded-lg p-3" style="background: var(--subtle)"><p style="color: var(--muted)">Decimal</p><p class="mt-1 text-lg font-bold" data-fr-decimal>{formatNumber(r.decimal, 4)}</p></div>
+    <div class="fr-errors" aria-live="off">
+      <p class="fr-field-error" id="fr-an-error" data-error-for="an" hidden></p>
+      <p class="fr-field-error" id="fr-ad-error" data-error-for="ad" hidden></p>
+      <p class="fr-field-error" id="fr-bn-error" data-error-for="bn" hidden></p>
+      <p class="fr-field-error" id="fr-bd-error" data-error-for="bd" hidden></p>
+      <p class="fr-field-error" data-error-for="op" hidden></p>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Fraction</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="fr-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
+
+  <!-- Result -->
+  <ResultShell id="fr-result" state="empty" density="standard" label="Fraction result" minHeight="16rem" placeholderAlignment="center">
+    <EmptyResult message="Enter two fractions, choose an operation, then calculate the simplified result." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Simplified fraction">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-fr-interpretation></span>
+      </ResultInterpretation>
+
+      <ResultBreakdown title="Other forms">
+        <dl class="fr-metrics">
+          <div data-fr-mixed-row hidden><dt>Mixed number</dt><dd data-fr-mixed>—</dd></div>
+          <div><dt>Decimal</dt><dd data-fr-decimal>—</dd></div>
+        </dl>
+      </ResultBreakdown>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter whole-number numerators and non-zero denominators, and choose an operation, to calculate."
+    />
+
+    <ResultAnnouncement id="fr-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { computeFraction, type FractionOp } from '@lib/calculators/fraction';
-  import { formatNumber } from '@lib/format';
-  document.querySelectorAll<HTMLElement>('[data-fraction]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-fr-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value);
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const op = (form.elements.namedItem('op') as HTMLSelectElement).value as FractionOp;
-      const r = computeFraction({ num: num('an'), den: num('ad') }, op, { num: num('bn'), den: num('bd') });
-      if (Number.isNaN(r.fraction.num)) {
-        set('[data-fr-result]', '—'); set('[data-fr-mixed]', '—'); set('[data-fr-decimal]', '—');
-        return;
-      }
-      set('[data-fr-result]', `${r.fraction.num}/${r.fraction.den}`);
-      set('[data-fr-mixed]', r.mixed);
-      set('[data-fr-decimal]', formatNumber(r.decimal, 4));
+<style>
+  .fr-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+  .fr-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .fraction :global(.fr-num) {
+    width: 5rem;
+    text-align: center;
+  }
+  .fr-bar {
+    height: 2px;
+    width: 4.5rem;
+    background: var(--fg);
+    border-radius: 1px;
+  }
+  .fr-op {
+    width: 4rem;
+    text-align: center;
+    font-size: 1.25rem;
+  }
+  .fr-errors {
+    margin-top: 0.75rem;
+  }
+  .fr-field-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .fr-field-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .fr-field-error {
+    color: #fca5a5;
+  }
+
+  .fr-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .fr-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .fr-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .fr-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .fr-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { fractionBinding } from '@lib/calculators/fraction-form';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // When more than one Fraction calculator shares a document (e.g. an embed gallery), the server-
+  // static ids (the four fields + their error slots, result shell, live region) collide. Namespace
+  // THIS root's ids and repoint its in-root references (label `for`, `aria-describedby`, …) so
+  // associations stay instance-local and the document has no duplicate ids; a lone instance is left
+  // untouched. The runtime targets fields by `[name]` / `[data-*]`, never these ids.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-fraction]').forEach((root) => {
+    if (document.querySelectorAll('[data-fraction]').length > 1) uniquifyStaticIds(root, `f${++ns}`);
+    mountFormCalculator(root, fractionBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Fraction',
+    });
   });
 </script>

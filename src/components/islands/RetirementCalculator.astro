@@ -1,86 +1,262 @@
 ---
-import { calculateRetirement } from '@lib/calculators/retirement';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-
-const defaults = {
-  currentAge: 30, retirementAge: 65, currentSavings: 25000,
-  monthlyContribution: 500, annualReturnPct: 6, withdrawalRatePct: 4,
-};
-const r = calculateRetirement(defaults);
+/**
+ * Retirement calculator island (R18B3 — task-first; finance complex-form family; standard-form
+ * runtime UNCHANGED).
+ *
+ * A single form on the UNCHANGED standard-form runtime + the Retirement binding
+ * (@lib/calculators/retirement-form), which wraps the UNCHANGED calculateRetirement (delegating
+ * to the SHARED compound-interest engine — monthly compounding, monthly contributions — then a
+ * withdrawal step). Task-first, summary-only: the personal fields start EMPTY (the withdrawal
+ * rate is prefilled with the source's 4% default — a non-personal assumption); the legacy island
+ * prefilled a full $25k/$500/6% scenario and auto-calculated a baked-in SSR result. The DOMINANT
+ * result is the projected nest egg; the estimated retirement income (monthly + annual), total
+ * contributions and investment growth are supporting. The latent yearly compound series is NOT
+ * rendered — there is no schedule table. Ages are whole years (no invented upper cap) with
+ * retirement age > current age; current savings and monthly contribution are each OPTIONAL — a
+ * zero-funded projection is a valid all-zero result ($0 nest egg, $0 income), SHOWN, never a
+ * funding error (R18B3.1). NO isUsableResult — the guard lives in the binding's resultValue. No runtime change; NO shared
+ * growth / investment / retirement / projection binding, and NOTHING shared with Investment or
+ * Savings beyond the frozen engine.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Retirement calculator shares a
+ * document (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-retirement>
-  <form class="card p-5 sm:p-6" data-ret-form novalidate>
+<div class="retirement mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-retirement>
+  <!-- Inputs -->
+  <form class="card p-4" data-form novalidate aria-label="Retirement calculator">
     <div class="grid grid-cols-2 gap-4">
-      <div>
+      <div data-field="currentAge">
         <label class="field-label" for="ret-age">Current age</label>
-        <input class="field" id="ret-age" name="currentAge" type="number" min="0" max="100" value={defaults.currentAge} inputmode="decimal" />
+        <input class="field" id="ret-age" name="currentAge" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="ret-age-error" />
+        <p class="ret-error" id="ret-age-error" data-error-for="currentAge" hidden></p>
       </div>
-      <div>
+      <div data-field="retirementAge">
         <label class="field-label" for="ret-rage">Retirement age</label>
-        <input class="field" id="ret-rage" name="retirementAge" type="number" min="0" max="100" value={defaults.retirementAge} inputmode="decimal" />
+        <input class="field" id="ret-rage" name="retirementAge" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 65" aria-describedby="ret-rage-error" />
+        <p class="ret-error" id="ret-rage-error" data-error-for="retirementAge" hidden></p>
       </div>
     </div>
+
     <div class="mt-4 space-y-4">
-      <div>
+      <div data-field="currentSavings">
         <label class="field-label" for="ret-savings">Current savings</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="ret-savings" name="currentSavings" type="number" min="0" step="1000" value={defaults.currentSavings} inputmode="decimal" /></div>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ret-savings" name="currentSavings" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 25000" aria-describedby="ret-savings-error" />
+        </div>
+        <p class="ret-error" id="ret-savings-error" data-error-for="currentSavings" hidden></p>
       </div>
-      <div>
+      <div data-field="monthlyContribution">
         <label class="field-label" for="ret-monthly">Monthly contribution</label>
-        <div class="flex"><span class="field-affix rounded-l-lg border-r-0">$</span><input class="field rounded-l-none" id="ret-monthly" name="monthlyContribution" type="number" min="0" step="50" value={defaults.monthlyContribution} inputmode="decimal" /></div>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ret-monthly" name="monthlyContribution" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 500" aria-describedby="ret-monthly-error" />
+        </div>
+        <p class="ret-error" id="ret-monthly-error" data-error-for="monthlyContribution" hidden></p>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div>
+        <div data-field="annualReturnPct">
           <label class="field-label" for="ret-return">Annual return</label>
-          <div class="flex"><input class="field rounded-r-none" id="ret-return" name="annualReturnPct" type="number" min="0" step="0.1" value={defaults.annualReturnPct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+          <div class="flex">
+            <input class="field rounded-r-none" id="ret-return" name="annualReturnPct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 6" aria-describedby="ret-return-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="ret-error" id="ret-return-error" data-error-for="annualReturnPct" hidden></p>
         </div>
-        <div>
+        <div data-field="withdrawalRatePct">
           <label class="field-label" for="ret-wd">Withdrawal rate</label>
-          <div class="flex"><input class="field rounded-r-none" id="ret-wd" name="withdrawalRatePct" type="number" min="0" step="0.1" value={defaults.withdrawalRatePct} inputmode="decimal" /><span class="field-affix rounded-r-lg border-l-0">%</span></div>
+          <div class="flex">
+            <input class="field rounded-r-none" id="ret-wd" name="withdrawalRatePct" type="number" min="0" step="0.1" value="4" inputmode="decimal" autocomplete="off" aria-describedby="ret-wd-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="ret-error" id="ret-wd-error" data-error-for="withdrawalRatePct" hidden></p>
         </div>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Retirement</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="ret-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="result-label">Projected savings at retirement</p>
-    <p class="mt-1 text-4xl result-value" data-ret-nest>{formatCurrency(r.nestEgg)}</p>
-    <p class="mt-1 text-sm" style="color: var(--muted)">in <span data-ret-years>{r.yearsToRetirement}</span> years</p>
+  <!-- Result -->
+  <ResultShell id="ret-result" state="empty" density="standard" label="Retirement projection" minHeight="20rem" placeholderAlignment="center">
+    <EmptyResult message="Enter your ages and expected return (and any current savings or monthly contribution), then calculate your projection." />
 
-    <div class="mt-5 rounded-lg p-4" style="background: var(--subtle)">
-      <p class="text-sm" style="color: var(--muted)">Estimated retirement income</p>
-      <p class="mt-1 text-2xl font-bold" style="color: var(--color-accent-600)"><span data-ret-monthly-income>{formatCurrency(r.estimatedMonthlyIncome)}</span> <span class="text-base font-semibold" style="color: var(--muted)">/month</span></p>
-      <p class="text-sm" style="color: var(--muted)"><span data-ret-annual-income>{formatCurrencyRounded(r.estimatedAnnualIncome)}</span> per year</p>
+    <div data-result-when="valid">
+      <ResultSummary label="Projected retirement balance">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+      <p class="ret-horizon">in <span data-ret-years>—</span> years</p>
+
+      <div class="ret-income">
+        <p class="ret-income-label">Estimated retirement income</p>
+        <p class="ret-income-primary"><span data-ret-monthly-income>—</span> <span class="ret-income-unit">/month</span></p>
+        <p class="ret-income-secondary"><span data-ret-annual-income>—</span> per year</p>
+      </div>
+
+      <ResultBreakdown title="Breakdown">
+        <dl class="ret-metrics">
+          <div><dt>Total contributions</dt><dd data-ret-contrib>—</dd></div>
+          <div><dt>Investment growth</dt><dd data-ret-earn>—</dd></div>
+        </dl>
+      </ResultBreakdown>
+
+      <ResultInterpretation>
+        <span data-ret-interpretation></span>
+      </ResultInterpretation>
     </div>
 
-    <dl class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color: var(--line)">
-      <div class="flex justify-between"><dt style="color: var(--muted)">Total contributions</dt><dd class="font-semibold" data-ret-contrib>{formatCurrencyRounded(r.totalContributions)}</dd></div>
-      <div class="flex justify-between"><dt style="color: var(--muted)">Investment growth</dt><dd class="font-semibold" data-ret-earn>{formatCurrencyRounded(r.totalEarnings)}</dd></div>
-    </dl>
-  </div>
+    <InvalidResult
+      title="Check your entries"
+      message="Enter your current and retirement age, an expected return and a withdrawal rate."
+    />
+
+    <ResultAnnouncement id="ret-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { calculateRetirement } from '@lib/calculators/retirement';
-  import { formatCurrency, formatCurrencyRounded } from '@lib/format';
-  document.querySelectorAll<HTMLElement>('[data-retirement]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-ret-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const set = (sel: string, v: string) => { const el = root.querySelector<HTMLElement>(sel); if (el) el.textContent = v; };
-    function recompute() {
-      const r = calculateRetirement({
-        currentAge: num('currentAge'), retirementAge: num('retirementAge'), currentSavings: num('currentSavings'),
-        monthlyContribution: num('monthlyContribution'), annualReturnPct: num('annualReturnPct'), withdrawalRatePct: num('withdrawalRatePct'),
-      });
-      set('[data-ret-nest]', formatCurrency(r.nestEgg));
-      set('[data-ret-years]', String(r.yearsToRetirement));
-      set('[data-ret-monthly-income]', formatCurrency(r.estimatedMonthlyIncome));
-      set('[data-ret-annual-income]', formatCurrencyRounded(r.estimatedAnnualIncome));
-      set('[data-ret-contrib]', formatCurrencyRounded(r.totalContributions));
-      set('[data-ret-earn]', formatCurrencyRounded(r.totalEarnings));
+<style>
+  .ret-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .ret-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .ret-error {
+    color: #fca5a5;
+  }
+
+  .ret-horizon {
+    margin: 0.25rem 0 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .ret-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .ret-income {
+    margin-top: 1.1rem;
+    border-radius: 0.6rem;
+    padding: 0.9rem 1rem;
+    background: var(--subtle);
+  }
+  .ret-income-label {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .ret-income-primary {
+    margin: 0.2rem 0 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-accent-600);
+  }
+  .ret-income-unit {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .ret-income-secondary {
+    margin: 0.1rem 0 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .ret-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .ret-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .ret-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .ret-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { retirementBinding } from '@lib/calculators/retirement-form';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // When more than one Retirement calculator shares a document (e.g. an embed gallery), the
+  // server-static ids (the six fields + their error slots, the result shell, the live region)
+  // collide. Namespace THIS root's ids and repoint its in-root references so associations stay
+  // instance-local; a lone instance is left untouched. The runtime targets fields by [name] /
+  // [data-*], never these ids.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-retirement]').forEach((root) => {
+    if (document.querySelectorAll('[data-retirement]').length > 1) uniquifyStaticIds(root, `r${++ns}`);
+
+    mountFormCalculator(root, retirementBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Retirement',
+    });
+
+    // The binding clears the five personal fields on reset; the island restores the
+    // withdrawal-rate default (a non-personal structural assumption), analogous to the
+    // Sales Tax / Income Tax mode-default restore.
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      const wd = root.querySelector<HTMLInputElement>('[name="withdrawalRatePct"]');
+      if (wd) wd.value = '4';
+    });
   });
 </script>

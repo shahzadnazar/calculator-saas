@@ -1,85 +1,227 @@
 ---
-import { convertSalary, type PayUnit } from '@lib/calculators/salary';
-import { formatCurrency } from '@lib/format';
-
-const d = { amount: 25, unit: 'hourly' as PayUnit, hoursPerWeek: 40, daysPerWeek: 5, weeksPerYear: 52 };
-const r = convertSalary(d);
-const units: { v: PayUnit; l: string }[] = [
-  { v: 'hourly', l: 'per hour' }, { v: 'daily', l: 'per day' }, { v: 'weekly', l: 'per week' },
-  { v: 'biweekly', l: 'biweekly' }, { v: 'monthly', l: 'per month' }, { v: 'annual', l: 'per year' },
-];
-const rows: { key: keyof typeof r; label: string }[] = [
-  { key: 'hourly', label: 'Hourly' }, { key: 'daily', label: 'Daily' }, { key: 'weekly', label: 'Weekly' },
-  { key: 'biweekly', label: 'Biweekly' }, { key: 'monthly', label: 'Monthly' }, { key: 'annual', label: 'Annual' },
-];
+/**
+ * Salary calculator island (R19A1 — task-first; finance; standard-form runtime UNCHANGED).
+ *
+ * A single form on the UNCHANGED standard-form runtime + the Salary binding
+ * (@lib/calculators/salary-form), which wraps the UNCHANGED convertSalary (frozen by salary.test.ts) —
+ * a pure pay-period converter. Task-first, summary-first: the pay AMOUNT starts EMPTY, the pay unit
+ * defaults to hourly (the "hourly to salary" headline), the three schedule assumptions keep their
+ * structural defaults (40 hrs / 5 days / 52 weeks), the result is empty on the server AND after
+ * hydration (the legacy island auto-calculated a $25/hr example on load, live on every keystroke), and
+ * the visitor presses "Convert" for the first result (live-after-first).
+ *
+ * The DOMINANT result is the ANNUAL salary; monthly / biweekly / weekly / daily / hourly are the
+ * supporting equivalents — ALL from the single frozen SalaryResult (no duplicated conversion; no
+ * legacy innerHTML calculation). NO isUsableResult — the complete-result guard lives in the binding's
+ * resultValue (a finite annual sentinel; a valid $0 is the finite 0 the default gate accepts). No
+ * runtime change; salary.ts is untouched, so referenceTables.ts / the salary-conversion-table
+ * reference page are byte-identical.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Salary calculator shares a document
+ * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
+ */
+import { PAY_UNITS, DEFAULT_UNIT } from '@lib/calculators/salary-form';
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 ---
 
-<div class="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2" data-salary>
-  <form class="card p-5 sm:p-6" data-sal-form novalidate>
+<div class="salcalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-salary>
+  <!-- Inputs -->
+  <form class="card p-4" data-form novalidate aria-label="Salary calculator">
     <div class="space-y-4">
-      <div>
+      <div data-field="amount">
         <label class="field-label" for="sal-amount">Pay amount</label>
-        <div class="flex">
+        <div class="mt-1 flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-none border-x-0" id="sal-amount" name="amount" type="number" min="0" step="0.5" value={d.amount} inputmode="decimal" />
-          <select class="field w-32 rounded-l-none" name="unit" aria-label="Pay period">
-            {units.map((u) => (<option value={u.v} selected={u.v === d.unit}>{u.l}</option>))}
+          <input class="field rounded-none border-x-0" id="sal-amount" name="amount" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="e.g. 25" aria-describedby="sal-amount-error" />
+          <select class="field w-32 rounded-l-none" id="sal-unit" name="unit" aria-label="Pay period">
+            {PAY_UNITS.map((u) => <option value={u.value} selected={u.value === DEFAULT_UNIT}>{u.label}</option>)}
           </select>
         </div>
+        <p class="sal-error" id="sal-amount-error" data-error-for="amount" hidden></p>
       </div>
+
+      <p class="sal-help">Adjust your schedule to reflect overtime, part-time hours or unpaid leave.</p>
+
       <div class="grid grid-cols-3 gap-3">
-        <div>
+        <div data-field="hoursPerWeek">
           <label class="field-label" for="sal-hpw">Hrs/week</label>
-          <input class="field" id="sal-hpw" name="hoursPerWeek" type="number" min="1" step="1" value={d.hoursPerWeek} inputmode="decimal" />
+          <input class="field mt-1" id="sal-hpw" name="hoursPerWeek" type="number" min="1" step="0.5" inputmode="decimal" autocomplete="off" value="40" aria-describedby="sal-hpw-error" />
+          <p class="sal-error" id="sal-hpw-error" data-error-for="hoursPerWeek" hidden></p>
         </div>
-        <div>
+        <div data-field="daysPerWeek">
           <label class="field-label" for="sal-dpw">Days/week</label>
-          <input class="field" id="sal-dpw" name="daysPerWeek" type="number" min="1" step="1" value={d.daysPerWeek} inputmode="decimal" />
+          <input class="field mt-1" id="sal-dpw" name="daysPerWeek" type="number" min="1" step="1" inputmode="decimal" autocomplete="off" value="5" aria-describedby="sal-dpw-error" />
+          <p class="sal-error" id="sal-dpw-error" data-error-for="daysPerWeek" hidden></p>
         </div>
-        <div>
+        <div data-field="weeksPerYear">
           <label class="field-label" for="sal-wpy">Weeks/yr</label>
-          <input class="field" id="sal-wpy" name="weeksPerYear" type="number" min="1" step="1" value={d.weeksPerYear} inputmode="decimal" />
+          <input class="field mt-1" id="sal-wpy" name="weeksPerYear" type="number" min="1" step="1" inputmode="decimal" autocomplete="off" value="52" aria-describedby="sal-wpy-error" />
+          <p class="sal-error" id="sal-wpy-error" data-error-for="weeksPerYear" hidden></p>
         </div>
       </div>
     </div>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Convert</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="sal-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card p-5 sm:p-6">
-    <p class="mb-3 result-label">Equivalent pay</p>
-    <table class="w-full text-sm">
-      <tbody data-sal-table>
-        {rows.map((row) => (
-          <tr class="border-t" style="border-color: var(--line)">
-            <td class="py-2" style="color: var(--muted)">{row.label}</td>
-            <td class="py-2 text-right font-bold" style="color: var(--heading)">{formatCurrency(r[row.key])}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
+  <!-- Result -->
+  <ResultShell id="salary-result" state="empty" density="standard" label="Salary result" minHeight="18rem" placeholderAlignment="center">
+    <EmptyResult message="Enter a pay amount and choose its period, then convert." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Annual salary">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+
+      <ResultBreakdown title="Equivalent pay">
+        <dl class="sal-metrics">
+          <div><dt>Monthly</dt><dd data-sal-monthly>—</dd></div>
+          <div><dt>Biweekly</dt><dd data-sal-biweekly>—</dd></div>
+          <div><dt>Weekly</dt><dd data-sal-weekly>—</dd></div>
+          <div><dt>Daily</dt><dd data-sal-daily>—</dd></div>
+          <div><dt>Hourly</dt><dd data-sal-hourly>—</dd></div>
+        </dl>
+      </ResultBreakdown>
+
+      <p class="sal-note">Gross figures (before tax), on your entered schedule.</p>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter a pay amount of zero or more and a positive weekly schedule."
+    />
+
+    <ResultAnnouncement id="salary-live" />
+  </ResultShell>
 </div>
 
-<script>
-  import { convertSalary, type PayUnit } from '@lib/calculators/salary';
-  import { formatCurrency } from '@lib/format';
-  const rows: { key: keyof ReturnType<typeof convertSalary>; label: string }[] = [
-    { key: 'hourly', label: 'Hourly' }, { key: 'daily', label: 'Daily' }, { key: 'weekly', label: 'Weekly' },
-    { key: 'biweekly', label: 'Biweekly' }, { key: 'monthly', label: 'Monthly' }, { key: 'annual', label: 'Annual' },
-  ];
-  document.querySelectorAll<HTMLElement>('[data-salary]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-sal-form]')!;
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    function recompute() {
-      const r = convertSalary({
-        amount: num('amount'),
-        unit: (form.elements.namedItem('unit') as HTMLSelectElement).value as PayUnit,
-        hoursPerWeek: num('hoursPerWeek'), daysPerWeek: num('daysPerWeek'), weeksPerYear: num('weeksPerYear'),
-      });
-      root.querySelector<HTMLElement>('[data-sal-table]')!.innerHTML = rows
-        .map((row) => `<tr class="border-t" style="border-color: var(--line)"><td class="py-2" style="color: var(--muted)">${row.label}</td><td class="py-2 text-right font-bold" style="color: var(--heading)">${formatCurrency(r[row.key])}</td></tr>`)
-        .join('');
+<style>
+  .sal-error {
+    margin: 0.3rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .sal-error {
+      color: #fca5a5;
     }
-    form.addEventListener('input', recompute);
-    recompute();
+  }
+  :root[data-theme='dark'] .sal-error {
+    color: #fca5a5;
+  }
+
+  .sal-help {
+    margin: 0.35rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .sal-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .sal-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .sal-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .sal-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .sal-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .sal-note {
+    margin: 0.9rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+</style>
+
+<script>
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { salaryBinding } from '@lib/calculators/salary-form';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // When more than one Salary calculator shares a document (e.g. an embed gallery), the server-static
+  // ids (amount + unit, the three assumptions, their error slots, the result shell, the live region)
+  // collide. Namespace THIS root's ids and repoint its in-root references so associations stay
+  // instance-local; a lone instance is left untouched. The runtime targets fields by [name] / [data-*].
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-salary]').forEach((root) => {
+    if (document.querySelectorAll('[data-salary]').length > 1) uniquifyStaticIds(root, `s${++ns}`);
+
+    mountFormCalculator(root, salaryBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Convert',
+    });
+
+    // Clear the stale equivalents whenever the shell leaves the valid state (an invalid live edit, or
+    // Reset), so no stale figure lingers behind the hidden valid region. Presentation only.
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    if (shell) {
+      const clear = () => {
+        ['[data-sal-monthly]', '[data-sal-biweekly]', '[data-sal-weekly]', '[data-sal-daily]', '[data-sal-hourly]'].forEach((sel) => {
+          const el = root.querySelector<HTMLElement>(sel);
+          if (el) el.textContent = '—';
+        });
+        root.querySelectorAll<HTMLElement>('[data-result-when~="valid"] [data-result-value], [data-result-when~="valid"] [data-result-value-a11y]').forEach((el) => {
+          el.textContent = '—';
+        });
+      };
+      new MutationObserver(() => {
+        if (shell.dataset.resultState !== 'valid') clear();
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
+    }
   });
 </script>

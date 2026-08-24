@@ -15,16 +15,55 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate a triangle's area, perimeter, angles and classification from its three side lengths." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <TriangleCalculator />
   <Fragment slot="content">
-    <h2>Solving a triangle from three sides</h2>
-    <p>Enter the three side lengths (a, b, c). The calculator applies the law of cosines to find each angle, Heron's formula for the area, and classifies the triangle by both its sides and its angles.</p>
-    <h2>Classifying triangles</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter the three <strong>side lengths</strong> — a, b and c — in any consistent unit.</li>
+      <li>Calculate to see the <strong>area</strong>, <strong>perimeter</strong>, all three <strong>angles</strong>, and the triangle's classification.</li>
+      <li>If the three lengths cannot form a triangle, the calculator flags it rather than returning a nonsense result.</li>
+    </ol>
+
+    <h2>What the calculator works out</h2>
+    <p>
+      From three sides alone (the "side-side-side" case) a triangle is fully determined, so there is exactly one answer. The tool finds each <strong>angle</strong> with the law of cosines, the <strong>area</strong> with Heron's formula, the <strong>perimeter</strong> by adding the sides, and then labels the triangle by both its sides and its angles. No height measurement is needed.
+    </p>
+
+    <h2>The formulas</h2>
+    <p>Each angle comes from the law of cosines, rearranged to solve for the angle opposite a chosen side. For angle A, opposite side a:</p>
+    <p><strong>cos A = (b<sup>2</sup> + c<sup>2</sup> − a<sup>2</sup>) / (2 × b × c)</strong></p>
+    <p>The area uses Heron's formula, where <em>s</em> is the semi-perimeter (half the perimeter):</p>
+    <p><strong>s = (a + b + c) / 2&nbsp;&nbsp;→&nbsp;&nbsp;Area = √(s(s − a)(s − b)(s − c))</strong></p>
     <ul>
-      <li><strong>By sides:</strong> equilateral (all equal), isosceles (two equal), or scalene (all different).</li>
-      <li><strong>By angles:</strong> right (one 90° angle), acute (all under 90°), or obtuse (one over 90°).</li>
+      <li><strong>a, b, c</strong> — the three side lengths</li>
+      <li><strong>A</strong> — the angle opposite side a (each angle is found the same way, then the third is 180° minus the other two)</li>
+      <li><strong>s</strong> — the semi-perimeter, (a + b + c) ÷ 2</li>
     </ul>
 
+    <h2>When three lengths form a valid triangle</h2>
+    <p>
+      Not every trio of lengths closes into a triangle. The <strong>triangle inequality</strong> requires each side to be shorter than the sum of the other two — otherwise the two shorter sides cannot reach across the longest one. Sides of 2, 3 and 10 fail this test, and the calculator reports that no triangle exists rather than inventing angles.
+    </p>
+
     <h2>A worked example: the 3-4-5 triangle</h2>
-    <p>Enter sides of 3, 4 and 5. Because 3² + 4² = 9 + 16 = 25 = 5², the Pythagorean theorem holds exactly, so the calculator reports a <strong>right triangle</strong> with a 90° angle opposite the longest side. Heron's formula gives an area of 6, and the other two angles come out to about 36.87° and 53.13°. The 3-4-5 is the smallest whole-number right triangle, which is why builders use it to square up corners.</p>
-    <p>For general trigonometry, the <a href="/math/scientific-calculator">scientific calculator</a> handles sine, cosine and tangent directly.</p>
+    <p>
+      Enter sides of 3, 4 and 5. For the smallest angle, cos A = (4<sup>2</sup> + 5<sup>2</sup> − 3<sup>2</sup>) / (2 × 4 × 5) = 32 / 40 = 0.8, so A ≈ <strong>36.87°</strong>; the same method gives 53.13° and, because they must total 180°, a final angle of exactly <strong>90°</strong>. Heron's formula gives s = 6 and an area of √(6 × 3 × 2 × 1) = √36 = <strong>6</strong>. Since 3<sup>2</sup> + 4<sup>2</sup> = 5<sup>2</sup>, this is the smallest whole-number right triangle — which is why builders use a 3-4-5 to square up corners.
+    </p>
+
+    <h2>Classifying triangles</h2>
+    <p>The calculator labels every triangle two ways at once:</p>
+    <table>
+      <thead>
+        <tr><th>By sides</th><th>By angles</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Equilateral — all three sides equal</td><td>Right — one 90° angle</td></tr>
+        <tr><td>Isosceles — two sides equal</td><td>Acute — every angle under 90°</td></tr>
+        <tr><td>Scalene — all three sides different</td><td>Obtuse — one angle over 90°</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The two labels are independent. Sides of 5, 5 and 8, for example, are <strong>isosceles</strong> yet <strong>obtuse</strong>: the angle opposite the long side is cos<sup>-1</sup>(−0.28) ≈ 106.26°, and Heron's formula still gives a clean area of 12.
+    </p>
+
+    <p>For general trigonometry — sine, cosine and tangent on their own — the <a href="/math/scientific-calculator">scientific calculator</a> handles them directly, and the <a href="/math/area-calculator">area calculator</a> covers a triangle from a base and height instead of three sides.</p>
   </Fragment>
 </CalculatorLayout>

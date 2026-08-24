@@ -41,7 +41,8 @@ const faqs = [
 
 <CalculatorLayout
   calculator={calc}
-  reviewedOn="2026-07-18"
+  presentation="task-first"
+  reviewMetadata={{ reviewedDate: '2026-08-04' }}
   intro="Calculate the hours between two times, minus breaks — including overnight shifts. Get the result in hours and minutes and as decimal hours for payroll."
   faqs={faqs}
 >
@@ -49,11 +50,54 @@ const faqs = [
 
   <Fragment slot="content">
     <h2>How to use the hours calculator</h2>
+    <ol>
+      <li>Enter your <strong>start time</strong> and <strong>end time</strong> in 24-hour format.</li>
+      <li>Add any unpaid <strong>break</strong> in minutes (leave it at zero if there is none).</li>
+      <li>Press <strong>Calculate Hours</strong> to see the result in hours-and-minutes and as decimal hours; it updates as you adjust the figures.</li>
+    </ol>
+
+    <h2>How the calculation works</h2>
     <p>
-      Enter a <strong>start time</strong> and <strong>end time</strong>, then add any
-      unpaid <strong>break</strong> in minutes. The result updates instantly in both
-      hours-and-minutes and decimal-hour formats.
+      The calculator finds the minutes between your start and end times, then subtracts the
+      break. That total is shown two ways: as hours and minutes for reading, and as decimal
+      hours for payroll. If a break is longer than the shift itself, the result is simply zero
+      rather than a negative time.
     </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Clock in at <strong>9:00</strong>, out at <strong>17:30</strong>, with a
+      <strong>45-minute</strong> unpaid lunch. The gap is 8 hours 30 minutes (510 minutes);
+      take away 45 minutes and you have <strong>7 hours 45 minutes</strong> of paid time, which
+      is <strong>7.75 decimal hours</strong>. At $20 an hour that shift is 7.75 × 20 = $155.
+    </p>
+
+    <h2>Overnight shifts</h2>
+    <p>
+      When the end time is earlier than the start time, the calculator assumes the shift crossed
+      midnight and adds a day before subtracting. A shift from <strong>22:00 to 06:00</strong>
+      therefore comes out as a full <strong>8 hours</strong>, not a negative span, so night and
+      swing shifts need no special handling on your part.
+    </p>
+
+    <h2>What decimal hours are</h2>
+    <p>
+      Decimal hours express the minutes as a fraction of an hour, which is the format most
+      payroll systems multiply by an hourly rate. Thirty minutes is 0.5, not 0.30. The common
+      conversions:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Minutes</th><th>Decimal hour</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>10 min</td><td>0.17</td></tr>
+        <tr><td>15 min</td><td>0.25</td></tr>
+        <tr><td>20 min</td><td>0.33</td></tr>
+        <tr><td>30 min</td><td>0.50</td></tr>
+        <tr><td>45 min</td><td>0.75</td></tr>
+      </tbody>
+    </table>
 
     <h2>How many work hours are in a year?</h2>
     <p>For standard full-time work at 40 hours a week, the common reference figures are:</p>
@@ -70,13 +114,12 @@ const faqs = [
 
     <h2>Turning hours into pay</h2>
     <p>
-      To estimate pay, multiply the decimal hours by your hourly rate. For example, 8.5
-      decimal hours at $20/hour is $170. To convert between hourly, weekly and annual
-      figures, use the <a href="/finance/salary-calculator">salary calculator</a>.
-    </p>
-    <p>
-      This tool is for general timekeeping. Always follow your employer's official
-      timekeeping and rounding rules for payroll.
+      To estimate pay, multiply the decimal hours by your hourly rate — 8.5 decimal hours at
+      $20/hour is $170. To convert between hourly, weekly and annual figures, use the
+      <a href="/finance/salary-calculator">salary calculator</a>; to add and subtract spans of
+      time rather than clock times, see the <a href="/everyday/time-calculator">time
+      calculator</a>. This tool is for general timekeeping — always follow your employer's
+      official rounding and timekeeping rules for payroll.
     </p>
   </Fragment>
 </CalculatorLayout>

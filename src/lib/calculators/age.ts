@@ -21,6 +21,20 @@ function daysInMonth(year: number, monthIndex0: number): number {
   return new Date(Date.UTC(year, monthIndex0 + 1, 0)).getUTCDate();
 }
 
+/**
+ * UTC timestamp of (year, monthIndex0) advanced by `n` whole months, with `day` CLAMPED to the
+ * target month's length — so a month-end day (29/30/31) lands on the last valid day of a shorter
+ * month (e.g. the 31st → Feb 28/29, Apr 30). This is the civil-date "same day next month, or the
+ * month-end if that day does not exist" convention.
+ */
+function addMonthsClampUTC(year: number, monthIndex0: number, day: number, n: number): number {
+  const total = monthIndex0 + n;
+  const y = year + Math.floor(total / 12);
+  const m = ((total % 12) + 12) % 12;
+  const d = Math.min(day, daysInMonth(y, m));
+  return Date.UTC(y, m, d);
+}
+
 /** Parse a YYYY-MM-DD string as a UTC date (no timezone drift). */
 export function parseISODateUTC(value: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -43,33 +57,33 @@ export function calculateAge(birth: Date, at: Date): AgeResult {
   };
   if (birth.getTime() > at.getTime()) return invalid;
 
-  let years = at.getUTCFullYear() - birth.getUTCFullYear();
-  let months = at.getUTCMonth() - birth.getUTCMonth();
-  let days = at.getUTCDate() - birth.getUTCDate();
+  const by = birth.getUTCFullYear();
+  const bm = birth.getUTCMonth();
+  const bd = birth.getUTCDate();
 
-  if (days < 0) {
-    months -= 1;
-    // days in the month preceding `at`
-    const prevMonth = at.getUTCMonth() - 1;
-    const y = prevMonth < 0 ? at.getUTCFullYear() - 1 : at.getUTCFullYear();
-    const mIdx = (prevMonth + 12) % 12;
-    days += daysInMonth(y, mIdx);
+  // Calendar years/months/days by the standard "relativedelta" anchor method: take the whole-month
+  // gap, advance `birth` by that many months with the birth day CLAMPED into the anchor month (a
+  // month-end birth lands on the destination month's last valid day), and if that anchor overshoots
+  // `at` the final month is incomplete, so back off one month. The remaining days are the exact
+  // civil-date gap from the anchor to `at`. For ordered dates this guarantees years, months and
+  // days are all >= 0 (never an impossible negative borrow) and that
+  // `birth + years + months (clamped) + days === at`.
+  let totalMonths = (at.getUTCFullYear() - by) * 12 + (at.getUTCMonth() - bm);
+  let anchor = addMonthsClampUTC(by, bm, bd, totalMonths);
+  if (anchor > at.getTime()) {
+    totalMonths -= 1;
+    anchor = addMonthsClampUTC(by, bm, bd, totalMonths);
   }
-  if (months < 0) {
-    years -= 1;
-    months += 12;
-  }
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths - years * 12;
+  const days = Math.round((at.getTime() - anchor) / DAY_MS);
 
   const totalDays = Math.floor((at.getTime() - birth.getTime()) / DAY_MS);
 
-  // Next birthday (this year or next), counted from `at`.
-  let nextBirthday = new Date(
-    Date.UTC(at.getUTCFullYear(), birth.getUTCMonth(), birth.getUTCDate()),
-  );
+  // Next birthday (this year or next), counted from `at`. Unchanged behavior.
+  let nextBirthday = new Date(Date.UTC(at.getUTCFullYear(), bm, bd));
   if (nextBirthday.getTime() <= at.getTime()) {
-    nextBirthday = new Date(
-      Date.UTC(at.getUTCFullYear() + 1, birth.getUTCMonth(), birth.getUTCDate()),
-    );
+    nextBirthday = new Date(Date.UTC(at.getUTCFullYear() + 1, bm, bd));
   }
   const nextBirthdayInDays = Math.ceil((nextBirthday.getTime() - at.getTime()) / DAY_MS);
 
@@ -80,7 +94,7 @@ export function calculateAge(birth: Date, at: Date): AgeResult {
     days,
     totalDays,
     totalWeeks: Math.floor(totalDays / 7),
-    totalMonths: years * 12 + months,
+    totalMonths,
     nextBirthdayInDays,
   };
 }

@@ -11,17 +11,72 @@ const faqs = [
   { question: 'What if my cycle is irregular?', answer: 'Naegele\'s rule assumes a 28-day cycle. If your cycle is consistently longer or shorter, or you know your conception or IVF transfer date, your due date may shift by several days — your healthcare provider can adjust it accordingly.' },
 ];
 ---
-<CalculatorLayout calculator={calc} reviewedOn="2026-07-18" intro="Estimate your baby's due date from the first day of your last period, and see how far along you are today." faqs={faqs}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate your baby's due date from the first day of your last period, and see how far along you are today." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <DueDateCalculator />
   <Fragment slot="content">
-    <h2>How the estimate works</h2>
-    <p>Enter the first day of your last menstrual period. Using Naegele's rule, the calculator adds 280 days to estimate your due date, and shows how many weeks and days along you are today, plus your current trimester.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Find the <strong>first day of your last menstrual period</strong> (LMP).</li>
+      <li>Enter that date above.</li>
+      <li>The calculator shows your estimated <strong>due date</strong>, your estimated <strong>conception date</strong>, and how many <strong>weeks and days</strong> along you are today, with your current trimester.</li>
+    </ol>
 
-    <h2>The manual calculation</h2>
-    <p>You can reproduce the estimate by hand: take the first day of your last period, <strong>subtract three months</strong>, then <strong>add seven days</strong>. For a last period starting March 10, that gives December 10 plus seven days — a due date of about <strong>December 17</strong> the next year. It is the same 40-week window, just counted a shorter way.</p>
+    <h2>What Naegele's rule is</h2>
+    <p>
+      Due dates are estimated with Naegele's rule, the standard method in prenatal care. It counts
+      a full-term pregnancy as <strong>280 days (40 weeks)</strong> from the first day of your last
+      period. Dating from the LMP rather than conception is the convention because the LMP is a date
+      most people can identify, whereas the exact day of conception usually is not.
+    </p>
 
-    <h2>Remember it's an estimate</h2>
-    <p>Very few babies arrive exactly on the due date — it marks the middle of a normal range, and a full-term birth is anything from 37 to 42 weeks. Your provider may refine the date with an early ultrasound, which is generally more accurate than LMP dating if your cycle is irregular. To follow your pregnancy week by week, use the <a href="/health/pregnancy-calculator">pregnancy calculator</a>.</p>
-    <p>This is general information, not medical advice. Always follow guidance from your healthcare provider.</p>
+    <h2>The formula</h2>
+    <p>The calculator works from your LMP:</p>
+    <ul>
+      <li><strong>Due date</strong> = LMP + 280 days</li>
+      <li><strong>Estimated conception</strong> = LMP + 14 days (around ovulation in a typical cycle)</li>
+    </ul>
+    <p>
+      The 40 weeks are counted from the LMP, so the first two of them pass before conception
+      actually occurs — an artefact of the dating convention, not an error.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Suppose your last period began on <strong>January 1, 2026</strong>. Adding 280 days puts your
+      estimated due date at <strong>October 8, 2026</strong>, and conception is estimated around
+      <strong>January 15</strong>. If today were June 1, 2026 you would be <strong>21 weeks and 4
+      days</strong> along — in the second trimester, and just past halfway to your due date.
+    </p>
+
+    <h2>The manual shortcut</h2>
+    <p>
+      You can approximate the same date in your head: take the first day of your last period,
+      <strong>subtract three months</strong>, then <strong>add seven days</strong> (and a year).
+      For a period starting March 10, that gives December 10 plus seven days — about
+      <strong>December 17</strong> the next year. Because months vary in length, the shortcut lands
+      within a day or two of the exact 280-day count the calculator uses.
+    </p>
+
+    <h2>How far along you are</h2>
+    <p>
+      Gestational age is expressed in <strong>weeks and days</strong> — "14 weeks and 2 days," for
+      example — and drives the timing of scans and tests. The calculator counts the days from your
+      LMP to today, converts them to weeks and days, and places you in the first trimester
+      (weeks 1–13), second (14–27) or third (28 onward).
+    </p>
+
+    <h2>Remember it is an estimate</h2>
+    <p>
+      Only about <strong>4%</strong> of babies arrive on their exact due date; a full-term birth is
+      anything from <strong>37 to 42 weeks</strong>, so the due date marks the middle of a normal
+      range rather than a deadline. A first-trimester ultrasound can refine the estimate and is
+      generally more accurate than LMP dating if your cycle is irregular or its length is uncertain.
+    </p>
+    <p>
+      To follow your pregnancy week by week, use the
+      <a href="/health/pregnancy-calculator">pregnancy calculator</a>. This is educational
+      information, not medical advice — your healthcare provider can confirm and adjust your due
+      date based on your history and scans.
+    </p>
   </Fragment>
 </CalculatorLayout>

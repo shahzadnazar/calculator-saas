@@ -20,14 +20,57 @@ const faqs = [
 >
   <FatIntakeCalculator />
   <Fragment slot="content">
-    <h2>How the range is calculated</h2>
-    <p>The Acceptable Macronutrient Distribution Range puts fat at 20–35% of daily calories. Because fat provides 9 calories per gram, the calculator converts your calorie target into a gram range. Enter the calories from the <a href="/health/calorie-calculator">calorie calculator</a> for a personalised figure.</p>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter your <strong>daily calorie target</strong> — your maintenance figure, or a loss or gain target.</li>
+      <li>Press <strong>Calculate</strong> to see your recommended fat intake as a range in grams, from the low end of the guideline to the high end.</li>
+    </ol>
+    <p>If you do not know your calorie target yet, estimate it with the <a href="/health/calorie-calculator">calorie calculator</a> and bring the number here.</p>
+
+    <h2>How much fat you need</h2>
+    <p>
+      National nutrition guidelines set the Acceptable Macronutrient Distribution Range (AMDR) for
+      fat at <strong>20–35% of daily calories</strong>. Fat is not optional: it carries the
+      fat-soluble vitamins A, D, E and K, supplies essential fatty acids, and supports hormone
+      production. The range leaves room to shift fat up or down depending on how you allocate
+      carbohydrate and protein.
+    </p>
+
+    <h2>The formula</h2>
+    <p>Because each gram of fat supplies <strong>9 calories</strong>, converting a percentage of calories into grams is straightforward:</p>
+    <p><strong>Fat (g) = calories × percentage ÷ 9</strong></p>
+    <ul>
+      <li><strong>calories</strong> — your daily calorie target</li>
+      <li><strong>percentage</strong> — the share of calories from fat (20% to 35%)</li>
+      <li><strong>9</strong> — calories per gram of fat</li>
+    </ul>
+    <p>The calculator reports the low end (20%), a moderate midpoint (27.5%) and the high end (35%).</p>
 
     <h2>A worked example</h2>
-    <p>On a 2,000-calorie diet at the mid-point of 30%: 2,000 × 0.30 = 600 calories from fat, and 600 ÷ 9 ≈ <strong>67 grams a day</strong>. The full 20–35% range works out to roughly <strong>44–78 grams</strong>, leaving room to place fat higher or lower depending on your carbohydrate and protein goals.</p>
+    <p>
+      On a <strong>2,000-calorie</strong> day, the low end is 2,000 × 20% ÷ 9 ≈ <strong>44 g</strong>,
+      the midpoint is 2,000 × 27.5% ÷ 9 ≈ <strong>61 g</strong>, and the high end is
+      2,000 × 35% ÷ 9 ≈ <strong>78 g</strong>. So a fat intake anywhere from about
+      <strong>44 to 78 grams a day</strong> fits the guideline at this calorie level.
+    </p>
 
-    <h2>Quality over quantity</h2>
-    <p>Within your range, prioritise unsaturated fats — olive and avocado oil, nuts, seeds and oily fish — which support heart health. Keep saturated fat moderate and avoid trans fats. Pair this with your <a href="/health/protein-calculator">protein target</a> for a balanced plan.</p>
-    <p>This is general educational information, not medical or dietary advice.</p>
+    <h2>Where to sit in the range</h2>
+    <ul>
+      <li><strong>Lower end (~20%)</strong> — leaves more calories for carbohydrate, which suits higher-volume or endurance eating.</li>
+      <li><strong>Middle (~27.5%)</strong> — a balanced default for most people.</li>
+      <li><strong>Higher end (~35%)</strong> — pairs with lower-carbohydrate patterns and can aid satiety.</li>
+    </ul>
+
+    <h2>Quality matters as much as quantity</h2>
+    <p>
+      Within your range, favour <strong>unsaturated fats</strong> — olive and avocado oil, nuts,
+      seeds and oily fish — which support heart health. Keep <strong>saturated fat</strong> (fatty
+      meat, butter, full-fat dairy) moderate, and avoid artificial <strong>trans fats</strong>. The
+      gram target is the same whatever the source, but the source is what shapes the health outcome.
+    </p>
+    <p>
+      Pair this with your <a href="/health/protein-calculator">protein target</a> to round out a
+      macronutrient plan. This is educational information, not medical or dietary advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

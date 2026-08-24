@@ -100,3 +100,75 @@ describe('loan calculator — degenerate / non-finite domains (frozen; the bindi
     expect(r.yearlySchedule.length).toBe(3); // 30 months -> years 1,2,3 (partial)
   });
 });
+
+/**
+ * R15B1 expanded characterization — freezes the reconciliation invariants the Loan
+ * binding's complete-result guard (loan-form.ts) relies on. Test-only; no change to
+ * loan.ts / @lib/finance. Reconciliation is asserted structurally (Σ principal ≈
+ * amount, Σ interest ≈ totalInterest, payment × months ≈ totalPaid, final balance ≈ 0,
+ * yearly totals ≈ monthly totals) rather than by hardcoding derived figures.
+ */
+describe('loan calculator — R15B1 expanded characterization', () => {
+  it('zero-interest loan: monthly payment = principal ÷ months, zero interest, equal instalments', () => {
+    const r = calculateLoan({ amount: 9000, annualInterestRate: 0, termYears: 2 });
+    expect(r.payoffMonths).toBe(24);
+    expect(r.monthlyPayment).toBeCloseTo(9000 / 24, 6); // 375
+    expect(r.totalInterest).toBe(0);
+    expect(r.totalPaid).toBe(9000);
+    for (const row of r.schedule) {
+      expect(row.interest).toBe(0);
+      expect(row.principal).toBeCloseTo(9000 / 24, 6);
+    }
+    expect(r.schedule[r.schedule.length - 1].balance).toBe(0);
+  });
+
+  it('short-term loan (2y): the full 24-row monthly schedule reconciles with the summary', () => {
+    const r = calculateLoan({ amount: 6000, annualInterestRate: 6, termYears: 2 });
+    expect(r.schedule.length).toBe(24);
+    expect(r.payoffMonths).toBe(24);
+    expect(r.yearlySchedule.length).toBe(2);
+    expect(r.schedule.reduce((s, x) => s + x.principal, 0)).toBeCloseTo(6000, 2); // Σ principal ≈ amount
+    expect(r.schedule.reduce((s, x) => s + x.interest, 0)).toBeCloseTo(r.totalInterest, 6); // Σ interest ≈ totalInterest
+    expect(r.schedule[23].balance).toBeCloseTo(0, 6); // final balance ≈ 0
+    expect(Math.abs(r.monthlyPayment * r.payoffMonths - r.totalPaid)).toBeLessThan(1); // payment × months ≈ totalPaid
+  });
+
+  it('long loan: payment × payoffMonths ≈ totalPaid, Σ principal ≈ amount, Σ interest ≈ totalInterest, final balance 0', () => {
+    const r = calculateLoan({ amount: 250000, annualInterestRate: 6.5, termYears: 30 });
+    expect(Math.abs(r.monthlyPayment * r.payoffMonths - r.totalPaid)).toBeLessThan(1);
+    expect(r.schedule.reduce((s, x) => s + x.principal, 0)).toBeCloseTo(250000, 2);
+    expect(r.schedule.reduce((s, x) => s + x.interest, 0)).toBeCloseTo(r.totalInterest, 4);
+    expect(r.schedule[r.schedule.length - 1].balance).toBe(0);
+  });
+
+  it('yearly schedule reconciles with the monthly schedule and covers the whole payoff period', () => {
+    const r = calculateLoan({ amount: 250000, annualInterestRate: 6.5, termYears: 30 });
+    const mPrincipal = r.schedule.reduce((s, x) => s + x.principal, 0);
+    const mInterest = r.schedule.reduce((s, x) => s + x.interest, 0);
+    expect(r.yearlySchedule.reduce((s, x) => s + x.principal, 0)).toBeCloseTo(mPrincipal, 6); // yearly principal total = monthly total
+    expect(r.yearlySchedule.reduce((s, x) => s + x.interest, 0)).toBeCloseTo(mInterest, 6); // yearly interest total = monthly total
+    expect(r.yearlySchedule.length).toBe(Math.ceil(r.schedule.length / 12)); // covers the full period
+    expect(r.yearlySchedule[r.yearlySchedule.length - 1].balance).toBeCloseTo(0, 6);
+    r.yearlySchedule.forEach((row, i) => expect(row.period).toBe(i + 1)); // sequential 1..N
+  });
+
+  it('partial final year: a 30-month (2.5y) loan yields 3 yearly rows whose totals still reconcile', () => {
+    const r = calculateLoan({ amount: 10000, annualInterestRate: 5, termYears: 2.5 });
+    expect(r.schedule.length).toBe(30);
+    expect(r.yearlySchedule.length).toBe(3); // years 1, 2 and a partial 3rd
+    expect(r.yearlySchedule.reduce((s, x) => s + x.principal, 0)).toBeCloseTo(
+      r.schedule.reduce((s, x) => s + x.principal, 0),
+      6,
+    );
+  });
+
+  it('decimal amount and rate inputs amortize and reconcile', () => {
+    const r = calculateLoan({ amount: 15250.75, annualInterestRate: 4.25, termYears: 3 });
+    expect(r.schedule.length).toBe(36);
+    expect(Number.isFinite(r.monthlyPayment)).toBe(true);
+    expect(r.schedule.reduce((s, x) => s + x.principal, 0)).toBeCloseTo(15250.75, 2);
+    expect(r.schedule.reduce((s, x) => s + x.interest, 0)).toBeCloseTo(r.totalInterest, 6);
+    expect(r.totalPaid).toBeCloseTo(15250.75 + r.totalInterest, 6);
+    expect(r.schedule[35].balance).toBeCloseTo(0, 6);
+  });
+});

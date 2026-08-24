@@ -49,41 +49,85 @@ const faqs = [
   <BmiCalculator />
 
   <Fragment slot="content">
-    <h2>What is Body Mass Index?</h2>
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Choose <strong>Metric</strong> (centimetres and kilograms) or <strong>Imperial</strong> (feet, inches and pounds).</li>
+      <li>Enter your <strong>height</strong> and <strong>weight</strong> in the selected units.</li>
+      <li>Press <strong>Calculate BMI</strong> to see your BMI, your WHO category and the healthy weight range for your height.</li>
+      <li>After the first result, the figure and the marker on the colored scale update automatically as you adjust your numbers.</li>
+    </ol>
+
+    <h2>What Body Mass Index is</h2>
     <p>
-      Body Mass Index (BMI) is a simple ratio of weight to height used to screen for
-      underweight, healthy weight, overweight and obesity in adults. It is quick,
-      free and requires only two measurements, which is why doctors and public-health
-      bodies use it as a first-pass indicator.
+      Body Mass Index is a single number that relates your weight to your height, used to
+      screen adults for underweight, healthy weight, overweight and obesity. It needs only two
+      measurements and no equipment, which is why clinicians and public-health bodies reach for
+      it as a first-pass indicator. It estimates whether your weight is in a healthy proportion
+      to your height — not how that weight is made up.
     </p>
 
-    <h2>BMI categories (WHO)</h2>
+    <h2>The BMI formula</h2>
+    <p>In metric units, BMI is your weight in kilograms divided by the square of your height in metres:</p>
+    <p><strong>BMI = weight(kg) / height(m)<sup>2</sup></strong></p>
     <ul>
-      <li><strong>Under 18.5</strong> — Underweight</li>
-      <li><strong>18.5 – 24.9</strong> — Normal (healthy) weight</li>
-      <li><strong>25.0 – 29.9</strong> — Overweight</li>
-      <li><strong>30.0 and above</strong> — Obesity</li>
+      <li><strong>weight</strong> — your body weight in kilograms</li>
+      <li><strong>height</strong> — your height in metres (175 cm = 1.75 m)</li>
+    </ul>
+    <p>
+      Working in imperial units, the equivalent is <strong>703 × weight(lb) / height(in)<sup>2</sup></strong>.
+      The calculator converts your entries for you, so both systems return the same BMI to
+      within rounding.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Take someone <strong>175 cm</strong> tall weighing <strong>70 kg</strong>. Their height in
+      metres is 1.75, and 1.75<sup>2</sup> = 3.0625, so BMI = 70 ÷ 3.0625 ≈ <strong>22.9</strong>.
+      That sits in the 18.5–24.9 band, a <strong>healthy weight</strong>. Entered in imperial
+      units (about 5 ft 9 in and 154 lb) the same person comes out at 22.9 as well — the
+      calculator converts between the systems for you.
+    </p>
+
+    <h2>Interpreting your result</h2>
+    <p>The World Health Organization sorts adult BMI into four bands:</p>
+    <table>
+      <thead>
+        <tr><th>BMI</th><th>Category</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Below 18.5</td><td>Underweight</td></tr>
+        <tr><td>18.5 – 24.9</td><td>Healthy weight</td></tr>
+        <tr><td>25.0 – 29.9</td><td>Overweight</td></tr>
+        <tr><td>30.0 and above</td><td>Obesity</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The colored scale marks where you fall between these bands, and the result also shows the
+      <strong>healthy weight range</strong> for your height — the weights that correspond to a
+      BMI of 18.5 to 24.9. For someone 175 cm tall that range is roughly
+      <strong>56.7 kg to 76.3 kg</strong>.
+    </p>
+
+    <h2>Where BMI falls short</h2>
+    <p>
+      BMI counts all weight the same, so it cannot tell muscle from fat or say where fat is
+      stored. A muscular athlete may register as "overweight" with very little body fat, while
+      an older adult who has lost muscle may sit in the "healthy" band yet carry elevated risk.
+      Waist circumference, body-fat percentage and blood markers add the detail BMI leaves out.
+    </p>
+    <ul>
+      <li><strong>Adults only.</strong> These cut-offs apply to people aged 20 and over; children and teens use age- and sex-specific BMI-for-age percentiles.</li>
+      <li><strong>No body-composition detail.</strong> Two people with the same BMI can differ greatly in muscle and fat.</li>
+      <li><strong>A screen, not a diagnosis.</strong> BMI flags who may benefit from a closer look, not a verdict on any individual's health.</li>
     </ul>
 
-    <h2>How to use this BMI calculator</h2>
+    <h2>Related calculators</h2>
     <p>
-      Choose <strong>Metric</strong> or <strong>Imperial</strong>, enter your height and
-      weight, and press <strong>Calculate BMI</strong> to see your BMI, category and healthy
-      weight range. After the first result, changes update automatically as you adjust your
-      figures. The marker on the colored scale shows where you fall between the categories.
-    </p>
-
-    <h2>The limits of BMI</h2>
-    <p>
-      BMI does not distinguish muscle from fat or account for where fat is stored. A
-      very muscular person may register as “overweight” despite low body fat, while
-      someone with little muscle may have a “normal” BMI yet elevated health risk.
-      Waist circumference, body-fat percentage and blood markers give a fuller picture.
-    </p>
-
-    <p>
-      This information is for general education only and is not medical advice. Speak
-      with a qualified healthcare provider about your individual health.
+      To see how much of your weight is fat rather than muscle, use the
+      <a href="/health/body-fat-calculator">body fat calculator</a>; to find a weight target
+      from height and sex, try the <a href="/health/ideal-weight-calculator">ideal weight
+      calculator</a>. This is educational information, not medical advice. Speak with a qualified
+      healthcare provider about your individual health.
     </p>
   </Fragment>
 </CalculatorLayout>

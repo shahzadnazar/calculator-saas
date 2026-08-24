@@ -14,17 +14,88 @@ const faqs = [
 <CalculatorLayout calculator={calc} presentation="task-first" intro="See how inflation erodes the value of money over time — what a sum today will cost in the future, and what future money is worth now." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-23' }}>
   <InflationCalculator />
   <Fragment slot="content">
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Enter an <strong>amount</strong> of money — a price today, or a sum you expect to receive later.</li>
+      <li>Set an expected <strong>annual inflation rate</strong> as a percentage.</li>
+      <li>Choose the number of <strong>years</strong> to project over.</li>
+      <li>Read both directions at once: what that amount will <strong>cost in the future</strong>, and what future money is <strong>worth in today's dollars</strong>, plus the total price change over the span.</li>
+    </ol>
+
     <h2>What inflation is, and what causes it</h2>
-    <p>Inflation is a steady rise in the general price level, so each dollar buys a little less each year. It comes from three broad sources: <strong>demand-pull</strong> (spending outpacing supply), <strong>cost-push</strong> (rising wages, energy or materials), and <strong>monetary</strong> growth (more money in circulation). A little inflation is normal and even targeted by central banks; the problem is what it does to money left standing still.</p>
+    <p>
+      Inflation is a steady rise in the general price level, so each dollar buys a little less
+      each year. It comes from three broad sources: <strong>demand-pull</strong> (spending
+      outpacing supply), <strong>cost-push</strong> (rising wages, energy or materials), and
+      <strong>monetary</strong> growth (more money in circulation). A little inflation is
+      normal and even targeted by central banks; the problem is what it does to money left
+      standing still.
+    </p>
+
+    <h2>The formula</h2>
+    <p>
+      Inflation compounds, so a constant rate is applied year on year. The tool builds a growth
+      factor and uses it in both directions:
+    </p>
+    <p><strong>Future cost = amount × (1 + r)<sup>t</sup></strong></p>
+    <p><strong>Today's value = amount ÷ (1 + r)<sup>t</sup></strong></p>
+    <ul>
+      <li><strong>amount</strong> — the sum you entered</li>
+      <li><strong>r</strong> — the annual inflation rate as a decimal (3% = 0.03)</li>
+      <li><strong>t</strong> — the number of years</li>
+    </ul>
+    <p>
+      The two are mirror images: multiplying by the factor projects a price forward, dividing by
+      it discounts future money back to today. The calculator also reports the total percentage
+      rise in prices across the whole period.
+    </p>
 
     <h2>A worked example</h2>
-    <p>Suppose prices rise a steady 3% a year. Something that costs <strong>$100 today</strong> will cost 100 × 1.03¹⁰ ≈ <strong>$134 in ten years</strong>. Flip it around and <strong>$100 received in ten years</strong> is worth only about <strong>$74</strong> in today's money. The calculator does both directions for any amount, rate and time span.</p>
+    <p>
+      Suppose prices rise a steady <strong>3%</strong> a year. Something that costs
+      <strong>$100 today</strong> will cost 100 × 1.03<sup>10</sup> ≈ <strong>$134.39 in ten
+      years</strong>. Flip it around and <strong>$100 received in ten years</strong> is worth
+      only about <strong>$74.41</strong> in today's money. Over the decade, prices rise a total
+      of about <strong>34%</strong> — that is the compounding of 3% for ten years, not simply
+      3 × 10.
+    </p>
 
     <h2>The rule of 72</h2>
-    <p>For a quick mental estimate, divide 72 by the inflation rate to see how many years it takes prices to <em>double</em>. At 3%, that is 72 ÷ 3 = about 24 years; at 6% it halves to 12. The same shortcut works for investment growth in reverse — which is exactly why your returns need to clear the inflation rate to make real progress.</p>
+    <p>
+      For a quick mental estimate, divide 72 by the inflation rate to see how many years it
+      takes prices to <em>double</em>. At 3%, that is 72 ÷ 3 = about 24 years; at 6% it halves
+      to 12. The same shortcut works for investment growth in reverse — which is exactly why
+      your returns need to clear the inflation rate to make real progress.
+    </p>
+
+    <h2>What rate should you use?</h2>
+    <p>
+      Long-run inflation has averaged roughly <strong>2–3% a year</strong> in many developed
+      economies, and central banks such as the U.S. Federal Reserve target around 2%. Individual
+      years swing well above or below that, and prices spiked far higher in some recent years, so
+      treat any single rate as a scenario rather than a forecast. Running the same amount at 2%,
+      3% and 5% quickly shows how sensitive long horizons are to the rate you pick.
+    </p>
 
     <h2>Protecting your buying power</h2>
-    <p>To keep pace with — or beat — inflation, money generally needs to earn a return above the inflation rate. Model that growth with the <a href="/finance/investment-calculator">investment calculator</a> and the <a href="/finance/compound-interest-calculator">compound interest calculator</a>.</p>
-    <p>This is a simplified model using a constant rate; real inflation varies year to year. This is general educational information, not financial advice.</p>
+    <p>
+      Money that does not grow at least as fast as inflation quietly loses value. At 3%, cash
+      left idle loses roughly a quarter of its buying power in a decade, which is why savings and
+      investments generally need to earn a return above the inflation rate to make real progress.
+      Model that growth with the <a href="/finance/investment-calculator">investment
+      calculator</a> and the <a href="/finance/compound-interest-calculator">compound interest
+      calculator</a>.
+    </p>
+
+    <h2>Limitations to keep in mind</h2>
+    <ul>
+      <li><strong>Constant-rate assumption.</strong> The tool applies one steady rate; real inflation varies year to year and differs by category — housing, food and energy rarely move together.</li>
+      <li><strong>A general index, not your basket.</strong> Published inflation tracks a broad basket of goods; your personal inflation rate depends on what you actually buy.</li>
+      <li><strong>Before taxes and returns.</strong> It measures price change only, not the growth of any money you invest to keep pace.</li>
+    </ul>
+    <p>
+      This is a simplified model using a constant rate; real inflation varies year to year. This
+      is general educational information, not financial advice.
+    </p>
   </Fragment>
 </CalculatorLayout>

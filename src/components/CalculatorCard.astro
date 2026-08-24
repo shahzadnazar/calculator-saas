@@ -1,0 +1,89 @@
+---
+/**
+ * CalculatorCard — the shared "product" card for calculator listing surfaces
+ * (category pages, task-group hubs, the /calculators directory). Large and
+ * tap-friendly, task-first: a clear title, one supporting line, and one obvious
+ * action that fills with brand on hover. One card component means one visual
+ * language for "pick a calculator" across the whole site — the SaaS-product
+ * feel, not a dense website directory.
+ */
+interface Props {
+  href: string;
+  title: string;
+  /** One supporting line — the calculator's description or a task-framed use. */
+  blurb: string;
+  /** Action label; the trailing arrow is added by the card. */
+  cta?: string;
+}
+const { href, title, blurb, cta = 'Open calculator' } = Astro.props;
+---
+
+<a href={href} class="calc-card card">
+  <span class="calc-card__title">{title}</span>
+  <span class="calc-card__blurb">{blurb}</span>
+  <span class="calc-card__cta">{cta} <span class="calc-card__arrow" aria-hidden="true">→</span></span>
+</a>
+
+<style>
+  .calc-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1.5rem;
+  }
+  @media (min-width: 640px) {
+    .calc-card {
+      padding: 0.75rem;
+    }
+  }
+  .calc-card__title {
+    font-size: 1.15rem;
+    line-height: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--heading);
+  }
+  .calc-card__blurb {
+    flex: 1 1 auto;
+    margin-top: 0.5rem;
+    font-size: 0.95rem;
+    line-height: 1.45rem;
+    color: var(--muted);
+  }
+  .calc-card__cta {
+    align-self: flex-start;
+    margin-top: 1.05rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 0.625rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--heading);
+    background: var(--card);
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+  }
+  /* The whole card is the link; on hover its primary action fills with brand so
+     the tap target reads as a real product button, not a text link. */
+  .calc-card:hover .calc-card__cta {
+    color: #fff;
+    background: var(--color-brand-600);
+    border-color: var(--color-brand-600);
+  }
+  .calc-card__arrow {
+    transition: transform 0.15s ease;
+  }
+  .calc-card:hover .calc-card__arrow {
+    transform: translateX(2px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .calc-card__arrow {
+      transition: none;
+    }
+  }
+</style>

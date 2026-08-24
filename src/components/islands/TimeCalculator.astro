@@ -1,76 +1,237 @@
 ---
-import { toSeconds, combineDurations, breakdownDuration } from '@lib/calculators/time';
+/**
+ * Time calculator island (R17B3 — bounded Everyday singleton; task-first).
+ *
+ * A single form on the UNCHANGED standard-form runtime + the Time binding (@lib/calculators/time-form),
+ * which wraps the UNCHANGED toSeconds / combineDurations / breakdownDuration. Two duration operands
+ * (A / B), each in days / hours / minutes / seconds, combined by a native Add / Subtract radio group.
+ * All fields start EMPTY (the legacy island prefilled 2:30:00 / 1:45:00 and auto-calculated a baked-in
+ * SSR result — which also DIVERGED from the hydrated client on the total-seconds formatting, 15300 vs
+ * 15,300). This task-first island renders ONE deterministic empty state on the server AND after
+ * hydration: no precomputed result, no flash — the visitor presses "Calculate Time" for the first
+ * result, then live-after-first. The DOMINANT result is the SIGNED normalized duration; total seconds
+ * is the secondary. A subtraction MAY be negative (shown with a "−"); equal operands are a valid 0.
+ * NO isUsableResult — the guard lives in the binding's resultValue (a signed finite sentinel → the
+ * default finite gate). No runtime change; NO generic time / duration / clock / timespan abstraction.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Time calculator shares a document (the
+ * R16B2.1 discipline), so an embed gallery has no duplicate ids and every association stays instance-local.
+ */
+import ResultShell from '@components/result/ResultShell.astro';
+import ResultSummary from '@components/result/ResultSummary.astro';
+import ResultValue from '@components/result/ResultValue.astro';
+import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
+import EmptyResult from '@components/result/EmptyResult.astro';
+import InvalidResult from '@components/result/InvalidResult.astro';
+import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
-const a = { days: 0, hours: 2, minutes: 30, seconds: 0 };
-const bVals = { days: 0, hours: 1, minutes: 45, seconds: 0 };
-const res = breakdownDuration(combineDurations(toSeconds(a), 'add', toSeconds(bVals)));
-const fields = ['days', 'hours', 'minutes', 'seconds'] as const;
+const UNITS = ['days', 'hours', 'minutes', 'seconds'] as const;
+const operand = (side: 'a' | 'b', legend: string) => ({ side, legend });
+const groups = [operand('a', 'First duration'), operand('b', 'Second duration')];
 ---
 
-<div class="mx-auto w-full max-w-3xl" data-timecalc>
-  <form class="card p-5 sm:p-6" data-tc-form novalidate>
-    <fieldset>
-      <legend class="field-label">Duration A</legend>
-      <div class="grid grid-cols-4 gap-2">
-        {fields.map((f) => (
-          <div>
-            <input class="field text-center" name={`a_${f}`} type="number" min="0" value={a[f]} aria-label={`A ${f}`} inputmode="numeric" />
-            <p class="mt-1 text-center text-xs" style="color: var(--muted)">{f}</p>
-          </div>
-        ))}
-      </div>
-    </fieldset>
-    <div class="my-3 inline-flex rounded-lg border p-0.5 text-sm" role="radiogroup" aria-label="Operation" style="border-color: var(--line)">
-      <button type="button" class="op-btn is-active" data-op="add" role="radio" aria-checked="true">Add (+)</button>
-      <button type="button" class="op-btn" data-op="subtract" role="radio" aria-checked="false">Subtract (−)</button>
+<div class="timecalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-timecalc>
+  <!-- Inputs -->
+  <form class="card p-4" data-form novalidate aria-label="Time calculator">
+    <div class="space-y-4">
+      {groups.map(({ side, legend }, i) => (
+        <>
+          <fieldset>
+            <legend class="field-label">{legend}</legend>
+            <div class="grid grid-cols-4 gap-2">
+              {UNITS.map((u) => (
+                <div data-field={`${side}_${u}`}>
+                  <input
+                    class="field text-center"
+                    id={`tc-${side}-${u}`}
+                    name={`${side}_${u}`}
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    aria-label={`${legend} ${u}`}
+                    aria-describedby={`tc-${side}-${u}-error`}
+                  />
+                  <p class="tc-unit">{u}</p>
+                  <p class="tc-field-error" id={`tc-${side}-${u}-error`} data-error-for={`${side}_${u}`} hidden></p>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+
+          {i === 0 && (
+            <fieldset class="tc-op">
+              <legend class="field-label">Operation</legend>
+              <div class="tc-op-row">
+                <label class="tc-op-choice">
+                  <input type="radio" name="tc_op" value="add" checked />
+                  <span>Add (+)</span>
+                </label>
+                <label class="tc-op-choice">
+                  <input type="radio" name="tc_op" value="subtract" />
+                  <span>Subtract (−)</span>
+                </label>
+              </div>
+            </fieldset>
+          )}
+        </>
+      ))}
     </div>
-    <fieldset>
-      <legend class="field-label">Duration B</legend>
-      <div class="grid grid-cols-4 gap-2">
-        {fields.map((f) => (
-          <div>
-            <input class="field text-center" name={`b_${f}`} type="number" min="0" value={bVals[f]} aria-label={`B ${f}`} inputmode="numeric" />
-            <p class="mt-1 text-center text-xs" style="color: var(--muted)">{f}</p>
-          </div>
-        ))}
-      </div>
-    </fieldset>
+
+    <div class="mt-6 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate Time</button>
+      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    </div>
+    <p class="tc-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
-  <div class="card mt-6 p-6 text-center">
-    <p class="result-label">Result</p>
-    <p class="mt-1 text-3xl result-value" data-tc-result>
-      {res.days}d {res.hours}h {res.minutes}m {res.seconds}s
-    </p>
-    <p class="mt-2 text-sm" style="color: var(--muted)">Total: <span data-tc-total>{toSeconds(a) + toSeconds(bVals)}</span> seconds</p>
-  </div>
+  <!-- Result -->
+  <ResultShell id="tc-result" state="empty" density="standard" label="Time result" minHeight="16rem" placeholderAlignment="center">
+    <EmptyResult message="Enter two durations, choose add or subtract, then calculate the result." />
+
+    <div data-result-when="valid">
+      <ResultSummary label="Calculated time">
+        <ResultValue value="—" size="text-3xl" />
+      </ResultSummary>
+      <ResultInterpretation>
+        <span data-tc-interpretation></span>
+      </ResultInterpretation>
+      <p class="tc-rounded" data-tc-rounded hidden></p>
+
+      <ResultBreakdown title="In seconds">
+        <dl class="tc-metrics">
+          <div><dt>Total seconds</dt><dd data-tc-total>—</dd></div>
+        </dl>
+      </ResultBreakdown>
+    </div>
+
+    <InvalidResult
+      title="Check your entries"
+      message="Enter at least one duration value (numbers, 0 or more) to calculate."
+    />
+
+    <ResultAnnouncement id="tc-live" />
+  </ResultShell>
 </div>
 
 <style>
-  .op-btn { padding: 0.3rem 0.8rem; border-radius: 0.4rem; font-weight: 600; color: var(--muted); cursor: pointer; }
-  .op-btn.is-active { background: var(--color-brand-600); color: #fff; }
+  .tc-unit {
+    margin: 0.25rem 0 0;
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .tc-field-error {
+    margin: 0.2rem 0 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .tc-field-error {
+      color: #fca5a5;
+    }
+  }
+  :root[data-theme='dark'] .tc-field-error {
+    color: #fca5a5;
+  }
+
+  .tc-op {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 0.75rem 0;
+  }
+  .tc-op-row {
+    display: flex;
+    gap: 1.25rem;
+  }
+  .tc-op-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .tc-rounded {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .tc-live-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .tc-metrics {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .tc-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .tc-metrics dt {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .tc-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
 </style>
 
 <script>
-  import { toSeconds, combineDurations, breakdownDuration } from '@lib/calculators/time';
-  const nf = new Intl.NumberFormat('en-US');
+  import { mountFormCalculator } from '@lib/result/form-runtime';
+  import { timeBinding } from '@lib/calculators/time-form';
+
+  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
+
+  // When more than one Time calculator shares a document (e.g. an embed gallery), the server-static
+  // ids (the eight component fields + their error slots, result shell, live region) collide. Namespace
+  // THIS root's ids and repoint its in-root references (aria-describedby, …) so associations stay
+  // instance-local and the document has no duplicate ids; a lone instance is left untouched. The
+  // runtime targets fields by [name] / [data-*], never these ids.
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
   document.querySelectorAll<HTMLElement>('[data-timecalc]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-tc-form]')!;
-    let op: 'add' | 'subtract' = 'add';
-    const num = (n: string) => Number((form.elements.namedItem(n) as HTMLInputElement)?.value) || 0;
-    const dur = (p: string) => toSeconds({ days: num(`${p}_days`), hours: num(`${p}_hours`), minutes: num(`${p}_minutes`), seconds: num(`${p}_seconds`) });
-    function recompute() {
-      const total = combineDurations(dur('a'), op, dur('b'));
-      const d = breakdownDuration(total);
-      root.querySelector<HTMLElement>('[data-tc-result]')!.textContent = `${d.negative ? '−' : ''}${d.days}d ${d.hours}h ${d.minutes}m ${d.seconds}s`;
-      root.querySelector<HTMLElement>('[data-tc-total]')!.textContent = nf.format(total);
-    }
-    root.querySelectorAll<HTMLButtonElement>('.op-btn').forEach((btn) => btn.addEventListener('click', () => {
-      op = (btn.dataset.op as 'add' | 'subtract') ?? 'add';
-      root.querySelectorAll('.op-btn').forEach((x) => { const act = x === btn; x.classList.toggle('is-active', act); x.setAttribute('aria-checked', String(act)); });
-      recompute();
-    }));
-    form.addEventListener('input', recompute);
-    recompute();
+    if (document.querySelectorAll('[data-timecalc]').length > 1) uniquifyStaticIds(root, `t${++ns}`);
+    mountFormCalculator(root, timeBinding, {
+      recalculationMode: 'live-after-first',
+      calculateButtonLabel: 'Calculate Time',
+    });
   });
 </script>
