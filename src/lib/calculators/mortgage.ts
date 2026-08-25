@@ -11,6 +11,8 @@ export interface MortgageInput {
   propertyTaxAnnual?: number;
   homeInsuranceAnnual?: number;
   hoaMonthly?: number;
+  /** Any other recurring annual cost (fees, utilities bundled into the housing budget). */
+  otherCostsAnnual?: number;
   /** Annual PMI as a percent of the loan, charged while LTV > 80%. */
   pmiAnnualRate?: number;
 }
@@ -30,8 +32,9 @@ export interface MortgageResult {
   monthlyPropertyTax: number;
   monthlyInsurance: number;
   monthlyHoa: number;
+  monthlyOther: number;
   monthlyPmi: number; // initial PMI
-  monthlyTotal: number; // first-month PITI + HOA
+  monthlyTotal: number; // first-month PITI + HOA + other costs
   totalInterest: number;
   totalPmi: number;
   totalOfPayments: number; // principal + interest over the life of the loan
@@ -57,6 +60,7 @@ export function calculateMortgage(input: MortgageInput): MortgageResult {
   const monthlyPropertyTax = (input.propertyTaxAnnual || 0) / 12;
   const monthlyInsurance = (input.homeInsuranceAnnual || 0) / 12;
   const monthlyHoa = input.hoaMonthly || 0;
+  const monthlyOther = (input.otherCostsAnnual || 0) / 12;
   const pmiMonthlyFull = ((input.pmiAnnualRate || 0) / 100) * loanAmount / 12;
   const pmiThreshold = homePrice * 0.8; // stop PMI when balance drops to 80% LTV
 
@@ -91,8 +95,9 @@ export function calculateMortgage(input: MortgageInput): MortgageResult {
     monthlyPropertyTax,
     monthlyInsurance,
     monthlyHoa,
+    monthlyOther,
     monthlyPmi: initialPmi,
-    monthlyTotal: pi + monthlyPropertyTax + monthlyInsurance + monthlyHoa + initialPmi,
+    monthlyTotal: pi + monthlyPropertyTax + monthlyInsurance + monthlyHoa + monthlyOther + initialPmi,
     totalInterest,
     totalPmi,
     totalOfPayments: loanAmount + totalInterest,

@@ -42,19 +42,32 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <p class="mc-field-error" id="mc-home-price-error" data-error-for="homePrice" hidden></p>
       </div>
 
-      <div data-field="downPayment">
-        <div class="flex items-baseline justify-between">
-          <label class="field-label" for="mc-down-payment">Down payment</label>
-          <span class="mc-down-pct" data-mc-down-pct hidden></span>
+      <div class="grid grid-cols-2 gap-4">
+        <div data-field="downPayment">
+          <div class="flex items-baseline justify-between">
+            <label class="field-label" for="mc-down-payment">Down payment</label>
+            <span class="mc-down-pct" data-mc-down-pct hidden></span>
+          </div>
+          <div class="mt-1 flex" data-unit-group="downPayment">
+            <input class="field rounded-r-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 80000" aria-describedby="mc-down-payment-error" />
+            <div class="mc-unit" role="radiogroup" aria-label="Enter the down payment as dollars or a percent">
+              <button type="button" class="mc-unit__btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars">$</button>
+              <button type="button" class="mc-unit__btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price">%</button>
+            </div>
+          </div>
+          <p class="mc-field-error" id="mc-down-payment-error" data-error-for="downPayment" hidden></p>
         </div>
-        <div class="mt-1 flex" data-unit-group="downPayment">
-          <input class="field rounded-r-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 80000" aria-describedby="mc-down-payment-error" />
-          <div class="mc-unit" role="radiogroup" aria-label="Enter the down payment as dollars or a percent">
-            <button type="button" class="mc-unit__btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars">$</button>
-            <button type="button" class="mc-unit__btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price">%</button>
+        <div data-field="startDate">
+          <label class="field-label" for="mc-start-month">Start date</label>
+          <div class="mt-1 flex gap-2">
+            <select class="field mc-start-month" id="mc-start-month" name="startMonth" aria-label="Repayment start month">
+              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                <option value={i + 1}>{m}</option>
+              ))}
+            </select>
+            <input class="field mc-start-year" id="mc-start-year" name="startYear" type="number" min="1900" max="2200" step="1" inputmode="numeric" autocomplete="off" aria-label="Repayment start year" />
           </div>
         </div>
-        <p class="mc-field-error" id="mc-down-payment-error" data-error-for="downPayment" hidden></p>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -108,6 +121,17 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
             </div>
             <p class="mc-field-error" id="mc-hoa-error" data-error-for="hoaMonthly" hidden></p>
           </div>
+          <div data-field="otherCostsAnnual">
+            <label class="field-label" for="mc-other-in">Other costs /yr</label>
+            <div class="mt-1 flex" data-unit-group="otherCosts">
+              <input class="field rounded-r-none" id="mc-other-in" name="otherCostsAnnual" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 0" aria-describedby="mc-other-error" />
+              <div class="mc-unit" role="radiogroup" aria-label="Enter other costs as dollars per year or a percent of the home price">
+                <button type="button" class="mc-unit__btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars per year">$</button>
+                <button type="button" class="mc-unit__btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price per year">%</button>
+              </div>
+            </div>
+            <p class="mc-field-error" id="mc-other-error" data-error-for="otherCostsAnnual" hidden></p>
+          </div>
           <div data-field="pmiAnnualRate">
             <label class="field-label" for="mc-pmi-in">PMI /yr</label>
             <div class="mt-1 flex" data-unit-group="pmi">
@@ -147,6 +171,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <span class="mc-seg" style="width:0%; background: #f59e0b" data-mc-seg="ins"></span>
         <span class="mc-seg" style="width:0%; background: #a855f7" data-mc-seg="pmi"></span>
         <span class="mc-seg" style="width:0%; background: #64748b" data-mc-seg="hoa"></span>
+        <span class="mc-seg" style="width:0%; background: #0ea5e9" data-mc-seg="other"></span>
       </div>
 
       <dl class="mc-metrics">
@@ -155,6 +180,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <div><dt><span class="mc-dot" style="background: #f59e0b"></span>Home insurance</dt><dd data-mc-ins>—</dd></div>
         <div><dt><span class="mc-dot" style="background: #a855f7"></span>PMI</dt><dd data-mc-pmi>—</dd></div>
         <div><dt><span class="mc-dot" style="background: #64748b"></span>HOA</dt><dd data-mc-hoa>—</dd></div>
+        <div><dt><span class="mc-dot" style="background: #0ea5e9"></span>Other costs</dt><dd data-mc-other>—</dd></div>
       </dl>
 
       <div class="mc-totals">
@@ -327,7 +353,19 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   }
   .mc-table :global(.mc-row) { border-top: 1px solid var(--line); }
   .mc-table :global(.mc-cell) { padding: 0.5rem 0.75rem; }
-  .mc-table :global(.mc-cell--period) { text-align: left; font-weight: 600; color: var(--fg); }
+  .mc-table :global(.mc-cell--period) { text-align: left; font-weight: 600; color: var(--fg); white-space: nowrap; }
+
+  /* The dated window sits inside the period cell, smaller and muted, so no column is added. */
+  .mc-table :global(.mc-cell__range) {
+    margin-left: 0.4rem;
+    font-weight: 500;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mc-start-month { flex: 1 1 0; min-width: 0; }
+  .mc-start-year { flex: 1 1 0; min-width: 0; }
 
   /* Inline unit selector — sits flush on the input's right edge so a $/% field stays ONE row.
      The active button is the unit indicator, so no separate affix is needed beside the number. */
@@ -416,6 +454,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         placeholder: { amount: 'e.g. 3600', percent: 'e.g. 1.2' },
         fallback: 'amount',
       },
+      otherCosts: {
+        name: 'otherCostsAnnual',
+        step: { amount: '100', percent: '0.1' },
+        placeholder: { amount: 'e.g. 0', percent: 'e.g. 0.5' },
+        fallback: 'amount',
+      },
       pmi: {
         name: 'pmiAnnualRate',
         step: { amount: '100', percent: '0.05' },
@@ -463,6 +507,16 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         }),
       ),
     );
+
+    // Repayment start defaults to the visitor's current month/year (the age calculator's
+    // client-today precedent). Server-rendered blank, filled on hydration, so the build date can
+    // never go stale in the markup. Only ever fills a blank field.
+    const monthEl = root.querySelector<HTMLSelectElement>('[name="startMonth"]');
+    const yearEl = root.querySelector<HTMLInputElement>('[name="startYear"]');
+    const today = new Date();
+    if (monthEl && !monthEl.dataset.touched) monthEl.value = String(today.getMonth() + 1);
+    if (yearEl && yearEl.value === '') yearEl.value = String(today.getFullYear());
+    monthEl?.addEventListener('change', () => { monthEl.dataset.touched = '1'; });
 
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     const disclosure = root.querySelector<HTMLDetailsElement>('[data-mc-disclosure]');

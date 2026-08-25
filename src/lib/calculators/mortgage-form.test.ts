@@ -13,6 +13,8 @@ import {
   pmiPercent,
   convertDownPayment,
   convertAgainstBase,
+  yearRangeLabel,
+  yearRangeLabels,
   mortgageExample,
   MORTGAGE_EXAMPLE,
   TERM_OPTIONS,
@@ -41,6 +43,10 @@ const values = (over: Partial<MortgageValues> = {}): MortgageValues => ({
   hoaMonthly: '0',
   pmiAnnualRate: '0.5',
   pmiUnit: 'percent', // percent-of-loan is engine-native and the default
+  otherCostsAnnual: '',
+  otherCostsUnit: 'amount',
+  startMonth: '',
+  startYear: '',
   ...over,
 });
 const good = () => computeMortgage(values());
@@ -146,6 +152,10 @@ describe('mortgage binding — validation', () => {
       downPaymentUnit: 'amount',
       propertyTaxUnit: 'amount',
       pmiUnit: 'percent',
+      otherCostsAnnual: '',
+      otherCostsUnit: 'amount',
+      startMonth: '',
+      startYear: '',
       loanTermYears: '7',
       annualInterestRate: '',
       propertyTaxAnnual: '-1',
@@ -234,6 +244,10 @@ describe('mortgage binding — complete-result guard', () => {
       downPaymentUnit: 'amount',
       propertyTaxUnit: 'amount',
       pmiUnit: 'percent',
+      otherCostsAnnual: '',
+      otherCostsUnit: 'amount',
+      startMonth: '',
+      startYear: '',
       loanTermYears: '30',
       annualInterestRate: '6',
       propertyTaxAnnual: '',
@@ -351,6 +365,10 @@ describe('mortgage binding — breakdown segments', () => {
       downPaymentUnit: 'amount',
       propertyTaxUnit: 'amount',
       pmiUnit: 'percent',
+      otherCostsAnnual: '',
+      otherCostsUnit: 'amount',
+      startMonth: '',
+      startYear: '',
       loanTermYears: '30',
       annualInterestRate: '6',
       propertyTaxAnnual: '',
@@ -358,7 +376,7 @@ describe('mortgage binding — breakdown segments', () => {
       hoaMonthly: '',
       pmiAnnualRate: '',
     });
-    expect(proportionSegments(r)).toEqual({ pi: 0, tax: 0, ins: 0, pmi: 0, hoa: 0 });
+    expect(proportionSegments(r)).toEqual({ pi: 0, tax: 0, ins: 0, pmi: 0, hoa: 0, other: 0 });
   });
 });
 
@@ -817,5 +835,89 @@ describe('the three unit groups are independent in the data model', () => {
     expect(alternate.monthlyPmi).toBeCloseTo(native.monthlyPmi, 10);
     expect(alternate.monthlyTotal).toBeCloseTo(native.monthlyTotal, 10);
     expect(alternate.totalInterest).toBe(native.totalInterest);
+  });
+});
+
+describe('start date labels the yearly schedule', () => {
+  it('dates the first year from the entered month and year', () => {
+    expect(yearRangeLabel(8, 2026, 1)).toBe('8/26\u20137/27');
+  });
+
+  it('advances a full 12 months per schedule year', () => {
+    expect(yearRangeLabel(8, 2026, 2)).toBe('8/27\u20137/28');
+    expect(yearRangeLabel(8, 2026, 30)).toBe('8/55\u20137/56');
+  });
+
+  it('handles a January start without rolling the year early', () => {
+    expect(yearRangeLabel(1, 2026, 1)).toBe('1/26\u201312/26');
+    expect(yearRangeLabel(12, 2026, 1)).toBe('12/26\u201311/27');
+  });
+
+  it('returns an empty label for an unusable date rather than guessing', () => {
+    for (const [m, y] of [[0, 2026], [13, 2026], [8, 12], [Number.NaN, 2026]] as const) {
+      expect(yearRangeLabel(m as number, y as number, 1)).toBe('');
+    }
+  });
+
+  it('builds one label per schedule row, or none at all when the date is unset', () => {
+    expect(yearRangeLabels(8, 2026, 3)).toEqual(['8/26\u20137/27', '8/27\u20137/28', '8/28\u20137/29']);
+    expect(yearRangeLabels(0, 2026, 3)).toEqual([]);
+  });
+
+  it('the computed result carries a label per yearly row', () => {
+    const r = computeMortgage(values({ startMonth: '8', startYear: '2026', loanTermYears: '30' }));
+    expect(r.yearLabels).toHaveLength(r.yearlySchedule.length);
+    expect(r.yearLabels[0]).toBe('8/26\u20137/27');
+  });
+
+  it('never changes the mortgage maths', () => {
+    const withDate = computeMortgage(values({ startMonth: '8', startYear: '2026' }));
+    const without = computeMortgage(values({ startMonth: '', startYear: '' }));
+    expect(withDate.monthlyTotal).toBe(without.monthlyTotal);
+    expect(withDate.loanAmount).toBe(without.loanAmount);
+    expect(withDate.totalInterest).toBe(without.totalInterest);
+    expect(without.yearLabels).toEqual([]);
+  });
+});
+
+describe('other costs: dollars/year or a percent of the home price', () => {
+  it('adds to the monthly total', () => {
+    const none = computeMortgage(values({ otherCostsAnnual: '', otherCostsUnit: 'amount' }));
+    const some = computeMortgage(values({ otherCostsAnnual: '1200', otherCostsUnit: 'amount' }));
+    expect(some.monthlyOther).toBeCloseTo(100, 10);
+    expect(some.monthlyTotal).toBeCloseTo(none.monthlyTotal + 100, 8);
+  });
+
+  it('$4,000 and 1% on a $400,000 home reach the engine identically', () => {
+    const base = { homePrice: '400000', downPayment: '80000', downPaymentUnit: 'amount' as const };
+    const asDollars = computeMortgage(values({ ...base, otherCostsAnnual: '4000', otherCostsUnit: 'amount' }));
+    const asPercent = computeMortgage(values({ ...base, otherCostsAnnual: '1', otherCostsUnit: 'percent' }));
+    expect(asPercent.monthlyOther).toBe(asDollars.monthlyOther);
+    expect(asPercent.monthlyTotal).toBe(asDollars.monthlyTotal);
+  });
+
+  it('converts $ ↔ % against the home price', () => {
+    expect(convertAgainstBase('4000', 400_000, 'amount', 'percent')).toBe('1');
+    expect(convertAgainstBase('1', 400_000, 'percent', 'amount')).toBe('4000');
+  });
+
+  it('rejects above 100% and a negative entry, per unit', () => {
+    const over = validateMortgageValues(values({ otherCostsAnnual: '101', otherCostsUnit: 'percent' }));
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(over.fieldErrors?.otherCostsAnnual).toBe('Enter other costs of 100% or less.');
+
+    const neg = validateMortgageValues(values({ otherCostsAnnual: '-1', otherCostsUnit: 'amount' }));
+    expect(neg.ok).toBe(false);
+    if (!neg.ok) expect(neg.fieldErrors?.otherCostsAnnual).toBe('Enter an other-costs amount of zero or more.');
+  });
+
+  it('is included in the complete-result guard, so the total still reconciles', () => {
+    const r = computeMortgage(values({ otherCostsAnnual: '1200', otherCostsUnit: 'amount' }));
+    expect(Number.isFinite(completeResultValue(r))).toBe(true);
+    expect(r.monthlyTotal).toBeCloseTo(
+      r.monthlyPrincipalInterest + r.monthlyPropertyTax + r.monthlyInsurance +
+        r.monthlyHoa + r.monthlyOther + r.monthlyPmi,
+      8,
+    );
   });
 });

@@ -71,6 +71,7 @@ export const UNIT_GROUPS = {
   downPayment: 'downPayment',
   propertyTax: 'propertyTax',
   pmi: 'pmi',
+  otherCosts: 'otherCosts',
 } as const;
 
 export interface MortgageValues {
@@ -85,7 +86,14 @@ export interface MortgageValues {
   propertyTaxUnit: MoneyUnit;
   homeInsuranceAnnual: string;
   hoaMonthly: string;
+  otherCostsAnnual: string;
+  /** Whether `otherCostsAnnual` is dollars/year or a percent of the home price. */
+  otherCostsUnit: MoneyUnit;
   pmiAnnualRate: string;
+  /** Repayment start — month 1-12 and a four-digit year. Presentation only: it dates the
+   *  yearly schedule rows and never enters the mortgage maths. */
+  startMonth: string;
+  startYear: string;
   /** Whether `pmiAnnualRate` is a percent of the loan (engine-native) or dollars/year. */
   pmiUnit: MoneyUnit;
 }
@@ -102,6 +110,8 @@ export interface MortgageComputed extends ReturnType<typeof calculateMortgage> {
   hasPmi: boolean;
   /** The yearly collapse of the monthly schedule, for the disclosure (empty for a zero mortgage). */
   yearlySchedule: AmortizationRow[];
+  /** One "8/26–7/27" label per yearly row, or an empty array when no start date is set. */
+  yearLabels: string[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -209,6 +219,41 @@ export function convertDownPayment(
   return convertAgainstBase(raw, Number(homePriceRaw), fromUnit, toUnit);
 }
 
+/**
+ * The 12-month window one yearly schedule row covers, as "8/26–7/27".
+ *
+ * Presentation only — the start date never enters the mortgage maths, it just dates the rows the
+ * engine already produced. `yearIndex` is the row's 1-based period. Returns '' when the start date is
+ * not a usable month (1-12) and four-digit year, so an unset date simply shows no range.
+ */
+export function yearRangeLabel(startMonth: number, startYear: number, yearIndex: number): string {
+  if (
+    !Number.isInteger(startMonth) || startMonth < 1 || startMonth > 12 ||
+    !Number.isInteger(startYear) || startYear < 1000 || startYear > 9999 ||
+    !Number.isInteger(yearIndex) || yearIndex < 1
+  ) {
+    return '';
+  }
+  const first = (yearIndex - 1) * 12; // months elapsed before this row
+  const at = (offset: number) => {
+    const m0 = startMonth - 1 + offset;
+    const year = startYear + Math.floor(m0 / 12);
+    return `${(m0 % 12) + 1}/${String(year % 100).padStart(2, '0')}`;
+  };
+  return `${at(first)}\u2013${at(first + 11)}`;
+}
+
+/** Every row's label for a schedule of `rows` years. Empty array when the date is unusable. */
+export function yearRangeLabels(startMonth: number, startYear: number, rows: number): string[] {
+  const labels: string[] = [];
+  for (let i = 1; i <= rows; i++) {
+    const label = yearRangeLabel(startMonth, startYear, i);
+    if (label === '') return [];
+    labels.push(label);
+  }
+  return labels;
+}
+
 /** The loan term must be exactly one of the offered options. */
 function parseTerm(raw: string): 'invalid' | number {
   const t = raw.trim();
@@ -269,6 +314,16 @@ export function validateMortgageValues(values: MortgageValues): ValidationResult
   if (parseOptionalNonNegative(values.hoaMonthly) === 'invalid') {
     fieldErrors.hoaMonthly = 'Enter an HOA amount of zero or more.';
   }
+  // Other costs carry the same dual unit as property tax: dollars/year or a percent of the price.
+  const other = parseOptionalNonNegative(values.otherCostsAnnual);
+  if (other === 'invalid') {
+    fieldErrors.otherCostsAnnual =
+      values.otherCostsUnit === 'percent'
+        ? 'Enter an other-costs percent of zero or more.'
+        : 'Enter an other-costs amount of zero or more.';
+  } else if (values.otherCostsUnit === 'percent' && other > 100) {
+    fieldErrors.otherCostsAnnual = 'Enter other costs of 100% or less.';
+  }
   // PMI is the inverse: percent is engine-native (and keeps its original message), while dollars is
   // the converted form. A percent above 100 of the loan is rejected; a dollar premium has no ceiling
   // here because the loan it is measured against may not be resolvable yet.
@@ -305,8 +360,10 @@ export function computeMortgage(values: MortgageValues): MortgageComputed {
     propertyTaxAnnual: dollarsOf(homePrice, optNum(values.propertyTaxAnnual), values.propertyTaxUnit),
     homeInsuranceAnnual: optNum(values.homeInsuranceAnnual),
     hoaMonthly: optNum(values.hoaMonthly),
+    otherCostsAnnual: dollarsOf(homePrice, optNum(values.otherCostsAnnual), values.otherCostsUnit),
     pmiAnnualRate: pmiPercent(loanBase, optNum(values.pmiAnnualRate), values.pmiUnit),
   });
+  const yearly = toYearlySchedule(result.schedule);
   return {
     ...result,
     homePrice,
@@ -314,7 +371,8 @@ export function computeMortgage(values: MortgageValues): MortgageComputed {
     downPaymentPct: homePrice > 0 ? (downPayment / homePrice) * 100 : 0,
     zeroMortgage: result.loanAmount === 0,
     hasPmi: result.monthlyPmi > 0,
-    yearlySchedule: toYearlySchedule(result.schedule),
+    yearlySchedule: yearly,
+    yearLabels: yearRangeLabels(optNum(values.startMonth), optNum(values.startYear), yearly.length),
   };
 }
 
@@ -351,6 +409,7 @@ export function completeResultValue(r: MortgageComputed): number {
     monthlyPropertyTax,
     monthlyInsurance,
     monthlyHoa,
+    monthlyOther,
     monthlyPmi,
     monthlyTotal,
     totalInterest,
@@ -368,6 +427,7 @@ export function completeResultValue(r: MortgageComputed): number {
     monthlyPropertyTax,
     monthlyInsurance,
     monthlyHoa,
+    monthlyOther,
     monthlyPmi,
     monthlyTotal,
     totalInterest,
@@ -381,7 +441,7 @@ export function completeResultValue(r: MortgageComputed): number {
 
   // The monthly total is always P&I + tax + insurance + HOA + initial PMI.
   if (
-    Math.abs(monthlyTotal - (monthlyPrincipalInterest + monthlyPropertyTax + monthlyInsurance + monthlyHoa + monthlyPmi)) >
+    Math.abs(monthlyTotal - (monthlyPrincipalInterest + monthlyPropertyTax + monthlyInsurance + monthlyHoa + monthlyOther + monthlyPmi)) >
     COMPONENT_TOL
   ) {
     return FAIL;
@@ -485,6 +545,7 @@ export function proportionSegments(r: MortgageComputed): {
   ins: number;
   pmi: number;
   hoa: number;
+  other: number;
 } {
   const total = r.monthlyTotal;
   const pct = (v: number) => (total > 0 ? Math.max(0, (v / total) * 100) : 0);
@@ -494,6 +555,7 @@ export function proportionSegments(r: MortgageComputed): {
     ins: pct(r.monthlyInsurance),
     pmi: pct(r.monthlyPmi),
     hoa: pct(r.monthlyHoa),
+    other: pct(r.monthlyOther),
   };
 }
 
@@ -503,7 +565,7 @@ export function proportionSegments(r: MortgageComputed): {
 
 /** One yearly schedule row built with the DOM API — the year as a row header, three right-aligned money
  *  cells (principal, interest, balance). Never uses innerHTML, so values can never become markup. */
-function scheduleRow(row: AmortizationRow): HTMLTableRowElement {
+function scheduleRow(row: AmortizationRow, label?: string): HTMLTableRowElement {
   const tr = document.createElement('tr');
   tr.className = 'mc-row';
 
@@ -511,6 +573,14 @@ function scheduleRow(row: AmortizationRow): HTMLTableRowElement {
   period.scope = 'row';
   period.className = 'mc-cell mc-cell--period';
   period.textContent = String(row.period);
+  // The dated window follows the serial number in the SAME cell, at a smaller size, so the
+  // schedule gains no column and no extra width.
+  if (label) {
+    const range = document.createElement('span');
+    range.className = 'mc-cell__range';
+    range.textContent = label;
+    period.append(range);
+  }
   tr.append(period);
 
   for (const value of [row.principal, row.interest, row.balance]) {
@@ -523,10 +593,14 @@ function scheduleRow(row: AmortizationRow): HTMLTableRowElement {
 }
 
 /** Replace a tbody's rows in one pass via a fragment (all rows; no pagination / virtualization). */
-function fillBody(tbody: HTMLElement | null, rows: readonly AmortizationRow[]): void {
+function fillBody(
+  tbody: HTMLElement | null,
+  rows: readonly AmortizationRow[],
+  labels: readonly string[] = [],
+): void {
   if (!tbody) return;
   const frag = document.createDocumentFragment();
-  for (const row of rows) frag.append(scheduleRow(row));
+  rows.forEach((row, i) => frag.append(scheduleRow(row, labels[i])));
   tbody.replaceChildren(frag);
 }
 
@@ -545,6 +619,7 @@ const FIELD_NAMES: (keyof MortgageValues)[] = [
   'propertyTaxAnnual',
   'homeInsuranceAnnual',
   'hoaMonthly',
+  'otherCostsAnnual',
   'pmiAnnualRate',
 ];
 
@@ -574,6 +649,10 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
       propertyTaxUnit: activeUnit(root, UNIT_GROUPS.propertyTax, 'amount'),
       homeInsuranceAnnual: val('homeInsuranceAnnual'),
       hoaMonthly: val('hoaMonthly'),
+      otherCostsAnnual: val('otherCostsAnnual'),
+      otherCostsUnit: activeUnit(root, UNIT_GROUPS.otherCosts, 'amount'),
+      startMonth: val('startMonth'),
+      startYear: val('startYear'),
       pmiAnnualRate: val('pmiAnnualRate'),
       pmiUnit: activeUnit(root, UNIT_GROUPS.pmi, 'percent'),
     };
@@ -615,6 +694,7 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
     setText('[data-mc-ins]', formatCurrency(result.monthlyInsurance));
     setText('[data-mc-pmi]', formatCurrency(result.monthlyPmi));
     setText('[data-mc-hoa]', formatCurrency(result.monthlyHoa));
+    setText('[data-mc-other]', formatCurrency(result.monthlyOther));
 
     // Loan summary.
     setText('[data-mc-loan]', formatCurrencyRounded(result.loanAmount));
@@ -635,12 +715,13 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
       setW('[data-mc-seg="ins"]', seg.ins);
       setW('[data-mc-seg="pmi"]', seg.pmi);
       setW('[data-mc-seg="hoa"]', seg.hoa);
+      setW('[data-mc-seg="other"]', seg.other);
     }
 
     // Amortization schedule disclosure — populated in full for a positive loan, hidden entirely for a
     // zero mortgage (there is no schedule to show).
     show('[data-mc-schedule-block]', !result.zeroMortgage);
-    fillBody(q('[data-mc-rows]'), result.yearlySchedule);
+    fillBody(q('[data-mc-rows]'), result.yearlySchedule, result.yearLabels);
   },
 
   /**
@@ -671,6 +752,10 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
     }
     if (group === UNIT_GROUPS.propertyTax) {
       apply('propertyTaxAnnual', price);
+      return;
+    }
+    if (group === UNIT_GROUPS.otherCosts) {
+      apply('otherCostsAnnual', price);
       return;
     }
     if (group === UNIT_GROUPS.pmi) {

@@ -191,8 +191,11 @@ test('the schedule is a disclosure, closed by default, revealing Year/Principal/
   await expect(rows(page).first()).toBeHidden(); // collapsed
   await disclosure(page).locator('summary').click();
   await expect(rows(page)).toHaveCount(30);
-  // First yearly row is Year 1 with a decreasing balance below the loan amount.
-  await expect(rows(page).first().locator('th')).toHaveText('1');
+  // First yearly row is Year 1 with a decreasing balance below the loan amount. The period cell now
+  // also carries the dated window, so assert the serial number followed by that range.
+  const firstPeriod = rows(page).first().locator('th');
+  const firstRange = await firstPeriod.locator('.mc-cell__range').textContent();
+  await expect(firstPeriod).toHaveText(`1${firstRange}`);
 });
 
 test('no NaN / Infinity / undefined leaks into the rendered result', async ({ page }) => {
@@ -770,5 +773,95 @@ test.describe('multiple unit groups', () => {
     await page.fill('[name="homePrice"]', '500000');
     await expect(primary(page)).not.toHaveText(at400!); // 1.2% of the NEW price, not frozen dollars
     await expect(taxInput(page)).toHaveValue('1.2'); // the entered percent is preserved
+  });
+});
+
+/* ---- Start date + other costs -------------------------------------------- */
+
+test.describe('start date', () => {
+  test('sits beside the down payment and defaults to the visitor\'s current month/year', async ({ page }) => {
+    const now = new Date();
+    await expect(page.locator('[name="startMonth"]')).toHaveValue(String(now.getMonth() + 1));
+    await expect(page.locator('[name="startYear"]')).toHaveValue(String(now.getFullYear()));
+    // Same row as the down payment: neither field is full-width on its own.
+    const down = await page.locator('[name="downPayment"]').boundingBox();
+    const month = await page.locator('[name="startMonth"]').boundingBox();
+    expect(down!.y).toBeLessThan(month!.y + month!.height);
+    expect(month!.y).toBeLessThan(down!.y + down!.height);
+    expect(month!.x).toBeGreaterThan(down!.x + down!.width);
+  });
+
+  test('dates each yearly row after its serial number, adding no column', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await page.selectOption('[name="startMonth"]', '8');
+    await page.fill('[name="startYear"]', '2026');
+    await submit(page).click();
+    await disclosure(page).locator('summary').click();
+
+    await expect(rows(page).first().locator('th')).toHaveText('18/26–7/27');
+    await expect(rows(page).nth(1).locator('th')).toHaveText('28/27–7/28');
+    // The dated range lives INSIDE the period cell — the table still has four columns.
+    await expect(rows(page).first().locator('td')).toHaveCount(3);
+  });
+
+  test('does not change the calculated result', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    const before = await primary(page).textContent();
+    await page.selectOption('[name="startMonth"]', '1');
+    await page.fill('[name="startYear"]', '2030');
+    await expect(primary(page)).toHaveText(before!);
+  });
+});
+
+test.describe('other costs', () => {
+  test('adds to the monthly total', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    const before = await primary(page).textContent();
+    await openCosts(page);
+    await page.fill('[name="otherCostsAnnual"]', '1200');
+    await expect(page.locator('[data-mc-other]')).toHaveText('$100.00');
+    await expect(primary(page)).not.toHaveText(before!);
+  });
+
+  test('$4,000 and 1% of a $400,000 home give the same total', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await page.fill('[name="otherCostsAnnual"]', '4000');
+    await submit(page).click();
+    const asDollars = await primary(page).textContent();
+
+    await groupUnit(page, 'otherCosts', 'percent').click();
+    await expect(page.locator('[name="otherCostsAnnual"]')).toHaveValue('1'); // converted
+    await expect(primary(page)).toHaveText(asDollars!);
+  });
+
+  test('its unit switch does not disturb the other three groups', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await page.fill('[name="downPayment"]', '80000');
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+    await page.fill('[name="otherCostsAnnual"]', '4000');
+
+    await groupUnit(page, 'otherCosts', 'percent').click();
+
+    await expect(page.locator('[name="downPayment"]')).toHaveValue('80000');
+    await expect(taxInput(page)).toHaveValue('4800');
+    await expect(pmiInput(page)).toHaveValue('1');
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/);
+  });
+
+  test('rejects above 100%', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await groupUnit(page, 'otherCosts', 'percent').click();
+    await page.fill('[name="otherCostsAnnual"]', '150');
+    await submit(page).click();
+    await expect(fieldError(page, 'otherCostsAnnual')).toContainText('100%');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
   });
 });
