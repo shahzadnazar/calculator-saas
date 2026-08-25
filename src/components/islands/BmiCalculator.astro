@@ -15,8 +15,14 @@ import ResultValue from '@components/result/ResultValue.astro';
 import ResultInterpretation from '@components/result/ResultInterpretation.astro';
 import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
+import ExampleResult from '@components/result/ExampleResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import { bmiExample } from '@lib/calculators/bmi-form';
+
+// Every figure below is computed at build time by the same reviewed `calculateBmi`
+// the calculator runs, so the example can never drift from the engine.
+const ex = bmiExample();
 ---
 
 <div class="bmi mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-bmi>
@@ -149,13 +155,35 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
        empty/invalid placeholders so the reserved card reads as intentional. -->
   <ResultShell
     id="bmi-result"
-    state="empty"
+    state="example"
     density="standard"
     label="Your BMI result"
     minHeight="22rem"
     placeholderAlignment="center"
   >
     <EmptyResult message="Enter your height and weight, then calculate your BMI." />
+
+    <ExampleResult
+      label="Example"
+      caption={`Sample figures for someone ${ex.heightCm} cm tall weighing ${ex.weightKg} kg — not your result.`}
+      dismissLabel="Start with my values"
+    >
+      <ResultSummary label={`Example BMI (${ex.heightCm} cm, ${ex.weightKg} kg)`}>
+        <ResultValue value={String(ex.bmi)} unit="kg/m²" />
+      </ResultSummary>
+      <p class="bmi-example-category"><strong>{ex.category}</strong> <span style="color: var(--muted)">{ex.phrase}</span></p>
+      <div class="bmi-scale" aria-hidden="true">
+        <div class="bmi-scale__bar">
+          <span class="bmi-scale__marker" style={`left: ${ex.markerPercent}%`}></span>
+        </div>
+        <div class="bmi-scale__labels">
+          <span>Under</span><span>Normal</span><span>Over</span><span>Obese</span>
+        </div>
+      </div>
+      <p class="bmi-example-range">
+        A healthy weight at {ex.heightCm} cm is <strong>{ex.healthyMin}–{ex.healthyMax} {ex.unitLabel}</strong>.
+      </p>
+    </ExampleResult>
 
     <div data-result-when="valid">
       <ResultSummary label="Your BMI">
@@ -254,6 +282,17 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     justify-content: space-between;
     font-size: 0.7rem;
     color: var(--muted);
+  }
+
+  .bmi-example-category {
+    margin: 0.5rem 0 0;
+    font-size: 0.95rem;
+  }
+  .bmi-example-range {
+    margin: 0.85rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--fg);
   }
 
   .bmi-footnote {

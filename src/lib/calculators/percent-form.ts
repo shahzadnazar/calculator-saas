@@ -197,3 +197,58 @@ export const percentChangeBinding: EquationCalculatorBinding<PercentChangeOperan
     clearField(root, 'to');
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked examples (build-time, engine-derived)                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The scenarios behind the labelled Example each equation shows on first load.
+ * The operands stay EMPTY — the example is badged, carries its own numbers in
+ * its caption, and is replaced the moment the visitor types into that equation
+ * or presses its "Start with my values" action. Each equation is independent, so
+ * dismissing one leaves the other two examples standing.
+ *
+ * The inputs deliberately mirror each field's placeholder, and every printed
+ * figure comes from `percentExamples()` — the same reviewed `percentOf` /
+ * `whatPercent` / `percentChange` the calculator uses — so nothing can drift.
+ */
+export const PERCENT_EXAMPLES = {
+  percentOf: { percent: 15, value: 200 },
+  whatPercent: { part: 50, whole: 200 },
+  percentChange: { from: 80, to: 100 },
+} as const;
+
+export interface PercentExamples {
+  percentOf: { percent: number; value: number; amount: string };
+  whatPercent: { part: number; whole: number; percentage: string };
+  percentChange: {
+    from: number;
+    to: number;
+    magnitude: string;
+    direction: ChangeDirection;
+    /** `data-direction` token used by the valid region ('none' for no change). */
+    directionToken: 'increase' | 'decrease' | 'none';
+  };
+}
+
+/** Compute the three worked examples from the engines. Pure — safe at build time. */
+export function percentExamples(): PercentExamples {
+  const of = PERCENT_EXAMPLES.percentOf;
+  const wp = PERCENT_EXAMPLES.whatPercent;
+  const pc = PERCENT_EXAMPLES.percentChange;
+  const change = computePercentChangeResult(pc.from, pc.to);
+  return {
+    percentOf: { ...of, amount: formatNumber(percentOf(of.percent, of.value), 2) },
+    whatPercent: { ...wp, percentage: formatNumber(whatPercent(wp.part, wp.whole), 2) },
+    percentChange: {
+      ...pc,
+      magnitude:
+        change.direction === 'no change'
+          ? formatNumber(0, 2)
+          : formatNumber(Math.abs(change.percent), 2),
+      direction: change.direction,
+      directionToken: change.direction === 'no change' ? 'none' : change.direction,
+    },
+  };
+}

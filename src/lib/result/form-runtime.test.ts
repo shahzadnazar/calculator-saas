@@ -189,6 +189,54 @@ describe('planFormAction — reset', () => {
 });
 
 /* ------------------------------------------------------------------ */
+/* Worked-example dismissal (opt-in)                                    */
+/* ------------------------------------------------------------------ */
+
+describe('planFormAction — dismissExample', () => {
+  const EXAMPLE = S('example', 'idle', false);
+
+  it('the explicit action leaves the example for empty and hands over the first field', () => {
+    const plan = planFormAction(EXAMPLE, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+    expect(plan.next).toEqual({ status: { state: 'empty', activity: 'idle' }, hasCalculated: false });
+    expect(plan.effects.focus).toBe('firstField');
+    expect(plan.effects.compute).toBe(false);
+    expect(plan.effects.announce).toBe('none');
+    expect(plan.effects.liveNote).toBe(false);
+    expect(plan.effects.fieldErrors).toBe('clear');
+  });
+
+  it('never clears the visitor\'s values — the example lives only in the result panel', () => {
+    for (const source of ['action', 'input'] as const) {
+      const plan = planFormAction(EXAMPLE, { kind: 'dismissExample', source }, null, opts('live-after-first'));
+      expect(plan.effects.clearValues).toBe(false);
+    }
+  });
+
+  it('dismissal by typing goes to empty WITHOUT moving focus mid-keystroke', () => {
+    const plan = planFormAction(EXAMPLE, { kind: 'dismissExample', source: 'input' }, null, opts('live-after-first'));
+    expect(plan.next).toEqual({ status: { state: 'empty', activity: 'idle' }, hasCalculated: false });
+    expect(plan.effects.focus).toBe('none');
+  });
+
+  it('does not open the live gate — the visitor still makes an explicit first calculation', () => {
+    const plan = planFormAction(EXAMPLE, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+    expect(plan.next.hasCalculated).toBe(false);
+    expect(isLiveActive('live-after-first', plan.next.hasCalculated)).toBe(false);
+  });
+
+  it('is a no-op from every other state, so it can never wipe a real result', () => {
+    for (const state of [S('valid', 'just-updated', true), S('invalid', 'idle', true), INITIAL_FORM_STATE]) {
+      const plan = planFormAction(state, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+      expect(plan.next).toEqual(state);
+      expect(plan.effects.compute).toBe(false);
+      expect(plan.effects.clearValues).toBe(false);
+      expect(plan.effects.fieldErrors).toBe('none');
+      expect(plan.effects.focus).toBe('none');
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /* Per-instance result-description tracker (R7C-2D.1)                   */
 /* ------------------------------------------------------------------ */
 

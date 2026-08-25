@@ -288,3 +288,44 @@ export const bmiBinding: FormCalculatorBinding<BmiValues, BmiResult> = {
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (build-time, engine-derived)                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The scenario behind the labelled Example that occupies the result panel on
+ * first load. The visitor's OWN fields stay empty — the example is clearly
+ * badged, carries its own inputs in its caption, and is replaced the moment the
+ * visitor types or presses "Start with my values".
+ *
+ * Only the INPUTS live here. Every printed figure comes from `bmiExample()`,
+ * which runs the same reviewed `calculateBmi` the calculator itself uses, so the
+ * example can never drift from the engine.
+ */
+export const BMI_EXAMPLE = {
+  system: 'metric',
+  heightCm: 175,
+  weightKg: 70,
+} as const;
+
+export interface BmiExample extends BmiResult {
+  heightCm: number;
+  weightKg: number;
+  /** Marker position (0–100) on the category scale, so the example matches the real result. */
+  markerPercent: number;
+  phrase: string;
+}
+
+/** Compute the worked example from the engine. Pure — no DOM, safe at build time. */
+export function bmiExample(): BmiExample {
+  const { heightCm, weightKg } = BMI_EXAMPLE;
+  const result = calculateBmi({ system: 'metric', heightCm, weightKg });
+  return {
+    ...result,
+    heightCm,
+    weightKg,
+    markerPercent: markerPosition(result.bmi),
+    phrase: severityPhrase(result.severity),
+  };
+}

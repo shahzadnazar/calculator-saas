@@ -5,16 +5,26 @@
  * Three INDEPENDENT natural-language equations, each its own `<form
  * data-equation>` bound to a separate equation-runtime instance
  * (@lib/result/equation-runtime) with the percentage bindings
- * (@lib/calculators/percent-form). Task-first: operands start EMPTY, results
- * empty, a task-specific Calculate per equation, live-after-first, per-equation
- * Reset and announcement. Nothing an equation does can affect another.
+ * (@lib/calculators/percent-form). Task-first: operands start EMPTY. Each result
+ * panel opens on a clearly-labelled worked Example (engine-computed at build
+ * time) which the visitor dismisses by typing or via "Start with my values";
+ * after that it is the ordinary empty → valid flow. A task-specific Calculate per
+ * equation, live-after-first, per-equation Reset and announcement. Nothing an
+ * equation does can affect another — including dismissing its example.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
+import ExampleResult from '@components/result/ExampleResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import { percentExamples } from '@lib/calculators/percent-form';
+
+// Each equation shows its own labelled example, computed at build time by the same
+// reviewed engines the calculator runs. The three are independent: dismissing one
+// leaves the other two standing.
+const ex = percentExamples();
 ---
 
 <div class="pct mx-auto grid grid-cols-2  gap-4" data-percent>
@@ -38,8 +48,13 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
       <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
     </div>
-    <ResultShell density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Amount result" class="eq-result">
+    <ResultShell state="example" density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Amount result" class="eq-result">
       <EmptyResult message="Enter the values, then calculate the amount." />
+      <ExampleResult label="Example" dismissLabel="Start with my values">
+        <ResultSummary label={`Example: what is ${ex.percentOf.percent}% of ${ex.percentOf.value}?`}>
+          <ResultValue value={ex.percentOf.amount} size="text-3xl" />
+        </ResultSummary>
+      </ExampleResult>
       <div data-result-when="valid">
         <ResultSummary label="Amount">
           <ResultValue value="—" size="text-3xl" />
@@ -66,8 +81,13 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
       <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
     </div>
-    <ResultShell density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Percentage result" class="eq-result">
+    <ResultShell state="example" density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Percentage result" class="eq-result">
       <EmptyResult message="Enter both values, then calculate the percentage." />
+      <ExampleResult label="Example" dismissLabel="Start with my values">
+        <ResultSummary label={`Example: ${ex.whatPercent.part} is what percent of ${ex.whatPercent.whole}?`}>
+          <ResultValue value={ex.whatPercent.percentage} unit="%" size="text-3xl" />
+        </ResultSummary>
+      </ExampleResult>
       <div data-result-when="valid">
         <ResultSummary label="Percentage">
           <ResultValue value="—" unit="%" size="text-3xl" />
@@ -95,8 +115,14 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
       <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
     </div>
-    <ResultShell density="compact" minHeight="6rem" placeholderAlignment="center" boxed={false} label="Percentage change result" class="eq-result">
+    <ResultShell state="example" density="compact" minHeight="6rem" placeholderAlignment="center" boxed={false} label="Percentage change result" class="eq-result">
       <EmptyResult message="Enter both values, then calculate the change." />
+      <ExampleResult label="Example" dismissLabel="Start with my values">
+        <ResultSummary label={`Example: from ${ex.percentChange.from} to ${ex.percentChange.to}`}>
+          <ResultValue value={ex.percentChange.magnitude} unit="%" size="text-3xl" />
+        </ResultSummary>
+        <p class="eq-direction" data-direction={ex.percentChange.directionToken}>{ex.percentChange.direction === 'no change' ? 'no change' : ex.percentChange.direction}</p>
+      </ExampleResult>
       <div data-result-when="valid">
         <ResultSummary label="Percentage change">
           <ResultValue value="—" unit="%" size="text-3xl" />

@@ -6,6 +6,9 @@ import {
   describeBmiResult,
   severityPhrase,
   bmiBinding,
+  bmiExample,
+  BMI_EXAMPLE,
+  markerPosition,
   type BmiValues,
 } from './bmi-form';
 import { calculateBmi } from './bmi';
@@ -193,5 +196,43 @@ describe('severityPhrase', () => {
     expect(severityPhrase('low')).toMatch(/below/i);
     expect(severityPhrase('high')).toMatch(/above/i);
     expect(severityPhrase('danger')).toMatch(/well above/i);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Worked example (the labelled Example result state)                  */
+/* ------------------------------------------------------------------ */
+
+describe('bmiExample — the labelled Example shown on first load', () => {
+  it('pins the published scenario so the caption and the figures cannot disagree', () => {
+    expect(BMI_EXAMPLE).toEqual({ system: 'metric', heightCm: 175, weightKg: 70 });
+  });
+
+  it('derives every figure from the reviewed engine, never from hand-written copy', () => {
+    const ex = bmiExample();
+    const engine = calculateBmi({ system: 'metric', heightCm: 175, weightKg: 70 });
+    expect(ex.bmi).toBe(engine.bmi);
+    expect(ex.category).toBe(engine.category);
+    expect(ex.severity).toBe(engine.severity);
+    expect(ex.healthyMin).toBe(engine.healthyMin);
+    expect(ex.healthyMax).toBe(engine.healthyMax);
+    expect(ex.unitLabel).toBe(engine.unitLabel);
+    expect(ex.markerPercent).toBe(markerPosition(engine.bmi));
+  });
+
+  it('echoes its own inputs so the example can state the scenario it came from', () => {
+    const ex = bmiExample();
+    expect(ex.heightCm).toBe(BMI_EXAMPLE.heightCm);
+    expect(ex.weightKg).toBe(BMI_EXAMPLE.weightKg);
+  });
+
+  it('is a realistic, finite, normal-weight scenario (never NaN / Infinity)', () => {
+    const ex = bmiExample();
+    expect(Number.isFinite(ex.bmi)).toBe(true);
+    expect(Number.isFinite(ex.healthyMin)).toBe(true);
+    expect(Number.isFinite(ex.healthyMax)).toBe(true);
+    expect(ex.bmi).toBeCloseTo(22.9, 5);
+    expect(ex.category).toBe('Normal weight');
+    expect(ex.phrase).toBe(severityPhrase(ex.severity));
   });
 });

@@ -126,6 +126,49 @@ describe('planEquationAction — reset', () => {
   });
 });
 
+describe('planEquationAction — dismissExample', () => {
+  const EXAMPLE = S('example', 'idle', false);
+
+  it('the explicit action leaves the example for empty and hands over the first operand', () => {
+    const plan = planEquationAction(EXAMPLE, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+    expect(plan.next).toEqual({ status: { state: 'empty', activity: 'idle' }, hasCalculated: false });
+    expect(plan.effects.focus).toBe('firstField');
+    expect(plan.effects.compute).toBe(false);
+    expect(plan.effects.announce).toBe('none');
+    expect(plan.effects.liveNote).toBe(false);
+    expect(plan.effects.clearOperands).toBe(false);
+  });
+
+  it('dismissal by typing goes to empty WITHOUT moving focus mid-keystroke', () => {
+    const plan = planEquationAction(EXAMPLE, { kind: 'dismissExample', source: 'input' }, null, opts('live-after-first'));
+    expect(plan.next).toEqual({ status: { state: 'empty', activity: 'idle' }, hasCalculated: false });
+    expect(plan.effects.focus).toBe('none');
+    expect(plan.effects.clearOperands).toBe(false);
+  });
+
+  it('does not open the live gate — the first calculation stays explicit', () => {
+    const plan = planEquationAction(EXAMPLE, { kind: 'dismissExample', source: 'input' }, null, opts('live-after-first'));
+    expect(isLiveActive('live-after-first', plan.next.hasCalculated)).toBe(false);
+  });
+
+  it('is a no-op from every other state, so it can never wipe a real result', () => {
+    for (const state of [S('valid', 'just-updated', true), S('invalid', 'idle', true), INITIAL_EQUATION_STATE]) {
+      const plan = planEquationAction(state, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+      expect(plan.next).toEqual(state);
+      expect(plan.effects.compute).toBe(false);
+      expect(plan.effects.clearOperands).toBe(false);
+      expect(plan.effects.focus).toBe('none');
+    }
+  });
+
+  it('dismissing one equation is planned from ITS state alone — neighbours are untouched', () => {
+    const dismissed = planEquationAction(EXAMPLE, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+    const neighbour = S('example', 'idle', false);
+    expect(dismissed.next.status.state).toBe('empty');
+    expect(neighbour.status.state).toBe('example'); // unmutated by planning A
+  });
+});
+
 describe('planEquationAction — instance independence', () => {
   it('is a pure function of the passed state — one instance never affects another', () => {
     const a = S('valid', 'idle', true);

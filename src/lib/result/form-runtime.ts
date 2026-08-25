@@ -166,7 +166,17 @@ export type FormTrigger =
   | { kind: 'submit' } // explicit Calculate
   | { kind: 'input' } // a field changed
   | { kind: 'unit' } // the unit system changed (structural)
-  | { kind: 'reset' };
+  | { kind: 'reset' }
+  /**
+   * Leave a server-rendered worked example and hand the panel to the visitor.
+   * `action` is the explicit "Start with my values" button (focus moves to the
+   * first field); `input` is the visitor simply starting to type, which must
+   * drop the example silently without stealing focus mid-keystroke.
+   *
+   * Only meaningful for a calculator that OPTS IN by rendering its shell in the
+   * `example` state; every other calculator never reaches this trigger.
+   */
+  | { kind: 'dismissExample'; source: 'action' | 'input' };
 
 export interface FormProbe {
   validation: ValidationResult;
@@ -183,7 +193,7 @@ export interface FormEffects {
   /** What to announce (the executor supplies the text). */
   announce: 'value' | 'error' | 'none';
   /** Where focus should go. */
-  focus: 'firstInvalid' | 'revealResult' | 'none';
+  focus: 'firstInvalid' | 'revealResult' | 'firstField' | 'none';
   /** Desired visibility of the "Changes update automatically." note. */
   liveNote: boolean;
   /** Apply field errors from validation, clear them, or leave them untouched. */
@@ -245,6 +255,27 @@ export function planFormAction(
           clearValues: true,
         },
       };
+
+    case 'dismissExample': {
+      // Protection: only the `example` state can be dismissed. From any other
+      // state this is a no-op, so a stray click can never wipe a real result.
+      if (state.status.state !== 'example') return noop(state, noteAfterCalc(state.hasCalculated));
+      return {
+        next: { status: reduceResult(state.status, { type: 'reset' }), hasCalculated: false },
+        effects: {
+          compute: false,
+          announce: 'none',
+          // The explicit action hands the visitor the first field; dismissal by
+          // typing must never move focus out from under the keystroke.
+          focus: trigger.source === 'action' ? 'firstField' : 'none',
+          liveNote: false,
+          fieldErrors: 'clear',
+          // The example lives only in the result panel — the visitor's fields are
+          // already empty, and on the `input` path they hold what was just typed.
+          clearValues: false,
+        },
+      };
+    }
 
     case 'submit': {
       if (!probe) return noop(state, noteAfterCalc(state.hasCalculated));
@@ -376,7 +407,14 @@ export function mountFormCalculator<V, R>(
   const resetBtn = root.querySelector<HTMLButtonElement>('[data-reset]');
   const ctx: FormRenderContext = { root, result: shell };
 
-  let state = INITIAL_FORM_STATE;
+  // Opt-in worked example: a calculator that server-renders its shell in the
+  // `example` state starts the machine there, so the runtime — not a parallel
+  // per-island script — owns the transition out of it. Every other calculator
+  // renders `empty` and keeps the historical initial state exactly.
+  const startsAsExample = shell.dataset.resultState === 'example';
+  let state: FormMachineState = startsAsExample
+    ? { status: reduceResult(INITIAL_STATUS, { type: 'showExample' }), hasCalculated: false }
+    : INITIAL_FORM_STATE;
   let settleTimer = 0;
   let debounceTimer = 0;
   let lastAnnounced = '';
@@ -494,13 +532,26 @@ export function mountFormCalculator<V, R>(
     }
   };
 
+  /** The first field a visitor would type into — used only when they explicitly
+   *  ask to start with their own values. Skips hidden unit panels and disabled
+   *  controls so focus never lands somewhere invisible. */
+  const focusFirstField = () => {
+    const fields = Array.from(
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'),
+    );
+    const target = fields.find(
+      (el) => !el.disabled && el.type !== 'hidden' && el.offsetParent !== null,
+    );
+    target?.focus();
+  };
+
   /* -- run a plan --------------------------------------------------- */
 
   const run = (trigger: FormTrigger) => {
     let result: R | null = null;
     let probe: FormProbe | null = null;
 
-    if (trigger.kind !== 'reset') {
+    if (trigger.kind !== 'reset' && trigger.kind !== 'dismissExample') {
       const values = binding.readValues(root);
       const validation = binding.validate(values);
       let resultUsable = false;
@@ -565,6 +616,7 @@ export function mountFormCalculator<V, R>(
     // 7. Focus / scroll.
     if (effects.focus === 'firstInvalid') focusFirstInvalidField(root);
     else if (effects.focus === 'revealResult') revealResult(shell, { live: false, focus: true });
+    else if (effects.focus === 'firstField') focusFirstField();
 
     state = plan.next;
   };
@@ -578,16 +630,26 @@ export function mountFormCalculator<V, R>(
   };
 
   const onInput = () => {
+    // The visitor typing their own value ends the worked example immediately —
+    // before the live gate, which is closed until the first calculation.
+    if (state.status.state === 'example') {
+      window.clearTimeout(debounceTimer);
+      run({ kind: 'dismissExample', source: 'input' });
+      return;
+    }
     if (!isLiveActive(mode, state.hasCalculated)) return; // cheap gate before debounce
     window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(() => run({ kind: 'input' }), LIVE_DEBOUNCE_MS);
   };
 
   const onReset = () => run({ kind: 'reset' });
+  const onDismissExample = () => run({ kind: 'dismissExample', source: 'action' });
 
   form.addEventListener('submit', onSubmit);
   form.addEventListener('input', onInput);
   resetBtn?.addEventListener('click', onReset);
+  const dismissBtns = Array.from(root.querySelectorAll<HTMLElement>('[data-example-dismiss]'));
+  for (const btn of dismissBtns) btn.addEventListener('click', onDismissExample);
 
   // Unit switching: convert entered values in place, then recalculate live only
   // if a first calculation has already happened (the planner enforces this).
@@ -609,6 +671,7 @@ export function mountFormCalculator<V, R>(
       form.removeEventListener('submit', onSubmit);
       form.removeEventListener('input', onInput);
       resetBtn?.removeEventListener('click', onReset);
+      for (const btn of dismissBtns) btn.removeEventListener('click', onDismissExample);
     },
   };
 }

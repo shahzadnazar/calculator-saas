@@ -213,8 +213,43 @@
   color: var(--result-example-fg);
   margin: 0 0 0.5rem;
 }
+.result-example__caption {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
 .result-example__body {
   color: var(--fg);
+}
+/* The one action that hands the panel to the visitor. Deliberately subordinate
+   to the calculator's primary Calculate button (link-weight, not a filled CTA),
+   so the example never competes with the real task. */
+.result-example__actions {
+  margin-top: 0.75rem;
+}
+.result-example__action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.35rem 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--result-example-fg);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.result-example__action:hover {
+  text-decoration-thickness: 2px;
+}
+.result-example__action:focus-visible {
+  outline: 2px solid var(--result-example-fg);
+  outline-offset: 3px;
+  border-radius: 0.25rem;
 }
 
 /* ---- Invalid state ------------------------------------------------------ */

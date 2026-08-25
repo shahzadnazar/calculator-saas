@@ -10,7 +10,10 @@ import {
   percentOfBinding,
   whatPercentBinding,
   percentChangeBinding,
+  percentExamples,
+  PERCENT_EXAMPLES,
 } from './percent-form';
+import { percentOf, whatPercent, percentChange } from './percent';
 
 /**
  * Percentage equation bindings. The numeric core (percentOf/whatPercent/
@@ -131,5 +134,49 @@ describe('descriptions', () => {
     expect(changeDirection(100, 50)).toBe('decrease');
     expect(changeDirection(100, 100)).toBe('no change');
     expect(changeDirection(100, -50)).toBe('decrease'); // new < start → decrease
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Worked examples (the labelled Example result state, per equation)   */
+/* ------------------------------------------------------------------ */
+
+describe('percentExamples — the labelled Example each equation shows on first load', () => {
+  it('pins the three published scenarios', () => {
+    expect(PERCENT_EXAMPLES).toEqual({
+      percentOf: { percent: 15, value: 200 },
+      whatPercent: { part: 50, whole: 200 },
+      percentChange: { from: 80, to: 100 },
+    });
+  });
+
+  it('derives every figure from the reviewed engines, never from hand-written copy', () => {
+    const ex = percentExamples();
+    expect(ex.percentOf.amount).toBe(describeAmount(percentOf(15, 200)));
+    expect(ex.whatPercent.percentage).toBe(describeAmount(whatPercent(50, 200)));
+    expect(ex.percentChange.magnitude).toBe(describeAmount(Math.abs(percentChange(80, 100))));
+  });
+
+  it('echoes its own operands so each example can state the question it answers', () => {
+    const ex = percentExamples();
+    expect([ex.percentOf.percent, ex.percentOf.value]).toEqual([15, 200]);
+    expect([ex.whatPercent.part, ex.whatPercent.whole]).toEqual([50, 200]);
+    expect([ex.percentChange.from, ex.percentChange.to]).toEqual([80, 100]);
+  });
+
+  it('reports the change direction with the same token the valid region uses', () => {
+    const ex = percentExamples();
+    expect(ex.percentChange.direction).toBe('increase');
+    expect(ex.percentChange.directionToken).toBe('increase');
+  });
+
+  it('renders realistic finite figures (never NaN / Infinity)', () => {
+    const ex = percentExamples();
+    for (const text of [ex.percentOf.amount, ex.whatPercent.percentage, ex.percentChange.magnitude]) {
+      expect(text).not.toMatch(/NaN|Infinity/);
+    }
+    expect(ex.percentOf.amount).toBe('30');
+    expect(ex.whatPercent.percentage).toBe('25');
+    expect(ex.percentChange.magnitude).toBe('25');
   });
 });

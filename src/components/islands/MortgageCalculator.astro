@@ -3,7 +3,9 @@
  * Mortgage calculator island (R11E1 — task-first migration, finance complex-form family; the fourth and
  * final finance complex-form).
  *
- * Task-first, summary-first: every field starts EMPTY, the result is empty, and the visitor presses
+ * Task-first, summary-first: every field starts EMPTY. The result panel opens on a clearly-labelled
+ * worked Example (engine-computed at build time), which the visitor dismisses by typing or via
+ * "Start with my values" — after that it is the ordinary empty → valid flow. The visitor presses
  * "Calculate Mortgage Payment" for the first result; live-after-first afterwards. Compute, validation, state,
  * announcement and focus are owned by the shared runtime + the mortgage binding
  * (@lib/calculators/mortgage-form), which wraps the UNCHANGED dedicated calculateMortgage /
@@ -25,8 +27,15 @@ import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
+import ExampleResult from '@components/result/ExampleResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import { mortgageExample } from '@lib/calculators/mortgage-form';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+
+// Every figure below is derived at build time by the same reviewed calculateMortgage the
+// calculator runs, so the example can never drift from the engine.
+const ex = mortgageExample();
 ---
 
 <div class="mortgage mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2 lg:items-start" data-mortgage>
@@ -155,8 +164,24 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   </form>
 
   <!-- Result -->
-  <ResultShell id="mc-result" state="empty" density="complex" label="Mortgage result" minHeight="22rem">
+  <ResultShell id="mc-result" state="example" density="complex" label="Mortgage result" minHeight="22rem">
     <EmptyResult message="Enter a home price, down payment, loan term and interest rate, then calculate to see your estimated monthly payment and amortization schedule." />
+
+    <ExampleResult
+      label="Example"
+      caption={`Sample figures for a ${formatCurrencyRounded(ex.homePrice)} home with ${ex.downPaymentPct}% down at ${ex.annualInterestRate}% over ${ex.loanTermYears} years — not your result.`}
+      dismissLabel="Start with my values"
+    >
+      <ResultSummary label="Example principal &amp; interest">
+        <ResultValue value={`${formatCurrency(ex.monthlyPrincipalInterest)}/mo`} size="text-3xl" />
+      </ResultSummary>
+      <div class="mc-totals">
+        <div><span class="mc-totals__label">Loan amount</span><span class="mc-totals__value">{formatCurrencyRounded(ex.loanAmount)}</span></div>
+        <div><span class="mc-totals__label">Total interest</span><span class="mc-totals__value">{formatCurrencyRounded(ex.totalInterest)}</span></div>
+        <div><span class="mc-totals__label">Total of payments</span><span class="mc-totals__value">{formatCurrencyRounded(ex.totalOfPayments)}</span></div>
+      </div>
+      <p class="mc-example-note">Principal and interest only — this example adds no property tax, insurance, PMI, HOA or other costs.</p>
+    </ExampleResult>
 
     <div data-result-when="valid">
       <ResultSummary label="Estimated monthly payment">
@@ -407,6 +432,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   .mc-schedule__note { margin: 0.75rem 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
   .mc-assumptions { margin: 1.25rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+  .mc-example-note { margin: 0.85rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
 </style>
 
 <script>
@@ -528,7 +554,8 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     // live edit) drops the stale/possibly-malformed rows so a malformed schedule can never remain in the
     // DOM; returning to `empty` (Reset) also closes BOTH disclosures (the optional-cost inputs and the
     // yearly schedule) and clears the live down-payment readout. A `valid` update is owned by the
-    // binding's renderResult, so the observer never touches it.
+    // binding's renderResult, so the observer never touches it. Dismissing the worked example
+    // (`example` → `empty`) is explicitly NOT a Reset and collapses nothing.
     if (shell) {
       // The shell re-commits its state attribute on every run — including a structural unit switch
       // that leaves the state unchanged — and a MutationObserver fires even when the value is
@@ -538,10 +565,14 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       const observer = new MutationObserver(() => {
         const state = shell.dataset.resultState;
         const entered = state !== previousState;
+        const fromExample = previousState === 'example';
         previousState = state;
         if (state === 'valid') return;
         clearRows();
-        if (state === 'empty' && entered) {
+        // `example` → `empty` is the visitor DISMISSING the worked example, not a Reset: they may
+        // have just opened the optional-cost disclosure or typed into it, so collapsing here would
+        // shut the panel under their hands. Only a real return to empty (Reset) collapses.
+        if (state === 'empty' && entered && !fromExample) {
           if (disclosure) disclosure.open = false;
           if (costs) costs.open = false;
           if (pctEl) pctEl.hidden = true;
