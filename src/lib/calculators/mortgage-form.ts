@@ -39,9 +39,19 @@ export const TERM_OPTIONS = [30, 20, 15, 10] as const;
  *  also checks against it as an explicit, testable contract. */
 export const MAX_MONTHLY_ROWS = 30 * 12;
 
+/**
+ * How the visitor is expressing the down payment. This is a PRESENTATION choice over the SAME engine:
+ * `downPaymentAmount` normalises either form to the absolute dollars `calculateMortgage` accepts, so
+ * there is exactly one mortgage calculation. `amount` is the structural default restored on reset.
+ */
+export const DOWN_PAYMENT_UNITS = ['amount', 'percent'] as const;
+export type DownPaymentUnit = (typeof DOWN_PAYMENT_UNITS)[number];
+
 export interface MortgageValues {
   homePrice: string;
   downPayment: string;
+  /** Whether `downPayment` is dollars or a percent of the home price. */
+  downPaymentUnit: DownPaymentUnit;
   loanTermYears: string;
   annualInterestRate: string;
   propertyTaxAnnual: string;
@@ -97,6 +107,47 @@ function parseOptionalNonNegative(raw: string): 'invalid' | number {
   return n;
 }
 
+/**
+ * Normalise an entered down payment to the ABSOLUTE DOLLAR amount `calculateMortgage` accepts — the
+ * single point where percent mode rejoins the one and only mortgage calculation. A percent is taken of
+ * the home price, so `$80,000 on $400,000` and `20% on $400,000` produce the identical loan amount.
+ * Pure, so the equivalence is unit-tested directly.
+ */
+export function downPaymentAmount(
+  homePrice: number,
+  downPayment: number,
+  unit: DownPaymentUnit,
+): number {
+  return unit === 'percent' ? (homePrice * downPayment) / 100 : downPayment;
+}
+
+/**
+ * Re-express an entered down payment in a different unit — the PURE half of `convertValues`, so the
+ * arithmetic is unit-tested without a DOM (the BMI `metricToImperial` precedent; the DOM wiring itself
+ * is covered end-to-end).
+ *
+ * Returns `null` whenever there is nothing to re-express or no defined equivalent — an empty entry
+ * (already "$0 down" in either unit), an unchanged unit, a non-numeric entry, or a home price that is
+ * missing, zero or non-numeric. The caller then leaves the visitor's typed value exactly as it is
+ * rather than guessing at it.
+ */
+export function convertDownPayment(
+  raw: string,
+  homePriceRaw: string,
+  fromUnit: DownPaymentUnit,
+  toUnit: DownPaymentUnit,
+): string | null {
+  if (fromUnit === toUnit) return null;
+  const t = raw.trim();
+  if (t === '') return null;
+  const down = Number(t);
+  const price = Number(homePriceRaw);
+  if (!Number.isFinite(down) || !Number.isFinite(price) || price <= 0) return null;
+  const next = toUnit === 'percent' ? (down / price) * 100 : (price * down) / 100;
+  // Trim float noise and trailing zeros: 80000, 20, 12.5 — never 20.000000000000004.
+  return String(Number(next.toFixed(4)));
+}
+
 /** The loan term must be exactly one of the offered options. */
 function parseTerm(raw: string): 'invalid' | number {
   const t = raw.trim();
@@ -118,9 +169,18 @@ export function validateMortgageValues(values: MortgageValues): ValidationResult
   if (price === 'empty') fieldErrors.homePrice = 'Enter a home price.';
   else if (price === 'invalid') fieldErrors.homePrice = 'Enter a home price greater than zero.';
 
+  // Down payment: the SAME optional non-negative parse in both modes; only the ceiling differs —
+  // 100% of the price in percent mode, the price itself in dollar mode. The dollar-mode messages are
+  // unchanged from before the unit toggle existed.
   const down = parseOptionalNonNegative(values.downPayment);
-  if (down === 'invalid') fieldErrors.downPayment = 'Enter a down payment of zero or more.';
-  else if (typeof price === 'number' && down > price) {
+  if (down === 'invalid') {
+    fieldErrors.downPayment =
+      values.downPaymentUnit === 'percent'
+        ? 'Enter a down payment percent of zero or more.'
+        : 'Enter a down payment of zero or more.';
+  } else if (values.downPaymentUnit === 'percent') {
+    if (down > 100) fieldErrors.downPayment = 'Enter a down payment of 100% or less.';
+  } else if (typeof price === 'number' && down > price) {
     fieldErrors.downPayment = 'Enter a down payment no greater than the home price.';
   }
 
@@ -154,7 +214,8 @@ const optNum = (raw: string): number => (raw.trim() === '' ? 0 : Number(raw));
 
 export function computeMortgage(values: MortgageValues): MortgageComputed {
   const homePrice = optNum(values.homePrice);
-  const downPayment = optNum(values.downPayment);
+  // Percent mode rejoins the single engine here — everything downstream sees absolute dollars.
+  const downPayment = downPaymentAmount(homePrice, optNum(values.downPayment), values.downPaymentUnit);
   const result = calculateMortgage({
     homePrice,
     downPayment,
@@ -406,12 +467,21 @@ const FIELD_NAMES: (keyof MortgageValues)[] = [
   'pmiAnnualRate',
 ];
 
+/** The down-payment unit currently selected in the DOM, defaulting to dollars when absent. */
+function activeDownPaymentUnit(root: HTMLElement): DownPaymentUnit {
+  const el = root.querySelector<HTMLElement>(
+    '[data-unit].is-active, [data-unit][aria-checked="true"]',
+  );
+  return el?.dataset.unit === 'percent' ? 'percent' : 'amount';
+}
+
 export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComputed> = {
   readValues(root) {
     const val = (n: string) => input(root, n)?.value ?? '';
     return {
       homePrice: val('homePrice'),
       downPayment: val('downPayment'),
+      downPaymentUnit: activeDownPaymentUnit(root),
       loanTermYears: val('loanTermYears'),
       annualInterestRate: val('annualInterestRate'),
       propertyTaxAnnual: val('propertyTaxAnnual'),
@@ -485,6 +555,25 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
     fillBody(q('[data-mc-rows]'), result.yearlySchedule);
   },
 
+  /**
+   * Re-express the ENTERED down payment in the newly-selected unit, so switching never silently
+   * changes what the visitor is putting down: $80,000 on a $400,000 home becomes 20%, and back again.
+   * Conversion needs a usable home price — with the price empty, zero or non-numeric there is no
+   * defined equivalent, so the typed value is left exactly as it is rather than guessed at. An empty
+   * down payment likewise stays empty (it already means "$0 down" in either unit).
+   */
+  convertValues(root, fromUnit, toUnit) {
+    const downEl = input(root, 'downPayment');
+    if (!downEl) return;
+    const next = convertDownPayment(
+      downEl.value,
+      input(root, 'homePrice')?.value ?? '',
+      fromUnit as DownPaymentUnit,
+      toUnit as DownPaymentUnit,
+    );
+    if (next !== null) downEl.value = next;
+  },
+
   resetValues(root, _mode: ResetMode) {
     for (const name of FIELD_NAMES) {
       const el = input(root, name);
@@ -495,3 +584,53 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (build-time, computed — never hardcoded)             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The scenario behind the "A worked example" section BELOW the calculator. The visitor's own fields
+ * stay EMPTY (ratified product decision #1); this is clearly-labelled educational content, which is
+ * where the doctrine puts worked examples.
+ *
+ * Only the INPUTS live here. Every figure the page prints is derived by `mortgageExample()` from the
+ * same reviewed `calculateMortgage` the calculator uses, so the prose can never drift from the engine
+ * — the `referenceTables.ts` discipline applied to a single scenario.
+ */
+export const MORTGAGE_EXAMPLE = {
+  homePrice: 400_000,
+  downPaymentPct: 20,
+  annualInterestRate: 6.5,
+  loanTermYears: 30,
+} as const;
+
+export interface MortgageExample {
+  homePrice: number;
+  downPaymentPct: number;
+  downPayment: number;
+  loanAmount: number;
+  annualInterestRate: number;
+  loanTermYears: number;
+  monthlyPrincipalInterest: number;
+  totalInterest: number;
+  totalOfPayments: number;
+}
+
+/** Compute the worked example from the engine. Pure — no DOM, safe at build time. */
+export function mortgageExample(): MortgageExample {
+  const { homePrice, downPaymentPct, annualInterestRate, loanTermYears } = MORTGAGE_EXAMPLE;
+  const downPayment = downPaymentAmount(homePrice, downPaymentPct, 'percent');
+  const r = calculateMortgage({ homePrice, downPayment, loanTermYears, annualInterestRate });
+  return {
+    homePrice,
+    downPaymentPct,
+    downPayment,
+    loanAmount: r.loanAmount,
+    annualInterestRate,
+    loanTermYears,
+    monthlyPrincipalInterest: r.monthlyPrincipalInterest,
+    totalInterest: r.totalInterest,
+    totalOfPayments: r.totalOfPayments,
+  };
+}

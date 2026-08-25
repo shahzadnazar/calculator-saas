@@ -22,6 +22,10 @@ const live = (page: Page) => page.locator('#mc-live');
 const submit = (page: Page) => page.locator('[data-mc-submit]');
 const region = (page: Page, when: string) => page.locator(`#mc-result [data-result-when~="${when}"]`);
 const fieldError = (page: Page, name: string) => page.locator(`[data-error-for="${name}"]`);
+const downInput = (page: Page) => page.locator('[name="downPayment"]');
+const unitBtn = (page: Page, unit: 'amount' | 'percent') => page.locator(`[data-unit="${unit}"]`);
+const affix = (page: Page, unit: 'amount' | 'percent') => page.locator(`[data-group="${unit}"]`);
+const loanAmount = (page: Page) => page.locator('[data-mc-loan]');
 
 const fillCore = async (
   page: Page,
@@ -446,3 +450,158 @@ for (const GUIDE of ['/guides/rent-vs-buy-a-home', '/guides/how-much-house-can-y
     });
   });
 }
+
+/* ---- Down-payment unit ($ / %) ------------------------------------------- */
+
+/**
+ * The down payment may be entered as dollars OR as a percent of the home price. Both feed the SAME
+ * engine: the binding normalises a percent to absolute dollars before calculateMortgage runs, so
+ * equivalent entries must agree exactly. Dollars is the structural default.
+ *
+ * These cover the DOM half of the feature — the unit switch, the affix, the per-unit input step and
+ * the conversion wiring — which the node-environment unit tests deliberately do not reach (the pure
+ * arithmetic lives in convertDownPayment / downPaymentAmount and is tested directly there).
+ */
+test.describe('down-payment unit toggle', () => {
+  test('starts empty with $ selected, the $ affix showing and the dollar step', async ({ page }) => {
+    await expect(page.locator('[name="homePrice"]')).toHaveValue('');
+    await expect(downInput(page)).toHaveValue('');
+    await expect(unitBtn(page, 'amount')).toHaveClass(/is-active/);
+    await expect(unitBtn(page, 'amount')).toHaveAttribute('aria-checked', 'true');
+    await expect(unitBtn(page, 'percent')).toHaveAttribute('aria-checked', 'false');
+    await expect(affix(page, 'amount')).toBeVisible();
+    await expect(affix(page, 'percent')).toBeHidden();
+    await expect(downInput(page)).toHaveAttribute('step', '1000');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  });
+
+  test('$80,000 on a $400,000 home gives a $320,000 loan', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(loanAmount(page)).toContainText('320,000');
+  });
+
+  test('20% on a $400,000 home gives the SAME loan and monthly payment as $80,000', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    const dollarLoan = await loanAmount(page).textContent();
+    const dollarPayment = await primary(page).textContent();
+
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await page.fill('[name="homePrice"]', '400000');
+    await unitBtn(page, 'percent').click();
+    await page.fill('[name="downPayment"]', '20');
+    await page.selectOption('[name="loanTermYears"]', '30');
+    await page.fill('[name="annualInterestRate"]', '6.5');
+    await submit(page).click();
+
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(loanAmount(page)).toHaveText(dollarLoan!);
+    await expect(primary(page)).toHaveText(dollarPayment!);
+    await expect(loanAmount(page)).toContainText('320,000');
+  });
+
+  test('switching $ → % converts $80,000 to 20 and swaps the affix + step', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await page.fill('[name="downPayment"]', '80000');
+    await unitBtn(page, 'percent').click();
+
+    await expect(downInput(page)).toHaveValue('20');
+    await expect(unitBtn(page, 'percent')).toHaveClass(/is-active/);
+    await expect(affix(page, 'percent')).toBeVisible();
+    await expect(affix(page, 'amount')).toBeHidden();
+    await expect(downInput(page)).toHaveAttribute('step', '0.1');
+  });
+
+  test('switching % → $ converts 20 back to 80000 and restores the affix + step', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await unitBtn(page, 'percent').click();
+    await page.fill('[name="downPayment"]', '20');
+    await unitBtn(page, 'amount').click();
+
+    await expect(downInput(page)).toHaveValue('80000');
+    await expect(affix(page, 'amount')).toBeVisible();
+    await expect(affix(page, 'percent')).toBeHidden();
+    await expect(downInput(page)).toHaveAttribute('step', '1000');
+  });
+
+  test('a $ → % → $ round trip returns the original amount', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await page.fill('[name="downPayment"]', '80000');
+    await unitBtn(page, 'percent').click();
+    await expect(downInput(page)).toHaveValue('20');
+    await unitBtn(page, 'amount').click();
+    await expect(downInput(page)).toHaveValue('80000');
+  });
+
+  test('the live readout shows the OTHER unit in each mode', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await page.fill('[name="downPayment"]', '80000');
+    await expect(downPct(page)).toHaveText('20% down');
+    await unitBtn(page, 'percent').click();
+    await expect(downPct(page)).toContainText('$80,000');
+  });
+
+  test('150% is rejected as a field error and does not calculate', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await unitBtn(page, 'percent').click();
+    await page.fill('[name="downPayment"]', '150');
+    await page.selectOption('[name="loanTermYears"]', '30');
+    await page.fill('[name="annualInterestRate"]', '6.5');
+    await submit(page).click();
+
+    await expect(fieldError(page, 'downPayment')).toBeVisible();
+    await expect(fieldError(page, 'downPayment')).toContainText('100%');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  });
+
+  test('100% down is a valid zero mortgage in percent mode', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await unitBtn(page, 'percent').click();
+    await page.fill('[name="downPayment"]', '100');
+    await page.selectOption('[name="loanTermYears"]', '30');
+    await page.fill('[name="annualInterestRate"]', '6.5');
+    await submit(page).click();
+
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(rows(page)).toHaveCount(0);
+  });
+
+  test('Reset restores the $ default, its step and an empty field', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await unitBtn(page, 'percent').click();
+    await expect(downInput(page)).toHaveAttribute('step', '0.1');
+
+    await page.locator('[data-reset]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(downInput(page)).toHaveValue('');
+    await expect(unitBtn(page, 'amount')).toHaveClass(/is-active/);
+    await expect(affix(page, 'amount')).toBeVisible();
+    await expect(downInput(page)).toHaveAttribute('step', '1000');
+  });
+});
+
+/* ---- Worked example (below the tool) ------------------------------------- */
+
+/**
+ * The example is clearly-labelled educational content BELOW the calculator — the visitor's own fields
+ * stay empty (ratified product decision #1). Every figure is computed at build time by the same
+ * calculateMortgage the calculator uses, so these assertions fail if the prose is ever hardcoded away
+ * from the engine.
+ */
+test('the worked example renders engine-computed figures and leaves the fields empty', async ({ page }) => {
+  const body = page.locator('body');
+  await expect(body).toContainText('A worked example');
+  await expect(body).toContainText('$400,000'); // home price
+  await expect(body).toContainText('$80,000'); // 20% down, derived
+  await expect(body).toContainText('$320,000'); // loan amount, derived
+  await expect(body).toContainText('$2,022.62'); // monthly P&I from calculateMortgage
+  await expect(body).toContainText('$408,142'); // total interest from calculateMortgage
+
+  // The example never leaks into the visitor's own inputs or result.
+  await expect(page.locator('[name="homePrice"]')).toHaveValue('');
+  await expect(downInput(page)).toHaveValue('');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+});

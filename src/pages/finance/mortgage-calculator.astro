@@ -2,8 +2,15 @@
 import CalculatorLayout from '@layouts/CalculatorLayout.astro';
 import MortgageCalculator from '@components/islands/MortgageCalculator.astro';
 import { getCalculator } from '@data/calculators';
+import { mortgageExample } from '@lib/calculators/mortgage-form';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
 
 const calc = getCalculator('finance', 'mortgage-calculator')!;
+
+// The worked example below the tool. Every figure is computed at BUILD TIME by the same reviewed
+// `calculateMortgage` the calculator itself uses — nothing here is a hardcoded result, so the prose
+// can never drift from the engine. The calculator's own fields stay empty (ratified decision #1).
+const ex = mortgageExample();
 
 const faqs = [
   {
@@ -85,11 +92,20 @@ const faqs = [
 
     <h2>A worked example</h2>
     <p>
-      Buy a <strong>$360,000</strong> home with <strong>20% down</strong> ($72,000), leaving
-      a <strong>$288,000</strong> loan at <strong>6.5%</strong> over <strong>30 years</strong>.
-      The monthly rate is 0.065 ÷ 12 ≈ 0.00542 and there are 360 payments, giving a
-      principal-and-interest payment of about <strong>$1,820</strong>. Over the full term you
-      repay roughly $655,000 — about <strong>$367,000</strong> of it interest.
+      Buy a <strong>{formatCurrencyRounded(ex.homePrice)}</strong> home with
+      <strong>{ex.downPaymentPct}% down</strong> ({formatCurrencyRounded(ex.downPayment)}), leaving a
+      <strong>{formatCurrencyRounded(ex.loanAmount)}</strong> loan at
+      <strong>{ex.annualInterestRate}%</strong> over <strong>{ex.loanTermYears} years</strong>. The
+      monthly rate is {ex.annualInterestRate / 100} ÷ 12 and there are {ex.loanTermYears * 12}
+      payments, giving a principal-and-interest payment of
+      <strong>{formatCurrency(ex.monthlyPrincipalInterest)}</strong> a month. Over the full term you
+      repay {formatCurrencyRounded(ex.totalOfPayments)} —
+      <strong>{formatCurrencyRounded(ex.totalInterest)}</strong> of it interest.
+    </p>
+    <p>
+      Those figures are calculated by this page's own mortgage engine, not typed in by hand. Enter your
+      own numbers above to replace them — the calculator starts empty so the result you see is always
+      yours.
     </p>
 
     <h2>15-year vs. 30-year</h2>

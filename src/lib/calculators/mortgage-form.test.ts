@@ -8,6 +8,10 @@ import {
   proportionSegments,
   spokenUSD,
   mortgageBinding,
+  downPaymentAmount,
+  convertDownPayment,
+  mortgageExample,
+  MORTGAGE_EXAMPLE,
   TERM_OPTIONS,
   MAX_MONTHLY_ROWS,
   type MortgageValues,
@@ -25,6 +29,7 @@ import {
 const values = (over: Partial<MortgageValues> = {}): MortgageValues => ({
   homePrice: '360000',
   downPayment: '72000', // 20% → no PMI
+  downPaymentUnit: 'amount', // dollars is the structural default; percent cases override it
   loanTermYears: '30',
   annualInterestRate: '6.5',
   propertyTaxAnnual: '3600',
@@ -133,6 +138,7 @@ describe('mortgage binding — validation', () => {
     const v = validateMortgageValues({
       homePrice: '',
       downPayment: '-1',
+      downPaymentUnit: 'amount',
       loanTermYears: '7',
       annualInterestRate: '',
       propertyTaxAnnual: '-1',
@@ -218,6 +224,7 @@ describe('mortgage binding — complete-result guard', () => {
     const r = computeMortgage({
       homePrice: '300000',
       downPayment: '300000',
+      downPaymentUnit: 'amount',
       loanTermYears: '30',
       annualInterestRate: '6',
       propertyTaxAnnual: '',
@@ -332,6 +339,7 @@ describe('mortgage binding — breakdown segments', () => {
     const r = computeMortgage({
       homePrice: '300000',
       downPayment: '300000',
+      downPaymentUnit: 'amount',
       loanTermYears: '30',
       annualInterestRate: '6',
       propertyTaxAnnual: '',
@@ -418,5 +426,206 @@ describe('mortgage binding — readValues / resetValues', () => {
     expect(fields.propertyTaxAnnual.value).toBe('');
     expect(fields.hoaMonthly.value).toBe('');
     expect(fields.loanTermYears.value).toBe('30'); // default term restored, not blanked
+  });
+});
+
+describe('down payment: dollar and percent units feed ONE engine', () => {
+  /* -- normalisation (pure) -------------------------------------------- */
+
+  it('dollar mode passes the amount through untouched', () => {
+    expect(downPaymentAmount(400_000, 80_000, 'amount')).toBe(80_000);
+    expect(downPaymentAmount(400_000, 0, 'amount')).toBe(0);
+  });
+
+  it('percent mode takes the percent OF the home price', () => {
+    expect(downPaymentAmount(400_000, 20, 'percent')).toBe(80_000);
+    expect(downPaymentAmount(400_000, 0, 'percent')).toBe(0);
+    expect(downPaymentAmount(400_000, 100, 'percent')).toBe(400_000);
+    expect(downPaymentAmount(400_000, 12.5, 'percent')).toBe(50_000);
+  });
+
+  /* -- the equivalence that matters ------------------------------------ */
+
+  it('$80,000 on $400,000 === 20% on $400,000 — same loan amount', () => {
+    const dollar = computeMortgage(
+      values({ homePrice: '400000', downPayment: '80000', downPaymentUnit: 'amount' }),
+    );
+    const percent = computeMortgage(
+      values({ homePrice: '400000', downPayment: '20', downPaymentUnit: 'percent' }),
+    );
+    expect(dollar.loanAmount).toBe(320_000);
+    expect(percent.loanAmount).toBe(dollar.loanAmount);
+  });
+
+  it('equivalent inputs agree on EVERY headline figure, not just the loan', () => {
+    const base = { homePrice: '400000', annualInterestRate: '6.5', loanTermYears: '30' };
+    const dollar = computeMortgage(values({ ...base, downPayment: '80000', downPaymentUnit: 'amount' }));
+    const percent = computeMortgage(values({ ...base, downPayment: '20', downPaymentUnit: 'percent' }));
+    expect(percent.monthlyPrincipalInterest).toBe(dollar.monthlyPrincipalInterest);
+    expect(percent.totalInterest).toBe(dollar.totalInterest);
+    expect(percent.monthlyTotal).toBe(dollar.monthlyTotal);
+    expect(percent.downPayment).toBe(dollar.downPayment);
+    expect(percent.downPaymentPct).toBeCloseTo(dollar.downPaymentPct, 12);
+    expect(percent.hasPmi).toBe(dollar.hasPmi);
+  });
+
+  it('a percent below 20 still triggers PMI, exactly as the dollar equivalent does', () => {
+    const pct = computeMortgage(
+      values({ homePrice: '400000', downPayment: '10', downPaymentUnit: 'percent', pmiAnnualRate: '0.5' }),
+    );
+    const amt = computeMortgage(
+      values({ homePrice: '400000', downPayment: '40000', downPaymentUnit: 'amount', pmiAnnualRate: '0.5' }),
+    );
+    expect(pct.hasPmi).toBe(true);
+    expect(pct.monthlyPmi).toBe(amt.monthlyPmi);
+  });
+
+  it('100% down is a valid zero mortgage in percent mode', () => {
+    const r = computeMortgage(
+      values({ homePrice: '400000', downPayment: '100', downPaymentUnit: 'percent' }),
+    );
+    expect(r.loanAmount).toBe(0);
+    expect(r.zeroMortgage).toBe(true);
+    expect(Number.isFinite(completeResultValue(r))).toBe(true);
+  });
+
+  /* -- validation ranges ----------------------------------------------- */
+
+  it('percent mode rejects above 100% and accepts the 0–100 boundaries', () => {
+    const bad = validateMortgageValues(
+      values({ homePrice: '400000', downPayment: '101', downPaymentUnit: 'percent' }),
+    );
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.fieldErrors?.downPayment).toBe('Enter a down payment of 100% or less.');
+
+    for (const v of ['0', '20', '100']) {
+      expect(
+        validateMortgageValues(values({ homePrice: '400000', downPayment: v, downPaymentUnit: 'percent' })).ok,
+      ).toBe(true);
+    }
+  });
+
+  it('percent mode rejects a negative percent', () => {
+    const r = validateMortgageValues(
+      values({ homePrice: '400000', downPayment: '-5', downPaymentUnit: 'percent' }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.fieldErrors?.downPayment).toBe('Enter a down payment percent of zero or more.');
+  });
+
+  it('percent mode does NOT apply the dollar ceiling — 50 is 50%, not $50 vs the price', () => {
+    // In dollar mode 500000 on a 400000 home is an error; as a percent, 50 is perfectly valid.
+    expect(
+      validateMortgageValues(values({ homePrice: '400000', downPayment: '50', downPaymentUnit: 'percent' })).ok,
+    ).toBe(true);
+  });
+
+  it('dollar mode keeps its existing ceiling and message', () => {
+    const r = validateMortgageValues(
+      values({ homePrice: '400000', downPayment: '500000', downPaymentUnit: 'amount' }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.fieldErrors?.downPayment).toBe('Enter a down payment no greater than the home price.');
+  });
+});
+
+describe('switching the down-payment unit re-expresses the entered value', () => {
+  // The pure arithmetic; the DOM wiring in convertValues is covered end-to-end (the BMI precedent —
+  // vitest runs in a node environment with no DOM).
+
+  it('$ → % converts $80,000 on a $400,000 home to 20', () => {
+    expect(convertDownPayment('80000', '400000', 'amount', 'percent')).toBe('20');
+  });
+
+  it('% → $ converts 20 on a $400,000 home to 80000', () => {
+    expect(convertDownPayment('20', '400000', 'percent', 'amount')).toBe('80000');
+  });
+
+  it('round-trips $ → % → $ without drift', () => {
+    const pct = convertDownPayment('80000', '400000', 'amount', 'percent')!;
+    expect(convertDownPayment(pct, '400000', 'percent', 'amount')).toBe('80000');
+  });
+
+  it('handles fractional shares cleanly, with no float noise', () => {
+    expect(convertDownPayment('50000', '400000', 'amount', 'percent')).toBe('12.5');
+    expect(convertDownPayment('12.5', '400000', 'percent', 'amount')).toBe('50000');
+    expect(convertDownPayment('33333', '99999', 'amount', 'percent')).toBe('33.3333');
+  });
+
+  it('converts the 0 and 100% boundaries', () => {
+    expect(convertDownPayment('0', '400000', 'amount', 'percent')).toBe('0');
+    expect(convertDownPayment('400000', '400000', 'amount', 'percent')).toBe('100');
+    expect(convertDownPayment('100', '400000', 'percent', 'amount')).toBe('400000');
+  });
+
+  it('returns null (leave the entry alone) when there is nothing to re-express', () => {
+    expect(convertDownPayment('', '400000', 'amount', 'percent')).toBeNull(); // empty stays empty
+    expect(convertDownPayment('   ', '400000', 'amount', 'percent')).toBeNull();
+    expect(convertDownPayment('80000', '400000', 'amount', 'amount')).toBeNull(); // unit unchanged
+  });
+
+  it('returns null when the home price cannot anchor a conversion', () => {
+    for (const price of ['', '0', '-1', 'abc']) {
+      expect(convertDownPayment('80000', price, 'amount', 'percent')).toBeNull();
+    }
+  });
+
+  it('returns null for a non-numeric down payment rather than corrupting it', () => {
+    expect(convertDownPayment('abc', '400000', 'amount', 'percent')).toBeNull();
+  });
+
+  it('a converted value round-trips to the SAME loan amount through the engine', () => {
+    const asPct = convertDownPayment('80000', '400000', 'amount', 'percent')!;
+    const before = computeMortgage(values({ homePrice: '400000', downPayment: '80000', downPaymentUnit: 'amount' }));
+    const after = computeMortgage(values({ homePrice: '400000', downPayment: asPct, downPaymentUnit: 'percent' }));
+    expect(after.loanAmount).toBe(before.loanAmount);
+  });
+});
+
+describe('worked example (below the tool) is computed by the engine', () => {
+  it('uses the documented scenario as its INPUTS', () => {
+    expect(MORTGAGE_EXAMPLE).toEqual({
+      homePrice: 400_000,
+      downPaymentPct: 20,
+      annualInterestRate: 6.5,
+      loanTermYears: 30,
+    });
+  });
+
+  it('derives the down payment and loan amount rather than hardcoding them', () => {
+    const ex = mortgageExample();
+    expect(ex.downPayment).toBe(80_000);
+    expect(ex.loanAmount).toBe(320_000);
+  });
+
+  it('matches what the calculator itself produces for the same inputs', () => {
+    const ex = mortgageExample();
+    const viaForm = computeMortgage(
+      values({
+        homePrice: '400000',
+        downPayment: '20',
+        downPaymentUnit: 'percent',
+        annualInterestRate: '6.5',
+        loanTermYears: '30',
+        propertyTaxAnnual: '',
+        homeInsuranceAnnual: '',
+        hoaMonthly: '',
+        pmiAnnualRate: '',
+      }),
+    );
+    expect(ex.loanAmount).toBe(viaForm.loanAmount);
+    expect(ex.monthlyPrincipalInterest).toBe(viaForm.monthlyPrincipalInterest);
+    expect(ex.totalInterest).toBe(viaForm.totalInterest);
+    expect(ex.totalOfPayments).toBe(viaForm.totalOfPayments);
+  });
+
+  it('produces finite, self-consistent figures', () => {
+    const ex = mortgageExample();
+    for (const v of [ex.monthlyPrincipalInterest, ex.totalInterest, ex.totalOfPayments]) {
+      expect(Number.isFinite(v)).toBe(true);
+      expect(v).toBeGreaterThan(0);
+    }
+    expect(ex.homePrice - ex.downPayment).toBe(ex.loanAmount);
+    expect(ex.totalOfPayments).toBeCloseTo(ex.loanAmount + ex.totalInterest, 6);
   });
 });

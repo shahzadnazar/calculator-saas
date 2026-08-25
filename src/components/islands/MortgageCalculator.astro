@@ -47,9 +47,14 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           <label class="field-label" for="mc-down-payment">Down payment</label>
           <span class="mc-down-pct" data-mc-down-pct hidden></span>
         </div>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 72000" aria-describedby="mc-down-payment-error" />
+        <div class="mt-1 inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Enter the down payment as dollars or a percent" style="border-color: var(--line)">
+          <button type="button" class="unit-btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars">$</button>
+          <button type="button" class="unit-btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price">%</button>
+        </div>
+        <div class="mt-1 flex">
+          <span class="field-affix rounded-l-lg border-r-0" data-group="amount">$</span>
+          <span class="field-affix rounded-l-lg border-r-0" data-group="percent" hidden>%</span>
+          <input class="field rounded-l-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 80000" aria-describedby="mc-down-payment-error" />
         </div>
         <p class="mc-field-error" id="mc-down-payment-error" data-error-for="downPayment" hidden></p>
       </div>
@@ -334,20 +339,45 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       calculateButtonLabel: 'Calculate Mortgage Payment',
     });
 
-    // A live "X% down" readout beside the down-payment field — purely presentational, independent of the
-    // result state. Shown only when the price is positive and the down payment is a valid amount not
-    // exceeding it (an over-price down payment surfaces its own field error instead).
+    // A live readout beside the down-payment field showing the OTHER unit — purely presentational and
+    // independent of the result state. In dollar mode it shows the share ("20% down"); in percent mode
+    // it shows the cash ("$80,000 down"), so the visitor always sees both halves of the same figure.
+    // Shown only when the price is positive and the entry is valid for its unit (an out-of-range entry
+    // surfaces its own field error instead).
     const priceEl = root.querySelector<HTMLInputElement>('[name="homePrice"]');
     const downEl = root.querySelector<HTMLInputElement>('[name="downPayment"]');
     const pctEl = root.querySelector<HTMLElement>('[data-mc-down-pct]');
+    const unitBtns = root.querySelectorAll<HTMLElement>('[data-unit]');
+    const currentUnit = () =>
+      root.querySelector<HTMLElement>('[data-unit].is-active')?.dataset.unit === 'percent'
+        ? 'percent'
+        : 'amount';
+    const dollars = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+    // Per-unit input affordances. Dollars keep the original $1,000 spinner step; a percent moves in
+    // 0.1 (the fleet's percentage-field convention). The markup ships the dollar defaults, so this is
+    // purely a progressive enhancement — with JS off the field keeps the correct default-mode step.
+    const DOWN_STEP = { amount: '1000', percent: '0.1' } as const;
+    const DOWN_PLACEHOLDER = { amount: 'e.g. 80000', percent: 'e.g. 20' } as const;
+    const syncUnitAffordances = () => {
+      if (!downEl) return;
+      const unit = currentUnit();
+      downEl.step = DOWN_STEP[unit];
+      downEl.placeholder = DOWN_PLACEHOLDER[unit];
+    };
+
     const syncDownPct = () => {
       if (!pctEl) return;
+      const percent = currentUnit() === 'percent';
       const price = Number(priceEl?.value);
       const down = Number(downEl?.value);
+      const inRange = percent ? down <= 100 : down <= price;
       const show =
-        Number.isFinite(price) && price > 0 && Number.isFinite(down) && down >= 0 && down <= price && (downEl?.value ?? '') !== '';
+        Number.isFinite(price) && price > 0 && Number.isFinite(down) && down >= 0 && inRange && (downEl?.value ?? '') !== '';
       if (show) {
-        pctEl.textContent = `${Math.round((down / price) * 100)}% down`;
+        pctEl.textContent = percent
+          ? `${dollars((price * down) / 100)} down`
+          : `${Math.round((down / price) * 100)}% down`;
         pctEl.hidden = false;
       } else {
         pctEl.hidden = true;
@@ -355,6 +385,16 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     };
     priceEl?.addEventListener('input', syncDownPct);
     downEl?.addEventListener('input', syncDownPct);
+    // The runtime owns the unit switch itself (it flips is-active, swaps the $/% affix and calls the
+    // binding's convertValues); this only refreshes the readout afterwards.
+    unitBtns.forEach((b) =>
+      b.addEventListener('click', () =>
+        queueMicrotask(() => {
+          syncUnitAffordances();
+          syncDownPct();
+        }),
+      ),
+    );
 
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     const disclosure = root.querySelector<HTMLDetailsElement>('[data-mc-disclosure]');
@@ -376,6 +416,9 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           if (disclosure) disclosure.open = false;
           if (costs) costs.open = false;
           if (pctEl) pctEl.hidden = true;
+          // Reset restores the default unit via the runtime (no click event), so the step and
+          // placeholder must be re-derived from whichever unit is now active.
+          syncUnitAffordances();
         }
       });
       observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
