@@ -27,8 +27,10 @@ const downInput = (page: Page) => page.locator('[name="downPayment"]');
 // [data-unit] selector is ambiguous by design.
 const unitBtn = (page: Page, unit: 'amount' | 'percent') =>
   page.locator(`[data-unit-group="downPayment"] [data-unit="${unit}"]`);
+// The selector sits inline on the input's right edge and the ACTIVE button is the unit
+// indicator — there is no separate affix span for a dual-unit field.
 const affix = (page: Page, unit: 'amount' | 'percent') =>
-  page.locator(`[data-unit-group="downPayment"] [data-group="${unit}"]`);
+  page.locator(`[data-unit-group="downPayment"] [data-unit="${unit}"]`);
 const loanAmount = (page: Page) => page.locator('[data-mc-loan]');
 const taxInput = (page: Page) => page.locator('[name="propertyTaxAnnual"]');
 const pmiInput = (page: Page) => page.locator('[name="pmiAnnualRate"]');
@@ -36,7 +38,7 @@ const pmiInput = (page: Page) => page.locator('[name="pmiAnnualRate"]');
 const groupUnit = (page: Page, group: string, unit: 'amount' | 'percent') =>
   page.locator(`[data-unit-group="${group}"] [data-unit="${unit}"]`);
 const groupAffix = (page: Page, group: string, unit: 'amount' | 'percent') =>
-  page.locator(`[data-unit-group="${group}"] [data-group="${unit}"]`);
+  page.locator(`[data-unit-group="${group}"] [data-unit="${unit}"]`);
 
 const fillCore = async (
   page: Page,
@@ -474,14 +476,14 @@ for (const GUIDE of ['/guides/rent-vs-buy-a-home', '/guides/how-much-house-can-y
  * arithmetic lives in convertDownPayment / downPaymentAmount and is tested directly there).
  */
 test.describe('down-payment unit toggle', () => {
-  test('starts empty with $ selected, the $ affix showing and the dollar step', async ({ page }) => {
+  test('starts empty with $ selected, the $ control active and the dollar step', async ({ page }) => {
     await expect(page.locator('[name="homePrice"]')).toHaveValue('');
     await expect(downInput(page)).toHaveValue('');
     await expect(unitBtn(page, 'amount')).toHaveClass(/is-active/);
     await expect(unitBtn(page, 'amount')).toHaveAttribute('aria-checked', 'true');
     await expect(unitBtn(page, 'percent')).toHaveAttribute('aria-checked', 'false');
-    await expect(affix(page, 'amount')).toBeVisible();
-    await expect(affix(page, 'percent')).toBeHidden();
+    await expect(affix(page, 'amount')).toHaveClass(/is-active/);
+    await expect(affix(page, 'percent')).not.toHaveClass(/is-active/);
     await expect(downInput(page)).toHaveAttribute('step', '1000');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
   });
@@ -513,27 +515,27 @@ test.describe('down-payment unit toggle', () => {
     await expect(loanAmount(page)).toContainText('320,000');
   });
 
-  test('switching $ → % converts $80,000 to 20 and swaps the affix + step', async ({ page }) => {
+  test('switching $ → % converts $80,000 to 20 and swaps the control + step', async ({ page }) => {
     await page.fill('[name="homePrice"]', '400000');
     await page.fill('[name="downPayment"]', '80000');
     await unitBtn(page, 'percent').click();
 
     await expect(downInput(page)).toHaveValue('20');
     await expect(unitBtn(page, 'percent')).toHaveClass(/is-active/);
-    await expect(affix(page, 'percent')).toBeVisible();
-    await expect(affix(page, 'amount')).toBeHidden();
+    await expect(affix(page, 'percent')).toHaveClass(/is-active/);
+    await expect(affix(page, 'amount')).not.toHaveClass(/is-active/);
     await expect(downInput(page)).toHaveAttribute('step', '0.1');
   });
 
-  test('switching % → $ converts 20 back to 80000 and restores the affix + step', async ({ page }) => {
+  test('switching % → $ converts 20 back to 80000 and restores the control + step', async ({ page }) => {
     await page.fill('[name="homePrice"]', '400000');
     await unitBtn(page, 'percent').click();
     await page.fill('[name="downPayment"]', '20');
     await unitBtn(page, 'amount').click();
 
     await expect(downInput(page)).toHaveValue('80000');
-    await expect(affix(page, 'amount')).toBeVisible();
-    await expect(affix(page, 'percent')).toBeHidden();
+    await expect(affix(page, 'amount')).toHaveClass(/is-active/);
+    await expect(affix(page, 'percent')).not.toHaveClass(/is-active/);
     await expect(downInput(page)).toHaveAttribute('step', '1000');
   });
 
@@ -589,7 +591,7 @@ test.describe('down-payment unit toggle', () => {
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
     await expect(downInput(page)).toHaveValue('');
     await expect(unitBtn(page, 'amount')).toHaveClass(/is-active/);
-    await expect(affix(page, 'amount')).toBeVisible();
+    await expect(affix(page, 'amount')).toHaveClass(/is-active/);
     await expect(downInput(page)).toHaveAttribute('step', '1000');
   });
 });
@@ -639,12 +641,12 @@ test.describe('multiple unit groups', () => {
     await taxInput(page).fill('4800');
     await groupUnit(page, 'propertyTax', 'percent').click();
     await expect(taxInput(page)).toHaveValue('1.2');
-    await expect(groupAffix(page, 'propertyTax', 'percent')).toBeVisible();
+    await expect(groupAffix(page, 'propertyTax', 'percent')).toHaveClass(/is-active/);
     await expect(taxInput(page)).toHaveAttribute('step', '0.1');
 
     await groupUnit(page, 'propertyTax', 'amount').click();
     await expect(taxInput(page)).toHaveValue('4800');
-    await expect(groupAffix(page, 'propertyTax', 'amount')).toBeVisible();
+    await expect(groupAffix(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
     await expect(taxInput(page)).toHaveAttribute('step', '100');
   });
 

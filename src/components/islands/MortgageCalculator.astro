@@ -47,16 +47,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           <label class="field-label" for="mc-down-payment">Down payment</label>
           <span class="mc-down-pct" data-mc-down-pct hidden></span>
         </div>
-        <div data-unit-group="downPayment">
-        <div class="mt-1 inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Enter the down payment as dollars or a percent" style="border-color: var(--line)">
-          <button type="button" class="unit-btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars">$</button>
-          <button type="button" class="unit-btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price">%</button>
-        </div>
-        <div class="mt-1 flex">
-          <span class="field-affix rounded-l-lg border-r-0" data-group="amount">$</span>
-          <span class="field-affix rounded-l-lg border-r-0" data-group="percent" hidden>%</span>
-          <input class="field rounded-l-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 80000" aria-describedby="mc-down-payment-error" />
-        </div>
+        <div class="mt-1 flex" data-unit-group="downPayment">
+          <input class="field rounded-r-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 80000" aria-describedby="mc-down-payment-error" />
+          <div class="mc-unit" role="radiogroup" aria-label="Enter the down payment as dollars or a percent">
+            <button type="button" class="mc-unit__btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars">$</button>
+            <button type="button" class="mc-unit__btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price">%</button>
+          </div>
         </div>
         <p class="mc-field-error" id="mc-down-payment-error" data-error-for="downPayment" hidden></p>
       </div>
@@ -87,15 +83,11 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <div class="mt-2 grid grid-cols-2 gap-4">
           <div data-field="propertyTaxAnnual">
             <label class="field-label" for="mc-tax-in">Property tax /yr</label>
-            <div data-unit-group="propertyTax">
-              <div class="mt-1 inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Enter property tax as dollars per year or a percent of the home price" style="border-color: var(--line)">
-                <button type="button" class="unit-btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars per year">$</button>
-                <button type="button" class="unit-btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price per year">%</button>
-              </div>
-              <div class="mt-1 flex">
-                <span class="field-affix rounded-l-lg border-r-0" data-group="amount">$</span>
-                <span class="field-affix rounded-l-lg border-r-0" data-group="percent" hidden>%</span>
-                <input class="field rounded-l-none" id="mc-tax-in" name="propertyTaxAnnual" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 3600" aria-describedby="mc-tax-error" />
+            <div class="mt-1 flex" data-unit-group="propertyTax">
+              <input class="field rounded-r-none" id="mc-tax-in" name="propertyTaxAnnual" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 3600" aria-describedby="mc-tax-error" />
+              <div class="mc-unit" role="radiogroup" aria-label="Enter property tax as dollars per year or a percent of the home price">
+                <button type="button" class="mc-unit__btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars per year">$</button>
+                <button type="button" class="mc-unit__btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price per year">%</button>
               </div>
             </div>
             <p class="mc-field-error" id="mc-tax-error" data-error-for="propertyTaxAnnual" hidden></p>
@@ -118,15 +110,11 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           </div>
           <div data-field="pmiAnnualRate">
             <label class="field-label" for="mc-pmi-in">PMI /yr</label>
-            <div data-unit-group="pmi">
-              <div class="mt-1 inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Enter PMI as a percent of the loan or dollars per year" style="border-color: var(--line)">
-                <button type="button" class="unit-btn is-active" data-unit="percent" role="radio" aria-checked="true" aria-label="Percent of the loan per year">%</button>
-                <button type="button" class="unit-btn" data-unit="amount" role="radio" aria-checked="false" aria-label="Dollars per year">$</button>
-              </div>
-              <div class="mt-1 flex">
-                <span class="field-affix rounded-l-lg border-r-0" data-group="amount" hidden>$</span>
-                <input class="field rounded-l-none" id="mc-pmi-in" name="pmiAnnualRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 0.5" aria-describedby="mc-pmi-error" />
-                <span class="field-affix rounded-r-lg border-l-0" data-group="percent">%</span>
+            <div class="mt-1 flex" data-unit-group="pmi">
+              <input class="field rounded-r-none" id="mc-pmi-in" name="pmiAnnualRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 0.5" aria-describedby="mc-pmi-error" />
+              <div class="mc-unit" role="radiogroup" aria-label="Enter PMI as a percent of the loan or dollars per year">
+                <button type="button" class="mc-unit__btn is-active" data-unit="percent" role="radio" aria-checked="true" aria-label="Percent of the loan per year">%</button>
+                <button type="button" class="mc-unit__btn" data-unit="amount" role="radio" aria-checked="false" aria-label="Dollars per year">$</button>
               </div>
             </div>
             <p class="mc-field-error" id="mc-pmi-error" data-error-for="pmiAnnualRate" hidden></p>
@@ -340,6 +328,44 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   .mc-table :global(.mc-row) { border-top: 1px solid var(--line); }
   .mc-table :global(.mc-cell) { padding: 0.5rem 0.75rem; }
   .mc-table :global(.mc-cell--period) { text-align: left; font-weight: 600; color: var(--fg); }
+
+  /* Inline unit selector — sits flush on the input's right edge so a $/% field stays ONE row.
+     The active button is the unit indicator, so no separate affix is needed beside the number. */
+  .mc-unit {
+    display: inline-flex;
+    flex: none;
+    align-items: stretch;
+    background: var(--subtle);
+    border: 1px solid var(--line);
+    border-left: 0;
+    border-radius: 0 0.625rem 0.625rem 0;
+    overflow: hidden;
+  }
+
+  .mc-unit__btn {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.9rem;
+    line-height: 1;
+    min-width: 2.5rem;
+    padding-inline: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+
+  .mc-unit__btn:hover:not(.is-active) { color: var(--fg); }
+
+  .mc-unit__btn.is-active {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+
+  .mc-unit__btn:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: -2px;
+  }
 
   .mc-schedule__note { margin: 0.75rem 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
   .mc-assumptions { margin: 1.25rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
