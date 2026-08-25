@@ -10,12 +10,41 @@
  */
 import Logo from '@components/Logo.astro';
 import Icon from '@components/Icon.astro';
-import { TASK_GROUPS_ORDERED, taskPath } from '@data/tasks';
+import { TASK_GROUPS_ORDERED, taskPath, getTaskGroupForCalculator } from '@data/tasks';
+import { CATEGORIES, getCalculator } from '@data/calculators';
 
-const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+// The build emits file-style URLs (`format: 'file'`), so `Astro.url.pathname` arrives as
+// "/finance/mortgage-calculator.html". Normalise the extension away — without this nothing in the
+// nav ever matched and the active state was dead on every page.
+const currentPath =
+  Astro.url.pathname
+    .replace(/\/index\.html$/, '/')
+    .replace(/\.html$/, '')
+    .replace(/\/$/, '') || '/';
 
 const isActive = (path: string) =>
   currentPath === path || currentPath.startsWith(path + '/');
+
+/**
+ * Which task group the visitor is currently inside.
+ *
+ * The nav leads with tasks, but most visits land on a CALCULATOR (/<category>/<slug>), whose URL
+ * never starts with /tasks/ — so path matching alone left every nav item unhighlighted on the pages
+ * people actually use. Resolve the calculator through the registry instead and light up the group
+ * that owns it, so the nav always answers "where am I".
+ */
+const calcMatch = currentPath.match(/^\/([a-z-]+)\/([a-z0-9-]+)$/);
+const activeGroupSlug = (() => {
+  if (!calcMatch) return undefined;
+  const [, category, slug] = calcMatch;
+  if (!CATEGORIES.some((c) => c.slug === category)) return undefined;
+  if (!getCalculator(category, slug)) return undefined;
+  return getTaskGroupForCalculator(category, slug)?.slug;
+})();
+
+/** A nav item is current for its own /tasks/ URL, or for a calculator that belongs to it. */
+const isGroupActive = (group: { slug: string }) =>
+  isActive(taskPath(group)) || group.slug === activeGroupSlug;
 ---
 
 <header class="site-header sticky top-0 z-50">
@@ -59,7 +88,7 @@ const isActive = (path: string) =>
 
         {
           TASK_GROUPS_ORDERED.map((group) => {
-            const active = isActive(taskPath(group));
+            const active = isGroupActive(group);
 
             return (
               <li class="shrink-0">
@@ -372,7 +401,7 @@ const isActive = (path: string) =>
   }
 
   .site-nav-link.is-active .site-nav-icon {
-    color: var(--color-accent-600);
+    color: var(--color-brand-700);
   }
 
   .site-nav-active-dot {
@@ -383,7 +412,7 @@ const isActive = (path: string) =>
 
     border-radius: 999px;
 
-    background: var(--color-accent-500);
+    background: var(--color-brand-600);
   }
 
   /* --------------------------------------------------------------------------
@@ -450,10 +479,14 @@ const isActive = (path: string) =>
     );
   }
 
-  .site-nav-all:hover .site-nav-all-icon,
-  .site-nav-all.is-active .site-nav-all-icon {
+  .site-nav-all:hover .site-nav-all-icon {
     color: var(--color-brand-700);
     background: var(--color-accent-400);
+  }
+
+  .site-nav-all.is-active .site-nav-all-icon {
+    color: var(--color-brand-700);
+    background: var(--color-brand-200);
   }
 
   /* --------------------------------------------------------------------------
@@ -502,7 +535,7 @@ const isActive = (path: string) =>
   }
 
   .site-guides.is-active {
-    color: var(--color-accent-600);
+    color: var(--color-brand-700);
   }
 
   .site-guides-arrow {
