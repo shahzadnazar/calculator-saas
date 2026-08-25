@@ -47,6 +47,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           <label class="field-label" for="mc-down-payment">Down payment</label>
           <span class="mc-down-pct" data-mc-down-pct hidden></span>
         </div>
+        <div data-unit-group="downPayment">
         <div class="mt-1 inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Enter the down payment as dollars or a percent" style="border-color: var(--line)">
           <button type="button" class="unit-btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars">$</button>
           <button type="button" class="unit-btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price">%</button>
@@ -55,6 +56,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           <span class="field-affix rounded-l-lg border-r-0" data-group="amount">$</span>
           <span class="field-affix rounded-l-lg border-r-0" data-group="percent" hidden>%</span>
           <input class="field rounded-l-none" id="mc-down-payment" name="downPayment" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 80000" aria-describedby="mc-down-payment-error" />
+        </div>
         </div>
         <p class="mc-field-error" id="mc-down-payment-error" data-error-for="downPayment" hidden></p>
       </div>
@@ -85,9 +87,16 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <div class="mt-2 grid grid-cols-2 gap-4">
           <div data-field="propertyTaxAnnual">
             <label class="field-label" for="mc-tax-in">Property tax /yr</label>
-            <div class="flex">
-              <span class="field-affix rounded-l-lg border-r-0">$</span>
-              <input class="field rounded-l-none" id="mc-tax-in" name="propertyTaxAnnual" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 3600" aria-describedby="mc-tax-error" />
+            <div data-unit-group="propertyTax">
+              <div class="mt-1 inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Enter property tax as dollars per year or a percent of the home price" style="border-color: var(--line)">
+                <button type="button" class="unit-btn is-active" data-unit="amount" role="radio" aria-checked="true" aria-label="Dollars per year">$</button>
+                <button type="button" class="unit-btn" data-unit="percent" role="radio" aria-checked="false" aria-label="Percent of home price per year">%</button>
+              </div>
+              <div class="mt-1 flex">
+                <span class="field-affix rounded-l-lg border-r-0" data-group="amount">$</span>
+                <span class="field-affix rounded-l-lg border-r-0" data-group="percent" hidden>%</span>
+                <input class="field rounded-l-none" id="mc-tax-in" name="propertyTaxAnnual" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 3600" aria-describedby="mc-tax-error" />
+              </div>
             </div>
             <p class="mc-field-error" id="mc-tax-error" data-error-for="propertyTaxAnnual" hidden></p>
           </div>
@@ -108,10 +117,17 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
             <p class="mc-field-error" id="mc-hoa-error" data-error-for="hoaMonthly" hidden></p>
           </div>
           <div data-field="pmiAnnualRate">
-            <label class="field-label" for="mc-pmi-in">PMI rate /yr</label>
-            <div class="flex">
-              <input class="field rounded-r-none" id="mc-pmi-in" name="pmiAnnualRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 0.5" aria-describedby="mc-pmi-error" />
-              <span class="field-affix rounded-r-lg border-l-0">%</span>
+            <label class="field-label" for="mc-pmi-in">PMI /yr</label>
+            <div data-unit-group="pmi">
+              <div class="mt-1 inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Enter PMI as a percent of the loan or dollars per year" style="border-color: var(--line)">
+                <button type="button" class="unit-btn is-active" data-unit="percent" role="radio" aria-checked="true" aria-label="Percent of the loan per year">%</button>
+                <button type="button" class="unit-btn" data-unit="amount" role="radio" aria-checked="false" aria-label="Dollars per year">$</button>
+              </div>
+              <div class="mt-1 flex">
+                <span class="field-affix rounded-l-lg border-r-0" data-group="amount" hidden>$</span>
+                <input class="field rounded-l-none" id="mc-pmi-in" name="pmiAnnualRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 0.5" aria-describedby="mc-pmi-error" />
+                <span class="field-affix rounded-r-lg border-l-0" data-group="percent">%</span>
+              </div>
             </div>
             <p class="mc-field-error" id="mc-pmi-error" data-error-for="pmiAnnualRate" hidden></p>
           </div>
@@ -348,22 +364,48 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     const downEl = root.querySelector<HTMLInputElement>('[name="downPayment"]');
     const pctEl = root.querySelector<HTMLElement>('[data-mc-down-pct]');
     const unitBtns = root.querySelectorAll<HTMLElement>('[data-unit]');
-    const currentUnit = () =>
-      root.querySelector<HTMLElement>('[data-unit].is-active')?.dataset.unit === 'percent'
-        ? 'percent'
-        : 'amount';
+    /** The unit active in ONE group — each group is read independently, never form-wide. */
+    const unitOf = (group: string, fallback: 'amount' | 'percent') => {
+      const u = root.querySelector<HTMLElement>(`[data-unit-group="${group}"] [data-unit].is-active`)
+        ?.dataset.unit;
+      return u === 'percent' || u === 'amount' ? u : fallback;
+    };
+    const currentUnit = () => unitOf('downPayment', 'amount');
     const dollars = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
-    // Per-unit input affordances. Dollars keep the original $1,000 spinner step; a percent moves in
-    // 0.1 (the fleet's percentage-field convention). The markup ships the dollar defaults, so this is
-    // purely a progressive enhancement — with JS off the field keeps the correct default-mode step.
-    const DOWN_STEP = { amount: '1000', percent: '0.1' } as const;
-    const DOWN_PLACEHOLDER = { amount: 'e.g. 80000', percent: 'e.g. 20' } as const;
+    // Per-unit input affordances, one entry per unit group. Each keeps its original single-unit step
+    // for its default unit; the alternate unit gets the granularity that suits it (percentages move in
+    // 0.1 / 0.05, the fleet's percentage-field convention). The markup ships each field's default, so
+    // this is purely a progressive enhancement — with JS off every field keeps a correct step.
+    const AFFORDANCES = {
+      downPayment: {
+        name: 'downPayment',
+        step: { amount: '1000', percent: '0.1' },
+        placeholder: { amount: 'e.g. 80000', percent: 'e.g. 20' },
+        fallback: 'amount',
+      },
+      propertyTax: {
+        name: 'propertyTaxAnnual',
+        step: { amount: '100', percent: '0.1' },
+        placeholder: { amount: 'e.g. 3600', percent: 'e.g. 1.2' },
+        fallback: 'amount',
+      },
+      pmi: {
+        name: 'pmiAnnualRate',
+        step: { amount: '100', percent: '0.05' },
+        placeholder: { amount: 'e.g. 1600', percent: 'e.g. 0.5' },
+        fallback: 'percent',
+      },
+    } as const;
+
     const syncUnitAffordances = () => {
-      if (!downEl) return;
-      const unit = currentUnit();
-      downEl.step = DOWN_STEP[unit];
-      downEl.placeholder = DOWN_PLACEHOLDER[unit];
+      for (const [group, cfg] of Object.entries(AFFORDANCES)) {
+        const el = root.querySelector<HTMLInputElement>(`[name="${cfg.name}"]`);
+        if (!el) continue;
+        const unit = unitOf(group, cfg.fallback);
+        el.step = cfg.step[unit];
+        el.placeholder = cfg.placeholder[unit];
+      }
     };
 
     const syncDownPct = () => {
@@ -408,11 +450,18 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     // yearly schedule) and clears the live down-payment readout. A `valid` update is owned by the
     // binding's renderResult, so the observer never touches it.
     if (shell) {
+      // The shell re-commits its state attribute on every run — including a structural unit switch
+      // that leaves the state unchanged — and a MutationObserver fires even when the value is
+      // identical. Only a real TRANSITION into `empty` (i.e. Reset) should collapse the disclosures;
+      // otherwise switching the tax or PMI unit would close the very disclosure holding that control.
+      let previousState = shell.dataset.resultState;
       const observer = new MutationObserver(() => {
         const state = shell.dataset.resultState;
+        const entered = state !== previousState;
+        previousState = state;
         if (state === 'valid') return;
         clearRows();
-        if (state === 'empty') {
+        if (state === 'empty' && entered) {
           if (disclosure) disclosure.open = false;
           if (costs) costs.open = false;
           if (pctEl) pctEl.hidden = true;

@@ -23,9 +23,20 @@ const submit = (page: Page) => page.locator('[data-mc-submit]');
 const region = (page: Page, when: string) => page.locator(`#mc-result [data-result-when~="${when}"]`);
 const fieldError = (page: Page, name: string) => page.locator(`[data-error-for="${name}"]`);
 const downInput = (page: Page) => page.locator('[name="downPayment"]');
-const unitBtn = (page: Page, unit: 'amount' | 'percent') => page.locator(`[data-unit="${unit}"]`);
-const affix = (page: Page, unit: 'amount' | 'percent') => page.locator(`[data-group="${unit}"]`);
+// Scoped to the DOWN PAYMENT group — three groups now share the form, so an unscoped
+// [data-unit] selector is ambiguous by design.
+const unitBtn = (page: Page, unit: 'amount' | 'percent') =>
+  page.locator(`[data-unit-group="downPayment"] [data-unit="${unit}"]`);
+const affix = (page: Page, unit: 'amount' | 'percent') =>
+  page.locator(`[data-unit-group="downPayment"] [data-group="${unit}"]`);
 const loanAmount = (page: Page) => page.locator('[data-mc-loan]');
+const taxInput = (page: Page) => page.locator('[name="propertyTaxAnnual"]');
+const pmiInput = (page: Page) => page.locator('[name="pmiAnnualRate"]');
+/** A unit button INSIDE one group — the whole point is that groups do not share buttons. */
+const groupUnit = (page: Page, group: string, unit: 'amount' | 'percent') =>
+  page.locator(`[data-unit-group="${group}"] [data-unit="${unit}"]`);
+const groupAffix = (page: Page, group: string, unit: 'amount' | 'percent') =>
+  page.locator(`[data-unit-group="${group}"] [data-group="${unit}"]`);
 
 const fillCore = async (
   page: Page,
@@ -604,4 +615,158 @@ test('the worked example renders engine-computed figures and leaves the fields e
   await expect(page.locator('[name="homePrice"]')).toHaveValue('');
   await expect(downInput(page)).toHaveValue('');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+});
+
+/* ---- Property tax + PMI units, and group independence -------------------- */
+
+/**
+ * Three INDEPENDENT unit groups share one form: down payment and property tax against the home
+ * price, PMI against the loan. Each has its own active unit, its own affix, its own step and its own
+ * reset default, and switching one must never disturb another — the property the scoped
+ * `[data-unit-group]` runtime axis exists to guarantee.
+ */
+test.describe('multiple unit groups', () => {
+  test('each group starts at its own default unit', async ({ page }) => {
+    await openCosts(page);
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/); // engine-native
+  });
+
+  test('property tax converts $4,800 ↔ 1.2% against the home price', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await taxInput(page).fill('4800');
+    await groupUnit(page, 'propertyTax', 'percent').click();
+    await expect(taxInput(page)).toHaveValue('1.2');
+    await expect(groupAffix(page, 'propertyTax', 'percent')).toBeVisible();
+    await expect(taxInput(page)).toHaveAttribute('step', '0.1');
+
+    await groupUnit(page, 'propertyTax', 'amount').click();
+    await expect(taxInput(page)).toHaveValue('4800');
+    await expect(groupAffix(page, 'propertyTax', 'amount')).toBeVisible();
+    await expect(taxInput(page)).toHaveAttribute('step', '100');
+  });
+
+  test('PMI converts 1% ↔ $3,200 against the LOAN amount', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await pmiInput(page).fill('1');
+    await groupUnit(page, 'pmi', 'amount').click();
+    await expect(pmiInput(page)).toHaveValue('3200'); // 1% of the $320,000 loan
+    await groupUnit(page, 'pmi', 'percent').click();
+    await expect(pmiInput(page)).toHaveValue('1');
+  });
+
+  test('PMI does NOT convert when the loan amount cannot be resolved', async ({ page }) => {
+    await openCosts(page);
+    await pmiInput(page).fill('1'); // no home price entered yet
+    await groupUnit(page, 'pmi', 'amount').click();
+    await expect(pmiInput(page)).toHaveValue('1'); // left exactly as typed, never guessed
+  });
+
+  test('switching DOWN PAYMENT does not change property tax or PMI', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await page.fill('[name="downPayment"]', '80000');
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+
+    await groupUnit(page, 'downPayment', 'percent').click();
+
+    await expect(page.locator('[name="downPayment"]')).toHaveValue('20'); // converted
+    await expect(taxInput(page)).toHaveValue('4800'); // untouched
+    await expect(pmiInput(page)).toHaveValue('1'); // untouched
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/);
+  });
+
+  test('switching PROPERTY TAX does not change down payment or PMI', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await page.fill('[name="downPayment"]', '80000');
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+
+    await groupUnit(page, 'propertyTax', 'percent').click();
+
+    await expect(taxInput(page)).toHaveValue('1.2'); // converted
+    await expect(page.locator('[name="downPayment"]')).toHaveValue('80000'); // untouched
+    await expect(pmiInput(page)).toHaveValue('1'); // untouched
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/);
+  });
+
+  test('switching PMI does not change down payment or property tax', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await page.fill('[name="downPayment"]', '80000');
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+
+    await groupUnit(page, 'pmi', 'amount').click();
+
+    await expect(pmiInput(page)).toHaveValue('3200'); // converted
+    await expect(page.locator('[name="downPayment"]')).toHaveValue('80000'); // untouched
+    await expect(taxInput(page)).toHaveValue('4800'); // untouched
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+  });
+
+  test('equivalent entries in ALL THREE alternate units give the identical result', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+    await submit(page).click();
+    const nativeTotal = await primary(page).textContent();
+    const nativeLoan = await loanAmount(page).textContent();
+
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await page.fill('[name="homePrice"]', '400000');
+    await groupUnit(page, 'downPayment', 'percent').click();
+    await page.fill('[name="downPayment"]', '20');
+    await page.selectOption('[name="loanTermYears"]', '30');
+    await page.fill('[name="annualInterestRate"]', '6.5');
+    await openCosts(page);
+    await groupUnit(page, 'propertyTax', 'percent').click();
+    await taxInput(page).fill('1.2');
+    await groupUnit(page, 'pmi', 'amount').click();
+    await pmiInput(page).fill('3200');
+    await submit(page).click();
+
+    await expect(primary(page)).toHaveText(nativeTotal!);
+    await expect(loanAmount(page)).toHaveText(nativeLoan!);
+  });
+
+  test('Reset restores EVERY group to its own default independently', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+    await submit(page).click();
+
+    await groupUnit(page, 'downPayment', 'percent').click();
+    await groupUnit(page, 'propertyTax', 'percent').click();
+    await groupUnit(page, 'pmi', 'amount').click();
+
+    await page.locator('[data-reset]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/); // its OWN default
+  });
+
+  test('property tax entered as a percent follows a changed home price', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await groupUnit(page, 'propertyTax', 'percent').click();
+    await taxInput(page).fill('1.2');
+    await submit(page).click();
+    const at400 = await primary(page).textContent();
+
+    await page.fill('[name="homePrice"]', '500000');
+    await expect(primary(page)).not.toHaveText(at400!); // 1.2% of the NEW price, not frozen dollars
+    await expect(taxInput(page)).toHaveValue('1.2'); // the entered percent is preserved
+  });
 });
