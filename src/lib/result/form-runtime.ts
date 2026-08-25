@@ -115,8 +115,16 @@ export interface FormCalculatorBinding<V, R> {
   isUsableResult?(result: R): boolean;
   /** Clear personal values (`personal`) or everything incl. structure (`all`). */
   resetValues(root: HTMLElement, mode: ResetMode): void;
-  /** Convert entered values in place on a unit change. Optional. */
-  convertValues?(root: HTMLElement, fromUnit: string, toUnit: string): void;
+  /**
+   * Convert entered values in place on a unit change. Optional.
+   *
+   * `group` names the unit axis that changed, and is present ONLY for a form that scopes its units
+   * with `[data-unit-group]` (see `mountFormCalculator`). A single-axis form omits it, so a binding
+   * written before scoped groups existed keeps its three-parameter signature and behaves identically.
+   * `root` is always the calculator root — never the group element — so existing `[name=…]` lookups
+   * are unaffected.
+   */
+  convertValues?(root: HTMLElement, fromUnit: string, toUnit: string, group?: string): void;
 }
 
 export interface FormCalculatorOptions {
@@ -378,26 +386,56 @@ export function mountFormCalculator<V, R>(
 
   /* -- unit (structural) state -------------------------------------- */
 
-  const activeUnitEl = root.querySelector<HTMLElement>(
-    '[data-unit].is-active, [data-unit][aria-checked="true"]',
-  );
-  let currentUnit = activeUnitEl?.dataset.unit;
-  const defaultUnit = currentUnit; // the safe structural default restored on reset
+  /**
+   * A form has one or more INDEPENDENT unit axes.
+   *
+   * With no `[data-unit-group]` present the whole root is a single unnamed axis — the original
+   * contract, unchanged: one active unit, every `[data-unit]` button and `[data-group]` panel in the
+   * form belongs to it, and `convertValues` is called with three arguments.
+   *
+   * When `[data-unit-group="<name>"]` containers ARE present, each one is its own axis: it owns only
+   * the buttons and panels inside it, holds its own active unit and its own reset default, and passes
+   * its name to `convertValues` so the binding knows which field changed. Switching one axis never
+   * touches another. (Once any group exists, every `[data-unit]` is expected to live inside one.)
+   */
+  interface UnitAxis {
+    /** The element whose subtree owns this axis' buttons and panels. */
+    scope: HTMLElement;
+    /** Group name, or undefined for the single unnamed axis. */
+    name?: string;
+    current?: string;
+    /** The safe structural default restored on reset. */
+    initial?: string;
+  }
 
-  const selectUnit = (nextUnit: string, convert: boolean) => {
-    const from = currentUnit;
-    root.querySelectorAll<HTMLElement>('[data-unit]').forEach((b) => {
+  const groupEls = Array.from(root.querySelectorAll<HTMLElement>('[data-unit-group]'));
+  const axes: UnitAxis[] = (groupEls.length ? groupEls : [root]).map((scope) => {
+    const active = scope.querySelector<HTMLElement>(
+      '[data-unit].is-active, [data-unit][aria-checked="true"]',
+    );
+    const unit = active?.dataset.unit;
+    return {
+      scope,
+      name: groupEls.length ? scope.dataset.unitGroup : undefined,
+      current: unit,
+      initial: unit,
+    };
+  });
+
+  const selectUnit = (axis: UnitAxis, nextUnit: string, convert: boolean) => {
+    const from = axis.current;
+    axis.scope.querySelectorAll<HTMLElement>('[data-unit]').forEach((b) => {
       const on = b.dataset.unit === nextUnit;
       b.classList.toggle('is-active', on);
       if (b.hasAttribute('aria-checked')) b.setAttribute('aria-checked', String(on));
     });
-    root.querySelectorAll<HTMLElement>('[data-group]').forEach((g) => {
+    axis.scope.querySelectorAll<HTMLElement>('[data-group]').forEach((g) => {
       g.hidden = g.dataset.group !== nextUnit;
     });
     if (convert && from && from !== nextUnit && binding.convertValues) {
-      binding.convertValues(root, from, nextUnit);
+      binding.convertValues(root, from, nextUnit, axis.name);
     }
-    currentUnit = nextUnit;
+    axis.current = nextUnit;
   };
 
   /* -- small DOM helpers -------------------------------------------- */
@@ -484,8 +522,13 @@ export function mountFormCalculator<V, R>(
 
     // 2. Reset personal values + restore the safe structural (unit) default.
     if (effects.clearValues) binding.resetValues(root, 'personal');
-    if (trigger.kind === 'reset' && defaultUnit && currentUnit !== defaultUnit) {
-      selectUnit(defaultUnit, false); // values already cleared — no conversion
+    if (trigger.kind === 'reset') {
+      // Each axis returns to its OWN default, independently of the others.
+      for (const axis of axes) {
+        if (axis.initial && axis.current !== axis.initial) {
+          selectUnit(axis, axis.initial, false); // values already cleared — no conversion
+        }
+      }
     }
 
     // 3. Render the result / invalid guidance.
@@ -548,14 +591,16 @@ export function mountFormCalculator<V, R>(
 
   // Unit switching: convert entered values in place, then recalculate live only
   // if a first calculation has already happened (the planner enforces this).
-  root.querySelectorAll<HTMLElement>('[data-unit]').forEach((r) => {
-    r.addEventListener('click', () => {
-      const u = r.dataset.unit;
-      if (!u || u === currentUnit) return;
-      selectUnit(u, true);
-      run({ kind: 'unit' });
+  for (const axis of axes) {
+    axis.scope.querySelectorAll<HTMLElement>('[data-unit]').forEach((r) => {
+      r.addEventListener('click', () => {
+        const u = r.dataset.unit;
+        if (!u || u === axis.current) return;
+        selectUnit(axis, u, true);
+        run({ kind: 'unit' });
+      });
     });
-  });
+  }
 
   return {
     destroy() {
