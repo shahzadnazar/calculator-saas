@@ -12,6 +12,21 @@ const faqs = [
       'It uses the amortization formula M = P · r · (1 + r)ⁿ / ((1 + r)ⁿ − 1), where P is the amount borrowed, r is the monthly interest rate (annual rate ÷ 12) and n is the total number of monthly payments. Each payment covers that month’s interest first, and the rest reduces the balance.',
   },
   {
+    question: 'What is a deferred payment loan?',
+    answer:
+      'It is a loan where you pay nothing until the end of the term, at which point the whole balance — principal plus all the interest it has accumulated — falls due as a single lump sum. Because nothing is repaid along the way, interest compounds on a balance that only ever grows, so a deferred loan costs considerably more than an amortized one at the same rate.',
+  },
+  {
+    question: 'What does the Bond option calculate?',
+    answer:
+      'It works backwards from a known amount due. You enter the sum that must be paid at maturity, the rate and the term, and the calculator returns the present value — what the borrower receives when the loan starts. This is how zero-coupon bonds are priced: they are sold at a discount today and redeemed at face value later.',
+  },
+  {
+    question: 'What does the Compound setting change?',
+    answer:
+      'It says how often interest is added to the balance, which changes what a quoted rate actually costs. 6% compounded monthly is an effective 6.17% a year, while 6% quoted as APY is already effective. The calculator normalises whatever you choose into one effective annual rate before working out any figure, so every result reflects your compounding choice.',
+  },
+  {
     question: 'What is the difference between the interest rate and APR?',
     answer:
       'The interest rate is the cost of borrowing the principal. APR (annual percentage rate) also includes certain fees, so it is usually slightly higher and is a better figure for comparing loan offers. This calculator uses the interest rate.',
@@ -43,7 +58,7 @@ const faqs = [
   calculator={calc}
   presentation="task-first"
   reviewMetadata={{ reviewedDate: '2026-08-03' }}
-  intro="Calculate the monthly payment, total interest and payoff schedule for any fixed-rate loan. Adjust the amount, rate and term to compare options instantly."
+  intro="Work out an amortized loan payment, a deferred loan's lump sum at maturity, or what a bond pays you today — with the full annual and monthly schedule for each."
   faqs={faqs}
 >
   <LoanCalculator />
@@ -51,15 +66,16 @@ const faqs = [
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter the <strong>loan amount</strong> — the sum you plan to borrow.</li>
-      <li>Set the annual <strong>interest rate</strong> the lender is quoting.</li>
-      <li>Choose the <strong>term</strong> in years — how long you have to repay.</li>
-      <li>Read off the <strong>monthly payment</strong> and the <strong>total interest</strong>, then open the yearly schedule to see the balance fall.</li>
+      <li>Pick the <strong>kind of loan</strong>: amortized (paid off in instalments), deferred payment (one lump sum at the end) or bond (a set amount due at maturity).</li>
+      <li>Enter the <strong>amount</strong> — the sum you plan to borrow, or, in bond mode, the amount that falls due at maturity.</li>
+      <li>Set the annual <strong>interest rate</strong> the lender is quoting and how often it <strong>compounds</strong>.</li>
+      <li>Choose the <strong>term</strong> in years, plus any extra months, and — for an amortized loan — how often you <strong>pay back</strong>.</li>
+      <li>Read the headline figure and the totals, then open the schedule and switch between the <strong>annual</strong> and <strong>monthly</strong> views.</li>
     </ol>
     <p>
-      The result assumes a single fixed rate and equal monthly payments — the structure of
-      most personal loans, student loans and car loans. Change any input and the payment,
-      total interest and payoff schedule update so you can compare offers side by side.
+      Every figure is derived from one effective annual rate, so the compounding and payback
+      settings genuinely change the answer rather than relabelling it. Change any input and the
+      result and both schedules update, letting you compare offers side by side.
     </p>
 
     <h2>What an amortizing loan is</h2>
@@ -74,6 +90,52 @@ const faqs = [
       That front-loaded interest is why the total you repay is larger than the amount you
       borrowed, and why paying extra early has an outsized effect. Every dollar you add goes
       straight to principal, which lowers the interest charged on every remaining payment.
+    </p>
+
+    <h2>The three kinds of loan</h2>
+    <p>
+      An <strong>amortized loan</strong> is repaid in equal instalments from the first period.
+      Borrow $100,000 at 6% over 10 years and the payment is <strong>$1,110.21</strong> a month;
+      the 120 payments come to $133,224.60, of which $33,224.60 is interest. This is the shape of
+      most personal loans, car loans and mortgages.
+    </p>
+    <p>
+      A <strong>deferred payment loan</strong> repays nothing until the end. The same $100,000 at
+      an effective 6% grows untouched for 10 years and <strong>$179,084.77</strong> falls due at
+      maturity — $79,084.77 of interest, more than twice the amortized figure. Nothing is ever paid
+      down, so every period's interest is charged on a larger balance than the last.
+    </p>
+    <p>
+      A <strong>bond</strong> reverses the question. You know the amount due at maturity and want
+      today's value of it: $100,000 due in 10 years at an effective 6% is worth
+      <strong>$55,839.48</strong> now. That is how zero-coupon bonds are priced — bought at a
+      discount, redeemed at face value — and the $44,160.52 gap is the interest earned.
+    </p>
+
+    <h2>Why compounding changes the answer</h2>
+    <p>
+      A quoted rate means different things at different compounding frequencies, so the calculator
+      normalises whatever you choose into one effective annual rate before deriving anything from
+      it. 6% compounded monthly is an effective 6.168% a year; 6% compounded daily is 6.183%; 6%
+      quoted as APY is already 6%.
+    </p>
+    <p>
+      The differences look small on a rate card and are not small over a term. Choose the
+      frequency your lender actually quotes — monthly (APR) for most consumer loans, annually for
+      an APY figure — and compare offers on the effective rate rather than the headline one.
+    </p>
+
+    <h2>Reading the annual and monthly schedules</h2>
+    <p>
+      Both views show the same three columns: the balance the period <strong>begins</strong> on,
+      the <strong>interest</strong> charged for it, and the balance it <strong>ends</strong> on. The
+      annual schedule gives one row per year — the fastest way to see the shape of the loan. The
+      monthly schedule gives every period, with a <em>Year #N End</em> row closing each year so you
+      can still find the annual figures inside the detail.
+    </p>
+    <p>
+      On an amortized loan the ending balance falls to $0 on the final row. On a deferred loan or a
+      bond it climbs to the amount due at maturity, because nothing is repaid until then.
     </p>
 
     <h2>The loan payment formula</h2>
@@ -91,6 +153,12 @@ const faqs = [
       Each month the interest due is the current balance times <em>r</em>, and the rest of the
       payment reduces the balance. The calculator repeats that step across every month to build
       the schedule and total the interest.
+    </p>
+    <p>
+      Dividing the annual rate by 12 is exact only when interest compounds monthly, which is the
+      calculator's default. Choose a different compounding frequency, or a payback frequency other
+      than monthly, and <em>r</em> becomes the equivalent rate for one period of the effective
+      annual rate instead — the same formula, applied to the period you actually pay in.
     </p>
 
     <h2>A worked example</h2>
@@ -142,7 +210,8 @@ const faqs = [
       <li>Compare <strong>total interest</strong>, not just the monthly payment — a low payment over a long term can cost far more.</li>
       <li>Even a <strong>0.5% lower rate</strong> adds up over the life of a loan; get quotes from several lenders.</li>
       <li>Extra payments toward <strong>principal</strong> shorten the term and cut total interest — check for prepayment penalties first, as a few loans charge them.</li>
-      <li>The tool assumes a <strong>fixed rate</strong> and equal payments. It does not model origination fees, variable rates, late fees or insurance, so a real APR may run slightly higher.</li>
+      <li>The tool assumes a <strong>fixed rate</strong> for the whole term. It does not model origination fees, variable rates, late fees or insurance, so a real APR may run slightly higher.</li>
+      <li>Deferred and bond figures assume interest simply accrues to maturity with <strong>no payments</strong> and no early redemption.</li>
     </ul>
 
     <p>
