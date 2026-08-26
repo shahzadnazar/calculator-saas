@@ -435,8 +435,13 @@ const MODES = [
     color: var(--fg);
     white-space: nowrap;
   }
-  .loan-table th.loan-num,
-  .loan-table td.loan-num {
+  /* `:global` because the schedule's cells are created by the binding at runtime
+     and so carry no scope attribute. Without it Astro compiled this to
+     `td[data-astro-cid-…].loan-num`, which only ever matched the static header
+     cells — the schedule's numbers were never actually right-aligned. Same rule,
+     same values; it now reaches the rows it was written for. */
+  .loan-table :global(th.loan-num),
+  .loan-table :global(td.loan-num) {
     text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
