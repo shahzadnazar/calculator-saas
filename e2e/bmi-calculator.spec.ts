@@ -224,3 +224,64 @@ test('renders in dark scheme', async ({ page }) => {
   const bg = await shell(page).evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg).not.toBe('rgb(255, 255, 255)');
 });
+
+/* ---- Sex selector, gauge and the Other-units converter ------------------- */
+
+test('the sex selector is available in BOTH unit systems', async ({ page }) => {
+  await expect(page.locator('input[name="sex"][value="male"]')).toBeChecked();
+  await expect(page.locator('input[name="sex"][value="female"]')).toBeVisible();
+  await page.click('[data-unit="imperial"]');
+  // It sits outside the unit panels, so switching systems never takes it away.
+  await expect(page.locator('input[name="sex"][value="male"]')).toBeVisible();
+  await expect(page.locator('input[name="sex"][value="female"]')).toBeVisible();
+});
+
+test('sex is recorded but never changes the BMI, category or healthy range', async ({ page }) => {
+  await calcMetric(page, '180', '65');
+  await expect(value(page)).toHaveText('20.1'); // the published reference figure
+  const category = await page.locator('[data-bmi-category]').textContent();
+  const range = await page.locator('[data-bmi-range]').textContent();
+
+  await page.locator('input[name="sex"][value="female"]').check();
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(value(page)).toHaveText('20.1');
+  await expect(page.locator('[data-bmi-category]')).toHaveText(category!);
+  await expect(page.locator('[data-bmi-range]')).toHaveText(range!);
+});
+
+test('the gauge needle moves with the result and agrees with the linear scale', async ({ page }) => {
+  await calcMetric(page, '180', '50'); // underweight
+  const low = await page.locator('[data-bmi-needle]').getAttribute('transform');
+  await page.fill('[name="weightKg"]', '110'); // obese
+  await page.waitForTimeout(DEBOUNCE);
+  const high = await page.locator('[data-bmi-needle]').getAttribute('transform');
+  const angle = (t: string | null) => Number(/rotate\(([-\d.]+)/.exec(t ?? '')?.[1]);
+  expect(angle(high)).toBeGreaterThan(angle(low)); // sweeps left -> right
+  expect(angle(low)).toBeGreaterThanOrEqual(-90);
+  expect(angle(high)).toBeLessThanOrEqual(90);
+});
+
+test('Other units opens a converter that never touches the BMI inputs', async ({ page }) => {
+  const toggle = page.locator('[data-bmi-other-toggle]');
+  const panel = page.locator('[data-bmi-other]');
+  await expect(panel).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  await toggle.click();
+  await expect(panel).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  // Defaults to the pair a BMI visitor needs, and converts through the site's engine.
+  await page.selectOption('[data-bmi-conv-category]', 'mass');
+  await page.fill('[data-bmi-conv-value]', '160');
+  await expect(page.locator('[data-bmi-conv-out]')).toContainText('Kilograms');
+  await expect(page.locator('[data-bmi-conv-out]')).toContainText('Pounds');
+
+  // The calculator's own fields and result are untouched by the helper.
+  await expect(page.locator('[name="heightCm"]')).toHaveValue('');
+  await expect(page.locator('[name="weightKg"]')).toHaveValue('');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+
+  await toggle.click();
+  await expect(panel).toBeHidden();
+});

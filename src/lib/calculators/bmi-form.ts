@@ -27,10 +27,27 @@ import type {
 
 const BMI_UNIT = 'kg/m²';
 
+export type Sex = 'male' | 'female';
+
 /** Raw string values as read from the form (empty ≠ zero ≠ invalid). */
 export type BmiValues =
-  | { system: 'metric'; heightCm: string; weightKg: string }
-  | { system: 'imperial'; heightFt: string; heightIn: string; weightLb: string };
+  | { sex: Sex; system: 'metric'; heightCm: string; weightKg: string }
+  | { sex: Sex; system: 'imperial'; heightFt: string; heightIn: string; weightLb: string };
+
+/**
+ * The computed result plus the sex that was selected.
+ *
+ * Sex is RECORDED, never applied: the WHO adult BMI thresholds (18.5 / 25 / 30)
+ * and the healthy-weight range derived from them are identical for men and
+ * women, so `calculateBmi` neither takes nor needs it and stays untouched. It is
+ * carried on the result so the selection travels with it — `bmi-form.test.ts`
+ * pins that a male and a female reading of the same height and weight produce
+ * byte-identical figures, which is what keeps the selector from ever silently
+ * appearing to move a number it cannot move.
+ */
+export interface BmiComputed extends BmiResult {
+  sex: Sex;
+}
 
 /* ------------------------------------------------------------------ */
 /* Parsing + validation (pure)                                         */
@@ -193,22 +210,29 @@ const numOrNull = (raw: string | undefined): number | null => {
 
 const toField = (n: number | null): string => (n === null ? '' : String(n));
 
+/** The selected sex; male is the structural default, matching the BMR selector. */
+export const readSex = (root: HTMLElement): Sex =>
+  (root.querySelector<HTMLInputElement>('[name="sex"]:checked')?.value as Sex) ?? 'male';
+
 /* ------------------------------------------------------------------ */
 /* The binding                                                         */
 /* ------------------------------------------------------------------ */
 
-export const bmiBinding: FormCalculatorBinding<BmiValues, BmiResult> = {
+export const bmiBinding: FormCalculatorBinding<BmiValues, BmiComputed> = {
   readValues(root) {
     const active = root.querySelector<HTMLElement>('[data-unit].is-active, [data-unit][aria-checked="true"]');
     const system = active?.dataset.unit === 'imperial' ? 'imperial' : 'metric';
+    const sex = readSex(root);
     if (system === 'metric') {
       return {
+        sex,
         system: 'metric',
         heightCm: input(root, 'heightCm')?.value ?? '',
         weightKg: input(root, 'weightKg')?.value ?? '',
       };
     }
     return {
+      sex,
       system: 'imperial',
       heightFt: input(root, 'heightFt')?.value ?? '',
       heightIn: input(root, 'heightIn')?.value ?? '',
@@ -219,7 +243,8 @@ export const bmiBinding: FormCalculatorBinding<BmiValues, BmiResult> = {
   validate: validateBmiValues,
 
   compute(values) {
-    return calculateBmi(toBmiInput(values));
+    // The engine is UNCHANGED and sex-free; the selection rides alongside it.
+    return { ...calculateBmi(toBmiInput(values)), sex: values.sex };
   },
 
   resultValue(result) {
@@ -250,7 +275,12 @@ export const bmiBinding: FormCalculatorBinding<BmiValues, BmiResult> = {
         1,
       )} ${result.unitLabel}`;
     }
-    if (marker) marker.style.left = `${markerPosition(result.bmi)}%`;
+    const pct = markerPosition(result.bmi);
+    if (marker) marker.style.left = `${pct}%`;
+    // The gauge needle reads off the SAME tested scale position as the bar, so the
+    // two can never disagree. 0% = far left, 100% = far right, over a 180° sweep.
+    const needle = q('[data-bmi-needle]');
+    if (needle) needle.setAttribute('transform', `rotate(${(pct / 100) * 180 - 90} 100 100)`);
     // Severity drives the marker/category colour; the category NAME (text above)
     // carries the classification so it never relies on colour alone.
     if (validRegion) validRegion.dataset.severity = result.severity;
@@ -342,4 +372,4 @@ export function bmiExample(): BmiExample {
  * result markup and can never drift from the engine. The visitor's fields are
  * never written to — they load and stay empty behind it.
  */
-export const BMI_EXAMPLE_VALUES: BmiValues = { system: 'metric', heightCm: '175', weightKg: '70' };
+export const BMI_EXAMPLE_VALUES: BmiValues = { sex: 'male', system: 'metric', heightCm: '175', weightKg: '70' };
