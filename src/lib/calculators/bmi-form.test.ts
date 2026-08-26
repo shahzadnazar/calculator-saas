@@ -10,7 +10,6 @@ import {
   BMI_EXAMPLE,
   markerPosition,
   type BmiValues,
-  markerPosition,
 } from './bmi-form';
 import { calculateBmi } from './bmi';
 
