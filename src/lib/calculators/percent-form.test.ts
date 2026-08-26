@@ -10,6 +10,12 @@ import {
   percentOfBinding,
   whatPercentBinding,
   percentChangeBinding,
+  percentOfWhatBinding,
+  percentDifferenceBinding,
+  applyChangeBinding,
+  validatePercentOfWhat,
+  validatePercentDifference,
+  validateApplyChange,
   percentExamples,
   PERCENT_EXAMPLES,
 } from './percent-form';
@@ -178,5 +184,77 @@ describe('percentExamples — the labelled Example each equation shows on first 
     expect(ex.percentOf.amount).toBe('30');
     expect(ex.whatPercent.percentage).toBe('25');
     expect(ex.percentChange.magnitude).toBe('25');
+  });
+});
+
+
+/* ------------------------------------------------------------------ */
+/* The three added equations                                           */
+/* ------------------------------------------------------------------ */
+
+describe('"X is Y% of what?" — solving for the total', () => {
+  it('computes the whole from the part and the percentage', () => {
+    expect(percentOfWhatBinding.compute({ part: '30', percent: '15' })).toBeCloseTo(200, 10);
+  });
+
+  it('requires both operands', () => {
+    expect(validatePercentOfWhat({ part: '', percent: '15' })).toEqual({
+      ok: false,
+      fieldErrors: { part: 'Enter the value.' },
+    });
+    expect(validatePercentOfWhat({ part: '30', percent: '' })).toEqual({
+      ok: false,
+      fieldErrors: { percent: 'Enter the percentage.' },
+    });
+  });
+
+  it('rejects 0%, which no single total can satisfy', () => {
+    const v = validatePercentOfWhat({ part: '30', percent: '0' });
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.fieldErrors?.percent).toMatch(/other than zero/i);
+  });
+});
+
+describe('percentage difference', () => {
+  it('measures the gap against the average of the two', () => {
+    expect(percentDifferenceBinding.compute({ a: '10', b: '6' })).toBeCloseTo(50, 10);
+  });
+
+  it('gives the same answer whichever order they are entered', () => {
+    const ab = percentDifferenceBinding.compute({ a: '10', b: '6' });
+    const ba = percentDifferenceBinding.compute({ a: '6', b: '10' });
+    expect(ab).toBeCloseTo(ba, 10);
+  });
+
+  it('rejects a pair that averages zero — there is nothing to measure against', () => {
+    const v = validatePercentDifference({ a: '5', b: '-5' });
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.fieldErrors?.b).toMatch(/average zero/i);
+  });
+
+  it('requires both values', () => {
+    expect(validatePercentDifference({ a: '', b: '' }).ok).toBe(false);
+  });
+});
+
+describe('applying an increase or a decrease', () => {
+  it('adds the percentage on an increase and subtracts it on a decrease', () => {
+    expect(applyChangeBinding.compute({ value: '500', direction: 'increase', percent: '10' })).toBeCloseTo(550, 10);
+    expect(applyChangeBinding.compute({ value: '500', direction: 'decrease', percent: '10' })).toBeCloseTo(450, 10);
+  });
+
+  it('treats an unknown direction as an increase rather than throwing', () => {
+    expect(applyChangeBinding.compute({ value: '500', direction: 'sideways', percent: '10' })).toBeCloseTo(550, 10);
+  });
+
+  it('rejects a direction outside the two the select offers', () => {
+    const v = validateApplyChange({ value: '500', direction: 'sideways', percent: '10' });
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.fieldErrors?.direction).toMatch(/increase or decrease/i);
+  });
+
+  it('requires the value and the percentage', () => {
+    expect(validateApplyChange({ value: '', direction: 'increase', percent: '10' }).ok).toBe(false);
+    expect(validateApplyChange({ value: '500', direction: 'increase', percent: '' }).ok).toBe(false);
   });
 });

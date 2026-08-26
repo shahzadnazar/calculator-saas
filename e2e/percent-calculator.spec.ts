@@ -15,6 +15,9 @@ const DEBOUNCE = 300;
 const OF = 'form[data-equation="percent-of"]';
 const WHAT = 'form[data-equation="what-percent"]';
 const CHANGE = 'form[data-equation="percent-change"]';
+const OF_WHAT = 'form[data-equation="percent-of-what"]';
+const DIFF = 'form[data-equation="percent-difference"]';
+const APPLY = 'form[data-equation="apply-change"]';
 
 const shell = (page: Page, eq: string) => page.locator(`${eq} [data-result-shell]`);
 const state = (page: Page, eq: string) => shell(page, eq).getAttribute('data-result-state');
@@ -224,4 +227,75 @@ test('renders in dark scheme', async ({ page }) => {
   await page.fill('#pof-value', '200');
   await submitOf(page, OF).click();
   await expect(value(page, OF)).toBeVisible();
+});
+
+
+/* ---- The three added equations ------------------------------------------ */
+
+test('the page offers all six independent equations', async ({ page }) => {
+  await expect(page.locator('form[data-equation]')).toHaveCount(6);
+  for (const eq of [OF, WHAT, CHANGE, OF_WHAT, DIFF, APPLY]) {
+    await expect(page.locator(`${eq} button[type="submit"]`)).toHaveCount(1);
+    await expect(shell(page, eq)).toHaveAttribute('data-result-state', 'example');
+  }
+});
+
+test('"X is Y% of what?" solves for the total and rejects 0%', async ({ page }) => {
+  await page.fill('#pow-part', '30');
+  await page.fill('#pow-percent', '15');
+  await submitOf(page, OF_WHAT).click();
+  await expect(value(page, OF_WHAT)).toHaveText('200');
+
+  // 0% has no single answer, so it is a field error rather than a fabricated total.
+  await page.fill('#pow-percent', '0');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(shell(page, OF_WHAT)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(page.locator(`${OF_WHAT} [data-error-for="percent"]`)).toContainText(/other than zero/i);
+  await expect(shell(page, OF_WHAT)).not.toContainText(/NaN|Infinity/);
+});
+
+test('percentage difference is symmetric and refuses a zero average', async ({ page }) => {
+  await page.fill('#pd-a', '10');
+  await page.fill('#pd-b', '6');
+  await submitOf(page, DIFF).click();
+  await expect(value(page, DIFF)).toHaveText('50');
+
+  // Swapping the operands gives the same answer — the defining property.
+  await page.fill('#pd-a', '6');
+  await page.fill('#pd-b', '10');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(value(page, DIFF)).toHaveText('50');
+
+  await page.fill('#pd-a', '5');
+  await page.fill('#pd-b', '-5');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(shell(page, DIFF)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(shell(page, DIFF)).not.toContainText(/NaN|Infinity/);
+});
+
+test('an increase or decrease is applied from the direction select', async ({ page }) => {
+  await page.fill('#ac-value', '500');
+  await page.fill('#ac-percent', '10');
+  await submitOf(page, APPLY).click();
+  await expect(value(page, APPLY)).toHaveText('550'); // increase is the default
+
+  await page.selectOption('#ac-direction', 'decrease');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(value(page, APPLY)).toHaveText('450');
+
+  // Reset restores the structural default rather than blanking the select.
+  await page.locator(`${APPLY} [data-reset]`).click();
+  await expect(page.locator('#ac-direction')).toHaveValue('increase');
+  await expect(page.locator('#ac-value')).toHaveValue('');
+});
+
+test('the added equations stay independent of the original three', async ({ page }) => {
+  await page.fill('#pd-a', '10');
+  await page.fill('#pd-b', '6');
+  await submitOf(page, DIFF).click();
+  await expect(value(page, DIFF)).toHaveText('50');
+  // Every other equation is untouched — still showing its own example.
+  for (const eq of [OF, WHAT, CHANGE, OF_WHAT, APPLY]) {
+    await expect(shell(page, eq)).toHaveAttribute('data-result-state', 'example');
+  }
 });

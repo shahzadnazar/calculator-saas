@@ -5,7 +5,7 @@
  * exercised end-to-end. All numeric work delegates to the reviewed pure
  * `percentOf` / `whatPercent` / `percentChange`.
  */
-import { percentOf, whatPercent, percentChange } from './percent';
+import { percentOf, whatPercent, percentChange, percentOfWhat, percentageDifference, applyPercentChange } from './percent';
 import { formatNumber } from '@lib/format';
 import { accessibleResultName } from '@lib/result/state';
 import type { EquationCalculatorBinding, EquationRenderContext, ValidationResult } from '@lib/result/equation-runtime';
@@ -42,6 +42,19 @@ export interface WhatPercentOperands {
 export interface PercentChangeOperands {
   from: string;
   to: string;
+}
+export interface PercentOfWhatOperands {
+  part: string;
+  percent: string;
+}
+export interface PercentDifferenceOperands {
+  a: string;
+  b: string;
+}
+export interface ApplyChangeOperands {
+  value: string;
+  direction: string;
+  percent: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -141,6 +154,44 @@ function setValue(scope: HTMLElement, text: string, a11y: string, unit?: string)
   if (a11yEl) a11yEl.textContent = a11y;
 }
 
+/** Equation 4 — "X is Y% of what?" Both present + finite; the percentage ≠ 0
+ *  (at 0% every whole satisfies the sentence, so there is no single answer). */
+export function validatePercentOfWhat(o: PercentOfWhatOperands): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+  const part = parseFinite(o.part);
+  const percent = parseFinite(o.percent);
+  if (!isNum(part)) fieldErrors.part = 'Enter the value.';
+  if (!isNum(percent)) fieldErrors.percent = 'Enter the percentage.';
+  else if (percent === 0) fieldErrors.percent = 'Enter a percentage other than zero.';
+  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+}
+
+/** Equation 5 — percentage difference. Both present + finite; their MEAN ≠ 0,
+ *  since a zero mean leaves nothing to measure the gap against. */
+export function validatePercentDifference(o: PercentDifferenceOperands): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+  const a = parseFinite(o.a);
+  const b = parseFinite(o.b);
+  if (!isNum(a)) fieldErrors.a = 'Enter the first value.';
+  if (!isNum(b)) fieldErrors.b = 'Enter the second value.';
+  if (isNum(a) && isNum(b) && a + b === 0) {
+    fieldErrors.b = 'These two values average zero, so there is no percentage difference.';
+  }
+  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+}
+
+/** Equation 6 — apply an increase/decrease. Value + percentage present and
+ *  finite; the direction must be one of the two the select offers. */
+export function validateApplyChange(o: ApplyChangeOperands): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+  if (!isNum(parseFinite(o.value))) fieldErrors.value = 'Enter the starting value.';
+  if (!isNum(parseFinite(o.percent))) fieldErrors.percent = 'Enter the percentage.';
+  if (o.direction !== 'increase' && o.direction !== 'decrease') {
+    fieldErrors.direction = 'Choose increase or decrease.';
+  }
+  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+}
+
 /* ------------------------------------------------------------------ */
 /* Bindings                                                            */
 /* ------------------------------------------------------------------ */
@@ -213,6 +264,61 @@ export const percentChangeBinding: EquationCalculatorBinding<PercentChangeOperan
  * figure comes from `percentExamples()` — the same reviewed `percentOf` /
  * `whatPercent` / `percentChange` the calculator uses — so nothing can drift.
  */
+export const percentOfWhatBinding: EquationCalculatorBinding<PercentOfWhatOperands, number> = {
+  readOperands: (root) => ({ part: readField(root, 'part'), percent: readField(root, 'percent') }),
+  validate: validatePercentOfWhat,
+  compute: (o) => percentOfWhat(Number(o.part), Number(o.percent)),
+  resultValue: (r) => r,
+  describeResult: describeAmount,
+  renderResult(result, ctx: EquationRenderContext) {
+    setValue(ctx.result, describeAmount(result), describeAmount(result));
+  },
+  resetOperands(root) {
+    clearField(root, 'part');
+    clearField(root, 'percent');
+  },
+};
+
+export const percentDifferenceBinding: EquationCalculatorBinding<PercentDifferenceOperands, number> = {
+  readOperands: (root) => ({ a: readField(root, 'a'), b: readField(root, 'b') }),
+  validate: validatePercentDifference,
+  compute: (o) => percentageDifference(Number(o.a), Number(o.b)),
+  resultValue: (r) => r,
+  describeResult: describePercentage,
+  renderResult(result, ctx: EquationRenderContext) {
+    const text = formatNumber(result, 2);
+    setValue(ctx.result, text, accessibleResultName(text, PERCENT_UNIT), PERCENT_UNIT);
+  },
+  resetOperands(root) {
+    clearField(root, 'a');
+    clearField(root, 'b');
+  },
+};
+
+export const applyChangeBinding: EquationCalculatorBinding<ApplyChangeOperands, number> = {
+  readOperands: (root) => ({
+    value: readField(root, 'value'),
+    // The direction is a <select>, so it always has one of its two values.
+    direction: root.querySelector<HTMLSelectElement>('[name="direction"]')?.value ?? 'increase',
+    percent: readField(root, 'percent'),
+  }),
+  validate: validateApplyChange,
+  compute: (o) =>
+    applyPercentChange(Number(o.value), Number(o.percent), o.direction === 'decrease' ? 'decrease' : 'increase'),
+  resultValue: (r) => r,
+  describeResult: describeAmount,
+  renderResult(result, ctx: EquationRenderContext) {
+    setValue(ctx.result, describeAmount(result), describeAmount(result));
+  },
+  resetOperands(root) {
+    clearField(root, 'value');
+    clearField(root, 'percent');
+    // The direction is STRUCTURAL — reset restores its default rather than blanking it.
+    const dir = root.querySelector<HTMLSelectElement>('[name="direction"]');
+    if (dir) dir.value = 'increase';
+  },
+};
+
 export const PERCENT_EXAMPLES = {
   percentOf: { percent: 15, value: 200 },
   whatPercent: { part: 50, whole: 200 },
@@ -277,4 +383,12 @@ export const WHAT_PERCENT_EXAMPLE_VALUES: WhatPercentOperands = {
 export const PERCENT_CHANGE_EXAMPLE_VALUES: PercentChangeOperands = {
   from: String(PERCENT_EXAMPLES.percentChange.from),
   to: String(PERCENT_EXAMPLES.percentChange.to),
+};
+
+export const PERCENT_OF_WHAT_EXAMPLE_VALUES: PercentOfWhatOperands = { part: '30', percent: '15' };
+export const PERCENT_DIFFERENCE_EXAMPLE_VALUES: PercentDifferenceOperands = { a: '10', b: '6' };
+export const APPLY_CHANGE_EXAMPLE_VALUES: ApplyChangeOperands = {
+  value: '500',
+  direction: 'increase',
+  percent: '10',
 };

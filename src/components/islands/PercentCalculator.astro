@@ -2,7 +2,7 @@
 /**
  * Percentage calculator island (R3 — equation runtime pilot).
  *
- * Three INDEPENDENT natural-language equations, each its own `<form
+ * Six INDEPENDENT natural-language equations, each its own `<form
  * data-equation>` bound to a separate equation-runtime instance
  * (@lib/result/equation-runtime) with the percentage bindings
  * (@lib/calculators/percent-form). Task-first: operands start EMPTY. Each result
@@ -120,6 +120,106 @@ const ex = percentExamples();
       <ResultAnnouncement id="pc-live" />
     </ResultShell>
   </form>
+
+  <!-- Equation 4 — X is Y% of what? (solve for the whole) -->
+  <form class="eq card" data-equation="percent-of-what" novalidate aria-label="A number is a percentage of what">
+    <p class="eq-q">A number is a percentage of what?</p>
+    <div class="eq-line">
+      <input id="pow-part" name="part" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="30" aria-label="value" aria-describedby="pow-part-error" />
+      <span>is</span>
+      <span class="eq-in">
+        <input id="pow-percent" name="percent" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="15" aria-label="percentage" aria-describedby="pow-percent-error" />
+        <span class="eq-suffix">%</span>
+      </span>
+      <span>of what?</span>
+    </div>
+    <p class="eq-error" id="pow-part-error" data-error-for="part" hidden></p>
+    <p class="eq-error" id="pow-percent-error" data-error-for="percent" hidden></p>
+    <div class="eq-actions">
+      <button type="submit" class="btn btn-primary eq-btn">Calculate the total</button>
+      <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
+      <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
+    </div>
+    <ResultShell density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Total result" class="eq-result">
+      <ExampleNotice />
+      <EmptyResult message="Enter the value and the percentage, then calculate the total." />
+      <div data-result-when="valid">
+        <ResultSummary label="Total">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+      </div>
+      <InvalidResult message="Enter both values to calculate." />
+      <ResultAnnouncement id="pow-live" />
+    </ResultShell>
+  </form>
+
+  <!-- Equation 5 — percentage DIFFERENCE (symmetric, against the mean) -->
+  <form class="eq card" data-equation="percent-difference" novalidate aria-label="Percentage difference between two values">
+    <p class="eq-q">What is the percentage difference between two values?</p>
+    <div class="eq-line">
+      <span>Between</span>
+      <input id="pd-a" name="a" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="10" aria-label="first value" aria-describedby="pd-a-error" />
+      <span>and</span>
+      <input id="pd-b" name="b" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="6" aria-label="second value" aria-describedby="pd-b-error" />
+      <span>?</span>
+    </div>
+    <p class="eq-error" id="pd-a-error" data-error-for="a" hidden></p>
+    <p class="eq-error" id="pd-b-error" data-error-for="b" hidden></p>
+    <div class="eq-actions">
+      <button type="submit" class="btn btn-primary eq-btn">Calculate difference</button>
+      <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
+      <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
+    </div>
+    <ResultShell density="compact" minHeight="6rem" placeholderAlignment="center" boxed={false} label="Percentage difference result" class="eq-result">
+      <ExampleNotice />
+      <EmptyResult message="Enter both values, then calculate the difference." />
+      <div data-result-when="valid">
+        <ResultSummary label="Percentage difference">
+          <ResultValue value="—" unit="%" size="text-3xl" />
+        </ResultSummary>
+        <p class="eq-note">Measured against the average of the two — the order you enter them does not matter.</p>
+      </div>
+      <InvalidResult message="Enter both values to calculate." />
+      <ResultAnnouncement id="pd-live" />
+    </ResultShell>
+  </form>
+
+  <!-- Equation 6 — apply an increase / decrease to a value -->
+  <form class="eq card" data-equation="apply-change" novalidate aria-label="Increase or decrease a value by a percentage">
+    <p class="eq-q">Increase or decrease a value</p>
+    <div class="eq-line">
+      <input id="ac-value" name="value" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="500" aria-label="starting value" aria-describedby="ac-value-error" />
+      <label class="sr-only" for="ac-direction">Direction</label>
+      <select id="ac-direction" name="direction" class="field eq-select" aria-describedby="ac-direction-error">
+        <option value="increase">increased by</option>
+        <option value="decrease">decreased by</option>
+      </select>
+      <span class="eq-in">
+        <input id="ac-percent" name="percent" class="field eq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="10" aria-label="percentage" aria-describedby="ac-percent-error" />
+        <span class="eq-suffix">%</span>
+      </span>
+      <span>=</span>
+    </div>
+    <p class="eq-error" id="ac-value-error" data-error-for="value" hidden></p>
+    <p class="eq-error" id="ac-direction-error" data-error-for="direction" hidden></p>
+    <p class="eq-error" id="ac-percent-error" data-error-for="percent" hidden></p>
+    <div class="eq-actions">
+      <button type="submit" class="btn btn-primary eq-btn">Calculate new value</button>
+      <button type="button" class="btn btn-secondary eq-btn" data-reset>Reset</button>
+      <span class="eq-live-note" data-live-note hidden>Changes update automatically.</span>
+    </div>
+    <ResultShell density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="New value result" class="eq-result">
+      <ExampleNotice />
+      <EmptyResult message="Enter a value and a percentage, then calculate the new value." />
+      <div data-result-when="valid">
+        <ResultSummary label="New value">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+      </div>
+      <InvalidResult message="Enter a value and a percentage to calculate." />
+      <ResultAnnouncement id="ac-live" />
+    </ResultShell>
+  </form>
 </div>
 
 <style>
@@ -164,6 +264,16 @@ const ex = percentExamples();
     background: var(--subtle);
     color: var(--muted);
     font-weight: 600;
+  }
+  .eq-select {
+    width: auto;
+    padding-block: 0.4rem;
+  }
+  .eq-note {
+    margin: 0.4rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--muted);
   }
   .eq-error {
     margin: 0.5rem 0 0;
@@ -224,12 +334,24 @@ const ex = percentExamples();
     percentOfBinding,
     whatPercentBinding,
     percentChangeBinding,
+    percentOfWhatBinding,
+    percentDifferenceBinding,
+    applyChangeBinding,
     PERCENT_OF_EXAMPLE_VALUES,
     WHAT_PERCENT_EXAMPLE_VALUES,
     PERCENT_CHANGE_EXAMPLE_VALUES,
+    PERCENT_OF_WHAT_EXAMPLE_VALUES,
+    PERCENT_DIFFERENCE_EXAMPLE_VALUES,
+    APPLY_CHANGE_EXAMPLE_VALUES,
   } from '@lib/calculators/percent-form';
 
-  type EqKind = 'percent-of' | 'what-percent' | 'percent-change';
+  type EqKind =
+    | 'percent-of'
+    | 'what-percent'
+    | 'percent-change'
+    | 'percent-of-what'
+    | 'percent-difference'
+    | 'apply-change';
   // A heterogeneous registry: each binding has its own operand type, so the
   // registry value type is intentionally operand-agnostic (the runtime is
   // generic and each is mounted against its own matching form).
@@ -237,17 +359,26 @@ const ex = percentExamples();
     'percent-of': percentOfBinding as EquationCalculatorBinding<unknown, unknown>,
     'what-percent': whatPercentBinding as EquationCalculatorBinding<unknown, unknown>,
     'percent-change': percentChangeBinding as EquationCalculatorBinding<unknown, unknown>,
+    'percent-of-what': percentOfWhatBinding as EquationCalculatorBinding<unknown, unknown>,
+    'percent-difference': percentDifferenceBinding as EquationCalculatorBinding<unknown, unknown>,
+    'apply-change': applyChangeBinding as EquationCalculatorBinding<unknown, unknown>,
   };
   // Each equation gets its OWN example, so dismissing one leaves the other two standing.
   const EXAMPLES: Record<EqKind, unknown> = {
     'percent-of': PERCENT_OF_EXAMPLE_VALUES,
     'what-percent': WHAT_PERCENT_EXAMPLE_VALUES,
     'percent-change': PERCENT_CHANGE_EXAMPLE_VALUES,
+    'percent-of-what': PERCENT_OF_WHAT_EXAMPLE_VALUES,
+    'percent-difference': PERCENT_DIFFERENCE_EXAMPLE_VALUES,
+    'apply-change': APPLY_CHANGE_EXAMPLE_VALUES,
   };
   const LABELS: Record<EqKind, string> = {
     'percent-of': 'Calculate amount',
     'what-percent': 'Calculate percentage',
     'percent-change': 'Calculate percentage change',
+    'percent-of-what': 'Calculate the total',
+    'percent-difference': 'Calculate difference',
+    'apply-change': 'Calculate new value',
   };
 
   document.querySelectorAll<HTMLFormElement>('form[data-equation]').forEach((form) => {
