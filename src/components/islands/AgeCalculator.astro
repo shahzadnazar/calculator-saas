@@ -11,8 +11,10 @@
  * AND after hydration (the legacy island auto-calculated a 2000-01-01 → today example on load), and
  * the visitor presses "Calculate Age" for the first result (live-after-first).
  *
- * The DOMINANT result is the exact age (years / months / days); total months / weeks / days and the
- * days-to-next-birthday are supporting. NO isUsableResult — the complete-result guard lives in the
+ * The DOMINANT result is the exact age (years / months / days); the span it covers (start → end
+ * date), the totals in months / weeks / days / hours / minutes / seconds and the days-to-next-birthday
+ * are supporting. The smaller units are exact multiples of the day count — age is a civil-date span,
+ * so no time-of-day component enters the maths. NO isUsableResult — the complete-result guard lives in the
  * binding's resultValue (a finite totalDays sentinel; a same-date 0y 0m 0d is a valid finite 0). No
  * runtime change; NO shared Age/Date binding, civil-date form abstraction or shared UI component;
  * DateCalculator is untouched.
@@ -65,11 +67,18 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
         <ResultValue value="—" size="text-3xl" />
       </ResultSummary>
 
+      <p class="age-period">
+        <span data-age-from>—</span> <span class="age-period-arrow" aria-hidden="true">→</span><span class="sr-only">to</span> <span data-age-to>—</span>
+      </p>
+
       <ResultBreakdown title="In other units">
         <dl class="age-metrics">
           <div><dt>Total months</dt><dd data-age-months>—</dd></div>
           <div><dt>Total weeks</dt><dd data-age-weeks>—</dd></div>
           <div><dt>Total days</dt><dd data-age-days>—</dd></div>
+          <div><dt>Total hours</dt><dd data-age-hours>—</dd></div>
+          <div><dt>Total minutes</dt><dd data-age-minutes>—</dd></div>
+          <div><dt>Total seconds</dt><dd data-age-seconds>—</dd></div>
         </dl>
       </ResultBreakdown>
 
@@ -93,6 +102,18 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
 </div>
 
 <style>
+  /* The span the age covers, directly under the dominant value. Uses the same
+     muted token as every other supporting line — no new colour. */
+  .age-period {
+    margin: 0.4rem 0 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .age-period-arrow {
+    padding: 0 0.15rem;
+  }
+
   .age-error {
     margin: 0.3rem 0 0;
     font-size: 0.78rem;

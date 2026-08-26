@@ -13,6 +13,7 @@ import {
   type AgeComputed,
 } from './age-form';
 import { calculateAge, parseISODateUTC } from './age';
+import { ageDate, weeksAndDays } from './age-form';
 
 /**
  * Age binding unit tests (R18C1). Validation, computation (delegating to the FROZEN calculateAge —
@@ -193,5 +194,60 @@ describe('age binding — description + interpretation + DOM', () => {
     ageBinding.resetValues(root, 'personal');
     expect(store.dob.value).toBe('');
     expect(store.at.value).toBe('');
+  });
+});
+
+
+/* ------------------------------------------------------------------ */
+/* Period covered + the finer units (presentation)                     */
+/* ------------------------------------------------------------------ */
+
+describe('the span the age covers', () => {
+  it('formats each civil date in long form, in UTC (no timezone drift)', () => {
+    expect(ageDate('1991-06-15')).toBe('15 June 1991');
+    expect(ageDate('2026-08-26')).toBe('26 August 2026');
+    // A date that would roll backwards a day under a negative-offset local zone.
+    expect(ageDate('2024-01-01')).toBe('1 January 2024');
+  });
+
+  it('renders the pair the result shows as start and end', () => {
+    const r = computeAge({ dob: '1991-06-15', at: '2026-08-26' });
+    expect([ageDate(r.dobISO), ageDate(r.atISO)]).toEqual(['15 June 1991', '26 August 2026']);
+  });
+});
+
+describe('weeks with the leftover days', () => {
+  it('adds the remainder when there is one', () => {
+    const r = computeAge({ dob: '2006-02-03', at: '2026-08-26' });
+    expect(weeksAndDays(r)).toBe('1,072 + 5 days');
+  });
+
+  it('drops the remainder on an exact number of weeks', () => {
+    const r = computeAge({ dob: '2026-08-05', at: '2026-08-26' }); // exactly 3 weeks
+    expect(weeksAndDays(r)).toBe('3');
+  });
+
+  it('says "1 day", not "1 days"', () => {
+    const r = computeAge({ dob: '2026-08-04', at: '2026-08-26' }); // 22 days = 3w 1d
+    expect(weeksAndDays(r)).toBe('3 + 1 day');
+  });
+
+  it('never repeats the unit already carried by the row label', () => {
+    const r = computeAge({ dob: '2006-02-03', at: '2026-08-26' });
+    expect(weeksAndDays(r)).not.toMatch(/weeks/);
+  });
+});
+
+describe('the complete-result guard covers the new fields', () => {
+  it('accepts a coherent result carrying hours, minutes and seconds', () => {
+    const r = computeAge({ dob: '1991-06-15', at: '2026-08-26' });
+    expect(Number.isFinite(completeAgeValue(r))).toBe(true);
+  });
+
+  it('rejects a result whose finer units were tampered with', () => {
+    const r = computeAge({ dob: '1991-06-15', at: '2026-08-26' });
+    expect(Number.isNaN(completeAgeValue({ ...r, totalHours: r.totalHours + 1 }))).toBe(true);
+    expect(Number.isNaN(completeAgeValue({ ...r, totalSeconds: 0 }))).toBe(true);
+    expect(Number.isNaN(completeAgeValue({ ...r, totalWeeksRemainderDays: 9 }))).toBe(true);
   });
 });

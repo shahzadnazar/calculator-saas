@@ -19,6 +19,9 @@ const primary = (page: Page) => page.locator('#age-result [data-result-when~="va
 const summaryLabel = (page: Page) => page.locator('#age-result [data-result-summary-label]');
 const months = (page: Page) => page.locator('[data-age-months]');
 const weeks = (page: Page) => page.locator('[data-age-weeks]');
+const hours = (page: Page) => page.locator('[data-age-hours]');
+const minutes = (page: Page) => page.locator('[data-age-minutes]');
+const seconds = (page: Page) => page.locator('[data-age-seconds]');
 const days = (page: Page) => page.locator('[data-age-days]');
 const next = (page: Page) => page.locator('[data-age-next]');
 const interpretation = (page: Page) => page.locator('[data-age-interpretation]');
@@ -91,8 +94,15 @@ test.describe('age: task-first', () => {
     await expect(summaryLabel(page)).toHaveText('Exact age');
     await expect(primary(page)).toHaveText('30 years, 0 months, 0 days');
     await expect(months(page)).toHaveText('360'); // total months
-    await expect(weeks(page)).toHaveText(/^[\d,]+$/);
-    await expect(days(page)).toHaveText(/^[\d,]+$/);
+    await expect(weeks(page)).toHaveText(/^[\d,]+( \+ \d days?)?$/); // whole weeks + leftover days
+    // 30 years to the day = 10,958 days; the finer units are exact multiples of it.
+    await expect(days(page)).toHaveText('10,958');
+    await expect(hours(page)).toHaveText('262,992'); // 10,958 x 24
+    await expect(minutes(page)).toHaveText('15,779,520');
+    await expect(seconds(page)).toHaveText('946,771,200');
+    // The span the age covers, start to end.
+    await expect(page.locator('[data-age-from]')).toHaveText('15 June 1990');
+    await expect(page.locator('[data-age-to]')).toHaveText('15 June 2020');
     await expect(next(page)).toHaveText(/^[\d,]+$/);
     await expect(interpretation(page)).toContainText('until the next birthday');
     await expect(live(page)).toHaveText('Exact age: 30 years, 0 months, 0 days.');
@@ -106,6 +116,9 @@ test.describe('age: task-first', () => {
     await expect(months(page)).toHaveText('0');
     await expect(weeks(page)).toHaveText('0');
     await expect(days(page)).toHaveText('0');
+    await expect(hours(page)).toHaveText('0');
+    await expect(minutes(page)).toHaveText('0');
+    await expect(seconds(page)).toHaveText('0');
     await expect(live(page)).toHaveText('Exact age: 0 years, 0 months, 0 days.');
   });
 
