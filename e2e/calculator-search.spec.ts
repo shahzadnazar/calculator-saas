@@ -269,3 +269,84 @@ test('multiple instances fetch the index only once', async ({ page }) => {
   await page.waitForTimeout(200);
   expect(reqs.length).toBe(1);
 });
+
+/* ---- The home page's hero search ---------------------------------------- */
+
+/**
+ * The hero used to be a plain GET form with no dropdown. It is now the SAME
+ * combobox as everywhere else, so these tests cover the wiring — that the live
+ * listbox actually appears on `/` and still degrades to a real form — not the
+ * ranking, which the tests above already own.
+ */
+test.describe('home page hero search', () => {
+  const input = (page: Page) => page.locator('#hero-search-input');
+  const panel = (page: Page) => page.locator('#hero-search [data-calc-search-panel]');
+  const options = (page: Page) => page.locator('#hero-search [role="option"]');
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+  });
+
+  test('typing opens a live dropdown of matching calculators', async ({ page }) => {
+    await expect(panel(page)).toBeHidden();
+    await input(page).click();
+    await input(page).pressSequentially('mort', { delay: 30 });
+    await expect(panel(page)).toBeVisible();
+    await expect(options(page).first()).toContainText('Mortgage Calculator');
+    await expect(options(page).first()).toContainText('Finance');
+  });
+
+  test('the list narrows as more is typed, and clears back out', async ({ page }) => {
+    await input(page).click();
+    await input(page).pressSequentially('c', { delay: 30 });
+    const broad = await options(page).count();
+    await input(page).pressSequentially('alorie', { delay: 30 });
+    await expect(options(page).first()).toContainText('Calorie Calculator');
+    expect(await options(page).count()).toBeLessThanOrEqual(broad);
+  });
+
+  test('is a real combobox: aria-expanded, keyboard selection and Escape', async ({ page }) => {
+    await expect(input(page)).toHaveAttribute('role', 'combobox');
+    await expect(input(page)).toHaveAttribute('aria-expanded', 'false');
+    await input(page).click();
+    await input(page).pressSequentially('bmi', { delay: 30 });
+    await expect(input(page)).toHaveAttribute('aria-expanded', 'true');
+    await input(page).press('ArrowDown');
+    await expect(options(page).first()).toHaveAttribute('aria-selected', 'true');
+    await input(page).press('Escape');
+    await expect(panel(page)).toBeHidden();
+  });
+
+  test('Enter on a highlighted option opens that calculator', async ({ page }) => {
+    await input(page).click();
+    await input(page).pressSequentially('mortgage', { delay: 30 });
+    await input(page).press('ArrowDown');
+    await input(page).press('Enter');
+    await page.waitForURL('**/finance/mortgage-calculator');
+  });
+
+  test('still submits to /calculators when nothing is highlighted', async ({ page }) => {
+    await input(page).fill('interest');
+    await page.locator('#hero-search button[type="submit"]').click();
+    await page.waitForURL('**/calculators?q=interest');
+  });
+
+  test('a query with no match offers something rather than a dead end', async ({ page }) => {
+    await input(page).click();
+    await input(page).pressSequentially('zzzzqqq', { delay: 30 });
+    await expect(panel(page)).toBeVisible();
+    await expect(panel(page)).not.toHaveText('');
+  });
+
+  test('the dropdown does not push the page sideways on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await input(page).click();
+    await input(page).pressSequentially('mort', { delay: 30 });
+    await expect(panel(page)).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+});
