@@ -346,17 +346,15 @@ export const loanBinding: FormCalculatorBinding<LoanFormValues, LoanComputed> = 
 };
 
 /* ------------------------------------------------------------------ */
-/* Starting values (arrive-filled)                                     */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
 /* ------------------------------------------------------------------ */
 
 /**
- * The values this calculator arrives filled with, so the visitor lands on a real
- * worked result they can type over instead of an empty form. They are OURS, not
- * the visitor's: the runtime computes them silently on mount (`prefill`), and
- * Reset still clears the form to blank rather than restoring them.
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
  */
-export const LOAN_STARTING_VALUES = {
-  amount: '25000',
-  annualInterestRate: '7.5',
-  termYears: '5',
-} as const;
+export const LOAN_EXAMPLE_VALUES: LoanFormValues = { amount: '25000', annualInterestRate: '7.5', termYears: '5' };

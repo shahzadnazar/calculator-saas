@@ -43,8 +43,9 @@ test('loads empty: blank fields, empty result, Calculate Investment Growth, no a
     await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
   }
   await expect(submit(page)).toHaveText('Calculate Investment Growth');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The example fills this calculator's OWN valid region, so it is visible on load.
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(live(page)).toHaveText('');
 });
 
@@ -251,7 +252,7 @@ test.describe('guide embed (investing-for-beginners)', () => {
     await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-investment]')).toHaveCount(1);
     await expect(page.locator('[name="startingAmount"]')).toHaveValue('');
-    await expect(page.locator('#inv-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#inv-result')).toHaveAttribute('data-result-state', 'example');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1); // no duplicated H1
   });
 

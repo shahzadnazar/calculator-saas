@@ -41,13 +41,14 @@ test('loads empty: personal fields blank, structural defaults set, result empty,
   }
   await expect(page.locator('[name="activity"]')).toHaveValue('1.55'); // Moderate default
   await expect(page.locator('[name="goalKey"]')).toHaveValue('maintain');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate Calorie Needs');
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
 });
 
 test('does not calculate automatically before the first submission', async ({ page }) => {
@@ -282,7 +283,7 @@ for (const guide of ['complete-guide-to-healthy-weight', 'bmi-bmr-and-calories-e
   test(`the guide that embeds the island (${guide}) renders the migrated task-first tool`, async ({ page }) => {
     await page.goto(`/guides/${guide}`, { waitUntil: 'domcontentloaded' });
     const island = page.locator('[data-calorie]');
-    await expect(page.locator('#cal-result')).toHaveAttribute('data-result-state', 'empty'); // empty, not prefilled
+    await expect(page.locator('#cal-result')).toHaveAttribute('data-result-state', 'example'); // empty, not prefilled
     await island.locator('[name="age"]').fill('30');
     await island.locator('[name="heightCm"]').fill('180');
     await island.locator('[name="weightKg"]').fill('80');

@@ -6,9 +6,8 @@ import { test, expect, type Page } from '@playwright/test';
  * The defining property is INDEPENDENCE: three equations, each its own form +
  * runtime instance. These tests hold that isolation (calc / live / invalid /
  * reset / announce all stay scoped to one equation) alongside the usual
- * doctrine checks (empty operands under a labelled Example result, first-calc
- * gate, no NaN, focus, aria, mobile order, theming). Example dismissal is itself
- * per-equation: dismissing one leaves the other two examples standing.
+ * doctrine checks (empty initial state, first-calc gate, no NaN, focus, aria,
+ * mobile order, theming).
  */
 const ROUTE = '/math/percent-calculator';
 const DEBOUNCE = 300;
@@ -29,15 +28,13 @@ test.beforeEach(async ({ page }) => {
 
 /* ---- Initial state ------------------------------------------------------ */
 
-test('all operands start EMPTY under a labelled Example; three task-specific Calculate buttons', async ({ page }) => {
+test('all operands and results start empty; three task-specific Calculate buttons', async ({ page }) => {
   for (const id of ['pof-percent', 'pof-value', 'wp-part', 'wp-whole', 'pc-from', 'pc-to']) {
     await expect(page.locator(`#${id}`)).toHaveValue('');
   }
   for (const eq of [OF, WHAT, CHANGE]) {
     await expect(shell(page, eq)).toHaveAttribute('data-result-state', 'example');
-    await expect(page.locator(`${eq} [data-result-when~="example"]`)).toBeVisible();
-    await expect(page.locator(`${eq} [data-result-when~="valid"]`)).toBeHidden();
-    await expect(liveOf(page, eq)).toHaveText(''); // an example is never announced
+    await expect(liveOf(page, eq)).toHaveText('');
   }
   await expect(submitOf(page, OF)).toHaveText('Calculate amount');
   await expect(submitOf(page, WHAT)).toHaveText('Calculate percentage');
@@ -51,54 +48,6 @@ test('no equation calculates before its own Calculate is pressed', async ({ page
   await expect(shell(page, OF)).toHaveAttribute('data-result-state', 'empty');
 });
 
-/* ---- Labelled Example state (per equation) ------------------------------ */
-
-test('each example is badged, states its own question and shows engine-computed figures', async ({ page }) => {
-  const ex = (eq: string) => page.locator(`${eq} [data-result-when~="example"]`);
-  await expect(ex(OF).locator('.result-example__badge')).toHaveText(/Example/);
-  await expect(ex(OF)).toContainText('what is 15% of 200');
-  await expect(ex(OF).locator('[data-result-value]')).toHaveText('30');
-  await expect(ex(WHAT)).toContainText('50 is what percent of 200');
-  await expect(ex(WHAT).locator('[data-result-value]')).toHaveText('25');
-  await expect(ex(CHANGE)).toContainText('from 80 to 100');
-  await expect(ex(CHANGE).locator('[data-result-value]')).toHaveText('25');
-  await expect(ex(CHANGE).locator('[data-direction]')).toHaveText('increase');
-  for (const eq of [OF, WHAT, CHANGE]) {
-    await expect(ex(eq)).not.toContainText(/NaN|Infinity|undefined/);
-  }
-});
-
-test('"Start with my values" clears ONLY its own example and hands over that equation', async ({ page }) => {
-  await page.locator(`${OF} [data-example-dismiss]`).click();
-  await expect(shell(page, OF)).toHaveAttribute('data-result-state', 'empty');
-  await expect(page.locator(`${OF} [data-result-when~="example"]`)).toBeHidden();
-  await expect(page.locator(`${OF} [data-result-when~="empty"]`)).toBeVisible();
-  await expect(page.locator('#pof-percent')).toHaveValue('');
-  await expect(page.locator('#pof-percent')).toBeFocused();
-  // The other two equations are completely unaffected.
-  await expect(shell(page, WHAT)).toHaveAttribute('data-result-state', 'example');
-  await expect(shell(page, CHANGE)).toHaveAttribute('data-result-state', 'example');
-});
-
-test('typing into one equation drops only that example, immediately', async ({ page }) => {
-  await page.fill('#wp-part', '7');
-  await expect(shell(page, WHAT)).toHaveAttribute('data-result-state', 'empty');
-  await expect(page.locator('#wp-part')).toHaveValue('7'); // the keystroke is kept
-  await expect(shell(page, OF)).toHaveAttribute('data-result-state', 'example');
-  await expect(shell(page, CHANGE)).toHaveAttribute('data-result-state', 'example');
-});
-
-test('an example is replaced by the visitor\'s own result and never returns after Reset', async ({ page }) => {
-  await page.fill('#pof-percent', '15');
-  await page.fill('#pof-value', '200');
-  await submitOf(page, OF).click();
-  await expect(shell(page, OF)).toHaveAttribute('data-result-state', 'valid');
-  await expect(page.locator(`${OF} [data-result-when~="example"]`)).toBeHidden();
-  await page.locator(`${OF} [data-reset]`).click();
-  await expect(shell(page, OF)).toHaveAttribute('data-result-state', 'empty');
-  await expect(page.locator(`${OF} [data-result-when~="example"]`)).toBeHidden();
-});
-
 /* ---- Independent calculation -------------------------------------------- */
 
 test('each equation calculates independently and never overwrites another', async ({ page }) => {
@@ -107,7 +56,6 @@ test('each equation calculates independently and never overwrites another', asyn
   await page.fill('#pof-value', '200');
   await submitOf(page, OF).click();
   await expect(value(page, OF)).toHaveText('30');
-  // Untouched neighbours keep their own examples — nothing about eq1 reached them.
   await expect(shell(page, WHAT)).toHaveAttribute('data-result-state', 'example');
   await expect(shell(page, CHANGE)).toHaveAttribute('data-result-state', 'example');
   await expect(liveOf(page, WHAT)).toHaveText(''); // announcement scoped to eq1
@@ -147,7 +95,7 @@ test('live-after-first updates only its own equation', async ({ page }) => {
   await page.fill('#pof-value', '200');
   await submitOf(page, OF).click();
   await expect(value(page, OF)).toHaveText('30');
-  // Editing eq1 live-updates eq1 only; eq2 is untouched (never typed into, never calculated).
+  // Editing eq1 live-updates eq1 only; eq2 stays empty (never calculated).
   await page.fill('#pof-value', '300');
   await page.waitForTimeout(DEBOUNCE);
   await expect(value(page, OF)).toHaveText('45');

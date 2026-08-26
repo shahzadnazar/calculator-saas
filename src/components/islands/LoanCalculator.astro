@@ -23,10 +23,9 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
-import { LOAN_STARTING_VALUES as START } from '@lib/calculators/loan-form';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { LOAN_EXAMPLE_VALUES } from '@lib/calculators/loan-form';
 
-// Arrive-filled: the runtime computes these once on mount so the visitor can type straight over a
-// real result. Rendered server-side, so the form is filled even before the island hydrates.
 ---
 
 <div class="loan mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2" data-loan>
@@ -37,7 +36,7 @@ import { LOAN_STARTING_VALUES as START } from '@lib/calculators/loan-form';
         <label class="field-label" for="loan-amount">Loan amount</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="loan-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 25000" aria-describedby="loan-amount-error" value={START.amount} />
+          <input class="field rounded-l-none" id="loan-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 25000" aria-describedby="loan-amount-error" />
         </div>
         <p class="loan-field-error" id="loan-amount-error" data-error-for="amount" hidden></p>
       </div>
@@ -45,7 +44,7 @@ import { LOAN_STARTING_VALUES as START } from '@lib/calculators/loan-form';
       <div data-field="annualInterestRate">
         <label class="field-label" for="loan-rate">Interest rate</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="loan-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 7" aria-describedby="loan-rate-error" value={START.annualInterestRate} />
+          <input class="field rounded-r-none" id="loan-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 7" aria-describedby="loan-rate-error" />
           <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
         <p class="loan-field-error" id="loan-rate-error" data-error-for="annualInterestRate" hidden></p>
@@ -53,7 +52,7 @@ import { LOAN_STARTING_VALUES as START } from '@lib/calculators/loan-form';
 
       <div data-field="termYears">
         <label class="field-label" for="loan-term">Term (years)</label>
-        <input class="field" id="loan-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 5" aria-describedby="loan-term-error" value={START.termYears} />
+        <input class="field" id="loan-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 5" aria-describedby="loan-term-error" />
         <p class="loan-field-error" id="loan-term-error" data-error-for="termYears" hidden></p>
       </div>
     </div>
@@ -67,6 +66,7 @@ import { LOAN_STARTING_VALUES as START } from '@lib/calculators/loan-form';
 
   <!-- Result -->
   <ResultShell id="loan-result" state="empty" density="standard" label="Loan result" minHeight="12rem">
+    <ExampleNotice />
     <EmptyResult message="Enter your loan amount, interest rate, and term, then calculate to see your monthly payment and payoff schedule." />
 
     <div data-result-when="valid">
@@ -264,12 +264,12 @@ import { LOAN_STARTING_VALUES as START } from '@lib/calculators/loan-form';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { loanBinding } from '@lib/calculators/loan-form';
+  import { loanBinding, LOAN_EXAMPLE_VALUES } from '@lib/calculators/loan-form';
 
   document.querySelectorAll<HTMLElement>('[data-loan]').forEach((root) => {
     mountFormCalculator(root, loanBinding, {
       recalculationMode: 'live-after-first',
-      prefill: true,
+      example: { values: LOAN_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Loan Payment',
     });
 

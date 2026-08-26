@@ -15,7 +15,7 @@
  * the entered distance in place (via the binding's convertValues). There is no
  * solve-for-time / solve-for-distance mode.
  */
-import { RACE_DISTANCES } from '@lib/calculators/pace-form';
+import { RACE_DISTANCES, PACE_EXAMPLE_VALUES } from '@lib/calculators/pace-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -24,6 +24,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="pace mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-pace>
@@ -92,6 +93,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="24rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter a distance and elapsed time, then calculate your pace." />
 
     <div data-result-when="valid">
@@ -280,11 +282,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { paceBinding } from '@lib/calculators/pace-form';
+  import { paceBinding, PACE_EXAMPLE_VALUES } from '@lib/calculators/pace-form';
 
   document.querySelectorAll<HTMLElement>('[data-pace]').forEach((root) =>
     mountFormCalculator(root, paceBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: PACE_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Pace',
     }),
   );

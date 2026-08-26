@@ -57,6 +57,13 @@ export interface EquationCalculatorBinding<O, R> {
 export interface EquationCalculatorOptions {
   calculateButtonLabel: string;
   recalculationMode?: RecalculationMode;
+  /**
+   * Opt in to a labelled worked EXAMPLE in this equation's result panel on first
+   * load. `values` are example operands in the binding's own shape; the runtime
+   * computes them and calls `renderResult`, so the example reuses the equation's
+   * OWN result markup. The visitor's operands are never written to.
+   */
+  example?: { values: unknown };
 }
 
 /* ------------------------------------------------------------------ */
@@ -77,6 +84,12 @@ export type EquationTrigger =
   | { kind: 'submit' }
   | { kind: 'input' }
   | { kind: 'reset' }
+  /**
+   * Render a labelled worked EXAMPLE into this equation's result panel on mount,
+   * computed from example operands the island supplies — never from the visitor's
+   * fields, which stay empty. Per-equation, like every other trigger.
+   */
+  | { kind: 'showExample' }
   /**
    * Leave a server-rendered worked example and hand this equation's panel to the
    * visitor. `action` is the explicit "Start with my values" button (focus moves
@@ -152,6 +165,42 @@ export function planEquationAction(
           clearOperands: true,
         },
       };
+
+    case 'showExample': {
+      // The example is OURS, not the visitor's: silent, never moves focus, and
+      // never touches their (empty) operands.
+      const usable = probe != null && probe.validation.ok && probe.resultFinite;
+      if (!usable) {
+        // Our own example operands failed. Fall back to the ordinary empty-first
+        // load rather than showing a broken example.
+        return {
+          next: INITIAL_EQUATION_STATE,
+          effects: {
+            compute: false,
+            announce: 'none',
+            focus: 'none',
+            liveNote: false,
+            fieldErrors: 'clear',
+            clearOperands: false,
+          },
+        };
+      }
+      return {
+        next: {
+          status: reduceResult(state.status, { type: 'showExample' }),
+          // An example is NOT the visitor's first calculation — the live gate stays shut.
+          hasCalculated: false,
+        },
+        effects: {
+          compute: true, // renderResult fills this equation's OWN valid region
+          announce: 'none',
+          focus: 'none',
+          liveNote: false,
+          fieldErrors: 'clear',
+          clearOperands: false,
+        },
+      };
+    }
 
     case 'dismissExample': {
       // Protection: only the `example` state can be dismissed, so a stray click
@@ -366,7 +415,12 @@ export function mountEquationCalculator<O, R>(
     let probe: EquationProbe | null = null;
 
     if (trigger.kind !== 'reset' && trigger.kind !== 'dismissExample') {
-      const operands = binding.readOperands(root);
+      // The example computes from ITS OWN operands; every other trigger reads the
+      // visitor's fields. This is what keeps the operands empty behind an example.
+      const operands =
+        trigger.kind === 'showExample'
+          ? (options.example!.values as O)
+          : binding.readOperands(root);
       const validation = binding.validate(operands);
       let resultFinite = false;
       if (validation.ok) {
@@ -432,6 +486,10 @@ export function mountEquationCalculator<O, R>(
   resetBtn?.addEventListener('click', onReset);
   const dismissBtns = Array.from(root.querySelectorAll<HTMLElement>('[data-example-dismiss]'));
   for (const btn of dismissBtns) btn.addEventListener('click', onDismissExample);
+
+  // Render the worked example once, AFTER wiring, so the dismiss action and the
+  // first-keystroke path are already live.
+  if (options.example) run({ kind: 'showExample' });
 
   return {
     destroy() {

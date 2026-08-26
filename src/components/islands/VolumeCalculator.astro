@@ -18,13 +18,14 @@
  * step. On Reset the runtime restores cube + m and clears every field; the island re-syncs visibility.
  */
 import { VOLUME_SHAPES } from '@lib/calculators/volume';
-import { VOLUME_UNITS, DEFAULT_SHAPE, DEFAULT_UNIT } from '@lib/calculators/volume-form';
+import { VOLUME_UNITS, DEFAULT_SHAPE, DEFAULT_UNIT, VOLUME_EXAMPLE_VALUES } from '@lib/calculators/volume-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="volume mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-volume>
@@ -85,6 +86,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="vo-result" state="empty" density="standard" label="Volume result" minHeight="14rem">
+    <ExampleNotice />
     <EmptyResult message="Choose a shape and enter its dimensions to calculate the volume." />
 
     <div data-result-when="valid" class="text-center">
@@ -126,11 +128,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { volumeBinding, DEFAULT_SHAPE, DEFAULT_UNIT } from '@lib/calculators/volume-form';
+  import { volumeBinding, DEFAULT_SHAPE, DEFAULT_UNIT, VOLUME_EXAMPLE_VALUES } from '@lib/calculators/volume-form';
 
   document.querySelectorAll<HTMLElement>('[data-volume]').forEach((root) => {
     mountFormCalculator(root, volumeBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: VOLUME_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Volume',
     });
 

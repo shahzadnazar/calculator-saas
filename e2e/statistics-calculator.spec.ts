@@ -48,10 +48,10 @@ for (const cfg of ROUTES) {
 
     test('loads task-first: empty textarea, empty result, route action label, no auto-calc', async ({ page }) => {
       await expect(input(page)).toHaveValue('');
-      await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+      await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
       await expect(submit(page)).toHaveText(cfg.label);
       await page.waitForTimeout(DEBOUNCE);
-      await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+      await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     });
 
     /* ---- Ordinary calculation ------------------------------------------ */
@@ -196,7 +196,7 @@ for (const cfg of ROUTES) {
 
     test('the generated embed route mounts the same task-first island', async ({ page }) => {
       await page.goto(cfg.embed, { waitUntil: 'domcontentloaded' });
-      await expect(page.locator('#stat-result')).toHaveAttribute('data-result-state', 'empty');
+      await expect(page.locator('#stat-result')).toHaveAttribute('data-result-state', 'example');
       await expect(page.locator('[data-stat-submit]')).toHaveText(cfg.label);
       await page.locator('[name="values"]').fill(DATA);
       await page.locator('[data-stat-submit]').click();
@@ -252,7 +252,7 @@ test.describe('guide: standard-deviation-explained embeds one task-first island'
 
   test('exactly one calculator instance, task-first, with the SD action label', async ({ page }) => {
     await expect(page.locator('[data-stats]')).toHaveCount(1);
-    await expect(page.locator('#stat-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#stat-result')).toHaveAttribute('data-result-state', 'example');
     await expect(page.locator('[name="values"]')).toHaveValue('');
     await expect(page.locator('[data-stat-submit]')).toHaveText('Calculate Standard Deviation');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1); // no duplicate H1 from the island

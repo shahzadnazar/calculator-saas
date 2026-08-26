@@ -25,6 +25,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="salestax mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-tax>
@@ -96,6 +97,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter an amount and tax rate, then add or remove sales tax." />
 
     <div data-result-when="valid">
@@ -218,11 +220,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { salesTaxBinding } from '@lib/calculators/sales-tax-form';
+  import { salesTaxBinding, SALES_TAX_EXAMPLE_VALUES } from '@lib/calculators/sales-tax-form';
 
   document.querySelectorAll<HTMLElement>('[data-tax]').forEach((root) => {
     mountFormCalculator(root, salesTaxBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: SALES_TAX_EXAMPLE_VALUES },
       calculateButtonLabel: 'Add Sales Tax',
     });
 

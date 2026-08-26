@@ -133,12 +133,16 @@ export interface FormCalculatorOptions {
   calculateButtonLabel: string;
   persistStructuralPreferences?: boolean;
   /**
-   * Opt in to computing once on mount from the server-rendered starting values,
-   * so the visitor lands on a filled form beside a real result to edit over.
-   * Silent, and never moves focus or scrolls. Defaults to false — every
-   * calculator that omits it keeps its empty-first load unchanged.
+   * Opt in to a labelled worked EXAMPLE in the result panel on first load.
+   *
+   * `values` are example inputs in the binding's own value shape. The runtime
+   * computes them and calls the binding's `renderResult`, so the example reuses
+   * the calculator's OWN result markup and can never drift from the engine.
+   * The visitor's fields are never written to — they load and stay empty.
+   *
+   * Omitted by default: a calculator without it keeps its plain empty-first load.
    */
-  prefill?: boolean;
+  example?: { values: unknown };
 }
 
 /**
@@ -175,13 +179,14 @@ export type FormTrigger =
   | { kind: 'unit' } // the unit system changed (structural)
   | { kind: 'reset' }
   /**
-   * Compute once on mount from server-rendered starting values, so the visitor
-   * lands on a filled form beside a real worked result they can edit over.
+   * Render a labelled worked EXAMPLE into the result panel on mount, computed
+   * from example values the calculator supplies — never from the visitor's
+   * fields, which stay empty.
    *
-   * Only for a calculator that OPTS IN with `prefill: true`; every other
-   * calculator never reaches this trigger and keeps its empty-first load.
+   * Only for a calculator that OPTS IN with the `example` option; every other
+   * calculator never reaches this trigger and keeps its plain empty-first load.
    */
-  | { kind: 'prefill' }
+  | { kind: 'showExample' }
   /**
    * Leave a server-rendered worked example and hand the panel to the visitor.
    * `action` is the explicit "Start with my values" button (focus moves to the
@@ -271,14 +276,13 @@ export function planFormAction(
         },
       };
 
-    case 'prefill': {
-      // Starting values are ours, not the visitor's, so this is silent and never
-      // moves focus or scrolls — the page must land exactly where it loaded.
+    case 'showExample': {
+      // The example is OURS, not the visitor's: silent, never moves focus or
+      // scrolls, and never touches their (empty) fields.
       const usable = probe != null && probe.validation.ok && probe.resultUsable;
       if (!usable) {
-        // Our own defaults failed to produce a usable result. Fall back to the
-        // ordinary empty-first load rather than greeting the visitor with an
-        // error they did not cause.
+        // Our own example values failed to produce a usable result. Fall back to
+        // the ordinary empty-first load rather than showing a broken example.
         return {
           next: INITIAL_FORM_STATE,
           effects: {
@@ -293,18 +297,18 @@ export function planFormAction(
       }
       return {
         next: {
-          status: reduceResult(state.status, { type: 'calculate', valid: true }),
-          // The first calculation HAS happened, so editing over the starting
-          // values updates live — that is the whole point of arriving filled.
-          hasCalculated: true,
+          status: reduceResult(state.status, { type: 'showExample' }),
+          // An example is NOT the visitor's first calculation, so the live gate
+          // stays shut: they still make an explicit first Calculate.
+          hasCalculated: false,
         },
         effects: {
-          compute: true,
-          announce: 'none', // never announce an unrequested result on page load
+          compute: true, // renderResult fills the calculator's OWN valid region
+          announce: 'none', // never announce a result the visitor did not ask for
           focus: 'none',
-          liveNote: mode !== 'explicit',
+          liveNote: false,
           fieldErrors: 'clear',
-          clearValues: false,
+          clearValues: false, // the visitor's fields are empty and stay empty
         },
       };
     }
@@ -605,7 +609,12 @@ export function mountFormCalculator<V, R>(
     let probe: FormProbe | null = null;
 
     if (trigger.kind !== 'reset' && trigger.kind !== 'dismissExample') {
-      const values = binding.readValues(root);
+      // The example computes from ITS OWN values; every other trigger reads the
+      // visitor's fields. This is what keeps the fields empty behind an example.
+      const values =
+        trigger.kind === 'showExample'
+          ? (options.example!.values as V)
+          : binding.readValues(root);
       const validation = binding.validate(values);
       let resultUsable = false;
       if (validation.ok) {
@@ -660,8 +669,14 @@ export function mountFormCalculator<V, R>(
 
     // 5b. Track the previous valid result per instance. Reset forgets it; an invalid
     //     update leaves the last valid result intact (never a false transition).
+    //     The EXAMPLE is deliberately never committed: it is not the visitor's
+    //     result, so their first real calculation must still read as a first
+    //     result ("Your healthy-weight range is…"), not as a transition from the
+    //     example ("…updated for male").
     if (trigger.kind === 'reset') description.reset();
-    else if (effects.compute && result != null) description.commit(result);
+    else if (trigger.kind !== 'showExample' && effects.compute && result != null) {
+      description.commit(result);
+    }
 
     // 6. Live note.
     if (note) note.hidden = !effects.liveNote;
@@ -717,10 +732,10 @@ export function mountFormCalculator<V, R>(
     });
   }
 
-  // Compute the server-rendered starting values once, AFTER wiring, so the
-  // visitor's very first edit is already a live update. A calculator that did
-  // not opt in never runs this and loads empty exactly as before.
-  if (options.prefill) run({ kind: 'prefill' });
+  // Render the worked example once, AFTER wiring, so the dismiss action and the
+  // first-keystroke path are already live. A calculator that did not opt in
+  // never runs this and loads empty exactly as before.
+  if (options.example) run({ kind: 'showExample' });
 
   return {
     destroy() {

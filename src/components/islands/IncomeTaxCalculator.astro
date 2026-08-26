@@ -32,6 +32,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="incometax mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-incometax>
@@ -45,7 +46,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       </div>
     </fieldset>
 
-    <div class="mt-5 space-y-4">
+    <div class="mt-5 grid grid-cols-2 gap-4">
       <div data-field="grossIncome">
         <label class="field-label" for="it-gross">Gross annual income</label>
         <div class="flex">
@@ -104,6 +105,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your income, choose a filing status, then calculate your estimated tax." />
 
     <div data-result-when="valid">
@@ -236,7 +238,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { incomeTaxBinding } from '@lib/calculators/income-tax-form';
+  import { incomeTaxBinding, INCOME_TAX_EXAMPLE_VALUES } from '@lib/calculators/income-tax-form';
   import { STANDARD_DEDUCTION } from '@lib/calculators/income-tax';
   import { formatCurrencyRounded } from '@lib/format';
 
@@ -274,6 +276,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, incomeTaxBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: INCOME_TAX_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Tax',
     });
 

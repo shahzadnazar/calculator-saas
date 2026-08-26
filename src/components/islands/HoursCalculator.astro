@@ -22,6 +22,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="hours mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-hours>
@@ -57,6 +58,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="hr-result" state="empty" density="standard" label="Hours result" minHeight="16rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Enter a start time, end time and any break, then calculate the total time worked." />
 
     <div data-result-when="valid">
@@ -138,7 +140,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { hoursBinding } from '@lib/calculators/hours-form';
+  import { hoursBinding, HOURS_EXAMPLE_VALUES } from '@lib/calculators/hours-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -173,6 +175,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     if (document.querySelectorAll('[data-hours]').length > 1) uniquifyStaticIds(root, `h${++ns}`);
     mountFormCalculator(root, hoursBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: HOURS_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Hours',
     });
   });

@@ -242,3 +242,17 @@ export const HEART_RATE_ZONES: ReadonlyArray<Pick<HeartRateZone, 'name' | 'lowPc
     lowPct: z.lowPct,
     highPct: z.highPct,
   }));
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
+ */
+export const TARGET_HEART_RATE_EXAMPLE_VALUES: TargetHeartRateValues = { age: '35', restingHr: '65' };

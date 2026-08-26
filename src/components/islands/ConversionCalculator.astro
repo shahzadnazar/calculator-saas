@@ -21,7 +21,7 @@
  * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
  */
 import { CATEGORIES } from '@lib/calculators/conversion';
-import { DEFAULT_CATEGORY, defaultUnits } from '@lib/calculators/conversion-form';
+import { DEFAULT_CATEGORY, defaultUnits, CONVERSION_EXAMPLE_VALUES } from '@lib/calculators/conversion-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -29,6 +29,7 @@ import ResultInterpretation from '@components/result/ResultInterpretation.astro'
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 
 const defCat = CATEGORIES.find((c) => c.key === DEFAULT_CATEGORY)!; // length
 const { from: defFrom, to: defTo } = defaultUnits(DEFAULT_CATEGORY); // mm → cm
@@ -77,6 +78,7 @@ const { from: defFrom, to: defTo } = defaultUnits(DEFAULT_CATEGORY); // mm → c
 
   <!-- Result -->
   <ResultShell id="cv-result" state="empty" density="standard" label="Conversion result" minHeight="14rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Choose a category and units, enter a value, then convert." />
 
     <div data-result-when="valid" class="text-center">
@@ -131,7 +133,7 @@ const { from: defFrom, to: defTo } = defaultUnits(DEFAULT_CATEGORY); // mm → c
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { conversionBinding, defaultUnits } from '@lib/calculators/conversion-form';
+  import { conversionBinding, defaultUnits, CONVERSION_EXAMPLE_VALUES } from '@lib/calculators/conversion-form';
   import { CATEGORIES } from '@lib/calculators/conversion';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
@@ -188,6 +190,7 @@ const { from: defFrom, to: defTo } = defaultUnits(DEFAULT_CATEGORY); // mm → c
 
     mountFormCalculator(root, conversionBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: CONVERSION_EXAMPLE_VALUES },
       calculateButtonLabel: 'Convert',
     });
 

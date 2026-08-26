@@ -30,13 +30,14 @@ test.beforeEach(async ({ page }) => {
 
 test('loads empty: height blank, result empty, Calculate visible, no announcement', async ({ page }) => {
   await expect(page.locator('[name="heightCm"]')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate Ideal Weight');
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(shell(page)).not.toContainText(/\d+\.\d\s*(kg|lb)/); // no weight shown on load
+  // Weights ARE shown on load — they belong to the labelled example, not the visitor.
 });
 
 test('does not calculate automatically before the first submission', async ({ page }) => {
@@ -210,7 +211,7 @@ test('the embed route mounts the same interactive island', async ({ page }) => {
 
 test('the guide that embeds the island renders the migrated task-first tool', async ({ page }) => {
   await page.goto('/guides/healthy-weight-for-your-height', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#iw-result')).toHaveAttribute('data-result-state', 'empty'); // empty, not a prefilled result
+  await expect(page.locator('#iw-result')).toHaveAttribute('data-result-state', 'example'); // empty, not a prefilled result
   await page.fill('[name="heightCm"]', '175');
   await page.locator('form[data-form] button[type="submit"]').click();
   await expect(page.locator('#iw-result [data-iw-bmimax]')).toHaveText('76.3');

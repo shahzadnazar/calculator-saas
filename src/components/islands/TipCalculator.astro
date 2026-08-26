@@ -24,6 +24,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 
 const presets = [10, 15, 18, 20, 25];
 ---
@@ -111,6 +112,7 @@ const presets = [10, 15, 18, 20, 25];
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter the bill, choose or enter a tip percentage, and select how many people are splitting the total." />
 
     <div data-result-when="valid">
@@ -234,11 +236,12 @@ const presets = [10, 15, 18, 20, 25];
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { tipBinding } from '@lib/calculators/tip-form';
+  import { tipBinding, TIP_EXAMPLE_VALUES } from '@lib/calculators/tip-form';
 
   document.querySelectorAll<HTMLElement>('[data-tip]').forEach((root) => {
     mountFormCalculator(root, tipBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: TIP_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Tip',
     });
 

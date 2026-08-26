@@ -41,11 +41,12 @@ test('loads empty: blank fields, empty result, Calculate + Reset visible, no liv
   await expect(page.locator('[name="years"]')).toHaveValue('');
   await expect(submit(page)).toBeVisible();
   await expect(resetBtn(page)).toBeVisible();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
 });
 
 test('does not calculate before the first submission', async ({ page }) => {

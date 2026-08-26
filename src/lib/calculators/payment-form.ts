@@ -255,24 +255,15 @@ export const paymentBinding: FormCalculatorBinding<PaymentValues, PaymentCompute
 };
 
 /* ------------------------------------------------------------------ */
-/* Starting values (arrive-filled)                                     */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
 /* ------------------------------------------------------------------ */
 
 /**
- * The values this calculator arrives filled with, so the visitor lands on a real
- * worked result they can type over instead of an empty form. They are OURS, not
- * the visitor's: the runtime computes them silently on mount (`prefill`), and
- * Reset still clears the form to blank rather than restoring them.
+ * Example inputs for the labelled worked result shown on first load.
  *
- * Both modes are filled even though only the active one is read, so switching
- * mode lands on a result rather than on an empty required field. The monthly
- * payment clears the monthly interest ($25,000 at 7.5% is $156.25/mo), so the
- * payoff mode never starts on the "never pays off" outcome.
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
  */
-export const PAYMENT_STARTING_VALUES = {
-  mode: 'term',
-  principal: '25000',
-  annualRatePct: '7.5',
-  termYears: '5',
-  payment: '500',
-} as const;
+export const PAYMENT_EXAMPLE_VALUES: PaymentValues = { mode: 'term', principal: '25000', annualRatePct: '7.5', termYears: '5', payment: '500' };

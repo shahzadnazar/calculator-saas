@@ -22,6 +22,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="simpleinterest mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-simple-interest>
@@ -105,6 +106,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter a principal amount, annual interest rate, and time period to calculate simple interest." />
 
     <div data-result-when="valid">
@@ -188,11 +190,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { simpleInterestBinding } from '@lib/calculators/simple-interest-form';
+  import { simpleInterestBinding, SIMPLE_INTEREST_EXAMPLE_VALUES } from '@lib/calculators/simple-interest-form';
 
   document.querySelectorAll<HTMLElement>('[data-simple-interest]').forEach((root) => {
     mountFormCalculator(root, simpleInterestBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: SIMPLE_INTEREST_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Simple Interest',
     });
   });

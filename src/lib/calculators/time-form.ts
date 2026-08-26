@@ -312,3 +312,17 @@ export const timeBinding: FormCalculatorBinding<TimeFormValues, TimeComputed> = 
   resetValues: resetTimeValues,
   // NO isUsableResult — the complete-result guard lives in resultValue (a signed finite sentinel).
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
+ */
+export const TIME_EXAMPLE_VALUES: TimeFormValues = { op: 'add', a_days: '0', a_hours: '2', a_minutes: '45', a_seconds: '0', b_days: '0', b_hours: '1', b_minutes: '30', b_seconds: '0' };

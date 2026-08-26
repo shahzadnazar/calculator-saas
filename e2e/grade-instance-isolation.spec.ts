@@ -102,8 +102,8 @@ test.describe('grade: same-document instance isolation', () => {
       await expect(x.rows).toHaveCount(1);
       await expect(x.row(0).locator('[data-grade-score]')).toHaveValue('');
       await expect(x.row(0).locator('[data-grade-weight]')).toHaveValue('');
-      await expect(x.shell).toHaveAttribute('data-result-state', 'empty');
-      await expect(x.validRegion).toBeHidden();
+      await expect(x.shell).toHaveAttribute('data-result-state', 'example');
+      await expect(x.validRegion).toBeVisible();
       await expect(x.live).toHaveText('');
       await expect(x.row(0).locator('[data-grade-remove]')).toBeDisabled();
     }
@@ -211,7 +211,7 @@ test.describe('grade: same-document instance isolation', () => {
     await expect(a.row(0).locator('[data-error-for^="weight-"]')).toHaveText('Enter a weight for this item.');
     await expect(await state(a)).toBe('invalid');
     // B is untouched: empty, no error, no state change
-    await expect(await state(b)).toBe('empty');
+    await expect(await state(b)).toBe('example');
     await expect(b.row(0).locator('[data-error-for^="weight-"]')).toHaveText('');
   });
 
@@ -223,8 +223,8 @@ test.describe('grade: same-document instance isolation', () => {
     await setRow(a, 0, '90', '20');
     await a.submit.click();
     await expect(a.primary).toHaveText('90%');
-    await expect(await state(b)).toBe('empty');
-    await expect(b.validRegion).toBeHidden();
+    await expect(await state(b)).toBe('example');
+    await expect(b.validRegion).toBeVisible();
     // now calculate a DIFFERENT weighted result in B; A's result must remain
     await setRow(b, 0, '80', '20');
     await b.submit.click();
@@ -293,7 +293,7 @@ test.describe('grade: same-document instance isolation', () => {
     // B's final error slots (present but hidden) never received text
     await expect(page.locator('#inst-b [data-error-for="current"]')).toHaveText('');
     await expect(page.locator('#inst-b [data-error-for="target"]')).toHaveText('');
-    await expect(await state(b)).toBe('empty');
+    await expect(await state(b)).toBe('example');
   });
 
   /* -------------------- reset isolation -------------------- */

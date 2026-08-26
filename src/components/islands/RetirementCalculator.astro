@@ -29,6 +29,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="retirement mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-retirement>
@@ -47,7 +48,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       </div>
     </div>
 
-    <div class="mt-4 space-y-4">
+    <div class="mt-4 grid grid-cols-2 gap-4">
       <div data-field="currentSavings">
         <label class="field-label" for="ret-savings">Current savings</label>
         <div class="flex">
@@ -93,6 +94,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="ret-result" state="empty" density="standard" label="Retirement projection" minHeight="20rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Enter your ages and expected return (and any current savings or monthly contribution), then calculate your projection." />
 
     <div data-result-when="valid">
@@ -212,7 +214,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { retirementBinding } from '@lib/calculators/retirement-form';
+  import { retirementBinding, RETIREMENT_EXAMPLE_VALUES } from '@lib/calculators/retirement-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -248,6 +250,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, retirementBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: RETIREMENT_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Retirement',
     });
 

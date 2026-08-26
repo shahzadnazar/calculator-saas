@@ -49,10 +49,10 @@ test('loads task-first: rectangle + m, empty dims, empty result, Calculate Area,
   await expect(page.locator('[name="unit"]')).toHaveValue('m');
   await expect(dim(page, 'rectangle', 'length')).toHaveValue('');
   await expect(dim(page, 'rectangle', 'width')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   await expect(submit(page)).toHaveText('Calculate Area');
   await page.waitForTimeout(DEBOUNCE); // no auto-calc
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
 });
 
 test('each shape reveals ONLY its required fields; inactive groups are hidden and disabled', async ({ page }) => {

@@ -254,3 +254,17 @@ export const proteinBinding: FormCalculatorBinding<ProteinValues, ProteinCompute
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
+ */
+export const PROTEIN_EXAMPLE_VALUES: ProteinValues = { system: 'metric', weightKg: '70', goalKey: 'active' };

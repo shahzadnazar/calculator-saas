@@ -20,7 +20,7 @@
  * Static ids are namespaced per-instance WHEN more than one Salary calculator shares a document
  * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
  */
-import { PAY_UNITS, DEFAULT_UNIT } from '@lib/calculators/salary-form';
+import { PAY_UNITS, DEFAULT_UNIT, SALARY_EXAMPLE_VALUES } from '@lib/calculators/salary-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -28,6 +28,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="salcalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-salary>
@@ -76,6 +77,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="salary-result" state="empty" density="standard" label="Salary result" minHeight="18rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Enter a pay amount and choose its period, then convert." />
 
     <div data-result-when="valid">
@@ -168,7 +170,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { salaryBinding } from '@lib/calculators/salary-form';
+  import { salaryBinding, SALARY_EXAMPLE_VALUES } from '@lib/calculators/salary-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -203,6 +205,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, salaryBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: SALARY_EXAMPLE_VALUES },
       calculateButtonLabel: 'Convert',
     });
 

@@ -63,8 +63,9 @@ test.describe('date: task-first', () => {
     expect(server.state).toBe('empty');
     expect(server.diff).toBe('—'); // no baked-in difference
     expect(server.from).toBe(''); // no baked example date
-    expect(server.diff).toBe((await diffValue(page).textContent())?.trim());
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    // The example is rendered on hydration, never baked into the HTML — so the two DIFFER.
+    expect(server.diff).not.toBe((await diffValue(page).textContent())?.trim());
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -73,8 +74,9 @@ test.describe('date: task-first', () => {
     await expect(modeSel(page)).toHaveValue('diff');
     await expect(page.locator('[name="from"]')).toHaveValue('');
     await expect(page.locator('[name="to"]')).toHaveValue('');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -272,14 +274,14 @@ test.describe('date: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, no auto-calc, then a result)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await calcDiff(page, '2020-01-01', '2025-01-01');
     await expect(diffValue(page)).toHaveText('5 years, 0 months, 0 days');
   });
 
   test('the direct guide renderer mounts the same working island', async ({ page }) => {
     await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await calcAdd(page, '2024-01-01', 'add', '90');
     await expect(addValue(page)).toContainText('March 31, 2024');
   });
@@ -352,7 +354,7 @@ test.describe('date: same-document instance isolation', () => {
     };
     await fill(A);
     await expect(A('[data-dc-panel="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await fill(B);
     await expect(B('[data-dc-panel="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days');

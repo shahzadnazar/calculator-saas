@@ -29,11 +29,9 @@ import ResultInterpretation from '@components/result/ResultInterpretation.astro'
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
-import { PAYMENT_STARTING_VALUES as START } from '@lib/calculators/payment-form';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { PAYMENT_EXAMPLE_VALUES } from '@lib/calculators/payment-form';
 
-// Arrive-filled: the runtime computes these once on mount so the visitor can type straight over a
-// real result. BOTH modes are filled, so switching mode lands on a result rather than on an empty
-// required field. Rendered server-side, so the form is filled even before the island hydrates.
 ---
 
 <div class="payment mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-payment>
@@ -62,7 +60,7 @@ import { PAYMENT_STARTING_VALUES as START } from '@lib/calculators/payment-form'
             inputmode="decimal"
             autocomplete="off"
             placeholder="e.g. 20000"
-            aria-describedby="pm-principal-error" value={START.principal}
+            aria-describedby="pm-principal-error"
           />
         </div>
         <p class="pm-field-error" id="pm-principal-error" data-error-for="principal" hidden></p>
@@ -81,7 +79,7 @@ import { PAYMENT_STARTING_VALUES as START } from '@lib/calculators/payment-form'
             inputmode="decimal"
             autocomplete="off"
             placeholder="e.g. 6"
-            aria-describedby="pm-rate-error" value={START.annualRatePct}
+            aria-describedby="pm-rate-error"
           />
           <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
@@ -102,7 +100,7 @@ import { PAYMENT_STARTING_VALUES as START } from '@lib/calculators/payment-form'
             inputmode="decimal"
             autocomplete="off"
             placeholder="e.g. 5"
-            aria-describedby="pm-term-error" value={START.termYears}
+            aria-describedby="pm-term-error"
           />
           <span class="field-affix rounded-r-lg border-l-0">years</span>
         </div>
@@ -125,7 +123,7 @@ import { PAYMENT_STARTING_VALUES as START } from '@lib/calculators/payment-form'
             autocomplete="off"
             placeholder="e.g. 400"
             aria-describedby="pm-payment-error"
-            disabled value={START.payment}
+            disabled
           />
         </div>
         <p class="pm-field-error" id="pm-payment-error" data-error-for="payment" hidden></p>
@@ -148,6 +146,7 @@ import { PAYMENT_STARTING_VALUES as START } from '@lib/calculators/payment-form'
     minHeight="18rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter the loan details, then calculate the payment or payoff time." />
 
     <div data-result-when="valid">
@@ -234,12 +233,12 @@ import { PAYMENT_STARTING_VALUES as START } from '@lib/calculators/payment-form'
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { paymentBinding } from '@lib/calculators/payment-form';
+  import { paymentBinding, PAYMENT_EXAMPLE_VALUES } from '@lib/calculators/payment-form';
 
   document.querySelectorAll<HTMLElement>('[data-payment]').forEach((root) => {
     mountFormCalculator(root, paymentBinding, {
       recalculationMode: 'live-after-first',
-      prefill: true,
+      example: { values: PAYMENT_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Payment',
     });
 

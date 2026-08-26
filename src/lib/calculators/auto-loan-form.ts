@@ -330,3 +330,17 @@ export const autoLoanBinding: FormCalculatorBinding<AutoLoanValues, AutoLoanComp
     // Structural defaults restored by the island (term 60, checkbox checked, disclosure closed).
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
+ */
+export const AUTO_LOAN_EXAMPLE_VALUES: AutoLoanValues = { autoPrice: '32000', interestRatePct: '6.9', loanTermMonths: '60', downPayment: '4000', salesTaxRatePct: '7', tradeInValue: '0', amountOwedOnTradeIn: '0', fees: '600', includeTaxesFeesInLoan: true };

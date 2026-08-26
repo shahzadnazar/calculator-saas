@@ -58,7 +58,7 @@ test.describe('interest: task-first', () => {
     expect(server.dominant).toBe('—'); // no baked result
     expect(server.principal).toBe(''); // principal empty
     expect(server.freq).toBe('12'); // Monthly default
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -68,8 +68,9 @@ test.describe('interest: task-first', () => {
     await expect(page.locator('[name="annualRatePct"]')).toHaveValue('');
     await expect(page.locator('[name="years"]')).toHaveValue('');
     await expect(page.locator('[name="compoundsPerYear"]')).toHaveValue('12');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -230,7 +231,7 @@ test.describe('interest: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, then a result)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await doCalc(page, { principal: '10000', rate: '5', years: '10' });
     await expect(dominant(page)).toHaveText('$6,470.09');
   });
@@ -304,7 +305,7 @@ test.describe('interest: same-document instance isolation', () => {
     };
     await calcA();
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$6,470.09');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await A('[data-reset]').click();
     await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');

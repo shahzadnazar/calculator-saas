@@ -22,6 +22,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="inflation mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-inflation>
@@ -105,6 +106,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter an amount, annual inflation or deflation rate, and time period to estimate future cost and purchasing power." />
 
     <div data-result-when="valid">
@@ -196,11 +198,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { inflationBinding } from '@lib/calculators/inflation-form';
+  import { inflationBinding, INFLATION_EXAMPLE_VALUES } from '@lib/calculators/inflation-form';
 
   document.querySelectorAll<HTMLElement>('[data-inflation]').forEach((root) => {
     mountFormCalculator(root, inflationBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: INFLATION_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Inflation Impact',
     });
   });

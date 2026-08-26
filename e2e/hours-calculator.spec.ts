@@ -45,8 +45,9 @@ test.describe('hours: task-first', () => {
 
   test('loads empty — no prefill, no result, no announcement', async ({ page }) => {
     for (const n of ['start', 'end', 'breakMin']) await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -253,7 +254,7 @@ test('the guide that embeds the island renders the migrated task-first tool', as
   await expect(page.locator('[data-hours] h1')).toHaveCount(0);
   await expect(page.locator('[data-hours] nav')).toHaveCount(0);
   // Empty (not a legacy prefill), then an explicit calc works inside the guide.
-  await expect(page.locator('#hr-result')).toHaveAttribute('data-result-state', 'empty');
+  await expect(page.locator('#hr-result')).toHaveAttribute('data-result-state', 'example');
   await page.locator('[name="start"]').fill('09:00');
   await page.locator('[name="end"]').fill('17:30');
   await page.locator('[name="breakMin"]').fill('30');
@@ -325,7 +326,7 @@ test.describe('hours: same-document instance isolation', () => {
     };
     await fillCalc(A, '09:00', '17:30', '30'); // → 8h 0m
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('8h 0m');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await fillCalc(B, '09:00', '12:00', '0'); // → 3h 0m
     await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('3h 0m');

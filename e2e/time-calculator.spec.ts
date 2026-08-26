@@ -65,10 +65,11 @@ test.describe('time: task-first', () => {
       primary: (await primary(page).textContent())?.trim(),
     };
     expect(server.state).toBe('empty');
-    expect(hydrated.state).toBe('empty');
+    expect(hydrated.state).toBe('example');
     expect(server.total).toBe('—');
-    expect(hydrated.total).toBe('—');
-    expect(server.primary).toBe(hydrated.primary); // both the placeholder, no computed value
+    // The hydrated panel shows the labelled example; the SSR'd HTML still carries the placeholder.
+    expect(hydrated.total).not.toBe('—');
+    expect(server.primary).not.toBe(hydrated.primary); // the example arrives only on hydration
     expect(server.total).not.toMatch(/15,?300/); // the legacy baked-in example is gone
   });
 
@@ -79,8 +80,9 @@ test.describe('time: task-first', () => {
       await expect(page.locator(`[name="${side}_${u}"]`)).toHaveValue('');
     }
     await expect(page.locator('[name="tc_op"][value="add"]')).toBeChecked();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -279,7 +281,7 @@ test.describe('time: task-first', () => {
 
   test('the generated embed mounts the same island and computes (empty SSR, then a signed result)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#tc-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#tc-result')).toHaveAttribute('data-result-state', 'example');
     await page.locator('[name="a_minutes"]').fill('1');
     await page.locator('[name="b_minutes"]').fill('2');
     await page.locator('[name="b_seconds"]').fill('30');
@@ -358,7 +360,7 @@ test.describe('time: same-document instance isolation', () => {
     };
     await fillCalc(A, '2', '30', 'add'); // 2m + 30m = 32m
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('32m 0s');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await fillCalc(B, '5', '3', 'subtract'); // 5m − 3m = 2m
     await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('2m 0s');

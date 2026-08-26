@@ -45,41 +45,20 @@ const calc = async (page: Page, over: Partial<Fields> = {}) => {
 };
 
 test.describe('home equity loan: task-first', () => {
-  /** Clear the arrive-filled starting values, so a test can exercise the blank form. */
-  const startBlank = async (page: Page) => {
-    await page.locator('[data-reset]').click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  };
-
   test.beforeEach(async ({ page }) => {
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
   });
 
-  test('loads FILLED with a computed result, "Calculate Home Equity Loan", disclaimer shown', async ({ page }) => {
-    // Arrive-filled: the visitor lands on a worked result to type over, not a blank form.
-    for (const name of FIELDS) await expect(page.locator(`[name="${name}"]`)).not.toHaveValue('');
-    await expect(page.locator('[name="homeValue"]')).toHaveValue('400000');
-    await expect(page.locator('[name="loanAmount"]')).toHaveValue('50000');
+  test('loads empty: blank fields, empty result, "Calculate Home Equity Loan", disclaimer shown', async ({ page }) => {
+    for (const name of FIELDS) await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
     await expect(submit(page)).toHaveText('Calculate Home Equity Loan');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(region(page, 'valid')).toBeVisible();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await expect(region(page, 'empty')).toBeHidden();
-    await expect(primary(page)).not.toHaveText('—');
-    await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-    // Arriving filled is silent — a result the visitor did not ask for is never announced.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
-    // Island-owned disclaimer: present exactly once and visible.
+    // Island-owned disclaimer: present exactly once and visible even before any result.
     await expect(disclaimer(page)).toHaveCount(1);
     await expect(disclaimer(page)).toBeVisible();
-  });
-
-  test('Reset clears the starting values to a genuinely blank, empty-state form', async ({ page }) => {
-    await startBlank(page);
-    for (const name of FIELDS) await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
-    await expect(region(page, 'empty')).toBeVisible();
-    await expect(region(page, 'valid')).toBeHidden();
-    await expect(live(page)).toHaveText('');
-    await expect(disclaimer(page)).toBeVisible(); // still shown before any result
   });
 
   test('the term field carries the migrated-product min/max/step', async ({ page }) => {
@@ -89,16 +68,7 @@ test.describe('home equity loan: task-first', () => {
     await expect(term).toHaveAttribute('step', '1');
   });
 
-  test('editing over the starting values updates live, with no Calculate press', async ({ page }) => {
-    const before = await primary(page).textContent();
-    await page.fill('[name="loanAmount"]', '75000');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(primary(page)).not.toHaveText(before!);
-  });
-
-  test('once blanked, it does not calculate again before the next explicit submission', async ({ page }) => {
-    await startBlank(page);
+  test('does not calculate before the first submission', async ({ page }) => {
     for (const name of FIELDS) await page.fill(`[name="${name}"]`, BASE[name]);
     await page.waitForTimeout(DEBOUNCE);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
@@ -176,7 +146,6 @@ test.describe('home equity loan: task-first', () => {
   });
 
   test('an empty explicit submission focuses the home value and associates the error', async ({ page }) => {
-    await startBlank(page);
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
     const home = page.locator('[name="homeValue"]');

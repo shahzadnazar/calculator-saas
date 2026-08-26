@@ -25,6 +25,7 @@ import ResultSummary from '@components/result/ResultSummary.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="rng mx-auto grid w-full max-w-5xl grid-cols-1 items-stretch gap-4 md:grid-cols-2" data-rng>
@@ -96,6 +97,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     placeholderAlignment="center"
     label="Generated numbers"
   >
+    <ExampleNotice />
     <EmptyResult message="Choose a range and how many, then generate your random numbers." />
 
     <div data-result-when="valid">
@@ -189,7 +191,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountGeneratorCalculator } from '@lib/result/generator-runtime';
-  import { randomNumberBinding } from '@lib/calculators/random-number-form';
+  import { randomNumberBinding, RANDOM_NUMBER_EXAMPLE_SETTINGS } from '@lib/calculators/random-number-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -225,6 +227,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountGeneratorCalculator(root, randomNumberBinding, {
       generateButtonLabel: 'Generate Numbers',
+      example: { settings: RANDOM_NUMBER_EXAMPLE_SETTINGS },
       regenerateButtonLabel: 'Generate New Numbers',
       liveRegeneration: false,
       invalidateOutputOnSettingsChange: true,

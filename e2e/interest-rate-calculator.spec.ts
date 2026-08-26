@@ -48,9 +48,10 @@ test.describe('interest rate: task-first', () => {
   test('loads empty: blank fields, empty result, "Calculate Interest Rate", disclaimer shown', async ({ page }) => {
     for (const name of FIELDS) await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
     await expect(submit(page)).toHaveText('Calculate Interest Rate');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'empty')).toBeVisible();
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The empty placeholder is replaced by the labelled example on load.
+    await expect(region(page, 'empty')).toBeHidden();
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
     await expect(disclaimer(page)).toHaveCount(1);
     await expect(disclaimer(page)).toBeVisible();

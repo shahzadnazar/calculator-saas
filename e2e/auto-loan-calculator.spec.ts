@@ -51,8 +51,9 @@ test('loads empty: blank personal fields, term 60, finance checked, empty result
   await expect(term(page)).toHaveValue('60');
   await expect(finance(page)).toBeChecked();
   await expect(submit(page)).toHaveText('Calculate Auto Loan Payment');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The example fills this calculator's OWN valid region, so it is visible on load.
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(live(page)).toHaveText('');
 });
 
@@ -281,7 +282,7 @@ test.describe('guide embed (getting-the-best-auto-loan)', () => {
     await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-autoloan]')).toHaveCount(1);
     await expect(page.locator('[name="autoPrice"]')).toHaveValue('');
-    await expect(page.locator('#al-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#al-result')).toHaveAttribute('data-result-state', 'example');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1); // no duplicated H1
   });
 

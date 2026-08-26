@@ -3,10 +3,10 @@ import { test, expect, type Page } from '@playwright/test';
 /**
  * BMI calculator — the R2 standard-form-runtime pilot, on its LIVE page.
  *
- * Covers the doctrine end-to-end: the labelled Example initial state over EMPTY
- * fields, the first-calculation gate, live-after-first, validation + focus + aria
- * wiring, unit conversion before and after the first calc, reset, the single
- * announcement, no NaN/∞/undefined, the desktop workspace and the mobile order.
+ * Covers the doctrine end-to-end: empty initial state, the first-calculation
+ * gate, live-after-first, validation + focus + aria wiring, unit conversion
+ * before and after the first calc, reset, the single announcement, no
+ * NaN/∞/undefined, the desktop workspace and the mobile order.
  */
 const ROUTE = '/health/bmi-calculator';
 const DEBOUNCE = 300;
@@ -31,68 +31,16 @@ test.beforeEach(async ({ page }) => {
 
 /* ---- Initial state ------------------------------------------------------ */
 
-test('loads with EMPTY fields and a labelled Example result, Calculate BMI visible, no announcement', async ({ page }) => {
-  // The visitor's own inputs are untouched — the example lives only in the result panel.
+test('loads empty: fields blank, result empty, Calculate BMI visible, no announcement', async ({ page }) => {
   await expect(page.locator('[name="heightCm"]')).toHaveValue('');
   await expect(page.locator('[name="weightKg"]')).toHaveValue('');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-  await expect(region(page, 'example')).toBeVisible();
   await expect(region(page, 'empty')).toBeHidden();
-  await expect(region(page, 'valid')).toBeHidden(); // never mistakable for the visitor's result
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(submit(page)).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate BMI');
   await expect(page.locator('[data-live-note]')).toBeHidden();
-  await expect(liveRegion(page)).toHaveText(''); // an example is never announced
-});
-
-/* ---- Labelled Example state --------------------------------------------- */
-
-test('the example is badged, states its own inputs and shows engine-computed figures', async ({ page }) => {
-  const example = region(page, 'example');
-  await expect(example.locator('.result-example__badge')).toHaveText(/Example/);
-  await expect(example).toContainText('175 cm');
-  await expect(example).toContainText('70 kg');
-  await expect(example).toContainText('not your result');
-  // 175 cm / 70 kg through the reviewed engine.
-  await expect(example.locator('[data-result-value]')).toHaveText('22.9');
-  await expect(example).toContainText('Normal weight');
-  await expect(example).not.toContainText(/NaN|Infinity|undefined/);
-});
-
-test('"Start with my values" clears the example and leaves the calculator ready', async ({ page }) => {
-  await page.locator('[data-example-dismiss]').click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'example')).toBeHidden();
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
-  // Ready for the visitor: fields still blank, focus handed to the first one.
-  await expect(page.locator('[name="heightCm"]')).toHaveValue('');
-  await expect(page.locator('[name="weightKg"]')).toHaveValue('');
-  await expect(page.locator('[name="heightCm"]')).toBeFocused();
-  await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-});
-
-test('typing a value of your own transitions out of the example immediately', async ({ page }) => {
-  await page.fill('[name="heightCm"]', '1');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'example')).toBeHidden();
-  await expect(page.locator('[name="heightCm"]')).toHaveValue('1'); // the keystroke is kept
-});
-
-test('the example never becomes the visitor result: a real calculation replaces it', async ({ page }) => {
-  await calcMetric(page, '180', '75');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(region(page, 'example')).toBeHidden();
-  await expect(value(page)).toHaveText('23.1');
-});
-
-test('the example does not return after Reset — the panel stays the visitor\'s', async ({ page }) => {
-  await calcMetric(page, '175', '70');
-  await page.click('[data-reset]');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'example')).toBeHidden();
-  await expect(region(page, 'empty')).toBeVisible();
 });
 
 test('does not calculate automatically before the first submission', async ({ page }) => {

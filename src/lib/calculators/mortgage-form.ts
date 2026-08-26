@@ -831,3 +831,17 @@ export function mortgageExample(): MortgageExample {
     totalOfPayments: r.totalOfPayments,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
+ */
+export const MORTGAGE_EXAMPLE_VALUES: MortgageValues = { homePrice: '400000', downPayment: '80000', downPaymentUnit: 'amount', loanTermYears: '30', annualInterestRate: '6.5', propertyTaxAnnual: '', propertyTaxUnit: 'amount', homeInsuranceAnnual: '', hoaMonthly: '', otherCostsAnnual: '', otherCostsUnit: 'amount', startMonth: '1', startYear: '2026', pmiAnnualRate: '', pmiUnit: 'percent' };

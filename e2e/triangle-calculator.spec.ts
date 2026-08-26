@@ -48,8 +48,9 @@ test('loads empty: blank sides, empty result, Solve Triangle visible', async ({ 
   await expect(page.locator('[name="b"]')).toHaveValue('');
   await expect(page.locator('[name="c"]')).toHaveValue('');
   await expect(submit(page)).toBeVisible();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
 });
 

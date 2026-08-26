@@ -58,8 +58,9 @@ test.describe('retirement: task-first', () => {
     await page.goto(ROUTE, { waitUntil: 'networkidle' });
     expect(server.state).toBe('empty');
     expect(server.primary).toBe('—');
-    expect(server.primary).toBe((await primary(page).textContent())?.trim());
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    // The example is rendered on hydration, never baked into the HTML — so the two DIFFER.
+    expect(server.primary).not.toBe((await primary(page).textContent())?.trim());
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -69,8 +70,9 @@ test.describe('retirement: task-first', () => {
       await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
     }
     await expect(page.locator('[name="withdrawalRatePct"]')).toHaveValue('4');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -253,7 +255,7 @@ test.describe('retirement: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, no auto-calc, then a projection)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#ret-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#ret-result')).toHaveAttribute('data-result-state', 'example');
     await page.locator('[name="currentAge"]').fill('30');
     await page.waitForTimeout(DEBOUNCE);
     await expect(page.locator('#ret-result')).toHaveAttribute('data-result-state', 'empty'); // no auto-calc
@@ -337,7 +339,7 @@ test.describe('retirement: same-document instance isolation', () => {
     };
     await fill(A);
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$100,000.00');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await fill(B);
     await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$100,000.00');

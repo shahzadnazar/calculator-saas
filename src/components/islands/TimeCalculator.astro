@@ -25,6 +25,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 
 const UNITS = ['days', 'hours', 'minutes', 'seconds'] as const;
 const operand = (side: 'a' | 'b', legend: string) => ({ side, legend });
@@ -89,6 +90,7 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
 
   <!-- Result -->
   <ResultShell id="tc-result" state="empty" density="standard" label="Time result" minHeight="16rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Enter two durations, choose add or subtract, then calculate the result." />
 
     <div data-result-when="valid">
@@ -196,7 +198,7 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { timeBinding } from '@lib/calculators/time-form';
+  import { timeBinding, TIME_EXAMPLE_VALUES } from '@lib/calculators/time-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -231,6 +233,7 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
     if (document.querySelectorAll('[data-timecalc]').length > 1) uniquifyStaticIds(root, `t${++ns}`);
     mountFormCalculator(root, timeBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: TIME_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Time',
     });
   });

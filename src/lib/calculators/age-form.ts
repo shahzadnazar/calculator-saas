@@ -213,3 +213,26 @@ export const ageBinding: FormCalculatorBinding<AgeValues, AgeComputed> = {
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * A FUNCTION, not a constant, because this calculator's example is relative to
+ * today — a hardcoded date would silently go stale in the built markup. Called
+ * by the island at mount, exactly like the client-today defaults the date
+ * calculators already use.
+ *
+ * These values are OURS, not the visitor's: the runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup. The visitor's fields are never written to.
+ */
+export function ageExampleValues(): AgeValues {
+  const today = new Date();
+  const dob = new Date(today.getFullYear() - 35, 5, 15); // 35 years ago, 15 June
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { dob: iso(dob), at: iso(today) };
+}

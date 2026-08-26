@@ -23,6 +23,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="savings mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-savings>
@@ -99,6 +100,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your savings details, then project your balance or calculate the monthly deposit needed for a goal." />
 
     <div data-result-when="valid">
@@ -233,11 +235,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { savingsBinding } from '@lib/calculators/savings-form';
+  import { savingsBinding, SAVINGS_EXAMPLE_VALUES } from '@lib/calculators/savings-form';
 
   document.querySelectorAll<HTMLElement>('[data-savings]').forEach((root) => {
     mountFormCalculator(root, savingsBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: SAVINGS_EXAMPLE_VALUES },
       calculateButtonLabel: 'Project Savings',
     });
 

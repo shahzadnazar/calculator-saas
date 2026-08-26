@@ -23,13 +23,14 @@
  * Static ids are namespaced per-instance WHEN more than one Compound Interest calculator shares a
  * document — mandatory here, because the understanding-compound-interest guide ALSO embeds this island.
  */
-import { COMPOUND_FREQUENCIES, DEFAULT_FREQUENCY } from '@lib/calculators/compound-interest-form';
+import { COMPOUND_FREQUENCIES, DEFAULT_FREQUENCY, COMPOUND_EXAMPLE_VALUES } from '@lib/calculators/compound-interest-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="cicalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-compound>
@@ -88,6 +89,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="compound-result" state="empty" density="standard" label="Compound interest result" minHeight="20rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Enter an initial amount, rate and time, then calculate to project the growth." />
 
     <div data-result-when="valid">
@@ -278,7 +280,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { compoundInterestBinding } from '@lib/calculators/compound-interest-form';
+  import { compoundInterestBinding, COMPOUND_EXAMPLE_VALUES } from '@lib/calculators/compound-interest-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -313,6 +315,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, compoundInterestBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: COMPOUND_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate',
     });
 

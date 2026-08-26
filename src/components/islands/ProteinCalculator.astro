@@ -18,7 +18,7 @@
  * plain select that participates in live-after-first like any field.
  */
 import { PROTEIN_GOALS } from '@lib/calculators/protein';
-import { DEFAULT_GOAL_KEY } from '@lib/calculators/protein-form';
+import { DEFAULT_GOAL_KEY, PROTEIN_EXAMPLE_VALUES } from '@lib/calculators/protein-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -27,6 +27,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="protein mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-protein>
@@ -85,6 +86,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="24rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your body weight and goal, then calculate your daily protein target." />
 
     <div data-result-when="valid">
@@ -225,11 +227,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { proteinBinding } from '@lib/calculators/protein-form';
+  import { proteinBinding, PROTEIN_EXAMPLE_VALUES } from '@lib/calculators/protein-form';
 
   document.querySelectorAll<HTMLElement>('[data-protein]').forEach((root) =>
     mountFormCalculator(root, proteinBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: PROTEIN_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Protein Needs',
     }),
   );

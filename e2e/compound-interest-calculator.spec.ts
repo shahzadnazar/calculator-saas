@@ -61,7 +61,7 @@ test.describe('compound-interest: task-first', () => {
     expect(server.principal).toBe('');
     expect(server.freq).toBe('12');
     expect(server.rowCount).toBe(0); // no baked series
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -72,8 +72,9 @@ test.describe('compound-interest: task-first', () => {
     await expect(page.locator('[name="years"]')).toHaveValue('');
     await expect(page.locator('[name="compoundsPerYear"]')).toHaveValue('12');
     await expect(page.locator('[name="contribution"]')).toHaveValue('');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -257,7 +258,7 @@ test.describe('compound-interest: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, then a result)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await doCalc(page, DEFAULT);
     await expect(dominant(page)).toHaveText('$144,572.72');
   });
@@ -279,7 +280,7 @@ test.describe('compound-interest: understanding-compound-interest guide embed', 
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     await expect(page.locator('[data-compound]')).toHaveCount(1);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await doCalc(page, DEFAULT);
     await expect(dominant(page)).toHaveText('$144,572.72');
     await expect(rows(page)).toHaveCount(21);
@@ -351,7 +352,7 @@ test.describe('compound-interest: same-document instance isolation', () => {
     };
     await calcA();
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$144,572.72');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
     await A('[data-reset]').click();
     await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
   });

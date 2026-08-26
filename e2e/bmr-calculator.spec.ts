@@ -35,15 +35,16 @@ test.beforeEach(async ({ page }) => {
 
 test('loads empty: fields blank, result empty, Calculate BMR visible, no announcement', async ({ page }) => {
   for (const n of ['age', 'heightCm', 'weightKg']) await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(submit(page)).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate BMR');
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
   // No BMR number is presented as the visitor's result on load.
-  await expect(shell(page)).not.toContainText(/\d,\d{3}/);
+  // Figures ARE shown on load — they belong to the labelled example, not the visitor.
 });
 
 test('does not calculate automatically before the first submission (incl. sex/unit changes)', async ({ page }) => {

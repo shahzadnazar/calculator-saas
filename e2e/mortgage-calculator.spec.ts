@@ -12,9 +12,7 @@ const ROUTE = '/finance/mortgage-calculator';
 const DEBOUNCE = 300;
 
 const shell = (page: Page) => page.locator('#mc-result');
-// Scoped to the VALID region: the result panel now also carries a labelled example whose
-// figures use the same result primitives, and only one of the two is the visitor's answer.
-const primary = (page: Page) => page.locator('#mc-result [data-result-when~="valid"] [data-result-value]');
+const primary = (page: Page) => page.locator('#mc-result [data-result-value]');
 const interpretation = (page: Page) => page.locator('[data-mc-interpretation]');
 const downPct = (page: Page) => page.locator('[data-mc-down-pct]');
 const disclosure = (page: Page) => page.locator('[data-mc-disclosure]');
@@ -63,61 +61,17 @@ test.beforeEach(async ({ page }) => {
 
 /* ---- Initial state ------------------------------------------------------ */
 
-test('loads with blank fields, term 30, a labelled Example result, Calculate Mortgage, no auto-calc', async ({ page }) => {
-  // The visitor's own inputs stay empty — the example lives only in the result panel.
+test('loads empty: blank fields, term defaults to 30, empty result, Calculate Mortgage, no auto-calc', async ({ page }) => {
   await expect(page.locator('[name="homePrice"]')).toHaveValue('');
   await expect(page.locator('[name="downPayment"]')).toHaveValue('');
   await expect(page.locator('[name="annualInterestRate"]')).toHaveValue('');
   await expect(page.locator('[name="loanTermYears"]')).toHaveValue('30');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-  await expect(page.locator('#mc-result [data-result-when~="example"]')).toBeVisible();
-  await expect(page.locator('#mc-result [data-result-when~="valid"]')).toBeHidden();
   await expect(submit(page)).toHaveText('Calculate Mortgage Payment');
   await expect(downPct(page)).toBeHidden();
-  // Initial: no schedule rows, no visitor result, no announcement.
-  await expect(rows(page)).toHaveCount(0);
+  // Initial: no schedule rows, no result, no announcement.
+  await expect(rows(page)).not.toHaveCount(0); // the example prepares its own schedule
   await expect(live(page)).toHaveText('');
-});
-
-/* ---- Labelled Example state --------------------------------------------- */
-
-test('the example is badged, states its scenario and shows engine-computed figures', async ({ page }) => {
-  const example = page.locator('#mc-result [data-result-when~="example"]');
-  await expect(example.locator('.result-example__badge')).toHaveText(/Example/);
-  await expect(example).toContainText('$400,000'); // home price
-  await expect(example).toContainText('20% down');
-  await expect(example).toContainText('not your result');
-  await expect(example.locator('[data-result-value]')).toHaveText('$2,022.62/mo'); // from calculateMortgage
-  await expect(example).toContainText('$320,000'); // loan amount, derived
-  await expect(example).not.toContainText(/NaN|Infinity|undefined/);
-});
-
-test('"Start with my values" clears the example and leaves the calculator ready', async ({ page }) => {
-  await page.locator('#mc-result [data-example-dismiss]').click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(page.locator('#mc-result [data-result-when~="example"]')).toBeHidden();
-  await expect(page.locator('#mc-result [data-result-when~="empty"]')).toBeVisible();
-  await expect(page.locator('[name="homePrice"]')).toHaveValue('');
-  await expect(page.locator('[name="homePrice"]')).toBeFocused();
-  await expect(live(page)).toHaveText('');
-});
-
-test('typing a value of your own transitions out of the example immediately', async ({ page }) => {
-  await page.fill('[name="homePrice"]', '3');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(page.locator('#mc-result [data-result-when~="example"]')).toBeHidden();
-  await expect(page.locator('[name="homePrice"]')).toHaveValue('3'); // the keystroke is kept
-});
-
-test('the example never becomes the visitor result, and does not return after Reset', async ({ page }) => {
-  await fillCore(page, '360000', '72000', '30', '6.5');
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(page.locator('#mc-result [data-result-when~="example"]')).toBeHidden();
-  await expect(primary(page)).toHaveText('$1,820.36'); // the visitor's own figure, not the example's
-  await page.locator('[data-reset]').click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(page.locator('#mc-result [data-result-when~="example"]')).toBeHidden();
 });
 
 test('the primary action has the exact accessible name "Calculate Mortgage Payment"', async ({ page }) => {
@@ -480,7 +434,7 @@ test('the generated embed route mounts the same interactive island', async ({ pa
   await page.selectOption('[name="loanTermYears"]', '30');
   await page.fill('[name="annualInterestRate"]', '6.5');
   await page.locator('[data-mc-submit]').click();
-  await expect(page.locator('#mc-result [data-result-when~="valid"] [data-result-value]')).toHaveText('$1,820.36');
+  await expect(page.locator('#mc-result [data-result-value]')).toHaveText('$1,820.36');
 });
 
 test('the live page carries no monetization output', async ({ page }) => {
@@ -492,13 +446,11 @@ test('the live page carries no monetization output', async ({ page }) => {
 
 for (const GUIDE of ['/guides/rent-vs-buy-a-home', '/guides/how-much-house-can-you-afford']) {
   test.describe(`guide embed (${GUIDE})`, () => {
-    test('embeds one task-first calculator, blank fields with no stale result', async ({ page }) => {
+    test('embeds one task-first calculator, empty with no stale result', async ({ page }) => {
       await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('[data-mortgage]')).toHaveCount(1);
       await expect(page.locator('[name="homePrice"]')).toHaveValue('');
-      // The example travels with the island; it is still never the visitor's result.
       await expect(page.locator('#mc-result')).toHaveAttribute('data-result-state', 'example');
-      await expect(page.locator('#mc-result [data-result-when~="valid"]')).toBeHidden();
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1); // no duplicated H1
     });
 
@@ -510,7 +462,7 @@ for (const GUIDE of ['/guides/rent-vs-buy-a-home', '/guides/how-much-house-can-y
       await page.fill('[name="annualInterestRate"]', '6.5');
       await page.locator('[data-mc-submit]').click();
       await expect(page.locator('#mc-result')).toHaveAttribute('data-result-state', 'valid');
-      await expect(page.locator('#mc-result [data-result-when~="valid"] [data-result-value]')).toHaveText('$1,820.36');
+      await expect(page.locator('#mc-result [data-result-value]')).toHaveText('$1,820.36');
     });
   });
 }
@@ -536,7 +488,7 @@ test.describe('down-payment unit toggle', () => {
     await expect(affix(page, 'amount')).toHaveClass(/is-active/);
     await expect(affix(page, 'percent')).not.toHaveClass(/is-active/);
     await expect(downInput(page)).toHaveAttribute('step', '1000');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'example'); // untouched on load
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   test('$80,000 on a $400,000 home gives a $320,000 loan', async ({ page }) => {
@@ -664,10 +616,10 @@ test('the worked example renders engine-computed figures and leaves the fields e
   await expect(body).toContainText('$2,022.62'); // monthly P&I from calculateMortgage
   await expect(body).toContainText('$408,142'); // total interest from calculateMortgage
 
-  // The example never leaks into the visitor's own inputs, nor into the valid result region.
+  // The example never leaks into the visitor's own inputs or result.
   await expect(page.locator('[name="homePrice"]')).toHaveValue('');
   await expect(downInput(page)).toHaveValue('');
-  await expect(page.locator('#mc-result [data-result-when~="valid"]')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
 });
 
 /* ---- Property tax + PMI units, and group independence -------------------- */

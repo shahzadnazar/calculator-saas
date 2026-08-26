@@ -189,67 +189,67 @@ describe('planFormAction — reset', () => {
 });
 
 /* ------------------------------------------------------------------ */
-/* Arrive-filled starting values (opt-in)                               */
+/* Worked example on first load (opt-in)                                */
 /* ------------------------------------------------------------------ */
 
-describe('planFormAction — prefill', () => {
-  it('computes the starting values into a valid result', () => {
-    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first'));
-    expect(plan.next.status).toEqual({ state: 'valid', activity: 'just-updated' });
-    expect(plan.effects.compute).toBe(true);
+describe('planFormAction — showExample', () => {
+  it('renders the example into the result panel', () => {
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    expect(plan.next.status).toEqual({ state: 'example', activity: 'idle' });
+    expect(plan.effects.compute).toBe(true); // renderResult fills the OWN valid region
     expect(plan.effects.fieldErrors).toBe('clear');
   });
 
   it('is SILENT and never moves focus — the page must land where it loaded', () => {
-    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first'));
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
     expect(plan.effects.announce).toBe('none');
     expect(plan.effects.focus).toBe('none');
   });
 
-  it('opens the live gate, so the visitor\'s first edit already updates live', () => {
-    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first'));
-    expect(plan.next.hasCalculated).toBe(true);
-    expect(isLiveActive('live-after-first', plan.next.hasCalculated)).toBe(true);
-    // The very next field edit is therefore a live update, not a no-op.
-    const next = planFormAction(plan.next, { kind: 'input' }, OK, opts('live-after-first'));
-    expect(next.effects.compute).toBe(true);
+  it('NEVER writes the visitor\'s fields — they stay empty behind the example', () => {
+    for (const probe of [OK, INVALID, NON_FINITE, null]) {
+      const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, probe, opts('live-after-first'));
+      expect(plan.effects.clearValues).toBe(false);
+    }
   });
 
-  it('shows the live note, since edits now update automatically', () => {
+  it('does NOT open the live gate — the visitor still makes an explicit first calculation', () => {
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    expect(plan.next.hasCalculated).toBe(false);
+    expect(isLiveActive('live-after-first', plan.next.hasCalculated)).toBe(false);
+    // So a field edit from here dismisses rather than live-computing.
+    const typed = planFormAction(plan.next, { kind: 'dismissExample', source: 'input' }, null, opts('live-after-first'));
+    expect(typed.next.status.state).toBe('empty');
+  });
+
+  it('shows no live note — nothing updates automatically until the first calculation', () => {
     expect(
-      planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first')).effects.liveNote,
-    ).toBe(true);
-    // ...but never in explicit mode, which has no live updates to announce.
-    expect(
-      planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('explicit')).effects.liveNote,
+      planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first')).effects.liveNote,
     ).toBe(false);
   });
 
-  it('never leaves the visitor on an error THEY did not cause: bad defaults load empty', () => {
+  it('degrades to a plain empty load if our own example values fail', () => {
     for (const probe of [INVALID, NON_FINITE, null]) {
-      const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, probe, opts('live-after-first'));
-      expect(plan.next).toEqual(INITIAL_FORM_STATE); // plain empty-first load
+      const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, probe, opts('live-after-first'));
+      expect(plan.next).toEqual(INITIAL_FORM_STATE); // never a broken example, never an error
       expect(plan.effects.compute).toBe(false);
       expect(plan.effects.announce).toBe('none');
-      expect(plan.effects.fieldErrors).toBe('clear'); // no field marked invalid on arrival
-      expect(plan.effects.liveNote).toBe(false);
+      expect(plan.effects.fieldErrors).toBe('clear');
     }
   });
 
-  it('never clears the fields it was given', () => {
-    for (const probe of [OK, INVALID]) {
-      expect(
-        planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, probe, opts('live-after-first')).effects
-          .clearValues,
-      ).toBe(false);
-    }
+  it('an explicit Calculate from the example produces the visitor\'s own result', () => {
+    const shown = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    const calculated = planFormAction(shown.next, { kind: 'submit' }, OK, opts('live-after-first'));
+    expect(calculated.next.status.state).toBe('valid');
+    expect(calculated.next.hasCalculated).toBe(true);
+    expect(calculated.effects.announce).toBe('value'); // the visitor's OWN result IS announced
   });
 
-  it('Reset still returns to a BLANK empty form, never to the starting values', () => {
-    const filled = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first'));
-    const reset = planFormAction(filled.next, { kind: 'reset' }, null, opts('live-after-first'));
+  it('Reset from an example returns to a blank empty form', () => {
+    const shown = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    const reset = planFormAction(shown.next, { kind: 'reset' }, null, opts('live-after-first'));
     expect(reset.next).toEqual(INITIAL_FORM_STATE);
-    expect(reset.effects.clearValues).toBe(true);
   });
 });
 

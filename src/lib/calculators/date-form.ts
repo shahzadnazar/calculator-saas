@@ -365,3 +365,27 @@ export const dateBinding: FormCalculatorBinding<DateValues, DateComputed> = {
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * A FUNCTION, not a constant, because this calculator's example is relative to
+ * today — a hardcoded date would silently go stale in the built markup. Called
+ * by the island at mount, exactly like the client-today defaults the date
+ * calculators already use.
+ *
+ * These values are OURS, not the visitor's: the runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup. The visitor's fields are never written to.
+ */
+export function dateExampleValues(): DateValues {
+  const today = new Date();
+  const later = new Date(today);
+  later.setDate(later.getDate() + 30);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { mode: 'diff', from: iso(today), to: iso(later), start: iso(today), op: 'add', days: '30' };
+}

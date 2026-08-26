@@ -204,3 +204,19 @@ export const randomNumberBinding: GeneratorBinding<RngSettings, RngOutput> = {
     if (uniq) uniq.checked = false;
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's controls keep their defaults)*/
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example settings for the labelled sample output shown on first load. The
+ * sample numbers are generated in the browser from these settings and are
+ * illustrative only — they never count as the visitor's own generation.
+ */
+export const RANDOM_NUMBER_EXAMPLE_SETTINGS: RngSettings = {
+  min: '1',
+  max: '100',
+  count: '5',
+  unique: true,
+};

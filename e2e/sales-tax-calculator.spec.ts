@@ -41,12 +41,13 @@ test('loads empty: Add mode, blank fields, result empty, Add Sales Tax action, n
   await expect(page.locator('[name="rate"]')).toHaveValue('');
   await expect(amountLabel(page)).toHaveText('Amount before tax');
   await expect(submit(page)).toHaveText('Add Sales Tax');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
 });
 
 test('does not calculate before the first submission', async ({ page }) => {
@@ -234,7 +235,7 @@ test('the guide that embeds the island renders the migrated task-first tool, bot
   // Guide prose remains present.
   await expect(page.getByText('Backing tax out of a total')).toBeVisible();
   // Empty (not prefilled) initial state, then Add works…
-  await expect(page.locator('#tax-result')).toHaveAttribute('data-result-state', 'empty');
+  await expect(page.locator('#tax-result')).toHaveAttribute('data-result-state', 'example');
   await page.fill('[name="amount"]', '100');
   await page.fill('[name="rate"]', '8.25');
   await page.locator('[data-tax-submit]').click();

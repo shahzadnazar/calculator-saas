@@ -25,6 +25,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="sqft mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-sqft>
@@ -89,6 +90,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter the length and width of the area, choose a measurement unit, and set how many identical areas you need." />
 
     <div data-result-when="valid">
@@ -182,11 +184,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { squareFootageBinding } from '@lib/calculators/square-footage-form';
+  import { squareFootageBinding, SQUARE_FOOTAGE_EXAMPLE_VALUES } from '@lib/calculators/square-footage-form';
 
   document.querySelectorAll<HTMLElement>('[data-sqft]').forEach((root) => {
     mountFormCalculator(root, squareFootageBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: SQUARE_FOOTAGE_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Square Footage',
     });
 

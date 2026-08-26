@@ -34,73 +34,31 @@ const calcPayment = async (page: Page, principal: string, rate: string, payment:
   await submit(page).click();
 };
 
-/** Clear the arrive-filled starting values, so a test can exercise the blank form. */
-const startBlank = async (page: Page) => {
-  await page.locator('[data-reset]').click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-};
-
 test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
 /* ---- Initial state ------------------------------------------------------ */
 
-test('loads FILLED in Monthly-payment mode with a computed result and the live note', async ({ page }) => {
-  // Arrive-filled: the visitor lands on a worked result to type over, not a blank form.
+test('loads empty: Monthly-payment mode, blank fields, result empty, Calculate Payment action, no live note', async ({ page }) => {
   await expect(page.locator('[name="mode"][value="term"]')).toBeChecked();
-  await expect(page.locator('[name="principal"]')).toHaveValue('25000');
-  await expect(page.locator('[name="annualRatePct"]')).toHaveValue('7.5');
-  await expect(page.locator('[name="termYears"]')).toHaveValue('5');
-  await expect(submit(page)).toHaveText('Calculate Payment');
-  // Structural mode behaviour is untouched: term shown; payment hidden AND disabled.
-  await expect(page.locator('[data-pm-term]')).toBeVisible();
-  await expect(page.locator('[data-pm-payment]')).toBeHidden();
-  await expect(page.locator('[name="payment"]')).toBeDisabled();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(region(page, 'valid')).toBeVisible();
-  await expect(region(page, 'empty')).toBeHidden();
-  await expect(primary(page)).not.toHaveText('—');
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-  // The live note is on, because edits now update automatically from the very first one.
-  await expect(page.locator('[data-live-note]')).toBeVisible();
-  // Arriving filled is silent — a result the visitor did not ask for is never announced.
-  await expect(liveRegion(page)).toHaveText('');
-});
-
-test('the INACTIVE mode is filled too, so switching mode lands on a result not an empty field', async ({ page }) => {
-  await expect(page.locator('[name="payment"]')).toHaveValue('500');
-  await page.check('[name="mode"][value="payment"]');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(summaryLabel(page)).toHaveText('Estimated payoff time');
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-});
-
-test('Reset clears the starting values to a genuinely blank, empty-state form', async ({ page }) => {
-  await startBlank(page);
   await expect(page.locator('[name="principal"]')).toHaveValue('');
   await expect(page.locator('[name="annualRatePct"]')).toHaveValue('');
   await expect(page.locator('[name="termYears"]')).toHaveValue('');
-  await expect(page.locator('[name="mode"][value="term"]')).toBeChecked(); // default mode restored
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(submit(page)).toHaveText('Calculate Payment');
+  // Term field shown; payment field hidden AND disabled (out of the a11y + submit order).
+  await expect(page.locator('[data-pm-term]')).toBeVisible();
+  await expect(page.locator('[data-pm-payment]')).toBeHidden();
+  await expect(page.locator('[name="payment"]')).toBeDisabled();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  // (The hidden valid region keeps its last text — as it does after any Reset that
-  //  follows a calculation. It is display:none, so nothing stale is ever shown.)
+  await expect(primary(page)).not.toHaveText('—');
 });
 
-test('editing over the starting values updates live, with no Calculate press', async ({ page }) => {
-  const before = await primary(page).textContent();
-  await page.fill('[name="principal"]', '40000');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).not.toHaveText(before!);
-});
-
-test('once blanked, it does not calculate again before the next explicit submission', async ({ page }) => {
-  await startBlank(page);
+test('does not calculate before the first submission', async ({ page }) => {
   await page.fill('[name="principal"]', '20000');
   await page.fill('[name="annualRatePct"]', '6');
   await page.fill('[name="termYears"]', '5');
@@ -185,7 +143,6 @@ test('live recalculation into a year boundary uses normalized wording (display +
 /* ---- Mode switching + conditional field --------------------------------- */
 
 test('switching mode before the first calc swaps the field + label, does not calculate, preserves entries', async ({ page }) => {
-  await startBlank(page);
   await page.fill('[name="principal"]', '20000');
   await page.fill('[name="annualRatePct"]', '6');
   await page.fill('[name="termYears"]', '5');
@@ -200,7 +157,6 @@ test('switching mode before the first calc swaps the field + label, does not cal
 });
 
 test('after a result, switching to a mode whose field is empty asks for it live; switching back restores the preserved value', async ({ page }) => {
-  await startBlank(page); // the term field must be genuinely empty for this transition
   await calcPayment(page, '20000', '6', '400');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
   // Switch to term mode — its term field is empty, so live recompute asks for it.
@@ -219,7 +175,6 @@ test('after a result, switching to a mode whose field is empty asks for it live;
 /* ---- Validation --------------------------------------------------------- */
 
 test('an empty explicit submission focuses the loan amount and associates the error', async ({ page }) => {
-  await startBlank(page);
   await submit(page).click();
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
   const principal = page.locator('[name="principal"]');

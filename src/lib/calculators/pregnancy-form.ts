@@ -352,3 +352,27 @@ export const pregnancyBinding: FormCalculatorBinding<PregnancyValues, PregnancyC
     if (el) el.value = '';
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * A FUNCTION, not a constant, because this calculator's example is relative to
+ * today — a hardcoded date would silently go stale in the built markup. Called
+ * by the island at mount, exactly like the client-today defaults the date
+ * calculators already use.
+ *
+ * These values are OURS, not the visitor's: the runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup. The visitor's fields are never written to.
+ */
+export function pregnancyExampleValues(): PregnancyValues {
+  const today = new Date();
+  const lmp = new Date(today);
+  lmp.setDate(lmp.getDate() - 140); // 20 weeks along
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { lmp: iso(lmp), today: iso(today) };
+}

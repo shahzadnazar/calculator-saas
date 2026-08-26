@@ -21,6 +21,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="iw mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-idealweight>
@@ -79,6 +80,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your height, then calculate your ideal weight range." />
 
     <div data-result-when="valid">
@@ -238,11 +240,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { idealWeightBinding } from '@lib/calculators/ideal-weight-form';
+  import { idealWeightBinding, IDEAL_WEIGHT_EXAMPLE_VALUES } from '@lib/calculators/ideal-weight-form';
 
   document.querySelectorAll<HTMLElement>('[data-idealweight]').forEach((root) =>
     mountFormCalculator(root, idealWeightBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: IDEAL_WEIGHT_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Ideal Weight',
     }),
   );

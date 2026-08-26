@@ -65,8 +65,9 @@ test.describe('grade: task-first (multi-mode)', () => {
     await expect(rowAt(page, 0).locator('[data-grade-score]')).toHaveValue('');
     await expect(rowAt(page, 0).locator('[data-grade-weight]')).toHaveValue('');
     await expect(submit(page)).toHaveText('Calculate Weighted Grade');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
     await expect(rowAt(page, 0).locator('[data-grade-remove]')).toBeDisabled();
   });

@@ -27,6 +27,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="creditcard mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-cc>
@@ -141,6 +142,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="22rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your balance, APR, and payment details, then calculate your payoff." />
 
     <div data-result-when="valid">
@@ -281,11 +283,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { creditCardBinding } from '@lib/calculators/credit-card-form';
+  import { creditCardBinding, CREDIT_CARD_EXAMPLE_VALUES } from '@lib/calculators/credit-card-form';
 
   document.querySelectorAll<HTMLElement>('[data-cc]').forEach((root) => {
     mountFormCalculator(root, creditCardBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: CREDIT_CARD_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Payoff Time',
     });
 

@@ -35,6 +35,7 @@ import ResultInterpretation from '@components/result/ResultInterpretation.astro'
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="datecalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-date>
@@ -94,6 +95,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="dc-result" state="empty" density="standard" label="Date result" minHeight="16rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Choose a task and enter your dates to calculate." />
 
     <div data-result-when="valid">
@@ -187,7 +189,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { dateBinding, DEFAULT_MODE } from '@lib/calculators/date-form';
+  import { dateBinding, DEFAULT_MODE, dateExampleValues } from '@lib/calculators/date-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -228,6 +230,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, dateBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: dateExampleValues() },
       calculateButtonLabel: 'Calculate',
     });
 

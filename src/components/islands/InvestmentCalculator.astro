@@ -23,6 +23,7 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="investment mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-investment>
@@ -77,6 +78,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="inv-result" state="empty" density="complex" label="Investment result" minHeight="20rem">
+    <ExampleNotice />
     <EmptyResult message="Enter a starting investment or a monthly contribution, an expected annual return, and a projection period, then calculate your projected investment value." />
 
     <div data-result-when="valid">
@@ -151,11 +153,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { investmentBinding, validateInvestmentValues } from '@lib/calculators/investment-form';
+  import { investmentBinding, validateInvestmentValues, INVESTMENT_EXAMPLE_VALUES } from '@lib/calculators/investment-form';
 
   document.querySelectorAll<HTMLElement>('[data-investment]').forEach((root) => {
     mountFormCalculator(root, investmentBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: INVESTMENT_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Investment Growth',
     });
 

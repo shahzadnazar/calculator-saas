@@ -52,10 +52,10 @@ test.describe('due date: task-first', () => {
 
   test('loads task-first: empty LMP, empty result, Calculate Due Date, no auto-calc', async ({ page }) => {
     await expect(lmp(page)).toHaveValue('');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await expect(submit(page)).toHaveText('Calculate Due Date');
     await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   test('the LMP picker max is capped at the local today', async ({ page }) => {
@@ -215,7 +215,7 @@ test.describe('due date: generated embed', () => {
   });
 
   test('mounts the task-first island and carries exactly one disclaimer', async ({ page }) => {
-    await expect(page.locator('#dd-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#dd-result')).toHaveAttribute('data-result-state', 'example');
     await expect(page.locator('[data-dd-submit]')).toHaveText('Calculate Due Date');
     await expect(page.locator('[data-dd-disclaimer]')).toHaveCount(1);
     await expect(page.locator('[data-dd-disclaimer]')).toBeVisible();

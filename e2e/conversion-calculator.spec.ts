@@ -55,7 +55,7 @@ test.describe('conversion: task-first', () => {
     expect(server.dominant).toBe('—'); // no baked-in conversion
     expect(server.category).toBe('length');
     expect(server.value).toBe('1'); // the neutral converter value
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -65,8 +65,9 @@ test.describe('conversion: task-first', () => {
     await expect(page.locator('[name="value"]')).toHaveValue('1');
     await expect(page.locator('[name="from"]')).toHaveValue('mm');
     await expect(page.locator('[name="to"]')).toHaveValue('cm');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -220,7 +221,7 @@ test.describe('conversion: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, then a conversion)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await doConvert(page, { value: '1', from: 'km', to: 'mi' });
     await expect(dominant(page)).toHaveText('0.621371');
   });
@@ -294,7 +295,7 @@ test.describe('conversion: same-document instance isolation', () => {
     };
     await convertA();
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('0.621371');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await A('[data-reset]').click();
     await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');

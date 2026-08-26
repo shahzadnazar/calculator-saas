@@ -21,7 +21,7 @@
  * Static ids are namespaced per-instance WHEN more than one Interest calculator shares a document
  * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
  */
-import { COMPOUND_FREQUENCIES, DEFAULT_FREQUENCY } from '@lib/calculators/interest-form';
+import { COMPOUND_FREQUENCIES, DEFAULT_FREQUENCY, INTEREST_EXAMPLE_VALUES } from '@lib/calculators/interest-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -29,6 +29,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="intcalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-interest>
@@ -77,6 +78,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="interest-result" state="empty" density="standard" label="Interest result" minHeight="18rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Enter a principal, rate and time, then calculate to compare simple and compound interest." />
 
     <div data-result-when="valid">
@@ -178,7 +180,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { interestBinding } from '@lib/calculators/interest-form';
+  import { interestBinding, INTEREST_EXAMPLE_VALUES } from '@lib/calculators/interest-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -213,6 +215,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, interestBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: INTEREST_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate',
     });
 

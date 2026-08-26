@@ -24,6 +24,7 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="grade  mx-auto w-full max-w-3xl grid grid-cols-2 gap-4" data-grade>
@@ -85,6 +86,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   </form>
 
   <ResultShell id="grade-result" state="empty" density="standard" label="Grade result" minHeight="15rem">
+    <ExampleNotice />
     <EmptyResult message="Pick a mode, enter your figures, then calculate your weighted grade or the score you need on the final." />
 
     <div data-result-when="valid">
@@ -264,7 +266,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { gradeBinding } from '@lib/calculators/grade-form';
+  import { gradeBinding, GRADE_EXAMPLE_VALUES } from '@lib/calculators/grade-form';
 
   let uid = 0; // module-global → weighted-row ids unique across instances on a page
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
@@ -416,6 +418,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, gradeBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: GRADE_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Weighted Grade',
     });
 

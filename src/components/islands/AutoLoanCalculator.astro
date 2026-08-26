@@ -23,7 +23,8 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
-import { TERM_OPTIONS, DEFAULT_TERM } from '@lib/calculators/auto-loan-form';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { TERM_OPTIONS, DEFAULT_TERM, AUTO_LOAN_EXAMPLE_VALUES } from '@lib/calculators/auto-loan-form';
 ---
 
 <div class="autoloan mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-autoloan>
@@ -124,6 +125,7 @@ import { TERM_OPTIONS, DEFAULT_TERM } from '@lib/calculators/auto-loan-form';
 
   <!-- Result -->
   <ResultShell id="al-result" state="empty" density="complex" label="Auto loan result" minHeight="22rem">
+    <ExampleNotice />
     <EmptyResult message="Enter the vehicle price, interest rate, and term, then calculate your estimated monthly auto-loan payment." />
 
     <div data-result-when="valid">
@@ -206,11 +208,12 @@ import { TERM_OPTIONS, DEFAULT_TERM } from '@lib/calculators/auto-loan-form';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { autoLoanBinding, DEFAULT_TERM } from '@lib/calculators/auto-loan-form';
+  import { autoLoanBinding, DEFAULT_TERM, AUTO_LOAN_EXAMPLE_VALUES } from '@lib/calculators/auto-loan-form';
 
   document.querySelectorAll<HTMLElement>('[data-autoloan]').forEach((root) => {
     mountFormCalculator(root, autoLoanBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: AUTO_LOAN_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Auto Loan Payment',
     });
 

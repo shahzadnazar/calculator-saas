@@ -41,13 +41,14 @@ test('loads empty: fields blank, unit km, result empty, Calculate visible, no li
   }
   await expect(page.locator('[data-unit="km"]')).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('[data-unit="mi"]')).toHaveAttribute('aria-checked', 'false');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate Pace');
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
 });
 
 test('does not calculate before the first submission', async ({ page }) => {
@@ -168,7 +169,7 @@ test('switching units before the first result converts the distance and does not
 test('switching units on an empty distance leaves it empty with no error', async ({ page }) => {
   await page.click('[data-unit="mi"]');
   await expect(page.locator('[name="distance"]')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
 });
 
 test('switching units after a result converts, recalculates, keeps focus on the selector, announces once', async ({ page }) => {

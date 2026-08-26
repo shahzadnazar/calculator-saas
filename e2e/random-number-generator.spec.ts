@@ -60,8 +60,8 @@ test.describe('rng: task-first', () => {
     await page.goto(ROUTE, { waitUntil: 'networkidle' });
     expect(server.state).toBe('empty');
     expect(server.chips).toBe(0);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(chips(page)).toHaveCount(0);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    await expect(chips(page)).not.toHaveCount(0); // the labelled example shows sample numbers
   });
 
   /* ---- initial state ---- */
@@ -71,8 +71,8 @@ test.describe('rng: task-first', () => {
     await expect(page.locator('[name="max"]')).toHaveValue('100');
     await expect(page.locator('[name="count"]')).toHaveValue('5');
     await expect(page.locator('[name="unique"]')).not.toBeChecked();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -82,7 +82,7 @@ test.describe('rng: task-first', () => {
     await setUnique(page, true);
     await page.waitForTimeout(150);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(chips(page)).toHaveCount(0);
+    await expect(chips(page)).not.toHaveCount(0); // the labelled example shows sample numbers
   });
 
   /* ---- generation (property assertions, never exact values) ---- */
@@ -237,8 +237,8 @@ test.describe('rng: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, no auto-gen, then a valid generation)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#rng-result')).toHaveAttribute('data-result-state', 'empty');
-    await expect(page.locator('#rng-result [data-rng-list] .rng-chip')).toHaveCount(0);
+    await expect(page.locator('#rng-result')).toHaveAttribute('data-result-state', 'example');
+    await expect(page.locator('#rng-result [data-rng-list] .rng-chip')).not.toHaveCount(0); // example numbers
     await page.locator('[name="count"]').fill('7');
     await page.waitForTimeout(150);
     await expect(page.locator('#rng-result')).toHaveAttribute('data-result-state', 'empty'); // no auto-gen
@@ -311,7 +311,7 @@ test.describe('rng: same-document instance isolation', () => {
     await A('[name="count"]').fill('4');
     await A('[data-form] button[type="submit"]').click();
     await expect(A('[data-rng-list] .rng-chip')).toHaveCount(4);
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await B('[name="count"]').fill('9');
     await B('[data-form] button[type="submit"]').click();

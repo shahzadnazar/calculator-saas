@@ -19,11 +19,12 @@
  * descriptive grid below and the Reset lifecycle are identical for both routes.
  * There is no StandardDeviationCalculator and no generic multi-stat abstraction.
  */
-import { DEFAULT_PRIMARY, type StatPrimary } from '@lib/calculators/statistics-form';
+import { DEFAULT_PRIMARY, type StatPrimary, STATISTICS_EXAMPLE_VALUES } from '@lib/calculators/statistics-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 
 interface Props {
   primary?: StatPrimary;
@@ -115,6 +116,7 @@ const groups = [
   <!-- Result -->
   <div class="lg:col-span-3">
     <ResultShell id="stat-result" state="empty" density="complex" label={`${noun} result`} minHeight="18rem">
+    <ExampleNotice />
       <EmptyResult message={isSd
         ? 'Enter a data set and calculate to see the sample and population standard deviation, variance and the full summary.'
         : 'Enter a data set and calculate to see the mean, median, mode and the full five-number summary.'} />
@@ -213,12 +215,13 @@ const groups = [
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { statisticsBinding } from '@lib/calculators/statistics-form';
+  import { statisticsBinding, STATISTICS_EXAMPLE_VALUES } from '@lib/calculators/statistics-form';
 
   document.querySelectorAll<HTMLElement>('[data-stats]').forEach((root) => {
     const isSd = root.getAttribute('data-primary') === 'sd';
     mountFormCalculator(root, statisticsBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: STATISTICS_EXAMPLE_VALUES },
       calculateButtonLabel: isSd ? 'Calculate Standard Deviation' : 'Calculate Statistics',
     });
 

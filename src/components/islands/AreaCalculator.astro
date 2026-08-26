@@ -17,13 +17,14 @@
  * On Reset the runtime restores rectangle + m and clears every field; the island re-syncs visibility.
  */
 import { AREA_SHAPES } from '@lib/calculators/area';
-import { AREA_UNITS, DEFAULT_SHAPE, DEFAULT_UNIT } from '@lib/calculators/area-form';
+import { AREA_UNITS, DEFAULT_SHAPE, DEFAULT_UNIT, AREA_EXAMPLE_VALUES } from '@lib/calculators/area-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="area mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-area>
@@ -84,6 +85,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="ar-result" state="empty" density="standard" label="Area result" minHeight="14rem">
+    <ExampleNotice />
     <EmptyResult message="Choose a shape and enter its dimensions to calculate the area." />
 
     <div data-result-when="valid" class="text-center">
@@ -125,11 +127,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { areaBinding, DEFAULT_SHAPE, DEFAULT_UNIT } from '@lib/calculators/area-form';
+  import { areaBinding, DEFAULT_SHAPE, DEFAULT_UNIT, AREA_EXAMPLE_VALUES } from '@lib/calculators/area-form';
 
   document.querySelectorAll<HTMLElement>('[data-area]').forEach((root) => {
     mountFormCalculator(root, areaBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: AREA_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Area',
     });
 

@@ -28,12 +28,13 @@ import ResultInterpretation from '@components/result/ResultInterpretation.astro'
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="agecalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-age>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Age calculator">
-    <div class="space-y-4">
+    <div class="grid grid-cols-2 gap-4">
       <div data-field="dob">
         <label class="field-label" for="age-dob">Date of birth</label>
         <input class="field mt-1" id="age-dob" name="dob" type="date" autocomplete="off" aria-describedby="age-dob-error" />
@@ -56,6 +57,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="age-result" state="empty" density="standard" label="Age result" minHeight="18rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Enter a date of birth and calculate the exact age." />
 
     <div data-result-when="valid">
@@ -170,7 +172,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { ageBinding, todayISO } from '@lib/calculators/age-form';
+  import { ageBinding, todayISO, ageExampleValues } from '@lib/calculators/age-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -215,6 +217,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, ageBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: ageExampleValues() },
       calculateButtonLabel: 'Calculate Age',
     });
 

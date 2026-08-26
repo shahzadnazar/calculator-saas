@@ -23,6 +23,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="fraction mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-fraction>
@@ -71,6 +72,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="fr-result" state="empty" density="standard" label="Fraction result" minHeight="16rem" placeholderAlignment="center">
+    <ExampleNotice />
     <EmptyResult message="Enter two fractions, choose an operation, then calculate the simplified result." />
 
     <div data-result-when="valid">
@@ -180,7 +182,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { fractionBinding } from '@lib/calculators/fraction-form';
+  import { fractionBinding, FRACTION_EXAMPLE_VALUES } from '@lib/calculators/fraction-form';
 
   let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
 
@@ -215,6 +217,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     if (document.querySelectorAll('[data-fraction]').length > 1) uniquifyStaticIds(root, `f${++ns}`);
     mountFormCalculator(root, fractionBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: FRACTION_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Fraction',
     });
   });

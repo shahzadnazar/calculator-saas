@@ -28,6 +28,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 
 const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
 ---
@@ -137,6 +138,7 @@ const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
     minHeight="24rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your measurements, then calculate your estimated body-fat percentage." />
 
     <div data-result-when="valid">
@@ -311,11 +313,12 @@ const BANDS = ['Essential fat', 'Athletes', 'Fitness', 'Average', 'Obese'];
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { bodyFatBinding } from '@lib/calculators/body-fat-form';
+  import { bodyFatBinding, BODY_FAT_EXAMPLE_VALUES } from '@lib/calculators/body-fat-form';
 
   document.querySelectorAll<HTMLElement>('[data-bodyfat]').forEach((root) => {
     mountFormCalculator(root, bodyFatBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: BODY_FAT_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Body Fat',
     });
 

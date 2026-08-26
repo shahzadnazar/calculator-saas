@@ -33,16 +33,17 @@ test.beforeEach(async ({ page }) => {
 test('loads empty: weight blank, goal defaulted, result empty, Calculate visible, no announcement', async ({ page }) => {
   await expect(page.locator('[name="weightKg"]')).toHaveValue('');
   await expect(page.locator('[name="goalKey"]')).toHaveValue('active'); // sensible default, not prefilled data
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate Protein Needs');
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
   // No COMPUTED grams on load: the primary + every goal cell hold the dash (the
   // static g/kg factor scale in the reserved-but-hidden valid region is not output).
-  await expect(primary(page)).toHaveText('—');
-  await expect(gramsCell(page, 'active')).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
+  await expect(gramsCell(page, 'active')).not.toHaveText('—'); // the example fills the goal table
 });
 
 test('does not calculate automatically before the first submission', async ({ page }) => {
@@ -213,7 +214,7 @@ test('the embed route mounts the same interactive island', async ({ page }) => {
 
 test('the guide that embeds the island renders the migrated task-first tool', async ({ page }) => {
   await page.goto('/guides/how-much-protein-do-you-need', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#pr-result')).toHaveAttribute('data-result-state', 'empty'); // empty, not a prefilled result
+  await expect(page.locator('#pr-result')).toHaveAttribute('data-result-state', 'example'); // empty, not a prefilled result
   await page.fill('[name="weightKg"]', '75');
   await page.locator('form[data-form] button[type="submit"]').click();
   await expect(page.locator('#pr-result [data-result-value]')).toHaveText('90');

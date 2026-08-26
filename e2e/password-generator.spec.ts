@@ -25,7 +25,7 @@ test.beforeEach(async ({ page }) => {
 /* ---- Initial state ------------------------------------------------------ */
 
 test('loads with no password, an empty output, Copy disabled, Generate visible', async ({ page }) => {
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   await expect(output(page)).toHaveValue('');
   await expect(copyBtn(page)).toBeDisabled();
   await expect(generateBtn(page)).toHaveText('Generate Password');

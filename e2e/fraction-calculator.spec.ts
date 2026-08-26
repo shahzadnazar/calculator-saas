@@ -45,8 +45,9 @@ test.describe('fraction: task-first', () => {
   test('loads empty with the neutral (add) operation, no result, no announcement', async ({ page }) => {
     for (const n of ['an', 'ad', 'bn', 'bd']) await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
     await expect(page.locator('[name="op"]')).toHaveValue('add');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -234,7 +235,7 @@ test('the guide that embeds the island renders the migrated task-first tool', as
   await expect(page.locator('[data-fraction] h1')).toHaveCount(0);
   await expect(page.locator('[data-fraction] nav')).toHaveCount(0);
   // Empty (not the legacy prefill), then an explicit calc works inside the guide.
-  await expect(page.locator('#fr-result')).toHaveAttribute('data-result-state', 'empty');
+  await expect(page.locator('#fr-result')).toHaveAttribute('data-result-state', 'example');
   await page.locator('[name="an"]').fill('1');
   await page.locator('[name="ad"]').fill('2');
   await page.locator('[name="bn"]').fill('1');
@@ -308,7 +309,7 @@ test.describe('fraction: same-document instance isolation', () => {
     };
     await fillCalc(A, '1', '2', '1', '3');
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('5/6');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await fillCalc(B, '2', '3', '3', '4'); // add → 17/12
     await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('17/12');

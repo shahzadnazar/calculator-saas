@@ -31,13 +31,14 @@ test.beforeEach(async ({ page }) => {
 
 test('loads empty: no prefilled calories, result empty, Calculate visible, no live note', async ({ page }) => {
   await expect(page.locator('[name="calories"]')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate Fat Intake');
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
 });
 
 test('does not calculate automatically before the first submission', async ({ page }) => {

@@ -252,3 +252,29 @@ export function percentExamples(): PercentExamples {
     },
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Worked example operands (labelled; the operands stay EMPTY)         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example operands for the labelled worked result each equation shows on first
+ * load, in the shape each binding reads. Derived from the single PERCENT_EXAMPLES
+ * scenario above, so the three equations and the prose can never disagree.
+ *
+ * The shared equation runtime computes these and calls each binding's own
+ * `renderResult`, so an example reuses that equation's real result markup. The
+ * visitor's operands are never written to — they load and stay empty.
+ */
+export const PERCENT_OF_EXAMPLE_VALUES: PercentOfOperands = {
+  percent: String(PERCENT_EXAMPLES.percentOf.percent),
+  value: String(PERCENT_EXAMPLES.percentOf.value),
+};
+export const WHAT_PERCENT_EXAMPLE_VALUES: WhatPercentOperands = {
+  part: String(PERCENT_EXAMPLES.whatPercent.part),
+  whole: String(PERCENT_EXAMPLES.whatPercent.whole),
+};
+export const PERCENT_CHANGE_EXAMPLE_VALUES: PercentChangeOperands = {
+  from: String(PERCENT_EXAMPLES.percentChange.from),
+  to: String(PERCENT_EXAMPLES.percentChange.to),
+};

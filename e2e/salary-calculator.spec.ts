@@ -58,7 +58,7 @@ test.describe('salary: task-first', () => {
     expect(server.dominant).toBe('—'); // no baked salary
     expect(server.amount).toBe(''); // amount empty
     expect(server.unit).toBe('hourly');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -69,8 +69,9 @@ test.describe('salary: task-first', () => {
     await expect(page.locator('[name="hoursPerWeek"]')).toHaveValue('40');
     await expect(page.locator('[name="daysPerWeek"]')).toHaveValue('5');
     await expect(page.locator('[name="weeksPerYear"]')).toHaveValue('52');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -206,7 +207,7 @@ test.describe('salary: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, then a salary)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await doConvert(page, { amount: '25', unit: 'hourly' });
     await expect(dominant(page)).toHaveText('$52,000.00');
   });
@@ -279,7 +280,7 @@ test.describe('salary: same-document instance isolation', () => {
     };
     await convertA();
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$52,000.00');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await A('[data-reset]').click();
     await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');

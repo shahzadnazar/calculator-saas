@@ -151,3 +151,23 @@ export const passwordBinding: GeneratorBinding<PasswordSettings, PasswordOutput>
     if (disp) disp.textContent = String(DEFAULT_LENGTH);
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's controls keep their defaults)*/
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example settings for the labelled sample output shown on first load.
+ *
+ * The sample password is generated fresh in the browser from these settings and
+ * is illustrative only — like every generator output it is never announced,
+ * stored, logged or transmitted, and it does not count as the visitor's first
+ * generation (Copy stays disabled until they generate their own).
+ */
+export const PASSWORD_EXAMPLE_SETTINGS: PasswordSettings = {
+  length: 16,
+  upper: true,
+  lower: true,
+  digits: true,
+  symbols: true,
+};

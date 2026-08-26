@@ -26,6 +26,7 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="ir mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-ir>
@@ -66,6 +67,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="ir-result" state="empty" density="standard" label="Interest rate result" minHeight="11rem">
+    <ExampleNotice />
     <EmptyResult message="Enter the loan amount, the monthly payment and the term in months, then calculate to see the annual interest rate those payments imply." />
 
     <div data-result-when="valid">
@@ -213,11 +215,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { interestRateBinding } from '@lib/calculators/interest-rate-form';
+  import { interestRateBinding, INTEREST_RATE_EXAMPLE_VALUES } from '@lib/calculators/interest-rate-form';
 
   document.querySelectorAll<HTMLElement>('[data-ir]').forEach((root) => {
     mountFormCalculator(root, interestRateBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: INTEREST_RATE_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Interest Rate',
     });
   });

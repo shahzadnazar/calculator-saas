@@ -25,6 +25,7 @@ import ResultShell from '@components/result/ResultShell.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="duedate mx-auto w-full max-w-4xl" data-duedate>
@@ -52,6 +53,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     <!-- Result -->
     <ResultShell id="dd-result" state="empty" density="standard" label="Due date result" minHeight="14rem">
+    <ExampleNotice />
       <EmptyResult message="Enter the first day of your last period and calculate your estimated due date." />
 
       <div data-result-when="valid" class="text-center">
@@ -107,7 +109,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { dueDateBinding, todayISO } from '@lib/calculators/due-date-form';
+  import { dueDateBinding, todayISO, dueDateExampleValues } from '@lib/calculators/due-date-form';
 
   document.querySelectorAll<HTMLElement>('[data-duedate]').forEach((root) => {
     // Cap the picker at the visitor's local today so a future LMP can't be
@@ -117,6 +119,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, dueDateBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: dueDateExampleValues() },
       calculateButtonLabel: 'Calculate Due Date',
     });
 

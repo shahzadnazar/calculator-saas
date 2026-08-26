@@ -333,20 +333,15 @@ export const amortizationBinding: FormCalculatorBinding<AmortValues, AmortComput
 };
 
 /* ------------------------------------------------------------------ */
-/* Starting values (arrive-filled)                                     */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
 /* ------------------------------------------------------------------ */
 
 /**
- * The values this calculator arrives filled with, so the visitor lands on a real
- * worked result they can type over instead of an empty form. They are OURS, not
- * the visitor's: the runtime computes them silently on mount (`prefill`), and
- * Reset still clears the form to blank rather than restoring them.
+ * Example inputs for the labelled worked result shown on first load.
  *
- * Strings, because they are rendered straight into `value` attributes and read
- * back by `readValues` as strings — the same path a typed entry takes.
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
  */
-export const AMORTIZATION_STARTING_VALUES = {
-  amount: '250000',
-  annualInterestRate: '6.5',
-  termYears: '30',
-} as const;
+export const AMORTIZATION_EXAMPLE_VALUES: AmortValues = { amount: '250000', annualInterestRate: '6.5', termYears: '30' };

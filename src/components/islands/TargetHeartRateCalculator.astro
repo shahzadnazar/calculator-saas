@@ -14,7 +14,7 @@
  * range). A resting heart rate is optional and switches the reviewed function to
  * the Karvonen (heart-rate reserve) method. No number is fabricated here.
  */
-import { HEART_RATE_ZONES } from '@lib/calculators/target-heart-rate-form';
+import { HEART_RATE_ZONES, TARGET_HEART_RATE_EXAMPLE_VALUES } from '@lib/calculators/target-heart-rate-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -23,12 +23,13 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="thr mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-thr>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Target heart rate calculator">
-    <div class="space-y-4">
+    <div class="grid grid-cols-2 gap-4">
       <div data-field="age">
         <label class="field-label" for="thr-age">Age</label>
         <div class="flex">
@@ -92,6 +93,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="26rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your age, then calculate your maximum heart rate and training zones." />
 
     <div data-result-when="valid">
@@ -244,11 +246,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { targetHeartRateBinding } from '@lib/calculators/target-heart-rate-form';
+  import { targetHeartRateBinding, TARGET_HEART_RATE_EXAMPLE_VALUES } from '@lib/calculators/target-heart-rate-form';
 
   document.querySelectorAll<HTMLElement>('[data-thr]').forEach((root) =>
     mountFormCalculator(root, targetHeartRateBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: TARGET_HEART_RATE_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Heart Rate Zones',
     }),
   );

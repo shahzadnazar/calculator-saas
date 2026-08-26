@@ -24,6 +24,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="concrete mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-concrete>
@@ -82,6 +83,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="22rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter the slab length, width and depth, then optionally add a waste allowance to estimate concrete volume and bag quantities." />
 
     <div data-result-when="valid">
@@ -206,11 +208,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { concreteBinding } from '@lib/calculators/concrete-form';
+  import { concreteBinding, CONCRETE_EXAMPLE_VALUES } from '@lib/calculators/concrete-form';
 
   document.querySelectorAll<HTMLElement>('[data-concrete]').forEach((root) => {
     mountFormCalculator(root, concreteBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: CONCRETE_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Concrete',
     });
 

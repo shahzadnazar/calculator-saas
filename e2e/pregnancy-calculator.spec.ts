@@ -59,10 +59,10 @@ test.describe('pregnancy: task-first', () => {
 
   test('loads task-first: empty LMP, empty result, Calculate Pregnancy Progress, no auto-calc', async ({ page }) => {
     await expect(lmp(page)).toHaveValue('');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await expect(submit(page)).toHaveText('Calculate Pregnancy Progress');
     await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   test('the LMP picker max is capped at the local today', async ({ page }) => {
@@ -256,7 +256,7 @@ test.describe('pregnancy: generated embed', () => {
   });
 
   test('mounts the task-first island and carries exactly one disclaimer', async ({ page }) => {
-    await expect(page.locator('#pg-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#pg-result')).toHaveAttribute('data-result-state', 'example');
     await expect(page.locator('[data-pg-submit]')).toHaveText('Calculate Pregnancy Progress');
     await expect(page.locator('[data-pg-disclaimer]')).toHaveCount(1);
     await expect(page.locator('[data-pg-disclaimer]')).toBeVisible();

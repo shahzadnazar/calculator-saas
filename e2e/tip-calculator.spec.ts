@@ -44,11 +44,12 @@ test('loads empty: bill+rate blank, people=1, no preset pressed, result empty, C
   await expect(submit(page)).toBeVisible();
   await expect(resetBtn(page)).toBeVisible();
   for (const p of [10, 15, 18, 20, 25]) await expect(preset(page, p)).toHaveAttribute('aria-pressed', 'false');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
 });
 
 test('does not calculate before the first submission — typing or clicking a preset', async ({ page }) => {

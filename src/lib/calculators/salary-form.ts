@@ -247,3 +247,17 @@ export const salaryBinding: FormCalculatorBinding<SalaryValues, SalaryComputed> 
     set('weeksPerYear', DEFAULT_WEEKS_PER_YEAR);
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
+ */
+export const SALARY_EXAMPLE_VALUES: SalaryValues = { amount: '30', unit: 'hourly', hoursPerWeek: '40', daysPerWeek: '5', weeksPerYear: '52' };

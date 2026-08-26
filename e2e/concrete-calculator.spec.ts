@@ -50,8 +50,9 @@ test('loads empty: blank dims, feet selected, waste empty, result empty', async 
   await expect(unitRadio(page, 'ft')).toBeChecked();
   await expect(page.locator('[name="wastePct"]')).toHaveValue('');
   await expect(submit(page)).toBeVisible();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
 });
 

@@ -17,7 +17,7 @@
  * references, and the full goal set is an accessible comparison with the selected
  * goal highlighted + named.
  */
-import { ACTIVITY_LEVELS, CALORIE_GOALS, DEFAULT_ACTIVITY, DEFAULT_GOAL_KEY } from '@lib/calculators/calorie-form';
+import { ACTIVITY_LEVELS, CALORIE_GOALS, DEFAULT_ACTIVITY, DEFAULT_GOAL_KEY, CALORIE_EXAMPLE_VALUES } from '@lib/calculators/calorie-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -26,6 +26,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="calorie mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-calorie>
@@ -74,7 +75,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       </div>
 
       <!-- Imperial -->
-      <div class="space-y-4" data-group="imperial" hidden>
+      <div class="grid grid-cols-2 gap-4" data-group="imperial" hidden>
         <div data-field="height">
           <label class="field-label" for="cal-height-ft">Height</label>
           <div class="grid grid-cols-2 gap-3">
@@ -135,6 +136,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="28rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your details, then calculate your estimated daily calorie needs." />
 
     <div data-result-when="valid">
@@ -346,11 +348,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { calorieBinding } from '@lib/calculators/calorie-form';
+  import { calorieBinding, CALORIE_EXAMPLE_VALUES } from '@lib/calculators/calorie-form';
 
   document.querySelectorAll<HTMLElement>('[data-calorie]').forEach((root) =>
     mountFormCalculator(root, calorieBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: CALORIE_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Calorie Needs',
     }),
   );

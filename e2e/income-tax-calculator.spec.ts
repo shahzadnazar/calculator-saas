@@ -65,9 +65,10 @@ test.describe('income tax: task-first', () => {
       primary: (await primary(page).textContent())?.trim(),
     };
     expect(server.state).toBe('empty');
-    expect(hydrated.state).toBe('empty');
+    expect(hydrated.state).toBe('example');
     expect(server.primary).toBe('—');
-    expect(server.primary).toBe(hydrated.primary); // both the placeholder, no computed value
+    // The server HTML carries the placeholder; the example arrives only on hydration.
+    expect(server.primary).not.toBe(hydrated.primary);
     expect(raw).not.toMatch(/\$8,?341/); // the legacy baked-in $75,000 default result is gone
   });
 
@@ -78,8 +79,9 @@ test.describe('income tax: task-first', () => {
     await expect(page.locator('[name="additionalDeductions"]')).toHaveValue('');
     await expect(page.locator('[name="filingStatus"][value="single"]')).toBeChecked();
     await expect(stdNote(page)).toHaveText('$14,600');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -244,7 +246,7 @@ test.describe('income tax: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, then single / married / $0 results, reset)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#it-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#it-result')).toHaveAttribute('data-result-state', 'example');
     // no auto-calc
     await page.locator('[name="grossIncome"]').fill('60000');
     await page.waitForTimeout(DEBOUNCE);
@@ -332,7 +334,7 @@ test.describe('income tax: same-document instance isolation', () => {
     };
     await fillCalc(A, '60000', 'single'); // single $60k = $5,216
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$5,216.00');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await fillCalc(B, '100000', 'married'); // married $100k = $8,032
     await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$8,032.00');

@@ -2,9 +2,9 @@
 /**
  * BMI calculator island (R2 — standard-form runtime pilot).
  *
- * Direct-intent, task-first: personal fields start EMPTY, the result panel is
- * empty (an instruction, no sample BMI), and the visitor presses "Calculate BMI"
- * for the first result. After that first success, edits update automatically
+ * Direct-intent, task-first: personal fields start EMPTY and STAY empty behind a
+ * labelled worked example the shared runtime renders into this island's own
+ * valid region; the visitor presses "Calculate BMI" for their first result. After that first success, edits update automatically
  * (live-after-first). All interaction, validation, state, announcements and
  * focus are owned by the shared runtime (@lib/result/form-runtime); this island
  * is only markup + the tiny BMI binding (@lib/calculators/bmi-form).
@@ -15,14 +15,9 @@ import ResultValue from '@components/result/ResultValue.astro';
 import ResultInterpretation from '@components/result/ResultInterpretation.astro';
 import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
-import ExampleResult from '@components/result/ExampleResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
-import { bmiExample } from '@lib/calculators/bmi-form';
-
-// Every figure below is computed at build time by the same reviewed `calculateBmi`
-// the calculator runs, so the example can never drift from the engine.
-const ex = bmiExample();
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="bmi mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-bmi>
@@ -155,35 +150,13 @@ const ex = bmiExample();
        empty/invalid placeholders so the reserved card reads as intentional. -->
   <ResultShell
     id="bmi-result"
-    state="example"
     density="standard"
     label="Your BMI result"
     minHeight="22rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your height and weight, then calculate your BMI." />
-
-    <ExampleResult
-      label="Example"
-      caption={`Sample figures for someone ${ex.heightCm} cm tall weighing ${ex.weightKg} kg — not your result.`}
-      dismissLabel="Start with my values"
-    >
-      <ResultSummary label={`Example BMI (${ex.heightCm} cm, ${ex.weightKg} kg)`}>
-        <ResultValue value={String(ex.bmi)} unit="kg/m²" />
-      </ResultSummary>
-      <p class="bmi-example-category"><strong>{ex.category}</strong> <span style="color: var(--muted)">{ex.phrase}</span></p>
-      <div class="bmi-scale" aria-hidden="true">
-        <div class="bmi-scale__bar">
-          <span class="bmi-scale__marker" style={`left: ${ex.markerPercent}%`}></span>
-        </div>
-        <div class="bmi-scale__labels">
-          <span>Under</span><span>Normal</span><span>Over</span><span>Obese</span>
-        </div>
-      </div>
-      <p class="bmi-example-range">
-        A healthy weight at {ex.heightCm} cm is <strong>{ex.healthyMin}–{ex.healthyMax} {ex.unitLabel}</strong>.
-      </p>
-    </ExampleResult>
 
     <div data-result-when="valid">
       <ResultSummary label="Your BMI">
@@ -305,11 +278,12 @@ const ex = bmiExample();
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { bmiBinding } from '@lib/calculators/bmi-form';
+  import { bmiBinding, BMI_EXAMPLE_VALUES } from '@lib/calculators/bmi-form';
 
   document.querySelectorAll<HTMLElement>('[data-bmi]').forEach((root) =>
     mountFormCalculator(root, bmiBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: BMI_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate BMI',
     }),
   );

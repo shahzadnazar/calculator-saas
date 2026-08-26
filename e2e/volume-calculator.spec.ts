@@ -49,10 +49,10 @@ test('loads task-first: cube + m, empty dims, empty result, Calculate Volume, no
   await expect(page.locator('[name="shape"]')).toHaveValue('cube');
   await expect(page.locator('[name="unit"]')).toHaveValue('m');
   await expect(dim(page, 'cube', 'side')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   await expect(submit(page)).toHaveText('Calculate Volume');
   await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
 });
 
 test('each shape reveals ONLY its required fields; inactive groups are hidden and disabled', async ({ page }) => {

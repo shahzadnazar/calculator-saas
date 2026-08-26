@@ -40,12 +40,13 @@ test('loads empty: blank fields, empty result, Calculate + Reset visible, no liv
   await expect(page.locator('[name="years"]')).toHaveValue('');
   await expect(submit(page)).toBeVisible();
   await expect(resetBtn(page)).toBeVisible();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
 });
 
 test('does not calculate before the first submission', async ({ page }) => {
@@ -228,7 +229,7 @@ test('the guide that embeds the island renders the migrated task-first tool', as
   // Guide prose remains present.
   await expect(page.getByText('Not all interest compounds.')).toBeVisible();
   // Empty (not prefilled) initial state, then an explicit calc works.
-  await expect(page.locator('#si-result')).toHaveAttribute('data-result-state', 'empty');
+  await expect(page.locator('#si-result')).toHaveAttribute('data-result-state', 'example');
   await expect(page.locator('[name="principal"]')).toHaveValue('');
   await page.fill('[name="principal"]', '5000');
   await page.fill('[name="annualRatePct"]', '5');

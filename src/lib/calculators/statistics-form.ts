@@ -296,3 +296,17 @@ export const statisticsBinding: FormCalculatorBinding<StatValues, StatComputed> 
     if (ta) ta.value = '';
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
+ */
+export const STATISTICS_EXAMPLE_VALUES: StatValues = { primary: 'summary', raw: '12, 15, 18, 22, 25, 25, 30' };

@@ -53,9 +53,10 @@ test('loads empty: By-payment mode, blank fields, result empty, Calculate Payoff
   await expect(page.locator('[data-cc-payment]')).toBeVisible();
   await expect(page.locator('[data-cc-months]')).toBeHidden();
   await expect(page.locator('[name="months"]')).toBeDisabled();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
 });

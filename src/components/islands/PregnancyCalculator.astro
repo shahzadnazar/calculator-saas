@@ -29,6 +29,7 @@ import ResultShell from '@components/result/ResultShell.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="pregnancy mx-auto w-full max-w-4xl" data-pregnancy>
@@ -65,6 +66,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       minHeight="18rem"
       placeholderAlignment="center"
     >
+    <ExampleNotice />
       <EmptyResult message="Enter the first day of your last period and calculate how far along you are." />
 
       <div data-result-when="valid">
@@ -184,7 +186,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { pregnancyBinding, todayISO } from '@lib/calculators/pregnancy-form';
+  import { pregnancyBinding, todayISO, pregnancyExampleValues } from '@lib/calculators/pregnancy-form';
 
   document.querySelectorAll<HTMLElement>('[data-pregnancy]').forEach((root) => {
     // Cap the picker at the visitor's local today so a future LMP can't be
@@ -194,6 +196,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     mountFormCalculator(root, pregnancyBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: pregnancyExampleValues() },
       calculateButtonLabel: 'Calculate Pregnancy Progress',
     });
 

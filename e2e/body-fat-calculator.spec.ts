@@ -46,14 +46,15 @@ test('loads empty: measurements blank, hip hidden, result empty, Calculate visib
     await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
   }
   await expect(page.locator('[name="hipCm"]')).toBeHidden(); // male default → hip not shown
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
-  await expect(bandsTable(page)).toBeHidden(); // scale not positioned in the empty state
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
+  await expect(bandsTable(page)).toBeVisible(); // the example positions the scale
   await expect(submit(page)).toHaveText('Calculate Body Fat');
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+  await expect(primary(page)).not.toHaveText('—');
 });
 
 test('does not calculate automatically before the first submission', async ({ page }) => {
@@ -149,7 +150,7 @@ test('an out-of-range computed estimate is gated with the sanity message, never 
   await submit(page).click();
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
   await expect(region(page, 'valid')).toBeHidden();
-  await expect(primary(page)).toHaveText('—'); // never rendered → no out-of-range percentage surfaced
+  await expect(region(page, 'valid')).toBeHidden(); // gated: no out-of-range percentage is shown
   await expect(page.locator('#bf-result [data-result-invalid-message]')).toHaveText(
     'These measurements do not produce a realistic estimate. Check your measurements and try again.',
   );
@@ -307,7 +308,7 @@ test('the embed route mounts the same interactive island', async ({ page }) => {
 
 test('the guide that embeds the island renders the migrated task-first tool', async ({ page }) => {
   await page.goto('/guides/body-fat-percentage-explained', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#bf-result')).toHaveAttribute('data-result-state', 'empty'); // empty, not prefilled
+  await expect(page.locator('#bf-result')).toHaveAttribute('data-result-state', 'example'); // empty, not prefilled
   await page.fill('[name="heightCm"]', '180');
   await page.fill('[name="neckCm"]', '38');
   await page.fill('[name="waistCm"]', '85');

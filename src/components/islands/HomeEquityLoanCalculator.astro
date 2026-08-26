@@ -27,10 +27,9 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
-import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equity-loan-form';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { HOME_EQUITY_EXAMPLE_VALUES } from '@lib/calculators/home-equity-loan-form';
 
-// Arrive-filled: the runtime computes these once on mount so the visitor can type straight over a
-// real result. Rendered server-side, so the form is filled even before the island hydrates.
 ---
 
 <div class="he mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-he>
@@ -41,7 +40,7 @@ import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equi
         <label class="field-label" for="he-value">Home value</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="he-value" name="homeValue" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 400000" aria-describedby="he-value-error" value={START.homeValue} />
+          <input class="field rounded-l-none" id="he-value" name="homeValue" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 400000" aria-describedby="he-value-error" />
         </div>
         <p class="he-field-error" id="he-value-error" data-error-for="homeValue" hidden></p>
       </div>
@@ -50,7 +49,7 @@ import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equi
         <label class="field-label" for="he-balance">Mortgage balance</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="he-balance" name="mortgageBalance" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 250000" aria-describedby="he-balance-error" value={START.mortgageBalance} />
+          <input class="field rounded-l-none" id="he-balance" name="mortgageBalance" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 250000" aria-describedby="he-balance-error" />
         </div>
         <p class="he-field-error" id="he-balance-error" data-error-for="mortgageBalance" hidden></p>
       </div>
@@ -58,7 +57,7 @@ import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equi
       <div data-field="maxLtvPct">
         <label class="field-label" for="he-ltv">Maximum loan-to-value</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="he-ltv" name="maxLtvPct" type="number" min="0" max="100" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 85" aria-describedby="he-ltv-error" value={START.maxLtvPct} />
+          <input class="field rounded-r-none" id="he-ltv" name="maxLtvPct" type="number" min="0" max="100" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 85" aria-describedby="he-ltv-error" />
           <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
         <p class="he-field-error" id="he-ltv-error" data-error-for="maxLtvPct" hidden></p>
@@ -68,7 +67,7 @@ import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equi
         <label class="field-label" for="he-loan">Loan amount you want</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="he-loan" name="loanAmount" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 50000" aria-describedby="he-loan-error" value={START.loanAmount} />
+          <input class="field rounded-l-none" id="he-loan" name="loanAmount" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 50000" aria-describedby="he-loan-error" />
         </div>
         <p class="he-field-error" id="he-loan-error" data-error-for="loanAmount" hidden></p>
       </div>
@@ -76,7 +75,7 @@ import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equi
       <div data-field="annualRatePct">
         <label class="field-label" for="he-rate">Interest rate</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="he-rate" name="annualRatePct" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 8" aria-describedby="he-rate-error" value={START.annualRatePct} />
+          <input class="field rounded-r-none" id="he-rate" name="annualRatePct" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 8" aria-describedby="he-rate-error" />
           <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
         <p class="he-field-error" id="he-rate-error" data-error-for="annualRatePct" hidden></p>
@@ -84,7 +83,7 @@ import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equi
 
       <div data-field="termYears">
         <label class="field-label" for="he-term">Term (years)</label>
-        <input class="field" id="he-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="he-term-error" value={START.termYears} />
+        <input class="field" id="he-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="he-term-error" />
         <p class="he-field-error" id="he-term-error" data-error-for="termYears" hidden></p>
       </div>
     </div>
@@ -98,6 +97,7 @@ import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equi
 
   <!-- Result -->
   <ResultShell id="he-result" state="empty" density="standard" label="Home equity loan result" minHeight="15rem">
+    <ExampleNotice />
     <EmptyResult message="Enter your home value, mortgage balance, loan-to-value cap, loan amount, rate and term, then calculate to see your monthly payment and how much you can borrow." />
 
     <div data-result-when="valid">
@@ -221,12 +221,12 @@ import { HOME_EQUITY_STARTING_VALUES as START } from '@lib/calculators/home-equi
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { homeEquityBinding } from '@lib/calculators/home-equity-loan-form';
+  import { homeEquityBinding, HOME_EQUITY_EXAMPLE_VALUES } from '@lib/calculators/home-equity-loan-form';
 
   document.querySelectorAll<HTMLElement>('[data-he]').forEach((root) => {
     mountFormCalculator(root, homeEquityBinding, {
       recalculationMode: 'live-after-first',
-      prefill: true,
+      example: { values: HOME_EQUITY_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Home Equity Loan',
     });
   });

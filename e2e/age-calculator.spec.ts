@@ -61,8 +61,9 @@ test.describe('age: task-first', () => {
     expect(server.state).toBe('empty');
     expect(server.primary).toBe('—');
     expect(server.dob).toBe(''); // no baked DOB
-    expect(server.primary).toBe((await primary(page).textContent())?.trim());
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    // The example is rendered on hydration, never baked into the HTML — so the two DIFFER.
+    expect(server.primary).not.toBe((await primary(page).textContent())?.trim());
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -70,8 +71,9 @@ test.describe('age: task-first', () => {
   test('loads empty — DOB blank, "age at" defaults to today, no result/announcement', async ({ page }) => {
     await expect(page.locator('[name="dob"]')).toHaveValue('');
     await expect(page.locator('[name="at"]')).toHaveValue(await localToday(page));
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -207,7 +209,7 @@ test.describe('age: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, no auto-calc, then an age)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'example');
     await page.locator('[name="dob"]').fill('1990-06-15');
     await page.waitForTimeout(DEBOUNCE);
     await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'empty'); // no auto-calc
@@ -219,7 +221,7 @@ test.describe('age: task-first', () => {
 
   test('the direct guide renderer mounts the same working island', async ({ page }) => {
     await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'example');
     await page.locator('[name="dob"]').fill('1990-06-15');
     await page.locator('[name="at"]').fill('2020-06-15');
     await page.getByRole('button', { name: 'Calculate Age' }).click();
@@ -252,7 +254,7 @@ for (const c of TZ_CASES) {
       await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('[name="at"]')).toHaveValue(c.expected);
       await expect(page.locator('[name="dob"]')).toHaveValue('');
-      await expect(shell(page)).toHaveAttribute('data-result-state', 'empty'); // no calc from populating today
+      await expect(shell(page)).toHaveAttribute('data-result-state', 'example'); // no calc from populating today
       await expect(live(page)).toHaveText('');
     });
   });
@@ -346,7 +348,7 @@ test.describe('age: same-document instance isolation', () => {
     };
     await fill(A);
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('30 years, 0 months, 0 days');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await fill(B);
     await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('30 years, 0 months, 0 days');

@@ -52,9 +52,10 @@ test('loads empty: Project mode, blank fields, result empty, Project Savings act
   await expect(page.locator('[data-sv-project]')).toBeVisible();
   await expect(page.locator('[data-sv-goal]')).toBeHidden();
   await expect(page.locator('[name="goal"]')).toBeDisabled();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
 });

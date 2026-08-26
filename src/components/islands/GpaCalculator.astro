@@ -25,6 +25,7 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="gpa grid grid-cols-2 gap-4 mx-auto w-full" data-gpa>
@@ -47,6 +48,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   </form>
 
   <ResultShell id="gpa-result" state="empty" density="standard" label="GPA result" minHeight="4rem">
+    <ExampleNotice />
     <EmptyResult message="Add each course's grade and credit hours, then calculate to see your credit-weighted GPA." />
 
     <div data-result-when="valid">
@@ -181,9 +183,8 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { gpaBinding } from '@lib/calculators/gpa-form';
+  import { gpaBinding, GPA_EXAMPLE_VALUES } from '@lib/calculators/gpa-form';
   import { GRADE_POINTS } from '@lib/calculators/gpa';
-  import { GPA_STARTING_ROWS } from '@lib/calculators/gpa-form';
 
   // Module-global so row ids are unique across every instance rendered on a page.
   let uid = 0;
@@ -271,12 +272,9 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     const addBtn = root.querySelector<HTMLButtonElement>('[data-gpa-add]')!;
 
-    // Seed the arrive-filled course rows (idempotent). The runtime computes them on mount, so the
-    // visitor lands on a real GPA to type over. Reset still collapses to ONE BLANK row (the binding's
-    // resetValues), so Reset stays the way back to a clean form.
-    if (!rowsEl.querySelector('[data-gpa-row]')) {
-      for (const row of GPA_STARTING_ROWS) rowsEl.appendChild(buildRow(row.grade, row.credits));
-    }
+    // Seed exactly one BLANK course row (idempotent). The visitor's row starts empty; the worked
+    // example lives in the result panel only, rendered by the shared runtime from GPA_EXAMPLE_VALUES.
+    if (!rowsEl.querySelector('[data-gpa-row]')) rowsEl.appendChild(buildRow());
 
     const updateRemoveState = () => {
       const rows = rowsEl.querySelectorAll<HTMLElement>('[data-gpa-row]');
@@ -291,7 +289,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     // Shared runtime, UNCHANGED, with the GPA binding.
     mountFormCalculator(root, gpaBinding, {
       recalculationMode: 'live-after-first',
-      prefill: true,
+      example: { values: GPA_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate GPA',
     });
 

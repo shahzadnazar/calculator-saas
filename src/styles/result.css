@@ -84,6 +84,19 @@
 .result-shell[data-result-state='invalid'] [data-result-when~='invalid'] {
   display: block;
 }
+/* The worked EXAMPLE reuses the calculator's OWN valid region, filled by its own
+   renderResult from example values — so there is no second copy of the result
+   markup to drift from the engine. The shell is tinted and dashed while it shows,
+   and the `example` notice above it names it in words, so an example is never
+   mistaken for the visitor's own answer on colour alone. */
+.result-shell[data-result-state='example'] [data-result-when~='valid'] {
+  display: block;
+}
+.result-shell[data-result-state='example'][data-boxed='true'] {
+  border-style: dashed;
+  border-color: var(--result-example-line);
+  background: var(--result-example-bg);
+}
 
 /* ---- Placeholder alignment (empty / invalid states) --------------------- */
 /* Opt-in via `placeholderAlignment="center"`. The shell becomes a flex column
@@ -212,6 +225,19 @@
   letter-spacing: 0.08em;
   color: var(--result-example-fg);
   margin: 0 0 0.5rem;
+}
+/* The fleet-wide notice that sits above the calculator's own (example-filled)
+   result. Borderless: the tinted, dashed SHELL is already the boundary. */
+.result-example-notice {
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px dashed var(--result-example-line);
+}
+.result-example__lede {
+  margin: 0 0 0.15rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--result-example-fg);
 }
 .result-example__caption {
   margin: 0 0 0.6rem;

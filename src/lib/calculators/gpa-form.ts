@@ -234,21 +234,15 @@ export const gpaBinding: FormCalculatorBinding<GpaFormValues, GpaComputed> = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Starting values (arrive-filled)                                     */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
 /* ------------------------------------------------------------------ */
 
 /**
- * The course rows this calculator arrives filled with, so the visitor lands on a
- * real worked GPA they can type over instead of an empty row. They are OURS, not
- * the visitor's: the runtime computes them silently on mount (`prefill`), and
- * Reset still clears the form back to a single blank row.
+ * Example inputs for the labelled worked result shown on first load.
  *
- * Rows are built in the browser (the dynamic-row family owns its own markup), so
- * these seed `buildRow` rather than a server-rendered `value` attribute. Every
- * grade must exist in GRADE_POINTS — `starting-values.test.ts` pins that.
+ * These are OURS, not the visitor's. The shared runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup and can never drift from the engine. The visitor's fields are
+ * never written to — they load and stay empty behind it.
  */
-export const GPA_STARTING_ROWS = [
-  { grade: 'A', credits: '3' },
-  { grade: 'B+', credits: '4' },
-  { grade: 'A-', credits: '3' },
-] as const;
+export const GPA_EXAMPLE_VALUES: GpaFormValues = { rows: [ { id: 'ex1', grade: 'A', credits: '3' }, { id: 'ex2', grade: 'B+', credits: '4' }, { id: 'ex3', grade: 'A-', credits: '3' } ] };

@@ -22,6 +22,7 @@ import ResultInterpretation from '@components/result/ResultInterpretation.astro'
 import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="triangle mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-triangle>
@@ -66,6 +67,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="20rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter all three side lengths to calculate the triangle's area, perimeter, angles and classification." />
 
     <div data-result-when="valid">
@@ -148,11 +150,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { triangleBinding, validateTriangleValues } from '@lib/calculators/triangle-form';
+  import { triangleBinding, validateTriangleValues, TRIANGLE_EXAMPLE_VALUES } from '@lib/calculators/triangle-form';
 
   document.querySelectorAll<HTMLElement>('[data-triangle]').forEach((root) => {
     mountFormCalculator(root, triangleBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: TRIANGLE_EXAMPLE_VALUES },
       calculateButtonLabel: 'Solve Triangle',
     });
 

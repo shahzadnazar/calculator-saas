@@ -48,8 +48,9 @@ test('loads empty: blank dims, feet selected, quantity 1, price empty, result em
   await expect(page.locator('[name="quantity"]')).toHaveValue('1');
   await expect(page.locator('[name="pricePerSqFt"]')).toHaveValue('');
   await expect(submit(page)).toBeVisible();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  // The empty placeholder is replaced by the labelled example on load.
+  await expect(region(page, 'empty')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
 });
 

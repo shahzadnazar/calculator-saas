@@ -22,6 +22,7 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="bmr mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-bmr>
@@ -61,7 +62,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       </div>
 
       <!-- Metric -->
-      <div class="space-y-4" data-group="metric">
+      <div class="grid grid-cols-2 gap-4" data-group="metric">
         <div data-field="heightCm">
           <label class="field-label" for="bmr-height-cm">Height</label>
           <div class="flex">
@@ -81,7 +82,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       </div>
 
       <!-- Imperial -->
-      <div class="space-y-4" data-group="imperial" hidden>
+      <div class="grid grid-cols-2 gap-4" data-group="imperial" hidden>
         <div data-field="height">
           <label class="field-label" for="bmr-height-ft">Height</label>
           <div class="grid grid-cols-2 gap-3">
@@ -125,6 +126,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     minHeight="24rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your details, then calculate your estimated BMR." />
 
     <div data-result-when="valid">
@@ -294,11 +296,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { bmrBinding } from '@lib/calculators/bmr-form';
+  import { bmrBinding, BMR_EXAMPLE_VALUES } from '@lib/calculators/bmr-form';
 
   document.querySelectorAll<HTMLElement>('[data-bmr]').forEach((root) =>
     mountFormCalculator(root, bmrBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: BMR_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate BMR',
     }),
   );
