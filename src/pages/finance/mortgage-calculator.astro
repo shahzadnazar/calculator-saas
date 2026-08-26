@@ -38,6 +38,21 @@ const faqs = [
     answer:
       'Yes. Open “Taxes, insurance & fees” to enter annual property tax, annual home insurance, monthly HOA dues and a PMI rate. These are added to principal and interest to estimate your true monthly housing cost (often called PITI).',
   },
+  {
+    question: 'How much does paying extra each month actually save?',
+    answer:
+      'More than most people expect, because every extra dollar goes straight to principal and stops accruing interest for the rest of the term. On a $320,000 loan at 6.5% over 30 years, an extra $300 a month clears the mortgage 8 years 10 months early and saves about $138,000 in interest. Open “Increases & extra payments” to try your own figure — the result shows the interest and time it saves.',
+  },
+  {
+    question: 'Should my costs rise every year?',
+    answer:
+      'They usually do. Property taxes follow assessed values, insurance premiums drift up, and HOA boards raise dues. Entering a yearly increase leaves your first-year payment exactly as quoted and grows each cost from year two onward, which is what makes the long-run total honest. Three percent a year is a common planning assumption for taxes and insurance.',
+  },
+  {
+    question: 'Is a biweekly mortgage worth it?',
+    answer:
+      'Paying half your monthly principal and interest every two weeks means 26 half-payments — 13 monthly payments’ worth — each year, so the extra one goes to principal. On a $320,000 loan at 6.5%, that clears a 30-year mortgage in about 24 years and saves roughly $94,000 in interest. Tick “Show biweekly payback results” to compare. Check that your lender applies the payments biweekly rather than holding them, and charges no fee to set it up.',
+  },
 ];
 ---
 
@@ -57,6 +72,7 @@ const faqs = [
       <li>Set the <strong>loan term</strong> (usually 15 or 30 years) and the <strong>interest rate</strong>.</li>
       <li>Press <strong>Calculate</strong> to see your estimated monthly payment and its breakdown; after the first result, any edit updates it live.</li>
       <li>Expand <strong>Taxes, insurance &amp; fees</strong> to add property tax, home insurance, HOA dues and PMI for your true monthly cost.</li>
+      <li>Expand <strong>Increases &amp; extra payments</strong> if you want to model yearly cost rises, extra payments, or a biweekly schedule. Anything you leave blank is simply ignored.</li>
     </ol>
 
     <h2>Understanding your payment breakdown</h2>
@@ -134,6 +150,31 @@ const faqs = [
       income that is roughly $1,680 for housing. Lenders also weigh your credit score, down
       payment and existing debts, so treat any figure here as a planning estimate, not an
       approval.
+    </p>
+
+    <h2>Modelling extra payments and rising costs</h2>
+    <p>
+      The four core fields answer "what will this cost me a month". The optional panel answers the
+      follow-up questions, and every field in it is blank by default — fill in only what you want
+      modelled, and the result grows a section reporting it.
+    </p>
+    <p>
+      <strong>Extra payments</strong> go straight to principal, so they save interest on every month
+      that would have followed. You can set an amount paid every month, an amount paid once a year,
+      and one-off lump sums — a bonus, a tax refund — each dated to the month it lands. The result
+      then shows the extra principal paid, the interest saved, the time saved and the new payoff.
+      Your quoted monthly payment does not change: extra is voluntary, not owed.
+    </p>
+    <p>
+      <strong>Annual increases</strong> apply to property tax, home insurance, HOA dues and other
+      costs. Year one always uses the amount exactly as entered, so the headline payment stays the
+      figure your lender quoted; from year two each cost compounds at its own rate. The result adds
+      a total for each cost across the life of the loan and a total cost of ownership.
+    </p>
+    <p>
+      <strong>Biweekly payback</strong> compares your loan against paying half the monthly principal
+      and interest every fortnight. Twenty-six half-payments is thirteen monthly payments a year, so
+      the thirteenth acts as an extra payment and the loan closes years early.
     </p>
 
     <h2>Tips to lower your mortgage cost</h2>

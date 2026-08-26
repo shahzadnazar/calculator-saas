@@ -30,7 +30,10 @@ import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { ONE_TIME_SLOTS } from '@lib/calculators/mortgage-form';
 
+/** 1-based indices for the one-time extra-payment rows; only the first shows by default. */
+const ONE_TIME_ROWS: number[] = Array.from({ length: ONE_TIME_SLOTS }, (_, i) => i + 1);
 ---
 
 <div class="mortgage mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2 lg:items-start" data-mortgage>
@@ -149,6 +152,112 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
           </div>
         </div>
       </details>
+
+      <details class="mc-costs" data-mc-extras>
+        <summary class="mc-costs__summary">
+          <span>Increases &amp; extra payments</span>
+          <span class="mc-costs__hint">optional</span>
+        </summary>
+
+        <p class="mc-group-note">Leave anything blank to ignore it. Whatever you fill in is included in the result.</p>
+
+        <p class="mc-group-title">Annual tax &amp; cost increase</p>
+        <div class="grid grid-cols-2 gap-4">
+          <div data-field="propertyTaxIncreasePct">
+            <label class="field-label" for="mc-tax-inc">Property taxes increase</label>
+            <div class="flex">
+              <input class="field rounded-r-none" id="mc-tax-inc" name="propertyTaxIncreasePct" type="number" min="0" max="100" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="mc-tax-inc-error" />
+              <span class="field-affix rounded-r-lg border-l-0">%/yr</span>
+            </div>
+            <p class="mc-field-error" id="mc-tax-inc-error" data-error-for="propertyTaxIncreasePct" hidden></p>
+          </div>
+          <div data-field="homeInsuranceIncreasePct">
+            <label class="field-label" for="mc-ins-inc">Home insurance increase</label>
+            <div class="flex">
+              <input class="field rounded-r-none" id="mc-ins-inc" name="homeInsuranceIncreasePct" type="number" min="0" max="100" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="mc-ins-inc-error" />
+              <span class="field-affix rounded-r-lg border-l-0">%/yr</span>
+            </div>
+            <p class="mc-field-error" id="mc-ins-inc-error" data-error-for="homeInsuranceIncreasePct" hidden></p>
+          </div>
+          <div data-field="hoaIncreasePct">
+            <label class="field-label" for="mc-hoa-inc">HOA fee increase</label>
+            <div class="flex">
+              <input class="field rounded-r-none" id="mc-hoa-inc" name="hoaIncreasePct" type="number" min="0" max="100" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="mc-hoa-inc-error" />
+              <span class="field-affix rounded-r-lg border-l-0">%/yr</span>
+            </div>
+            <p class="mc-field-error" id="mc-hoa-inc-error" data-error-for="hoaIncreasePct" hidden></p>
+          </div>
+          <div data-field="otherCostsIncreasePct">
+            <label class="field-label" for="mc-other-inc">Other costs increase</label>
+            <div class="flex">
+              <input class="field rounded-r-none" id="mc-other-inc" name="otherCostsIncreasePct" type="number" min="0" max="100" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="mc-other-inc-error" />
+              <span class="field-affix rounded-r-lg border-l-0">%/yr</span>
+            </div>
+            <p class="mc-field-error" id="mc-other-inc-error" data-error-for="otherCostsIncreasePct" hidden></p>
+          </div>
+        </div>
+
+        <p class="mc-group-title">Extra payments</p>
+        <div class="mc-extra-rows">
+          <div class="mc-extra" data-field="extraMonthlyAmount">
+            <label class="field-label" for="mc-extra-monthly">Extra monthly pay</label>
+            <div class="mc-extra__row">
+              <div class="flex mc-extra__money">
+                <span class="field-affix rounded-l-lg border-r-0">$</span>
+                <input class="field rounded-l-none" id="mc-extra-monthly" name="extraMonthlyAmount" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="mc-extra-monthly-error" />
+              </div>
+              <span class="mc-extra__from">from</span>
+              <select class="field mc-extra__month" name="extraMonthlyMonth" aria-label="Extra monthly payment start month"><option value="" selected>Loan start</option>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (<option value={i + 1}>{m}</option>))}</select>
+              <input class="field mc-extra__year" name="extraMonthlyYear" data-mc-start-hint type="number" min="1900" max="2200" step="1" inputmode="numeric" autocomplete="off" aria-label="Extra monthly payment start year" aria-describedby="mc-extra-monthly-year-error" />
+            </div>
+            <p class="mc-field-error" id="mc-extra-monthly-error" data-error-for="extraMonthlyAmount" hidden></p>
+            <p class="mc-field-error" id="mc-extra-monthly-year-error" data-error-for="extraMonthlyYear" hidden></p>
+          </div>
+
+          <div class="mc-extra" data-field="extraYearlyAmount">
+            <label class="field-label" for="mc-extra-yearly">Extra yearly pay</label>
+            <div class="mc-extra__row">
+              <div class="flex mc-extra__money">
+                <span class="field-affix rounded-l-lg border-r-0">$</span>
+                <input class="field rounded-l-none" id="mc-extra-yearly" name="extraYearlyAmount" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="mc-extra-yearly-error" />
+              </div>
+              <span class="mc-extra__from">from</span>
+              <select class="field mc-extra__month" name="extraYearlyMonth" aria-label="Extra yearly payment start month"><option value="" selected>Loan start</option>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (<option value={i + 1}>{m}</option>))}</select>
+              <input class="field mc-extra__year" name="extraYearlyYear" data-mc-start-hint type="number" min="1900" max="2200" step="1" inputmode="numeric" autocomplete="off" aria-label="Extra yearly payment start year" aria-describedby="mc-extra-yearly-year-error" />
+            </div>
+            <p class="mc-field-error" id="mc-extra-yearly-error" data-error-for="extraYearlyAmount" hidden></p>
+            <p class="mc-field-error" id="mc-extra-yearly-year-error" data-error-for="extraYearlyYear" hidden></p>
+          </div>
+
+          {
+            ONE_TIME_ROWS.map((n) => (
+              <div class="mc-extra" data-field={`extraOneTime${n}Amount`} data-mc-onetime={n} hidden={n > 1}>
+                <label class="field-label" for={`mc-extra-once-${n}`}>
+                  {n === 1 ? 'Extra one-time pay' : `One-time pay #${n}`}
+                </label>
+                <div class="mc-extra__row">
+                  <div class="flex mc-extra__money">
+                    <span class="field-affix rounded-l-lg border-r-0">$</span>
+                    <input class="field rounded-l-none" id={`mc-extra-once-${n}`} name={`extraOneTime${n}Amount`} type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby={`mc-extra-once-${n}-error`} />
+                  </div>
+                  <span class="mc-extra__from">in</span>
+                  <select class="field mc-extra__month" name={`extraOneTime${n}Month`} aria-label={`One-time payment ${n} month`}><option value="" selected>Loan start</option>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (<option value={i + 1}>{m}</option>))}</select>
+                  <input class="field mc-extra__year" name={`extraOneTime${n}Year`} data-mc-start-hint type="number" min="1900" max="2200" step="1" inputmode="numeric" autocomplete="off" aria-label={`One-time payment ${n} year`} aria-describedby={`mc-extra-once-${n}-year-error`} />
+                </div>
+                <p class="mc-field-error" id={`mc-extra-once-${n}-error`} data-error-for={`extraOneTime${n}Amount`} hidden />
+                <p class="mc-field-error" id={`mc-extra-once-${n}-year-error`} data-error-for={`extraOneTime${n}Year`} hidden />
+              </div>
+            ))
+          }
+
+          <button type="button" class="mc-add-onetime" data-mc-add-onetime>+ Add another one-time payment</button>
+        </div>
+
+        <label class="mc-check">
+          <input type="checkbox" name="showBiweekly" data-mc-biweekly />
+          <span>Show biweekly payback results</span>
+        </label>
+      </details>
     </div>
 
     <div class="mt-6 flex items-center gap-3">
@@ -192,6 +301,42 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
         <div><span class="mc-totals__label">Loan amount</span><span class="mc-totals__value" data-mc-loan>—</span></div>
         <div><span class="mc-totals__label">Total interest</span><span class="mc-totals__value" data-mc-total-interest>—</span></div>
         <div><span class="mc-totals__label">Total of payments</span><span class="mc-totals__value" data-mc-total-paid>—</span></div>
+      </div>
+
+      <!-- The optional extras report themselves ONLY when they were used: the binding
+           reveals each block, so an ordinary mortgage's result is exactly as before. -->
+      <div class="mc-extra-out" data-mc-extra-block hidden>
+        <p class="mc-extra-out__title">Extra payments</p>
+        <dl class="mc-extra-out__grid">
+          <div><dt>Extra principal paid</dt><dd data-mc-extra-total>—</dd></div>
+          <div><dt>Interest saved</dt><dd data-mc-extra-interest-saved>—</dd></div>
+          <div><dt>Time saved</dt><dd data-mc-extra-months-saved>—</dd></div>
+          <div><dt>Paid off in</dt><dd data-mc-extra-payoff>—</dd></div>
+        </dl>
+      </div>
+
+      <div class="mc-extra-out" data-mc-costs-block hidden>
+        <p class="mc-extra-out__title">Costs over the loan, with your yearly increases</p>
+        <dl class="mc-extra-out__grid">
+          <div><dt>Property tax</dt><dd data-mc-costs-tax>—</dd></div>
+          <div><dt>Home insurance</dt><dd data-mc-costs-ins>—</dd></div>
+          <div><dt>HOA</dt><dd data-mc-costs-hoa>—</dd></div>
+          <div><dt>Other costs</dt><dd data-mc-costs-other>—</dd></div>
+          <div class="mc-extra-out__wide"><dt>Total cost of ownership</dt><dd data-mc-costs-total>—</dd></div>
+        </dl>
+        <p class="mc-extra-out__note">Totalled across the life of the loan, so paying it off early shortens the period these cover. Total cost of ownership adds principal, interest and PMI to them.</p>
+      </div>
+
+      <div class="mc-extra-out" data-mc-biweekly-block hidden>
+        <p class="mc-extra-out__title">If you paid biweekly instead</p>
+        <dl class="mc-extra-out__grid">
+          <div><dt>Biweekly payment</dt><dd data-mc-bw-payment>—</dd></div>
+          <div><dt>Paid off in</dt><dd data-mc-bw-payoff>—</dd></div>
+          <div><dt>Total interest</dt><dd data-mc-bw-interest>—</dd></div>
+          <div><dt>Interest saved</dt><dd data-mc-bw-interest-saved>—</dd></div>
+          <div class="mc-extra-out__wide"><dt>Time saved</dt><dd data-mc-bw-months-saved>—</dd></div>
+        </dl>
+        <p class="mc-extra-out__note">Half the monthly principal and interest, paid every two weeks — 26 payments a year instead of 12.</p>
       </div>
 
       <div data-mc-schedule-block>
@@ -292,6 +437,142 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
   .mc-metrics dt { display: flex; align-items: center; gap: 0.5rem; color: var(--fg); font-weight: 600; }
   .mc-metrics dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--heading); font-weight: 700; white-space: nowrap; }
   .mc-dot { display: inline-block; height: 0.6rem; width: 0.6rem; border-radius: 9999px; flex: none; }
+
+  /* Optional-extras inputs */
+  .mc-group-title {
+    margin: 1rem 0 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .mc-group-note {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .mc-extra-rows {
+    display: grid;
+    gap: 0.6rem;
+  }
+  .mc-extra__row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  .mc-extra__money {
+    flex: 1 1 7rem;
+    min-width: 0;
+  }
+  .mc-extra__from {
+    flex: none;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .mc-extra__month {
+    /* Wide enough for the "Loan start" default — a truncated default reads as broken. */
+    flex: 0 0 8rem;
+    width: 8rem;
+  }
+  .mc-extra__year {
+    flex: 0 0 5.5rem;
+    width: 5.5rem;
+  }
+  /* On a phone the amount takes its own line and the month/year share the next,
+     rather than the year wrapping alone below them. */
+  @media (max-width: 460px) {
+    .mc-extra__money { flex: 1 1 100%; }
+    .mc-extra__month,
+    .mc-extra__year { flex: 1 1 0; width: auto; }
+  }
+  .mc-add-onetime {
+    justify-self: start;
+    min-height: 44px;
+    padding: 0.35rem 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-brand-600);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    cursor: pointer;
+  }
+  .mc-add-onetime[hidden] { display: none; }
+  .mc-add-onetime:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 0.25rem;
+  }
+  .mc-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    margin-top: 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--heading);
+  }
+  .mc-check input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-brand-600);
+  }
+
+  /* Optional-extras results — revealed only when the option was used */
+  .mc-extra-out {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--line);
+  }
+  .mc-extra-out[hidden] { display: none; }
+  .mc-extra-out__title {
+    margin: 0 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .mc-extra-out__grid {
+    margin: 0;
+    display: grid;
+    gap: 0.15rem 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mc-extra-out__grid > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.875rem;
+  }
+  .mc-extra-out__wide { grid-column: 1 / -1; }
+  .mc-extra-out__grid dt { color: var(--muted); }
+  .mc-extra-out__grid dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--heading);
+    white-space: nowrap;
+  }
+  .mc-extra-out__note {
+    margin: 0.6rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  @media (max-width: 400px) {
+    .mc-extra-out__grid { grid-template-columns: minmax(0, 1fr); }
+  }
 
   /* Loan-summary totals */
   .mc-totals {
@@ -525,9 +806,37 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     if (yearEl && yearEl.value === '') yearEl.value = String(today.getFullYear());
     monthEl?.addEventListener('change', () => { monthEl.dataset.touched = '1'; });
 
+    // An extra-payment date is OPTIONAL: left alone it means "from the first payment",
+    // which is what the blank "Loan start" option and the year PLACEHOLDER say. Nothing is
+    // ever written into these controls, so an untouched row cannot look like a scheduled
+    // payment — the amount is empty and so is its date.
+    const yearHints = Array.from(root.querySelectorAll<HTMLInputElement>('[data-mc-start-hint]'));
+    const hintDates = () => {
+      const y = yearEl?.value || String(today.getFullYear());
+      for (const el of yearHints) el.placeholder = y;
+    };
+    yearEl?.addEventListener('input', hintDates);
+    hintDates();
+
+    // Progressive disclosure for the one-time rows: one is visible, the rest arrive on
+    // request. Purely presentational — the binding always reads every slot, so a hidden
+    // row simply contributes an empty amount.
+    const oneTimeRows = Array.from(root.querySelectorAll<HTMLElement>('[data-mc-onetime]'));
+    const addOneTime = root.querySelector<HTMLButtonElement>('[data-mc-add-onetime]');
+    const revealNextOneTime = () => {
+      const next = oneTimeRows.find((row) => row.hidden);
+      if (next) {
+        next.hidden = false;
+        next.querySelector<HTMLInputElement>('input[type="number"]')?.focus();
+      }
+      if (addOneTime) addOneTime.hidden = oneTimeRows.every((row) => !row.hidden);
+    };
+    addOneTime?.addEventListener('click', revealNextOneTime);
+
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     const disclosure = root.querySelector<HTMLDetailsElement>('[data-mc-disclosure]');
     const costs = root.querySelector<HTMLDetailsElement>('[data-mc-costs]');
+    const extras = root.querySelector<HTMLDetailsElement>('[data-mc-extras]');
     const clearRows = () =>
       root.querySelectorAll<HTMLElement>('[data-mc-rows]').forEach((tb) => tb.replaceChildren());
 
@@ -556,7 +865,13 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
         if (state === 'empty' && entered && !fromExample) {
           if (disclosure) disclosure.open = false;
           if (costs) costs.open = false;
+          if (extras) extras.open = false;
           if (pctEl) pctEl.hidden = true;
+          // Reset clears the extras' amounts through the binding; the island owns the parts
+          // it added — the revealed one-time rows and the year placeholders.
+          for (const row of oneTimeRows.slice(1)) row.hidden = true;
+          if (addOneTime) addOneTime.hidden = false;
+          hintDates();
           // Reset restores the default unit via the runtime (no click event), so the step and
           // placeholder must be re-derived from whichever unit is now active.
           syncUnitAffordances();

@@ -19,6 +19,12 @@ import {
   MORTGAGE_EXAMPLE,
   TERM_OPTIONS,
   MAX_MONTHLY_ROWS,
+  emptyOneTimeList,
+  monthOffset,
+  monthsLabel,
+  INCREASE_MESSAGE,
+  EXTRA_AMOUNT_MESSAGE,
+  EXTRA_YEAR_MESSAGE,
   type MortgageValues,
   type MortgageComputed,
 } from './mortgage-form';
@@ -31,7 +37,24 @@ import {
  * isUsableResult), and the interpretation / announcement / breakdown presentation.
  */
 
+/** The optional extras, all blank/off — the state an untouched form is in. */
+export const NO_EXTRAS = {
+  propertyTaxIncreasePct: '',
+  homeInsuranceIncreasePct: '',
+  hoaIncreasePct: '',
+  otherCostsIncreasePct: '',
+  extraMonthlyAmount: '',
+  extraMonthlyMonth: '',
+  extraMonthlyYear: '',
+  extraYearlyAmount: '',
+  extraYearlyMonth: '',
+  extraYearlyYear: '',
+  extraOneTime: emptyOneTimeList(),
+  showBiweekly: false,
+} satisfies Partial<MortgageValues>;
+
 const values = (over: Partial<MortgageValues> = {}): MortgageValues => ({
+  ...NO_EXTRAS,
   homePrice: '360000',
   downPayment: '72000', // 20% → no PMI
   downPaymentUnit: 'amount', // dollars is the structural default; percent cases override it
@@ -147,6 +170,7 @@ describe('mortgage binding — validation', () => {
 
   it('reports every offending field at once', () => {
     const v = validateMortgageValues({
+      ...NO_EXTRAS,
       homePrice: '',
       downPayment: '-1',
       downPaymentUnit: 'amount',
@@ -239,6 +263,7 @@ describe('mortgage binding — complete-result guard', () => {
 
   it('accepts a fully-paid home with no ongoing cost (monthly total 0 is a finite, valid result)', () => {
     const r = computeMortgage({
+      ...NO_EXTRAS,
       homePrice: '300000',
       downPayment: '300000',
       downPaymentUnit: 'amount',
@@ -360,6 +385,7 @@ describe('mortgage binding — breakdown segments', () => {
   });
   it('a zero monthly total yields all-zero widths (the island hides the bar)', () => {
     const r = computeMortgage({
+      ...NO_EXTRAS,
       homePrice: '300000',
       downPayment: '300000',
       downPaymentUnit: 'amount',
@@ -919,5 +945,207 @@ describe('other costs: dollars/year or a percent of the home price', () => {
         r.monthlyHoa + r.monthlyOther + r.monthlyPmi,
       8,
     );
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* The optional extras — validation, date offsets, compute, guard      */
+/* ------------------------------------------------------------------ */
+
+/** The message a validation result blames on one field, or undefined when it passed. */
+const err = (r: ReturnType<typeof validateMortgageValues>, field: string): string | undefined =>
+  (r as { fieldErrors?: Record<string, string> }).fieldErrors?.[field];
+
+describe('mortgage binding — optional extras are optional', () => {
+  it('an untouched form reaches none of the new rules and computes as before', () => {
+    const plain = computeMortgage(values());
+    expect(plain.hasExtras).toBe(false);
+    expect(plain.hasCostIncrease).toBe(false);
+    expect(plain.biweekly).toBeNull();
+    expect(plain.withoutExtra).toBeNull();
+    expect(Number.isFinite(completeResultValue(plain))).toBe(true);
+    expect(validateMortgageValues(values()).ok).toBe(true);
+  });
+});
+
+describe('mortgage binding — annual increase validation', () => {
+  const INCREASE_FIELDS = [
+    'propertyTaxIncreasePct',
+    'homeInsuranceIncreasePct',
+    'hoaIncreasePct',
+    'otherCostsIncreasePct',
+  ] as const;
+
+  it('accepts blank, zero and any percent up to the ceiling', () => {
+    for (const f of INCREASE_FIELDS) {
+      for (const good of ['', '0', '2.5', '100']) {
+        expect(validateMortgageValues(values({ [f]: good })).ok).toBe(true);
+      }
+    }
+  });
+  it('rejects negative, over-ceiling and non-numeric increases, per field', () => {
+    for (const f of INCREASE_FIELDS) {
+      for (const bad of ['-1', '101', 'x']) {
+        expect(err(validateMortgageValues(values({ [f]: bad })), f)).toBe(INCREASE_MESSAGE);
+      }
+    }
+  });
+});
+
+describe('mortgage binding — extra payment validation', () => {
+  it('accepts a blank amount with any date, and a real amount with a real date', () => {
+    expect(validateMortgageValues(values({ extraMonthlyAmount: '' })).ok).toBe(true);
+    expect(
+      validateMortgageValues(values({ extraMonthlyAmount: '250', extraMonthlyMonth: '3', extraMonthlyYear: '2027' })).ok,
+    ).toBe(true);
+  });
+  it('rejects a negative or non-numeric extra amount', () => {
+    for (const bad of ['-1', 'x']) {
+      expect(err(validateMortgageValues(values({ extraMonthlyAmount: bad })), 'extraMonthlyAmount')).toBe(
+        EXTRA_AMOUNT_MESSAGE,
+      );
+      expect(err(validateMortgageValues(values({ extraYearlyAmount: bad })), 'extraYearlyAmount')).toBe(
+        EXTRA_AMOUNT_MESSAGE,
+      );
+    }
+  });
+  it('a blank date is VALID — it means "from the first payment", not a missing answer', () => {
+    expect(validateMortgageValues(values({ extraMonthlyAmount: '250', extraMonthlyYear: '', extraMonthlyMonth: '' })).ok).toBe(true);
+    expect(validateMortgageValues(values({ extraMonthlyAmount: '', extraMonthlyYear: '' })).ok).toBe(true);
+  });
+  it('rejects an out-of-range or fractional year even when the amount is blank', () => {
+    for (const bad of ['1899', '2201', '20.5', 'x']) {
+      expect(err(validateMortgageValues(values({ extraYearlyYear: bad })), 'extraYearlyYear')).toBe(
+        EXTRA_YEAR_MESSAGE,
+      );
+    }
+  });
+  it('validates every one-time slot by its own field name', () => {
+    const rows = emptyOneTimeList();
+    rows[2] = { amount: '-5', month: '1', year: '2026' };
+    expect(err(validateMortgageValues(values({ extraOneTime: rows })), 'extraOneTime3Amount')).toBe(
+      EXTRA_AMOUNT_MESSAGE,
+    );
+    const badYear = emptyOneTimeList();
+    badYear[0] = { amount: '5000', month: '1', year: '1899' };
+    expect(err(validateMortgageValues(values({ extraOneTime: badYear })), 'extraOneTime1Year')).toBe(
+      EXTRA_YEAR_MESSAGE,
+    );
+  });
+});
+
+describe('mortgage binding — monthOffset', () => {
+  it('counts whole months forward from the repayment start', () => {
+    expect(monthOffset(1, 2026, 1, 2026)).toBe(0);
+    expect(monthOffset(1, 2026, 2, 2026)).toBe(1);
+    expect(monthOffset(1, 2026, 1, 2027)).toBe(12);
+    expect(monthOffset(8, 2026, 2, 2027)).toBe(6);
+  });
+  it('clamps a date at or before the start to the first payment', () => {
+    expect(monthOffset(8, 2026, 1, 2026)).toBe(0);
+    expect(monthOffset(1, 2026, 6, 2020)).toBe(0);
+  });
+  it('is 0 rather than NaN when a date is missing', () => {
+    expect(monthOffset(NaN, 2026, 1, 2026)).toBe(0);
+    expect(monthOffset(1, 2026, 1, NaN)).toBe(0);
+  });
+});
+
+describe('mortgage binding — extras reach the engine', () => {
+  const withStart = (over = {}) => values({ startMonth: '1', startYear: '2026', ...over });
+
+  it('an extra monthly payment shortens the loan and reports the saving', () => {
+    const plain = computeMortgage(withStart());
+    const extra = computeMortgage(withStart({ extraMonthlyAmount: '300', extraMonthlyMonth: '1', extraMonthlyYear: '2026' }));
+    expect(extra.hasExtras).toBe(true);
+    expect(extra.payoffMonths).toBeLessThan(plain.payoffMonths);
+    expect(extra.interestSaved).toBeGreaterThan(0);
+    expect(extra.monthsSaved).toBe(plain.payoffMonths - extra.payoffMonths);
+    expect(Number.isFinite(completeResultValue(extra))).toBe(true);
+  });
+
+  it('a dated extra payment starts in the month the visitor picked', () => {
+    const r = computeMortgage(withStart({ extraMonthlyAmount: '500', extraMonthlyMonth: '1', extraMonthlyYear: '2028' }));
+    expect(r.schedule.slice(0, 24).every((row) => row.extra === 0)).toBe(true);
+    expect(r.schedule[24].extra).toBe(500);
+  });
+
+  it('a blank extra-payment date means "from the first payment"', () => {
+    const dated = computeMortgage(withStart({ extraMonthlyAmount: '300', extraMonthlyMonth: '1', extraMonthlyYear: '2026' }));
+    const blank = computeMortgage(withStart({ extraMonthlyAmount: '300', extraMonthlyMonth: '', extraMonthlyYear: '' }));
+    expect(blank.payoffMonths).toBe(dated.payoffMonths);
+    expect(blank.totalExtraPrincipal).toBeCloseTo(dated.totalExtraPrincipal, 6);
+  });
+
+  it('only one-time rows with an amount are sent to the engine', () => {
+    const rows = emptyOneTimeList();
+    rows[0] = { amount: '10000', month: '6', year: '2026' };
+    rows[3] = { amount: '', month: '1', year: '2030' }; // no amount → ignored
+    const r = computeMortgage(withStart({ extraOneTime: rows }));
+    expect(r.totalExtraPrincipal).toBe(10000);
+    expect(r.schedule[5].extra).toBe(10000);
+  });
+
+  it('an annual increase is reported without touching the loan', () => {
+    const plain = computeMortgage(withStart({ propertyTaxAnnual: '3600' }));
+    const rising = computeMortgage(withStart({ propertyTaxAnnual: '3600', propertyTaxIncreasePct: '3' }));
+    expect(rising.hasCostIncrease).toBe(true);
+    expect(rising.totalPropertyTax).toBeGreaterThan(plain.totalPropertyTax);
+    expect(rising.totalInterest).toBeCloseTo(plain.totalInterest, 6);
+    expect(rising.monthlyTotal).toBeCloseTo(plain.monthlyTotal, 9);
+    expect(Number.isFinite(completeResultValue(rising))).toBe(true);
+  });
+
+  it('the biweekly plan appears only when the box is ticked', () => {
+    expect(computeMortgage(withStart({ showBiweekly: false })).biweekly).toBeNull();
+    const r = computeMortgage(withStart({ showBiweekly: true }));
+    expect(r.biweekly).not.toBeNull();
+    expect(r.biweekly!.payment).toBeCloseTo(r.monthlyPrincipalInterest / 2, 6);
+    expect(Number.isFinite(completeResultValue(r))).toBe(true);
+  });
+});
+
+describe('mortgage binding — the guard covers the extras', () => {
+  const good = computeMortgage(
+    values({ startMonth: '1', startYear: '2026', extraMonthlyAmount: '300', extraMonthlyYear: '2026', showBiweekly: true }),
+  );
+
+  it('accepts the well-formed extended result', () => {
+    expect(Number.isFinite(completeResultValue(good))).toBe(true);
+  });
+  it('rejects a schedule whose principal + extra no longer discharges the loan', () => {
+    const broken = { ...good, schedule: good.schedule.map((r, i) => (i === 0 ? { ...r, extra: r.extra + 5000 } : r)) };
+    expect(Number.isNaN(completeResultValue(broken))).toBe(true);
+  });
+  it('rejects a negative or non-finite extra or cost on any row', () => {
+    for (const patch of [{ extra: -1 }, { extra: Number.NaN }, { costs: -1 }]) {
+      const broken = { ...good, schedule: good.schedule.map((r, i) => (i === 2 ? { ...r, ...patch } : r)) };
+      expect(Number.isNaN(completeResultValue(broken))).toBe(true);
+    }
+  });
+  it('rejects savings claimed with nothing to compare against', () => {
+    expect(Number.isNaN(completeResultValue({ ...good, withoutExtra: null }))).toBe(true);
+  });
+  it('rejects a comparison where paying MORE somehow took longer', () => {
+    const broken = { ...good, withoutExtra: { ...good.withoutExtra!, payoffMonths: good.payoffMonths - 1 } };
+    expect(Number.isNaN(completeResultValue(broken))).toBe(true);
+  });
+  it('rejects a mis-stated extra total or cost-of-ownership', () => {
+    expect(Number.isNaN(completeResultValue({ ...good, totalExtraPrincipal: good.totalExtraPrincipal + 100 }))).toBe(true);
+    expect(Number.isNaN(completeResultValue({ ...good, totalCostOfOwnership: good.totalCostOfOwnership + 100 }))).toBe(true);
+  });
+  it('rejects a non-finite or negative biweekly figure', () => {
+    expect(Number.isNaN(completeResultValue({ ...good, biweekly: { ...good.biweekly!, totalInterest: Number.NaN } }))).toBe(true);
+    expect(Number.isNaN(completeResultValue({ ...good, biweekly: { ...good.biweekly!, payoffPeriods: 0 } }))).toBe(true);
+  });
+});
+
+describe('mortgage binding — monthsLabel', () => {
+  it('reads whole years and months, and names an empty saving', () => {
+    expect(monthsLabel(360)).toBe('30 years');
+    expect(monthsLabel(254)).toBe('21 years 2 months');
+    expect(monthsLabel(1)).toBe('1 month');
+    expect(monthsLabel(12)).toBe('1 year');
+    expect(monthsLabel(0)).toBe('none');
   });
 });

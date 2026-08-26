@@ -39,6 +39,16 @@ export const TERM_OPTIONS = [30, 20, 15, 10] as const;
  *  also checks against it as an explicit, testable contract. */
 export const MAX_MONTHLY_ROWS = 30 * 12;
 
+/** Ceiling on an annual cost-increase percent — generous, but keeps the schedule finite and sane. */
+export const MAX_INCREASE_PCT = 100;
+/** The year range the start date and every extra-payment date share. */
+export const MIN_YEAR = 1900;
+export const MAX_YEAR = 2200;
+
+export const INCREASE_MESSAGE = `Enter a yearly increase from 0 to ${MAX_INCREASE_PCT}%.`;
+export const EXTRA_AMOUNT_MESSAGE = 'Enter an extra payment of zero or more.';
+export const EXTRA_YEAR_MESSAGE = `Enter a year from ${MIN_YEAR} to ${MAX_YEAR}.`;
+
 /**
  * How the visitor is expressing a money field that has a meaningful base. Purely a PRESENTATION
  * choice over the SAME engine: each field is normalised to the unit `calculateMortgage` already
@@ -96,7 +106,45 @@ export interface MortgageValues {
   startYear: string;
   /** Whether `pmiAnnualRate` is a percent of the loan (engine-native) or dollars/year. */
   pmiUnit: MoneyUnit;
+
+  /* ---- Optional extras. Every one is blank/off by default, so an ordinary
+     mortgage never sees them and the headline payment is unchanged. ---- */
+
+  /** Percent each recurring cost rises by per year. Blank → flat, as before. */
+  propertyTaxIncreasePct: string;
+  homeInsuranceIncreasePct: string;
+  hoaIncreasePct: string;
+  otherCostsIncreasePct: string;
+
+  /** Extra principal paid every month, from this month/year onwards. */
+  extraMonthlyAmount: string;
+  extraMonthlyMonth: string;
+  extraMonthlyYear: string;
+  /** Extra principal paid once a year, from this month/year onwards. */
+  extraYearlyAmount: string;
+  extraYearlyMonth: string;
+  extraYearlyYear: string;
+  /** One-off extra principal payments — always ONE_TIME_SLOTS entries, mostly blank. */
+  extraOneTime: OneTimeValue[];
+
+  /** Also show the biweekly payback comparison. */
+  showBiweekly: boolean;
 }
+
+/** One row of the one-time extra-payment list. */
+export interface OneTimeValue {
+  amount: string;
+  month: string;
+  year: string;
+}
+
+/** How many one-time extra-payment rows the form offers (the first is always visible). */
+export const ONE_TIME_SLOTS = 5;
+
+/** A blank one-time row — the shape `readValues` falls back to and `reset` restores. */
+export const emptyOneTime = (): OneTimeValue => ({ amount: '', month: '', year: '' });
+export const emptyOneTimeList = (): OneTimeValue[] =>
+  Array.from({ length: ONE_TIME_SLOTS }, emptyOneTime);
 
 export interface MortgageComputed extends ReturnType<typeof calculateMortgage> {
   /** The parsed home price and down payment (for the interpretation + the down-payment share). */
@@ -112,6 +160,10 @@ export interface MortgageComputed extends ReturnType<typeof calculateMortgage> {
   yearlySchedule: AmortizationRow[];
   /** One "8/26–7/27" label per yearly row, or an empty array when no start date is set. */
   yearLabels: string[];
+  /** True when any optional extra actually applies — what the result reveals its extras panel on. */
+  hasExtras: boolean;
+  /** True when any recurring cost carries an annual increase. */
+  hasCostIncrease: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -145,6 +197,40 @@ function parseOptionalNonNegative(raw: string): 'invalid' | number {
   const n = Number(t);
   if (!Number.isFinite(n) || n < 0) return 'invalid';
   return n;
+}
+
+/** Optional percent in [0, MAX_INCREASE_PCT]; empty means 0 (a flat cost). */
+function parseOptionalPercent(raw: string): 'invalid' | number {
+  const t = raw.trim();
+  if (t === '') return 0;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0 || n > MAX_INCREASE_PCT) return 'invalid';
+  return n;
+}
+
+/** Optional whole four-digit year in the same range the start-date field accepts. */
+function parseOptionalYear(raw: string): 'empty' | 'invalid' | number {
+  const t = raw.trim();
+  if (t === '') return 'empty';
+  const n = Number(t);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < MIN_YEAR || n > MAX_YEAR) return 'invalid';
+  return n;
+}
+
+/**
+ * Whole months from the repayment start to a given month/year — the offset the
+ * engine schedules an extra payment at. A date at or before the loan's start
+ * clamps to 0 (it simply applies from the first payment) rather than erroring,
+ * and a date past the end produces an offset the schedule never reaches.
+ */
+export function monthOffset(
+  startMonth: number,
+  startYear: number,
+  month: number,
+  year: number,
+): number {
+  if (![startMonth, startYear, month, year].every((n) => Number.isFinite(n))) return 0;
+  return Math.max(0, (year - startYear) * 12 + (month - startMonth));
 }
 
 /**
@@ -337,6 +423,30 @@ export function validateMortgageValues(values: MortgageValues): ValidationResult
     fieldErrors.pmiAnnualRate = 'Enter a PMI rate of 100% or less.';
   }
 
+  // ---- The optional extras. All blank by default, so an untouched form reaches
+  // none of these rules; each one only ever ADDS an error for what was entered.
+  for (const name of [
+    'propertyTaxIncreasePct',
+    'homeInsuranceIncreasePct',
+    'hoaIncreasePct',
+    'otherCostsIncreasePct',
+  ] as const) {
+    if (parseOptionalPercent(values[name]) === 'invalid') fieldErrors[name] = INCREASE_MESSAGE;
+  }
+
+  // An extra payment's date is OPTIONAL: blank means "from the first payment", which is
+  // what the form’s own "Loan start" option says. Only a year that was actually TYPED and
+  // is out of range or malformed is an error — a blank one is a valid, meaningful choice.
+  const checkExtra = (amountKey: string, yearKey: string, amountRaw: string, yearRaw: string) => {
+    if (parseOptionalNonNegative(amountRaw) === 'invalid') fieldErrors[amountKey] = EXTRA_AMOUNT_MESSAGE;
+    if (parseOptionalYear(yearRaw) === 'invalid') fieldErrors[yearKey] = EXTRA_YEAR_MESSAGE;
+  };
+  checkExtra('extraMonthlyAmount', 'extraMonthlyYear', values.extraMonthlyAmount, values.extraMonthlyYear);
+  checkExtra('extraYearlyAmount', 'extraYearlyYear', values.extraYearlyAmount, values.extraYearlyYear);
+  values.extraOneTime.forEach((row, i) => {
+    checkExtra(`extraOneTime${i + 1}Amount`, `extraOneTime${i + 1}Year`, row.amount, row.year);
+  });
+
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
 
@@ -352,6 +462,33 @@ export function computeMortgage(values: MortgageValues): MortgageComputed {
   const homePrice = optNum(values.homePrice);
   const downPayment = dollarsOf(homePrice, optNum(values.downPayment), values.downPaymentUnit);
   const loanBase = Math.max(0, homePrice - Math.min(Math.max(0, downPayment), homePrice));
+
+  // The extras. Dates are expressed as month/year in the form and as an offset from the
+  // repayment start in the engine, so they are converted once, here, against the SAME
+  // start date that labels the schedule rows.
+  const startMonth = optNum(values.startMonth);
+  const startYear = optNum(values.startYear);
+  const at = (month: string, year: string) =>
+    monthOffset(startMonth, startYear, optNum(month) || startMonth, optNum(year) || startYear);
+  const extraMonthly = {
+    amount: optNum(values.extraMonthlyAmount),
+    offset: at(values.extraMonthlyMonth, values.extraMonthlyYear),
+  };
+  const extraYearly = {
+    amount: optNum(values.extraYearlyAmount),
+    offset: at(values.extraYearlyMonth, values.extraYearlyYear),
+  };
+  const extraOneTime = values.extraOneTime
+    .filter((row) => optNum(row.amount) > 0)
+    .map((row) => ({ amount: optNum(row.amount), offset: at(row.month, row.year) }));
+
+  const increases = {
+    propertyTaxIncreasePct: optNum(values.propertyTaxIncreasePct),
+    homeInsuranceIncreasePct: optNum(values.homeInsuranceIncreasePct),
+    hoaIncreasePct: optNum(values.hoaIncreasePct),
+    otherCostsIncreasePct: optNum(values.otherCostsIncreasePct),
+  };
+
   const result = calculateMortgage({
     homePrice,
     downPayment,
@@ -362,6 +499,11 @@ export function computeMortgage(values: MortgageValues): MortgageComputed {
     hoaMonthly: optNum(values.hoaMonthly),
     otherCostsAnnual: dollarsOf(homePrice, optNum(values.otherCostsAnnual), values.otherCostsUnit),
     pmiAnnualRate: pmiPercent(loanBase, optNum(values.pmiAnnualRate), values.pmiUnit),
+    ...increases,
+    extraMonthly,
+    extraYearly,
+    extraOneTime,
+    includeBiweekly: values.showBiweekly,
   });
   const yearly = toYearlySchedule(result.schedule);
   return {
@@ -372,7 +514,9 @@ export function computeMortgage(values: MortgageValues): MortgageComputed {
     zeroMortgage: result.loanAmount === 0,
     hasPmi: result.monthlyPmi > 0,
     yearlySchedule: yearly,
-    yearLabels: yearRangeLabels(optNum(values.startMonth), optNum(values.startYear), yearly.length),
+    yearLabels: yearRangeLabels(startMonth, startYear, yearly.length),
+    hasExtras: result.totalExtraPrincipal > 0,
+    hasCostIncrease: Object.values(increases).some((v) => v > 0),
   };
 }
 
@@ -418,6 +562,16 @@ export function completeResultValue(r: MortgageComputed): number {
     payoffMonths,
     schedule,
     yearlySchedule,
+    totalExtraPrincipal,
+    totalPropertyTax,
+    totalHomeInsurance,
+    totalHoa,
+    totalOtherCosts,
+    totalCostOfOwnership,
+    withoutExtra,
+    interestSaved,
+    monthsSaved,
+    biweekly,
   } = r;
 
   // --- Summary: every figure finite and non-negative ---
@@ -433,8 +587,42 @@ export function completeResultValue(r: MortgageComputed): number {
     totalInterest,
     totalPmi,
     totalOfPayments,
+    totalExtraPrincipal,
+    totalPropertyTax,
+    totalHomeInsurance,
+    totalHoa,
+    totalOtherCosts,
+    totalCostOfOwnership,
+    interestSaved,
+    monthsSaved,
   ]) {
     if (!Number.isFinite(v) || v < 0) return FAIL;
+  }
+
+  // The extras' own consistency. `withoutExtra` is the comparison the savings are
+  // measured against, so its absence must mean there was nothing extra to save.
+  if (withoutExtra == null) {
+    if (totalExtraPrincipal !== 0 || interestSaved !== 0 || monthsSaved !== 0) return FAIL;
+  } else {
+    for (const v of [withoutExtra.totalInterest, withoutExtra.payoffMonths]) {
+      if (!Number.isFinite(v) || v < 0) return FAIL;
+    }
+    // Paying MORE can never take longer or cost more interest.
+    if (withoutExtra.payoffMonths < payoffMonths) return FAIL;
+    if (withoutExtra.totalInterest < totalInterest - reconTol(totalInterest)) return FAIL;
+  }
+  if (biweekly != null) {
+    for (const v of [
+      biweekly.payment,
+      biweekly.totalInterest,
+      biweekly.payoffPeriods,
+      biweekly.payoffMonths,
+      biweekly.interestSaved,
+      biweekly.monthsSaved,
+    ]) {
+      if (!Number.isFinite(v) || v < 0) return FAIL;
+    }
+    if (biweekly.payoffPeriods < 1) return FAIL;
   }
   if (!Number.isFinite(payoffMonths) || !Number.isInteger(payoffMonths) || payoffMonths < 0) return FAIL;
   if (!Array.isArray(schedule) || !Array.isArray(yearlySchedule)) return FAIL;
@@ -462,20 +650,42 @@ export function completeResultValue(r: MortgageComputed): number {
   let sumPrincipal = 0;
   let sumInterest = 0;
   let sumPmi = 0;
+  let sumExtra = 0;
+  let sumCosts = 0;
   for (let i = 0; i < schedule.length; i++) {
     const row = schedule[i];
     if (row.period !== i + 1) return FAIL; // ordered from 1, no gaps
     for (const v of [row.payment, row.principal, row.interest, row.pmi, row.balance]) {
       if (!Number.isFinite(v) || v < 0) return FAIL;
     }
+    if (!Number.isFinite(row.extra) || row.extra < 0) return FAIL;
+    if (!Number.isFinite(row.costs) || row.costs < 0) return FAIL;
     if (Math.abs(row.payment - (row.principal + row.interest)) > ROW_SUM_TOL) return FAIL;
     sumPrincipal += row.principal;
     sumInterest += row.interest;
     sumPmi += row.pmi;
+    sumExtra += row.extra;
+    sumCosts += row.costs;
   }
   if (Math.abs(schedule[schedule.length - 1].balance) > ZERO_BAL_TOL) return FAIL; // final ~ 0
 
-  if (Math.abs(sumPrincipal - loanAmount) > reconTol(loanAmount)) return FAIL;
+  // The loan is discharged by the scheduled principal PLUS whatever extra principal was
+  // paid — with no extras `sumExtra` is 0 and this is the original identity.
+  if (Math.abs(sumPrincipal + sumExtra - loanAmount) > reconTol(loanAmount)) return FAIL;
+  if (Math.abs(sumExtra - totalExtraPrincipal) > reconTol(totalExtraPrincipal)) return FAIL;
+  if (
+    Math.abs(sumCosts - (totalPropertyTax + totalHomeInsurance + totalHoa + totalOtherCosts)) >
+    reconTol(sumCosts)
+  ) {
+    return FAIL;
+  }
+  if (
+    Math.abs(
+      totalCostOfOwnership - (loanAmount + totalInterest + totalPmi + sumCosts),
+    ) > reconTol(totalCostOfOwnership)
+  ) {
+    return FAIL;
+  }
   if (Math.abs(sumInterest - totalInterest) > reconTol(totalInterest)) return FAIL;
   if (Math.abs(sumPmi - totalPmi) > reconTol(totalPmi)) return FAIL;
   if (Math.abs(totalOfPayments - (loanAmount + totalInterest)) > reconTol(totalOfPayments)) return FAIL;
@@ -484,17 +694,21 @@ export function completeResultValue(r: MortgageComputed): number {
   if (yearlySchedule.length < 1) return FAIL;
   let ySumPrincipal = 0;
   let ySumInterest = 0;
+  let ySumExtra = 0;
   for (let i = 0; i < yearlySchedule.length; i++) {
     const y = yearlySchedule[i];
     if (y.period !== i + 1) return FAIL;
     if (!Number.isFinite(y.principal) || !Number.isFinite(y.interest) || !Number.isFinite(y.balance)) return FAIL;
     if (y.balance < 0) return FAIL;
+    if (!Number.isFinite(y.extra) || y.extra < 0) return FAIL;
     ySumPrincipal += y.principal;
     ySumInterest += y.interest;
+    ySumExtra += y.extra;
   }
   if (Math.abs(yearlySchedule[yearlySchedule.length - 1].balance) > ZERO_BAL_TOL) return FAIL;
   if (Math.abs(ySumPrincipal - sumPrincipal) > reconTol(sumPrincipal)) return FAIL;
   if (Math.abs(ySumInterest - sumInterest) > reconTol(sumInterest)) return FAIL;
+  if (Math.abs(ySumExtra - sumExtra) > reconTol(sumExtra)) return FAIL;
 
   return monthlyTotal;
 }
@@ -502,6 +716,17 @@ export function completeResultValue(r: MortgageComputed): number {
 /* ------------------------------------------------------------------ */
 /* Presentation (pure)                                                 */
 /* ------------------------------------------------------------------ */
+
+/** Whole months as words: 348 → "29 years", 350 → "29 years 2 months", 0 → "none". */
+export function monthsLabel(months: number): string {
+  if (!Number.isFinite(months) || months <= 0) return months === 0 ? 'none' : '—';
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  const parts: string[] = [];
+  if (years > 0) parts.push(`${years} year${years === 1 ? '' : 's'}`);
+  if (rest > 0) parts.push(`${rest} month${rest === 1 ? '' : 's'}`);
+  return parts.join(' ');
+}
 
 /** A USD amount in spoken form, e.g. "2220 dollars and 36 cents", for the announcement. */
 export function spokenUSD(value: number): string {
@@ -624,6 +849,20 @@ const FIELD_NAMES: (keyof MortgageValues)[] = [
 ];
 
 /**
+ * Every optional-extra input Reset has to clear, by NAME. The one-time rows are
+ * expanded from ONE_TIME_SLOTS rather than listed, so adding a slot needs no edit here.
+ */
+const EXTRA_FIELD_NAMES: string[] = [
+  'propertyTaxIncreasePct',
+  'homeInsuranceIncreasePct',
+  'hoaIncreasePct',
+  'otherCostsIncreasePct',
+  'extraMonthlyAmount',
+  'extraYearlyAmount',
+  ...Array.from({ length: ONE_TIME_SLOTS }, (_, i) => `extraOneTime${i + 1}Amount`),
+];
+
+/**
  * The unit currently selected for one field, read from ITS OWN `[data-unit-group]` container so the
  * three groups never read each other. Falls back to the field's structural default when the group is
  * absent (a server-rendered page before hydration, or a host that omits the selector).
@@ -635,6 +874,10 @@ function activeUnit(root: HTMLElement, group: string, fallback: MoneyUnit): Mone
   const unit = el?.dataset.unit;
   return unit === 'percent' || unit === 'amount' ? unit : fallback;
 }
+
+/** A checkbox's state — absent means off, which is what an untouched form reports. */
+const checkbox = (root: HTMLElement, name: string): boolean =>
+  root.querySelector<HTMLInputElement>(`[name="${name}"]`)?.checked ?? false;
 
 export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComputed> = {
   readValues(root) {
@@ -655,6 +898,25 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
       startYear: val('startYear'),
       pmiAnnualRate: val('pmiAnnualRate'),
       pmiUnit: activeUnit(root, UNIT_GROUPS.pmi, 'percent'),
+
+      propertyTaxIncreasePct: val('propertyTaxIncreasePct'),
+      homeInsuranceIncreasePct: val('homeInsuranceIncreasePct'),
+      hoaIncreasePct: val('hoaIncreasePct'),
+      otherCostsIncreasePct: val('otherCostsIncreasePct'),
+      extraMonthlyAmount: val('extraMonthlyAmount'),
+      extraMonthlyMonth: val('extraMonthlyMonth'),
+      extraMonthlyYear: val('extraMonthlyYear'),
+      extraYearlyAmount: val('extraYearlyAmount'),
+      extraYearlyMonth: val('extraYearlyMonth'),
+      extraYearlyYear: val('extraYearlyYear'),
+      // Always ONE_TIME_SLOTS rows, whether or not the markup rendered them all,
+      // so validation and compute never have to guess the list's length.
+      extraOneTime: Array.from({ length: ONE_TIME_SLOTS }, (_, i) => ({
+        amount: val(`extraOneTime${i + 1}Amount`),
+        month: val(`extraOneTime${i + 1}Month`),
+        year: val(`extraOneTime${i + 1}Year`),
+      })),
+      showBiweekly: checkbox(root, 'showBiweekly'),
     };
   },
 
@@ -700,6 +962,35 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
     setText('[data-mc-loan]', formatCurrencyRounded(result.loanAmount));
     setText('[data-mc-total-interest]', formatCurrencyRounded(result.totalInterest));
     setText('[data-mc-total-paid]', formatCurrencyRounded(result.totalOfPayments));
+
+    // ---- The optional extras. Each block is REVEALED only when the visitor actually
+    // used the option it reports, so an ordinary mortgage's result is unchanged.
+    show('[data-mc-extra-block]', result.hasExtras);
+    if (result.hasExtras && result.withoutExtra) {
+      setText('[data-mc-extra-total]', formatCurrencyRounded(result.totalExtraPrincipal));
+      setText('[data-mc-extra-interest-saved]', formatCurrencyRounded(result.interestSaved));
+      setText('[data-mc-extra-months-saved]', monthsLabel(result.monthsSaved));
+      setText('[data-mc-extra-payoff]', monthsLabel(result.payoffMonths));
+    }
+
+    show('[data-mc-costs-block]', result.hasCostIncrease);
+    if (result.hasCostIncrease) {
+      setText('[data-mc-costs-tax]', formatCurrencyRounded(result.totalPropertyTax));
+      setText('[data-mc-costs-ins]', formatCurrencyRounded(result.totalHomeInsurance));
+      setText('[data-mc-costs-hoa]', formatCurrencyRounded(result.totalHoa));
+      setText('[data-mc-costs-other]', formatCurrencyRounded(result.totalOtherCosts));
+      setText('[data-mc-costs-total]', formatCurrencyRounded(result.totalCostOfOwnership));
+    }
+
+    const bw = result.biweekly;
+    show('[data-mc-biweekly-block]', bw != null);
+    if (bw) {
+      setText('[data-mc-bw-payment]', formatCurrency(bw.payment));
+      setText('[data-mc-bw-interest]', formatCurrencyRounded(bw.totalInterest));
+      setText('[data-mc-bw-payoff]', monthsLabel(bw.payoffMonths));
+      setText('[data-mc-bw-interest-saved]', formatCurrencyRounded(bw.interestSaved));
+      setText('[data-mc-bw-months-saved]', monthsLabel(bw.monthsSaved));
+    }
 
     // Supplemental breakdown bar (aria-hidden; the text conveys every value). Hidden when the monthly
     // total is 0 so no zero-width/invalid segments are produced.
@@ -779,6 +1070,14 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
       // option); every other field clears to empty. Keyed off the name so it needs no DOM globals.
       el.value = name === 'loanTermYears' ? String(TERM_OPTIONS[0]) : '';
     }
+    // The extras go back to off: every amount and increase blank, and the biweekly
+    // comparison unticked. The dates need no clearing — they were never filled in.
+    for (const name of EXTRA_FIELD_NAMES) {
+      const el = input(root, name);
+      if (el) el.value = '';
+    }
+    const biweekly = root.querySelector<HTMLInputElement>('[name="showBiweekly"]');
+    if (biweekly) biweekly.checked = false;
   },
 };
 
@@ -844,4 +1143,4 @@ export function mortgageExample(): MortgageExample {
  * result markup and can never drift from the engine. The visitor's fields are
  * never written to — they load and stay empty behind it.
  */
-export const MORTGAGE_EXAMPLE_VALUES: MortgageValues = { homePrice: '400000', downPayment: '80000', downPaymentUnit: 'amount', loanTermYears: '30', annualInterestRate: '6.5', propertyTaxAnnual: '', propertyTaxUnit: 'amount', homeInsuranceAnnual: '', hoaMonthly: '', otherCostsAnnual: '', otherCostsUnit: 'amount', startMonth: '1', startYear: '2026', pmiAnnualRate: '', pmiUnit: 'percent' };
+export const MORTGAGE_EXAMPLE_VALUES: MortgageValues = { homePrice: '400000', downPayment: '80000', downPaymentUnit: 'amount', loanTermYears: '30', annualInterestRate: '6.5', propertyTaxAnnual: '', propertyTaxUnit: 'amount', homeInsuranceAnnual: '', hoaMonthly: '', otherCostsAnnual: '', otherCostsUnit: 'amount', startMonth: '1', startYear: '2026', pmiAnnualRate: '', pmiUnit: 'percent', propertyTaxIncreasePct: '', homeInsuranceIncreasePct: '', hoaIncreasePct: '', otherCostsIncreasePct: '', extraMonthlyAmount: '', extraMonthlyMonth: '', extraMonthlyYear: '', extraYearlyAmount: '', extraYearlyMonth: '', extraYearlyYear: '', extraOneTime: emptyOneTimeList(), showBiweekly: false };

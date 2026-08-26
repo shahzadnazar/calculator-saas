@@ -865,3 +865,183 @@ test.describe('other costs', () => {
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
   });
 });
+
+/* ---- Optional extras: increases, extra payments, biweekly --------------- */
+
+/**
+ * Everything in this block is OPT-IN. The first test is the load-bearing one:
+ * an ordinary mortgage must reach none of it, so the result a visitor who ignores
+ * the panel sees is exactly the result they saw before these options existed.
+ */
+const openExtras = (page: Page) => page.locator('summary', { hasText: 'Increases & extra payments' }).click();
+const extraBlock = (page: Page) => page.locator('[data-mc-extra-block]');
+const costsBlock = (page: Page) => page.locator('[data-mc-costs-block]');
+const biweeklyBlock = (page: Page) => page.locator('[data-mc-biweekly-block]');
+
+test.describe('mortgage: optional increases & extra payments', () => {
+  test('the panel is closed and every extras block is hidden on an ordinary mortgage', async ({ page }) => {
+    await expect(page.locator('[data-mc-extras]')).not.toHaveAttribute('open', /.*/);
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(extraBlock(page)).toBeHidden();
+    await expect(costsBlock(page)).toBeHidden();
+    await expect(biweeklyBlock(page)).toBeHidden();
+    await expect(page.locator('[data-mc-total-interest]')).toHaveText('$408,142');
+  });
+
+  test('an untouched extra-payment row looks unconfigured: no amount AND no date', async ({ page }) => {
+    await openExtras(page);
+    const start = await page.locator('[name="startYear"]').inputValue();
+    for (const name of ['extraMonthlyYear', 'extraYearlyYear', 'extraOneTime1Year']) {
+      // Blank, with the repayment start offered only as a PLACEHOLDER — nothing is filled in,
+      // so three dated payments can never appear to be scheduled.
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+      await expect(page.locator(`[name="${name}"]`)).toHaveAttribute('placeholder', start);
+    }
+    for (const name of ['extraMonthlyMonth', 'extraYearlyMonth', 'extraOneTime1Month']) {
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+      await expect(page.locator(`[name="${name}"] option:checked`)).toHaveText('Loan start');
+    }
+    for (const name of ['extraMonthlyAmount', 'extraYearlyAmount', 'extraOneTime1Amount']) {
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+    }
+  });
+
+  test('an amount with no date applies from the first payment', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await page.fill('[name="extraMonthlyAmount"]', '300');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(page.locator('[data-mc-extra-interest-saved]')).toHaveText('$138,446');
+  });
+
+  test('an extra monthly payment shortens the loan and reports what it saves', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await page.fill('[name="extraMonthlyAmount"]', '300');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(extraBlock(page)).toBeVisible();
+    await expect(page.locator('[data-mc-extra-total]')).toHaveText('$75,952');
+    await expect(page.locator('[data-mc-extra-interest-saved]')).toHaveText('$138,446');
+    await expect(page.locator('[data-mc-extra-months-saved]')).toHaveText('8 years 10 months');
+    await expect(page.locator('[data-mc-extra-payoff]')).toHaveText('21 years 2 months');
+    // The headline monthly payment is the CONTRACTUAL one — extra is voluntary, not owed.
+    await expect(page.locator('[data-mc-pi]')).toHaveText('$2,022.62');
+    await expect(page.locator('[data-mc-total-interest]')).toHaveText('$269,696');
+  });
+
+  test('an annual cost increase reports the rising totals and leaves the loan alone', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await page.fill('[name="propertyTaxAnnual"]', '3600');
+    await submit(page).click();
+    const flatInterest = await page.locator('[data-mc-total-interest]').innerText();
+    const flatPayment = await primary(page).innerText();
+
+    await openExtras(page);
+    await page.fill('[name="propertyTaxIncreasePct"]', '3');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(costsBlock(page)).toBeVisible();
+    await expect(page.locator('[data-mc-costs-tax]')).toHaveText('$171,271');
+    await expect(page.locator('[data-mc-costs-total]')).not.toHaveText('—');
+    // Year one is the amount as entered, so neither the payment nor the loan moves.
+    await expect(primary(page)).toHaveText(flatPayment);
+    await expect(page.locator('[data-mc-total-interest]')).toHaveText(flatInterest);
+  });
+
+  test('the biweekly comparison appears only when ticked', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await expect(biweeklyBlock(page)).toBeHidden();
+    await page.check('[name="showBiweekly"]');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(biweeklyBlock(page)).toBeVisible();
+    await expect(page.locator('[data-mc-bw-payment]')).toHaveText('$1,011.31'); // half the monthly P&I
+    await expect(page.locator('[data-mc-bw-payoff]')).toHaveText('24 years 2 months');
+    await expect(page.locator('[data-mc-bw-interest-saved]')).toHaveText('$93,997');
+    await page.uncheck('[name="showBiweekly"]');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(biweeklyBlock(page)).toBeHidden();
+  });
+
+  test('a one-time payment lands in the month it is dated', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await page.fill('[name="extraOneTime1Amount"]', '20000');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(extraBlock(page)).toBeVisible();
+    await expect(page.locator('[data-mc-extra-total]')).toHaveText('$20,000');
+    await expect(page.locator('[data-mc-extra-months-saved]')).not.toHaveText('none');
+  });
+
+  test('further one-time rows arrive on request, hidden until then', async ({ page }) => {
+    await openExtras(page);
+    await expect(page.locator('[data-mc-onetime="1"]')).toBeVisible();
+    await expect(page.locator('[data-mc-onetime="2"]')).toBeHidden();
+    await page.locator('[data-mc-add-onetime]').click();
+    await expect(page.locator('[data-mc-onetime="2"]')).toBeVisible();
+    await expect(page.locator('[data-mc-onetime="3"]')).toBeHidden();
+  });
+
+  test('the extras validate: increases 0–100, amounts >= 0, a typed year in range', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openExtras(page);
+    await page.fill('[name="propertyTaxIncreasePct"]', '101');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(fieldError(page, 'propertyTaxIncreasePct')).toContainText('0 to 100%');
+
+    await page.fill('[name="propertyTaxIncreasePct"]', '3');
+    await page.fill('[name="extraMonthlyAmount"]', '-5');
+    await submit(page).click();
+    await expect(fieldError(page, 'extraMonthlyAmount')).toContainText('zero or more');
+
+    await page.fill('[name="extraMonthlyAmount"]', '200');
+    await page.fill('[name="extraMonthlyYear"]', '1899');
+    await submit(page).click();
+    await expect(fieldError(page, 'extraMonthlyYear')).toContainText('1900 to 2200');
+  });
+
+  test('reset clears the extras, re-hides the added rows and unticks biweekly', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await page.fill('[name="extraMonthlyAmount"]', '300');
+    await page.fill('[name="propertyTaxIncreasePct"]', '3');
+    await page.check('[name="showBiweekly"]');
+    await page.locator('[data-mc-add-onetime]').click();
+    await page.waitForTimeout(DEBOUNCE);
+    await page.locator('[data-reset]').click();
+    await expect(page.locator('[name="extraMonthlyAmount"]')).toHaveValue('');
+    await expect(page.locator('[name="propertyTaxIncreasePct"]')).toHaveValue('');
+    await expect(page.locator('[name="showBiweekly"]')).not.toBeChecked();
+    await expect(page.locator('[data-mc-onetime="2"]')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  });
+
+  test('never renders NaN, Infinity or undefined with every option in play', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await page.fill('[name="propertyTaxAnnual"]', '3600');
+    await page.fill('[name="homeInsuranceAnnual"]', '1200');
+    await page.fill('[name="hoaMonthly"]', '50');
+    await openExtras(page);
+    await page.fill('[name="propertyTaxIncreasePct"]', '3');
+    await page.fill('[name="homeInsuranceIncreasePct"]', '5');
+    await page.fill('[name="hoaIncreasePct"]', '2');
+    await page.fill('[name="extraMonthlyAmount"]', '250');
+    await page.fill('[name="extraYearlyAmount"]', '2000');
+    await page.fill('[name="extraOneTime1Amount"]', '10000');
+    await page.check('[name="showBiweekly"]');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    for (const b of [extraBlock, costsBlock, biweeklyBlock]) await expect(b(page)).toBeVisible();
+    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+  });
+});

@@ -179,8 +179,8 @@ describe('mortgage — PMI (charged while start-of-period balance > 80% of home 
 
 describe('mortgage — schedule contract', () => {
   const r = calculateMortgage({ homePrice: 400000, downPayment: 40000, loanTermYears: 30, annualInterestRate: 6, pmiAnnualRate: 0.5 });
-  it('rows expose period/payment/principal/interest/pmi/balance, ordered from 1', () => {
-    expect(Object.keys(r.schedule[0]).sort()).toEqual(['balance', 'interest', 'payment', 'period', 'pmi', 'principal'].sort());
+  it('rows expose period/payment/principal/interest/pmi/balance/extra/costs, ordered from 1', () => {
+    expect(Object.keys(r.schedule[0]).sort()).toEqual(['balance', 'costs', 'extra', 'interest', 'payment', 'period', 'pmi', 'principal'].sort());
     r.schedule.forEach((row, i) => expect(row.period).toBe(i + 1));
   });
   it('payment = principal + interest per row; balance never negative and falls to ~0', () => {
@@ -243,5 +243,237 @@ describe('mortgage — precision', () => {
     const r = calculateMortgage({ homePrice: 500000, downPayment: 100000, loanTermYears: 15, annualInterestRate: 5.5 });
     expect(r.schedule[r.schedule.length - 1].balance).toBeCloseTo(0, 2);
     expect(r.schedule.reduce((s, row) => s + row.principal, 0)).toBeCloseTo(r.loanAmount, 2);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Optional extras: annual cost increases, extra payments, biweekly    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every option below is OPT-IN. The first block is the one that matters most:
+ * with none of them supplied the engine must return exactly what it returned
+ * before they existed, so an ordinary mortgage is provably unaffected.
+ */
+describe('mortgage — the optional inputs are genuinely optional', () => {
+  const BASE = { homePrice: 400000, downPayment: 80000, loanTermYears: 30, annualInterestRate: 6.5 };
+  const plain = calculateMortgage({ ...BASE, propertyTaxAnnual: 3600, homeInsuranceAnnual: 1200, hoaMonthly: 50 });
+
+  it('omitting every option leaves the schedule and every total untouched', () => {
+    expect(plain.payoffMonths).toBe(360);
+    expect(plain.totalExtraPrincipal).toBe(0);
+    expect(plain.withoutExtra).toBeNull();
+    expect(plain.interestSaved).toBe(0);
+    expect(plain.monthsSaved).toBe(0);
+    expect(plain.biweekly).toBeNull();
+    expect(plain.schedule.every((r) => r.extra === 0)).toBe(true);
+  });
+
+  it('zero-valued options are the same as omitting them', () => {
+    const zeroed = calculateMortgage({
+      ...BASE,
+      propertyTaxAnnual: 3600,
+      homeInsuranceAnnual: 1200,
+      hoaMonthly: 50,
+      propertyTaxIncreasePct: 0,
+      homeInsuranceIncreasePct: 0,
+      hoaIncreasePct: 0,
+      otherCostsIncreasePct: 0,
+      extraMonthly: { amount: 0, offset: 0 },
+      extraYearly: { amount: 0, offset: 0 },
+      extraOneTime: [{ amount: 0, offset: 3 }],
+    });
+    expect(zeroed.totalInterest).toBeCloseTo(plain.totalInterest, 6);
+    expect(zeroed.payoffMonths).toBe(plain.payoffMonths);
+    expect(zeroed.withoutExtra).toBeNull();
+    expect(zeroed.biweekly).toBeNull();
+  });
+
+  it('with no increase the recorded costs are simply flat across the term', () => {
+    const monthlyCosts = 3600 / 12 + 1200 / 12 + 50;
+    expect(plain.schedule[0].costs).toBeCloseTo(monthlyCosts, 9);
+    expect(plain.schedule[359].costs).toBeCloseTo(monthlyCosts, 9);
+    expect(plain.totalPropertyTax).toBeCloseTo(300 * 360, 6);
+    expect(plain.totalHoa).toBeCloseTo(50 * 360, 6);
+    expect(plain.totalOtherCosts).toBe(0);
+  });
+});
+
+describe('mortgage — annual tax & cost increase', () => {
+  const r = calculateMortgage({
+    homePrice: 400000, downPayment: 80000, loanTermYears: 30, annualInterestRate: 6.5,
+    propertyTaxAnnual: 3600, homeInsuranceAnnual: 1200, hoaMonthly: 100, otherCostsAnnual: 600,
+    propertyTaxIncreasePct: 3, homeInsuranceIncreasePct: 5, hoaIncreasePct: 2, otherCostsIncreasePct: 10,
+  });
+
+  it('year one is always the amount as entered, so the headline payment never moves', () => {
+    const flat = calculateMortgage({
+      homePrice: 400000, downPayment: 80000, loanTermYears: 30, annualInterestRate: 6.5,
+      propertyTaxAnnual: 3600, homeInsuranceAnnual: 1200, hoaMonthly: 100, otherCostsAnnual: 600,
+    });
+    expect(r.monthlyTotal).toBeCloseTo(flat.monthlyTotal, 9);
+    expect(r.schedule[0].costs).toBeCloseTo(flat.schedule[0].costs, 9);
+    expect(r.schedule[11].costs).toBeCloseTo(flat.schedule[11].costs, 9); // still year one
+  });
+
+  it('each cost compounds once a year, at its OWN rate', () => {
+    // Month 13 opens year two: tax +3%, insurance +5%, HOA +2%, other +10%.
+    const y2 = 300 * 1.03 + 100 * 1.05 + 100 * 1.02 + 50 * 1.1;
+    expect(r.schedule[12].costs).toBeCloseTo(y2, 9);
+    // Month 25 opens year three — each rate applied twice.
+    const y3 = 300 * 1.03 ** 2 + 100 * 1.05 ** 2 + 100 * 1.02 ** 2 + 50 * 1.1 ** 2;
+    expect(r.schedule[24].costs).toBeCloseTo(y3, 9);
+  });
+
+  it('a rising cost totals more than the same flat cost, and the totals sum the rows', () => {
+    expect(r.totalPropertyTax).toBeGreaterThan(300 * 360);
+    expect(r.totalPropertyTax).toBeCloseTo(
+      Array.from({ length: 30 }, (_, y) => 300 * 12 * 1.03 ** y).reduce((s, v) => s + v, 0), 4,
+    );
+    const rowCosts = r.schedule.reduce((s, row) => s + row.costs, 0);
+    expect(rowCosts).toBeCloseTo(
+      r.totalPropertyTax + r.totalHomeInsurance + r.totalHoa + r.totalOtherCosts, 4,
+    );
+  });
+
+  it('increases never touch the loan itself', () => {
+    const flat = calculateMortgage({
+      homePrice: 400000, downPayment: 80000, loanTermYears: 30, annualInterestRate: 6.5,
+    });
+    expect(r.totalInterest).toBeCloseTo(flat.totalInterest, 6);
+    expect(r.payoffMonths).toBe(flat.payoffMonths);
+  });
+});
+
+describe('mortgage — extra payments', () => {
+  const BASE = { homePrice: 400000, downPayment: 80000, loanTermYears: 30, annualInterestRate: 6.5 };
+  const plain = calculateMortgage(BASE);
+
+  it('an extra monthly payment shortens the loan and cuts the interest', () => {
+    const r = calculateMortgage({ ...BASE, extraMonthly: { amount: 200, offset: 0 } });
+    expect(r.payoffMonths).toBeLessThan(plain.payoffMonths);
+    expect(r.totalInterest).toBeLessThan(plain.totalInterest);
+    expect(r.totalExtraPrincipal).toBeGreaterThan(0);
+    // The comparison is against the identical loan without them.
+    expect(r.withoutExtra).toEqual({ totalInterest: plain.totalInterest, payoffMonths: plain.payoffMonths });
+    expect(r.interestSaved).toBeCloseTo(plain.totalInterest - r.totalInterest, 6);
+    expect(r.monthsSaved).toBe(plain.payoffMonths - r.payoffMonths);
+  });
+
+  it('an extra payment starts at its offset and not before', () => {
+    const r = calculateMortgage({ ...BASE, extraMonthly: { amount: 500, offset: 24 } });
+    expect(r.schedule.slice(0, 24).every((row) => row.extra === 0)).toBe(true);
+    expect(r.schedule[24].extra).toBe(500);
+    expect(r.schedule[25].extra).toBe(500);
+  });
+
+  it('an extra YEARLY payment lands every twelfth month from its offset', () => {
+    const r = calculateMortgage({ ...BASE, extraYearly: { amount: 3000, offset: 6 } });
+    const paid = r.schedule.filter((row) => row.extra > 0).map((row) => row.period);
+    expect(paid.slice(0, 4)).toEqual([7, 19, 31, 43]);
+    expect(r.schedule[6].extra).toBe(3000);
+    expect(r.schedule[7].extra).toBe(0);
+  });
+
+  it('one-time payments land once, in their own month, and stack in the same month', () => {
+    const r = calculateMortgage({
+      ...BASE,
+      extraOneTime: [{ amount: 10000, offset: 11 }, { amount: 5000, offset: 11 }, { amount: 20000, offset: 59 }],
+    });
+    expect(r.schedule[11].extra).toBe(15000);
+    expect(r.schedule[59].extra).toBe(20000);
+    expect(r.schedule.filter((row) => row.extra > 0).length).toBe(2);
+    expect(r.totalExtraPrincipal).toBe(35000);
+  });
+
+  it('the three kinds combine', () => {
+    const r = calculateMortgage({
+      ...BASE,
+      extraMonthly: { amount: 100, offset: 0 },
+      extraYearly: { amount: 1200, offset: 0 },
+      extraOneTime: [{ amount: 5000, offset: 0 }],
+    });
+    expect(r.schedule[0].extra).toBe(100 + 1200 + 5000);
+    expect(r.schedule[1].extra).toBe(100);
+    expect(r.payoffMonths).toBeLessThan(plain.payoffMonths);
+  });
+
+  it('an extra payment never overshoots: the balance closes at zero and principal still totals the loan', () => {
+    const r = calculateMortgage({ ...BASE, extraMonthly: { amount: 9000, offset: 0 } });
+    const last = r.schedule[r.schedule.length - 1];
+    expect(last.balance).toBeLessThanOrEqual(0.005);
+    expect(r.schedule.every((row) => row.extra >= 0)).toBe(true);
+    const repaid = r.schedule.reduce((s, row) => s + row.principal + row.extra, 0);
+    expect(repaid).toBeCloseTo(r.loanAmount, 2);
+  });
+
+  it('rows keep the payment == principal + interest invariant the result guard relies on', () => {
+    const r = calculateMortgage({ ...BASE, extraMonthly: { amount: 250, offset: 0 } });
+    for (const row of r.schedule) expect(row.payment).toBeCloseTo(row.principal + row.interest, 9);
+  });
+
+  it('a negative or absurd offset is clamped rather than breaking the schedule', () => {
+    const r = calculateMortgage({ ...BASE, extraMonthly: { amount: 200, offset: -12 } });
+    expect(r.schedule[0].extra).toBe(200);
+    const late = calculateMortgage({ ...BASE, extraOneTime: [{ amount: 200, offset: 9999 }] });
+    expect(late.totalExtraPrincipal).toBe(0);
+    expect(late.payoffMonths).toBe(plain.payoffMonths);
+  });
+});
+
+describe('mortgage — biweekly payback comparison', () => {
+  const BASE = { homePrice: 400000, downPayment: 80000, loanTermYears: 30, annualInterestRate: 6.5 };
+  const plain = calculateMortgage(BASE);
+  const r = calculateMortgage({ ...BASE, includeBiweekly: true });
+
+  it('is null unless asked for', () => {
+    expect(plain.biweekly).toBeNull();
+  });
+
+  it('pays half the monthly principal and interest, and closes the loan early', () => {
+    expect(r.biweekly).not.toBeNull();
+    expect(r.biweekly!.payment).toBeCloseTo(plain.monthlyPrincipalInterest / 2, 9);
+    expect(r.biweekly!.payoffMonths).toBeLessThan(plain.payoffMonths);
+    expect(r.biweekly!.totalInterest).toBeLessThan(plain.totalInterest);
+    expect(r.biweekly!.interestSaved).toBeCloseTo(plain.totalInterest - r.biweekly!.totalInterest, 6);
+    expect(r.biweekly!.monthsSaved).toBe(plain.payoffMonths - r.biweekly!.payoffMonths);
+  });
+
+  it('never leaves the monthly schedule it is compared against unchanged-in-name-only', () => {
+    expect(r.totalInterest).toBeCloseTo(plain.totalInterest, 6);
+    expect(r.payoffMonths).toBe(plain.payoffMonths);
+  });
+
+  it('compares against the ORDINARY monthly loan even when extra payments are set', () => {
+    const withBoth = calculateMortgage({
+      ...BASE, includeBiweekly: true, extraMonthly: { amount: 200, offset: 0 },
+    });
+    expect(withBoth.biweekly!.interestSaved).toBeCloseTo(
+      plain.totalInterest - withBoth.biweekly!.totalInterest, 6,
+    );
+  });
+
+  it('handles a 0% loan and refuses a zero mortgage', () => {
+    const free = calculateMortgage({ homePrice: 120000, downPayment: 0, loanTermYears: 10, annualInterestRate: 0, includeBiweekly: true });
+    expect(free.biweekly!.totalInterest).toBe(0);
+    expect(free.biweekly!.payoffPeriods).toBeGreaterThan(0);
+    const none = calculateMortgage({ homePrice: 300000, downPayment: 300000, loanTermYears: 30, annualInterestRate: 6.5, includeBiweekly: true });
+    expect(none.biweekly).toBeNull();
+  });
+});
+
+describe('mortgage — total cost of ownership', () => {
+  it('sums principal, interest, PMI and every recurring cost', () => {
+    const r = calculateMortgage({
+      homePrice: 400000, downPayment: 40000, loanTermYears: 30, annualInterestRate: 6.5,
+      propertyTaxAnnual: 3600, homeInsuranceAnnual: 1200, hoaMonthly: 50, otherCostsAnnual: 600,
+      pmiAnnualRate: 0.5, propertyTaxIncreasePct: 3,
+    });
+    expect(r.totalCostOfOwnership).toBeCloseTo(
+      r.loanAmount + r.totalInterest + r.totalPmi +
+        r.totalPropertyTax + r.totalHomeInsurance + r.totalHoa + r.totalOtherCosts,
+      6,
+    );
+    expect(r.totalCostOfOwnership).toBeGreaterThan(r.totalOfPayments);
   });
 });
