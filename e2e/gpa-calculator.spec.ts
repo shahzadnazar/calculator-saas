@@ -4,7 +4,9 @@ import { test, expect, type Page } from '@playwright/test';
  * GPA calculator — R16B1 task-first migration (Academic family pilot, 1 of 2). Wraps the UNCHANGED
  * calculateGPA / GRADE_POINTS via its OWN gpa-form.ts binding; the dynamic course rows are entirely
  * island-owned (built via the DOM API, per-row error slots, add/remove dispatching `input`). Task-first:
- * one blank row, "Calculate GPA" for the first result, live-after-first. Grades are letters mapped to
+ * ARRIVE-FILLED: the page opens on three worked course rows and a computed GPA the visitor types
+ * over; Reset is the way back to one blank row. "Calculate GPA" for the first result on a blanked
+ * form, live-after-first. Grades are letters mapped to
  * points; a valid 0.0 (all F with credits) and a valid 4.0 (all A) both render. The complete-result
  * guard lives in resultValue (NaN sentinel — NO isUsableResult; a finite 0 the default gate accepts).
  */
@@ -28,8 +30,19 @@ const setRow = async (page: Page, i: number, grade: string, credits: string) => 
   await rowAt(page, i).locator('[data-gpa-grade]').selectOption(grade);
   await rowAt(page, i).locator('[data-gpa-credits]').fill(credits);
 };
-/** Grow to `courses.length` rows (the page starts with one), then fill each. */
+/**
+ * Clear the arrive-filled starting rows, so a test can exercise the blank form. Reset is the
+ * product's own way back: it collapses to ONE blank row and returns the result to empty.
+ */
+const startBlank = async (page: Page) => {
+  await page.click('[data-reset]');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+};
+
+/** Blank the form, grow to `courses.length` rows, then fill each. */
 const fillCourses = async (page: Page, courses: Array<[string, string]>) => {
+  await startBlank(page);
   for (let k = 1; k < courses.length; k++) await addBtn(page).click();
   for (let i = 0; i < courses.length; i++) await setRow(page, i, courses[i][0], courses[i][1]);
 };
@@ -39,24 +52,53 @@ test.describe('gpa: task-first', () => {
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
   });
 
-  test('loads with one blank course row, empty result, "Calculate GPA", remove disabled', async ({ page }) => {
-    await expect(rows(page)).toHaveCount(1);
+  test('loads FILLED with worked course rows and a computed GPA', async ({ page }) => {
+    // Arrive-filled: the visitor lands on a real GPA to type over, not a blank row.
+    await expect(rows(page)).toHaveCount(3);
+    await expect(rowAt(page, 0).locator('[data-gpa-grade]')).toHaveValue('A');
+    await expect(rowAt(page, 0).locator('[data-gpa-credits]')).toHaveValue('3');
+    await expect(rowAt(page, 1).locator('[data-gpa-grade]')).toHaveValue('B+');
+    await expect(rowAt(page, 2).locator('[data-gpa-grade]')).toHaveValue('A-');
+    await expect(submit(page)).toHaveText('Calculate GPA');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(region(page, 'valid')).toBeVisible();
+    // (4·3 + 3.3·4 + 3.7·3)/10 = 3.63
+    await expect(primary(page)).toHaveText('3.63');
+    await expect(creditsTotal(page)).toHaveText('10');
+    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+    // Arriving filled is silent — a result the visitor did not ask for is never announced.
+    await expect(live(page)).toHaveText('');
+    // With three rows, each is removable.
+    await expect(rowAt(page, 0).locator('[data-gpa-remove]')).toBeEnabled();
+  });
+
+  test('Reset clears the starting rows to ONE blank row and an empty result', async ({ page }) => {
+    await startBlank(page);
     await expect(rowAt(page, 0).locator('[data-gpa-grade]')).toHaveValue('');
     await expect(rowAt(page, 0).locator('[data-gpa-credits]')).toHaveValue('');
-    await expect(submit(page)).toHaveText('Calculate GPA');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
     await expect(region(page, 'valid')).toBeHidden();
     await expect(live(page)).toHaveText('');
     await expect(rowAt(page, 0).locator('[data-gpa-remove]')).toBeDisabled(); // one row can't be removed
   });
 
-  test('does not calculate before the first submission', async ({ page }) => {
+  test('editing over the starting rows updates live, with no Calculate press', async ({ page }) => {
+    await rowAt(page, 0).locator('[data-gpa-credits]').fill('6');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    // (4·6 + 3.3·4 + 3.7·3)/13 = 3.7154 → 3.72
+    await expect(primary(page)).toHaveText('3.72');
+    await expect(creditsTotal(page)).toHaveText('13');
+  });
+
+  test('once blanked, it does not calculate again before the next explicit submission', async ({ page }) => {
+    await startBlank(page);
     await setRow(page, 0, 'A', '3');
     await page.waitForTimeout(DEBOUNCE);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
   });
 
   test('Add Course / Remove Course grow and shrink the row set (min one row)', async ({ page }) => {
+    await startBlank(page);
     await addBtn(page).click();
     await expect(rows(page)).toHaveCount(2);
     await expect(rowAt(page, 0).locator('[data-gpa-remove]')).toBeEnabled();
@@ -81,6 +123,7 @@ test.describe('gpa: task-first', () => {
   });
 
   test('a valid 0.0 GPA (all F with credits) renders as a result, not an error', async ({ page }) => {
+    await startBlank(page);
     await setRow(page, 0, 'F', '3');
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
@@ -90,6 +133,7 @@ test.describe('gpa: task-first', () => {
   });
 
   test('a valid maximum 4.0 GPA renders', async ({ page }) => {
+    await startBlank(page);
     await setRow(page, 0, 'A', '3');
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
@@ -99,6 +143,7 @@ test.describe('gpa: task-first', () => {
   /* ---- validation ---- */
 
   test('a partially completed row (grade set, credits blank) is a row credits error with focus', async ({ page }) => {
+    await startBlank(page);
     await rowAt(page, 0).locator('[data-gpa-grade]').selectOption('A');
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
@@ -107,6 +152,7 @@ test.describe('gpa: task-first', () => {
   });
 
   test('an unsupported/blank-grade partial row is a row grade error', async ({ page }) => {
+    await startBlank(page);
     await rowAt(page, 0).locator('[data-gpa-credits]').fill('3'); // credits but no grade
     await submit(page).click();
     await expect(rowAt(page, 0).locator('[data-error-for^="grade-"]')).toHaveText('Select a grade for this course.');
@@ -119,6 +165,7 @@ test.describe('gpa: task-first', () => {
   });
 
   test('an all-empty form is a form-level error and focuses the first grade', async ({ page }) => {
+    await startBlank(page);
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
     await expect(invalidMsg(page)).toHaveText('Add at least one course with a grade and credit hours greater than zero.');
@@ -128,6 +175,7 @@ test.describe('gpa: task-first', () => {
   /* ---- live update / add / remove / invalidate / reset ---- */
 
   test('after the first result, editing a credit recalculates live without moving focus', async ({ page }) => {
+    await startBlank(page);
     await setRow(page, 0, 'A', '3');
     await submit(page).click();
     await expect(primary(page)).toHaveText('4.00');
@@ -176,6 +224,7 @@ test.describe('gpa: task-first', () => {
   /* ---- keyboard / responsive / theme / embed / monetization ---- */
 
   test('keyboard submission works from a credit field', async ({ page }) => {
+    await startBlank(page);
     await rowAt(page, 0).locator('[data-gpa-grade]').selectOption('A');
     await rowAt(page, 0).locator('[data-gpa-credits]').fill('3');
     await rowAt(page, 0).locator('[data-gpa-credits]').press('Enter');
@@ -208,7 +257,10 @@ test.describe('gpa: task-first', () => {
 
   test('the generated embed mounts the same island and computes', async ({ page }) => {
     await page.goto('/embed/everyday/gpa-calculator', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('[data-gpa-row]')).toHaveCount(1);
+    // The starting rows travel with the island, so the embed arrives filled too.
+    await expect(page.locator('[data-gpa-row]')).toHaveCount(3);
+    await expect(page.locator('#gpa-result')).toHaveAttribute('data-result-state', 'valid');
+    await startBlank(page);
     await page.locator('[data-gpa-row]').nth(0).locator('[data-gpa-grade]').selectOption('A');
     await page.locator('[data-gpa-row]').nth(0).locator('[data-gpa-credits]').fill('4');
     await page.locator('[data-gpa-submit]').click();

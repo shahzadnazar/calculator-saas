@@ -344,3 +344,19 @@ export const loanBinding: FormCalculatorBinding<LoanFormValues, LoanComputed> = 
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Starting values (arrive-filled)                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The values this calculator arrives filled with, so the visitor lands on a real
+ * worked result they can type over instead of an empty form. They are OURS, not
+ * the visitor's: the runtime computes them silently on mount (`prefill`), and
+ * Reset still clears the form to blank rather than restoring them.
+ */
+export const LOAN_STARTING_VALUES = {
+  amount: '25000',
+  annualInterestRate: '7.5',
+  termYears: '5',
+} as const;

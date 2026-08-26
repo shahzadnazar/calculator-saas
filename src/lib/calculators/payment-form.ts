@@ -253,3 +253,26 @@ export const paymentBinding: FormCalculatorBinding<PaymentValues, PaymentCompute
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Starting values (arrive-filled)                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The values this calculator arrives filled with, so the visitor lands on a real
+ * worked result they can type over instead of an empty form. They are OURS, not
+ * the visitor's: the runtime computes them silently on mount (`prefill`), and
+ * Reset still clears the form to blank rather than restoring them.
+ *
+ * Both modes are filled even though only the active one is read, so switching
+ * mode lands on a result rather than on an empty required field. The monthly
+ * payment clears the monthly interest ($25,000 at 7.5% is $156.25/mo), so the
+ * payoff mode never starts on the "never pays off" outcome.
+ */
+export const PAYMENT_STARTING_VALUES = {
+  mode: 'term',
+  principal: '25000',
+  annualRatePct: '7.5',
+  termYears: '5',
+  payment: '500',
+} as const;

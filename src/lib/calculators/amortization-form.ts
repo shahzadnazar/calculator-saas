@@ -331,3 +331,22 @@ export const amortizationBinding: FormCalculatorBinding<AmortValues, AmortComput
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Starting values (arrive-filled)                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The values this calculator arrives filled with, so the visitor lands on a real
+ * worked result they can type over instead of an empty form. They are OURS, not
+ * the visitor's: the runtime computes them silently on mount (`prefill`), and
+ * Reset still clears the form to blank rather than restoring them.
+ *
+ * Strings, because they are rendered straight into `value` attributes and read
+ * back by `readValues` as strings — the same path a typed entry takes.
+ */
+export const AMORTIZATION_STARTING_VALUES = {
+  amount: '250000',
+  annualInterestRate: '6.5',
+  termYears: '30',
+} as const;

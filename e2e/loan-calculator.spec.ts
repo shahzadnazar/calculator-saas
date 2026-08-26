@@ -34,16 +34,37 @@ const calc = async (page: Page, amount: string, rate: string, term: string) => {
 };
 
 test.describe('loan: task-first', () => {
+  /** Clear the arrive-filled starting values, so a test can exercise the blank form. */
+  const startBlank = async (page: Page) => {
+    await page.locator('[data-reset]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  };
+
   test.beforeEach(async ({ page }) => {
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
   });
 
-  test('loads empty: blank fields, empty result, "Calculate Loan Payment", disclosure closed, no rows', async ({ page }) => {
+  test('loads FILLED with a computed result, "Calculate Loan Payment", disclosure closed', async ({ page }) => {
+    // Arrive-filled: the visitor lands on a worked result to type over, not a blank form.
+    await expect(page.locator('[name="amount"]')).toHaveValue('25000');
+    await expect(page.locator('[name="annualInterestRate"]')).toHaveValue('7.5');
+    await expect(page.locator('[name="termYears"]')).toHaveValue('5');
+    await expect(submit(page)).toHaveText('Calculate Loan Payment');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(region(page, 'valid')).toBeVisible();
+    await expect(region(page, 'empty')).toBeHidden();
+    await expect(primary(page)).not.toHaveText('—');
+    await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
+    // Arriving filled is silent — a result the visitor did not ask for is never announced.
+    await expect(live(page)).toHaveText('');
+    expect(await isOpen(disclosure(page))).toBe(false); // structural default untouched
+  });
+
+  test('Reset clears the starting values to a genuinely blank, empty-state form', async ({ page }) => {
+    await startBlank(page);
     await expect(page.locator('[name="amount"]')).toHaveValue('');
     await expect(page.locator('[name="annualInterestRate"]')).toHaveValue('');
     await expect(page.locator('[name="termYears"]')).toHaveValue('');
-    await expect(submit(page)).toHaveText('Calculate Loan Payment');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
     await expect(region(page, 'empty')).toBeVisible();
     await expect(region(page, 'valid')).toBeHidden();
     await expect(live(page)).toHaveText('');
@@ -58,7 +79,16 @@ test.describe('loan: task-first', () => {
     await expect(term).toHaveAttribute('step', '1');
   });
 
-  test('does not calculate before the first submission', async ({ page }) => {
+  test('editing over the starting values updates live, with no Calculate press', async ({ page }) => {
+    const before = await primary(page).textContent();
+    await page.fill('[name="amount"]', '40000');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).not.toHaveText(before!);
+  });
+
+  test('once blanked, it does not calculate again before the next explicit submission', async ({ page }) => {
+    await startBlank(page);
     await page.fill('[name="amount"]', '250000');
     await page.fill('[name="annualInterestRate"]', '6.5');
     await page.fill('[name="termYears"]', '30');
@@ -135,6 +165,7 @@ test.describe('loan: task-first', () => {
   });
 
   test('an empty explicit submission focuses the amount and associates the error', async ({ page }) => {
+    await startBlank(page);
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
     const amount = page.locator('[name="amount"]');
@@ -239,10 +270,11 @@ test.describe('loan: guide embed (how-loans-and-interest-work)', () => {
     await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
   });
 
-  test('exactly one migrated Loan island renders, empty, with a single Calculate action', async ({ page }) => {
+  test('exactly one migrated Loan island renders, arrive-filled, with a single Calculate action', async ({ page }) => {
     await expect(page.locator('#loan-result')).toHaveCount(1);
     await expect(page.locator('[data-loan-submit]')).toHaveCount(1);
-    await expect(page.locator('#loan-result')).toHaveAttribute('data-result-state', 'empty');
+    // The starting values travel with the island, so the guide embed arrives filled too.
+    await expect(page.locator('#loan-result')).toHaveAttribute('data-result-state', 'valid');
     await expect(page.locator('[data-loan-submit]')).toHaveText('Calculate Loan Payment');
   });
 

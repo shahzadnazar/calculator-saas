@@ -313,3 +313,26 @@ export const homeEquityBinding: FormCalculatorBinding<HomeEquityFormValues, Home
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Starting values (arrive-filled)                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The values this calculator arrives filled with, so the visitor lands on a real
+ * worked result they can type over instead of an empty form. They are OURS, not
+ * the visitor's: the runtime computes them silently on mount (`prefill`), and
+ * Reset still clears the form to blank rather than restoring them.
+ *
+ * The borrow amount must sit inside the available equity for the result to be
+ * usable — 85% of $400,000 is $340,000, less the $250,000 owed leaves $90,000,
+ * so $50,000 borrows comfortably within it. `starting-values.test.ts` pins that.
+ */
+export const HOME_EQUITY_STARTING_VALUES = {
+  homeValue: '400000',
+  mortgageBalance: '250000',
+  maxLtvPct: '85',
+  loanAmount: '50000',
+  annualRatePct: '8.5',
+  termYears: '15',
+} as const;

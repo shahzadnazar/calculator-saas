@@ -183,11 +183,18 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   import { mountFormCalculator } from '@lib/result/form-runtime';
   import { gpaBinding } from '@lib/calculators/gpa-form';
   import { GRADE_POINTS } from '@lib/calculators/gpa';
+  import { GPA_STARTING_ROWS } from '@lib/calculators/gpa-form';
 
   // Module-global so row ids are unique across every instance rendered on a page.
   let uid = 0;
 
-  function buildRow(): HTMLElement {
+  /**
+   * Build one course row. `grade` / `credits` seed it with a starting value — the dynamic-row family
+   * builds its markup in the browser, so an arrive-filled row is filled here rather than by a
+   * server-rendered `value` attribute. Both default to blank, so every other caller (the Add button)
+   * keeps producing an empty row exactly as before.
+   */
+  function buildRow(grade0 = '', credits0 = ''): HTMLElement {
     const id = `gpa-r${++uid}`;
     const row = document.createElement('div');
     row.className = 'gpa-row';
@@ -214,6 +221,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       opt.textContent = `${g.label} (${g.value.toFixed(1)})`;
       grade.appendChild(opt);
     }
+    grade.value = grade0;
 
     const credits = document.createElement('input');
     credits.className = 'field';
@@ -228,6 +236,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     credits.placeholder = 'e.g. 3';
     credits.setAttribute('aria-label', 'Credit hours');
     credits.setAttribute('aria-describedby', `${id}-credits-error`);
+    credits.value = credits0;
 
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -262,8 +271,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     const addBtn = root.querySelector<HTMLButtonElement>('[data-gpa-add]')!;
 
-    // Seed exactly one blank course row (idempotent).
-    if (!rowsEl.querySelector('[data-gpa-row]')) rowsEl.appendChild(buildRow());
+    // Seed the arrive-filled course rows (idempotent). The runtime computes them on mount, so the
+    // visitor lands on a real GPA to type over. Reset still collapses to ONE BLANK row (the binding's
+    // resetValues), so Reset stays the way back to a clean form.
+    if (!rowsEl.querySelector('[data-gpa-row]')) {
+      for (const row of GPA_STARTING_ROWS) rowsEl.appendChild(buildRow(row.grade, row.credits));
+    }
 
     const updateRemoveState = () => {
       const rows = rowsEl.querySelectorAll<HTMLElement>('[data-gpa-row]');
@@ -278,6 +291,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     // Shared runtime, UNCHANGED, with the GPA binding.
     mountFormCalculator(root, gpaBinding, {
       recalculationMode: 'live-after-first',
+      prefill: true,
       calculateButtonLabel: 'Calculate GPA',
     });
 

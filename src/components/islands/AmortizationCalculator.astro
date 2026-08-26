@@ -25,6 +25,10 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import { AMORTIZATION_STARTING_VALUES as START } from '@lib/calculators/amortization-form';
+
+// Arrive-filled: the runtime computes these once on mount so the visitor can type straight over a
+// real result. Rendered server-side, so the form is filled even before the island hydrates.
 ---
 
 <div class="amort mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2" data-amort>
@@ -35,7 +39,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <label class="field-label" for="am-amount">Loan amount</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="am-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 250000" aria-describedby="am-amount-error" />
+          <input class="field rounded-l-none" id="am-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 250000" aria-describedby="am-amount-error" value={START.amount} />
         </div>
         <p class="am-field-error" id="am-amount-error" data-error-for="amount" hidden></p>
       </div>
@@ -43,7 +47,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       <div data-field="annualInterestRate">
         <label class="field-label" for="am-rate">Interest rate</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="am-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 6.5" aria-describedby="am-rate-error" />
+          <input class="field rounded-r-none" id="am-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 6.5" aria-describedby="am-rate-error" value={START.annualInterestRate} />
           <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
         <p class="am-field-error" id="am-rate-error" data-error-for="annualInterestRate" hidden></p>
@@ -51,7 +55,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
       <div data-field="termYears">
         <label class="field-label" for="am-term">Term (years)</label>
-        <input class="field" id="am-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="am-term-error" />
+        <input class="field" id="am-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="am-term-error" value={START.termYears} />
         <p class="am-field-error" id="am-term-error" data-error-for="termYears" hidden></p>
       </div>
     </div>
@@ -331,6 +335,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   document.querySelectorAll<HTMLElement>('[data-amort]').forEach((root) => {
     mountFormCalculator(root, amortizationBinding, {
       recalculationMode: 'live-after-first',
+      prefill: true,
       calculateButtonLabel: 'Calculate Amortization',
     });
 

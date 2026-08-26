@@ -232,3 +232,23 @@ export const gpaBinding: FormCalculatorBinding<GpaFormValues, GpaComputed> = {
   resetValues: resetGpaValues,
   // NO isUsableResult — the complete-result guard lives in resultValue (NaN sentinel).
 };
+
+/* ------------------------------------------------------------------ */
+/* Starting values (arrive-filled)                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The course rows this calculator arrives filled with, so the visitor lands on a
+ * real worked GPA they can type over instead of an empty row. They are OURS, not
+ * the visitor's: the runtime computes them silently on mount (`prefill`), and
+ * Reset still clears the form back to a single blank row.
+ *
+ * Rows are built in the browser (the dynamic-row family owns its own markup), so
+ * these seed `buildRow` rather than a server-rendered `value` attribute. Every
+ * grade must exist in GRADE_POINTS — `starting-values.test.ts` pins that.
+ */
+export const GPA_STARTING_ROWS = [
+  { grade: 'A', credits: '3' },
+  { grade: 'B+', credits: '4' },
+  { grade: 'A-', credits: '3' },
+] as const;

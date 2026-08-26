@@ -132,6 +132,13 @@ export interface FormCalculatorOptions {
   /** Task-specific primary label, e.g. "Calculate BMI". */
   calculateButtonLabel: string;
   persistStructuralPreferences?: boolean;
+  /**
+   * Opt in to computing once on mount from the server-rendered starting values,
+   * so the visitor lands on a filled form beside a real result to edit over.
+   * Silent, and never moves focus or scrolls. Defaults to false — every
+   * calculator that omits it keeps its empty-first load unchanged.
+   */
+  prefill?: boolean;
 }
 
 /**
@@ -167,6 +174,14 @@ export type FormTrigger =
   | { kind: 'input' } // a field changed
   | { kind: 'unit' } // the unit system changed (structural)
   | { kind: 'reset' }
+  /**
+   * Compute once on mount from server-rendered starting values, so the visitor
+   * lands on a filled form beside a real worked result they can edit over.
+   *
+   * Only for a calculator that OPTS IN with `prefill: true`; every other
+   * calculator never reaches this trigger and keeps its empty-first load.
+   */
+  | { kind: 'prefill' }
   /**
    * Leave a server-rendered worked example and hand the panel to the visitor.
    * `action` is the explicit "Start with my values" button (focus moves to the
@@ -255,6 +270,44 @@ export function planFormAction(
           clearValues: true,
         },
       };
+
+    case 'prefill': {
+      // Starting values are ours, not the visitor's, so this is silent and never
+      // moves focus or scrolls — the page must land exactly where it loaded.
+      const usable = probe != null && probe.validation.ok && probe.resultUsable;
+      if (!usable) {
+        // Our own defaults failed to produce a usable result. Fall back to the
+        // ordinary empty-first load rather than greeting the visitor with an
+        // error they did not cause.
+        return {
+          next: INITIAL_FORM_STATE,
+          effects: {
+            compute: false,
+            announce: 'none',
+            focus: 'none',
+            liveNote: false,
+            fieldErrors: 'clear',
+            clearValues: false,
+          },
+        };
+      }
+      return {
+        next: {
+          status: reduceResult(state.status, { type: 'calculate', valid: true }),
+          // The first calculation HAS happened, so editing over the starting
+          // values updates live — that is the whole point of arriving filled.
+          hasCalculated: true,
+        },
+        effects: {
+          compute: true,
+          announce: 'none', // never announce an unrequested result on page load
+          focus: 'none',
+          liveNote: mode !== 'explicit',
+          fieldErrors: 'clear',
+          clearValues: false,
+        },
+      };
+    }
 
     case 'dismissExample': {
       // Protection: only the `example` state can be dismissed. From any other
@@ -663,6 +716,11 @@ export function mountFormCalculator<V, R>(
       });
     });
   }
+
+  // Compute the server-rendered starting values once, AFTER wiring, so the
+  // visitor's very first edit is already a live update. A calculator that did
+  // not opt in never runs this and loads empty exactly as before.
+  if (options.prefill) run({ kind: 'prefill' });
 
   return {
     destroy() {

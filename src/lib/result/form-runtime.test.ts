@@ -189,6 +189,71 @@ describe('planFormAction — reset', () => {
 });
 
 /* ------------------------------------------------------------------ */
+/* Arrive-filled starting values (opt-in)                               */
+/* ------------------------------------------------------------------ */
+
+describe('planFormAction — prefill', () => {
+  it('computes the starting values into a valid result', () => {
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first'));
+    expect(plan.next.status).toEqual({ state: 'valid', activity: 'just-updated' });
+    expect(plan.effects.compute).toBe(true);
+    expect(plan.effects.fieldErrors).toBe('clear');
+  });
+
+  it('is SILENT and never moves focus — the page must land where it loaded', () => {
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first'));
+    expect(plan.effects.announce).toBe('none');
+    expect(plan.effects.focus).toBe('none');
+  });
+
+  it('opens the live gate, so the visitor\'s first edit already updates live', () => {
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first'));
+    expect(plan.next.hasCalculated).toBe(true);
+    expect(isLiveActive('live-after-first', plan.next.hasCalculated)).toBe(true);
+    // The very next field edit is therefore a live update, not a no-op.
+    const next = planFormAction(plan.next, { kind: 'input' }, OK, opts('live-after-first'));
+    expect(next.effects.compute).toBe(true);
+  });
+
+  it('shows the live note, since edits now update automatically', () => {
+    expect(
+      planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first')).effects.liveNote,
+    ).toBe(true);
+    // ...but never in explicit mode, which has no live updates to announce.
+    expect(
+      planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('explicit')).effects.liveNote,
+    ).toBe(false);
+  });
+
+  it('never leaves the visitor on an error THEY did not cause: bad defaults load empty', () => {
+    for (const probe of [INVALID, NON_FINITE, null]) {
+      const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, probe, opts('live-after-first'));
+      expect(plan.next).toEqual(INITIAL_FORM_STATE); // plain empty-first load
+      expect(plan.effects.compute).toBe(false);
+      expect(plan.effects.announce).toBe('none');
+      expect(plan.effects.fieldErrors).toBe('clear'); // no field marked invalid on arrival
+      expect(plan.effects.liveNote).toBe(false);
+    }
+  });
+
+  it('never clears the fields it was given', () => {
+    for (const probe of [OK, INVALID]) {
+      expect(
+        planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, probe, opts('live-after-first')).effects
+          .clearValues,
+      ).toBe(false);
+    }
+  });
+
+  it('Reset still returns to a BLANK empty form, never to the starting values', () => {
+    const filled = planFormAction(INITIAL_FORM_STATE, { kind: 'prefill' }, OK, opts('live-after-first'));
+    const reset = planFormAction(filled.next, { kind: 'reset' }, null, opts('live-after-first'));
+    expect(reset.next).toEqual(INITIAL_FORM_STATE);
+    expect(reset.effects.clearValues).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /* Worked-example dismissal (opt-in)                                    */
 /* ------------------------------------------------------------------ */
 
