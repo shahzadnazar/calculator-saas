@@ -35,6 +35,13 @@ import {
   type OneTimeValue,
 } from './extra-payments';
 import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+import {
+  drawDonut,
+  fillLoanSchedule,
+  percentLabel,
+  share,
+  type LoanScheduleRow,
+} from '@lib/result/loan-schedule';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -346,170 +353,25 @@ export function formatMonths(months: number): string {
   return parts.length ? parts.join(' ') : '0 months';
 }
 
-const share = (part: number, whole: number): number =>
-  whole > 0 ? Math.min(Math.max(part / whole, 0), 1) : 0;
+const SCHEDULE = { prefix: 'am', format: formatCurrency };
 
-const percentLabel = (value: number): string => `${Math.round(value * 100)}%`;
-
-/* ------------------------------------------------------------------ */
-/* DOM rendering                                                       */
-/* ------------------------------------------------------------------ */
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
-const svgEl = <K extends keyof SVGElementTagNameMap>(
-  name: K,
-  attrs: Record<string, string | number>,
-): SVGElementTagNameMap[K] => {
-  const el = document.createElementNS(SVG_NS, name);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-  return el;
-};
-
-/** One schedule row: the period as a row header, then interest, principal, extra, balance. */
-function scheduleRow(row: AmortizationRow): HTMLTableRowElement {
-  const tr = document.createElement('tr');
-  tr.className = 'am-row';
-  const head = document.createElement('th');
-  head.scope = 'row';
-  head.className = 'am-cell am-cell--period';
-  head.textContent = String(row.period);
-  tr.append(head);
-  for (const [value, extraColumn] of [
-    [row.interest, false],
-    [row.principal, false],
-    [row.extra, true],
-    [row.balance, false],
-  ] as const) {
-    const td = document.createElement('td');
-    td.className = `am-cell am-num${extraColumn ? ' am-col-extra' : ''}`;
-    // Cents, not rounded dollars: a schedule row is a payment someone reconciles
-    // against a statement, and the yearly rows have to sum to the totals above them.
-    td.textContent = formatCurrency(value);
-    tr.append(td);
-  }
-  return tr;
+/** Both views of one computed loan. Only the monthly view carries year dividers. */
+function fillSchedules(scope: HTMLElement, result: AmortComputed): void {
+  const toRows = (rows: readonly { period: number; interest: number; principal: number; extra: number; balance: number }[]): LoanScheduleRow[] =>
+    rows.map((r) => ({ period: r.period, interest: r.interest, principal: r.principal, extra: r.extra, balance: r.balance }));
+  fillLoanSchedule(scope.querySelector<HTMLElement>('[data-am-rows="yearly"]'), toRows(result.annual), SCHEDULE);
+  fillLoanSchedule(scope.querySelector<HTMLElement>('[data-am-rows="monthly"]'), toRows(result.schedule), SCHEDULE, true);
 }
 
-/** The "End of year N" divider that closes each full year in the monthly view. */
-function yearEndRow(year: number): HTMLTableRowElement {
-  const tr = document.createElement('tr');
-  tr.className = 'am-year-end';
-  const cell = document.createElement('th');
-  cell.scope = 'rowgroup';
-  cell.colSpan = 5;
-  cell.className = 'am-cell am-cell--yearend';
-  cell.textContent = `End of year ${year}`;
-  tr.append(cell);
-  return tr;
-}
-
-function fillBody(
-  tbody: HTMLElement | null,
-  rows: readonly AmortizationRow[],
-  yearDividers = false,
-): void {
-  if (!tbody) return;
-  const frag = document.createDocumentFragment();
-  rows.forEach((row, i) => {
-    frag.append(scheduleRow(row));
-    if (yearDividers && (i + 1) % 12 === 0 && i + 1 < rows.length) {
-      frag.append(yearEndRow((i + 1) / 12));
-    }
-  });
-  tbody.replaceChildren(frag);
-}
-
-/** Where a slice's label sits: the midpoint of its arc, just outside the ring. */
-function labelPoint(cx: number, cy: number, radius: number, fraction: number): [number, number] {
-  const angle = (fraction * 2 - 0.5) * Math.PI; // start at 12 o'clock, clockwise
-  return [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)];
-}
-
-/**
- * A two-slice donut of what the money went to: principal against interest.
- *
- * A donut is a weak form for comparing quantities, so this one is built to be read
- * rather than measured: each slice is labelled with its own percentage outside the
- * ring, and the legend beside it names both slices and gives their amounts. Nothing
- * here depends on judging an angle, and nothing depends on colour alone. The two
- * amounts are also in the results list directly above it.
- *
- * Returns false when there is no positive whole to divide, so the caller can hide it.
- */
-function drawDonut(host: HTMLElement | null, result: AmortComputed): boolean {
-  if (!host) return false;
-  host.replaceChildren();
-  const whole = result.totalOfPayments;
-  if (!(whole > 0) || result.loanAmount < 0 || result.totalInterest < 0) return false;
-
-  // The box is wider than the ring because the labels sit OUTSIDE it: a label at the
-  // far left needs its own width of room beyond the ring, or it clips at the edge.
-  const W = 200;
-  const H = 130;
-  const CX = 100;
-  const CY = 62;
-  const R = 40;
-  const STROKE = 20;
-  const C = 2 * Math.PI * R;
-  const GAP = 2; // a surface gap so the two arcs never appear to merge
-
-  const principalShare = share(result.loanAmount, whole);
-  const interestShare = share(result.totalInterest, whole);
-
-  const svg = svgEl('svg', {
-    viewBox: `0 0 ${W} ${H}`,
-    class: 'am-donut__svg',
-    role: 'img',
-    'aria-label':
-      `Of ${formatCurrency(whole)} paid in total, ${formatCurrency(result.loanAmount)} ` +
-      `(${percentLabel(principalShare)}) is principal and ${formatCurrency(result.totalInterest)} ` +
-      `(${percentLabel(interestShare)}) is interest.`,
-  });
-
-  // Both arcs start at 12 o'clock and run clockwise, which is where a reader expects
-  // a proportion to start.
-  const ring = svgEl('g', { transform: `rotate(-90 ${CX} ${CY})` });
-  for (const [fraction, offsetFraction, key] of [
-    [principalShare, 0, 'principal'],
-    [interestShare, principalShare, 'interest'],
-  ] as const) {
-    if (fraction <= 0) continue;
-    const length = Math.max(0, fraction * C - GAP);
-    ring.append(
-      svgEl('circle', {
-        cx: CX,
-        cy: CY,
-        r: R,
-        class: `am-donut__arc am-donut__arc--${key}`,
-        fill: 'none',
-        'stroke-width': STROKE,
-        'stroke-dasharray': `${length} ${C - length}`,
-        'stroke-dashoffset': `${-offsetFraction * C}`,
-      }),
-    );
-  }
-  svg.append(ring);
-
-  // Direct labels, outside the ring in text ink rather than the series colour. A
-  // sliver's label is dropped rather than allowed to collide with its neighbour's.
-  for (const [fraction, mid] of [
-    [principalShare, principalShare / 2],
-    [interestShare, principalShare + interestShare / 2],
-  ] as const) {
-    if (fraction < 0.05) continue;
-    const [x, y] = labelPoint(CX, CY, R + STROKE / 2 + 11, mid);
-    const text = svgEl('text', {
-      x,
-      y: y + 3.5,
-      class: 'am-donut__label',
-      'text-anchor': x < CX - 4 ? 'end' : x > CX + 4 ? 'start' : 'middle',
-    });
-    text.textContent = percentLabel(fraction);
-    svg.append(text);
-  }
-
-  host.append(svg);
-  return true;
+/** The ring's spoken description — what a reader who cannot see it needs told. */
+function donutLabel(result: AmortComputed): string {
+  const p = share(result.loanAmount, result.totalOfPayments);
+  const i = share(result.totalInterest, result.totalOfPayments);
+  return (
+    `Of ${formatCurrency(result.totalOfPayments)} paid in total, ` +
+    `${formatCurrency(result.loanAmount)} (${percentLabel(p)}) is principal and ` +
+    `${formatCurrency(result.totalInterest)} (${percentLabel(i)}) is interest.`
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -592,7 +454,14 @@ export const amortizationBinding: FormCalculatorBinding<AmortValues, AmortComput
     setText('[data-am-interest]', formatCurrency(result.totalInterest));
 
     // The donut and its legend, both showing the same two shares.
-    const charted = drawDonut(q('[data-am-donut]'), result);
+    const charted = drawDonut(
+      q('[data-am-donut]'),
+      [
+        { key: 'principal', value: result.loanAmount },
+        { key: 'interest', value: result.totalInterest },
+      ],
+      { prefix: 'am', label: donutLabel(result) },
+    );
     show('[data-am-donut-figure]', charted);
     if (charted) {
       const principalShare = share(result.loanAmount, result.totalOfPayments);
@@ -617,8 +486,7 @@ export const amortizationBinding: FormCalculatorBinding<AmortValues, AmortComput
     const schedule = scope.querySelector<HTMLElement>('[data-am-schedule]');
     if (schedule) schedule.toggleAttribute('data-am-has-extras', result.hasExtras);
 
-    fillBody(scope.querySelector<HTMLElement>('[data-am-rows="yearly"]'), result.annual);
-    fillBody(scope.querySelector<HTMLElement>('[data-am-rows="monthly"]'), result.schedule, true);
+    fillSchedules(scope, result);
   },
 
   resetValues(root, _mode: ResetMode) {

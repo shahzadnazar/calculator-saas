@@ -55,6 +55,16 @@ export interface AmortizationInput {
   annualRatePct: number;
   /** Scheduled term in whole months. */
   months: number;
+  /**
+   * The scheduled payment, when the caller already knows it.
+   *
+   * The payment calculator's "fixed payments" mode is given the payment and solves
+   * for the term, so recomputing PMT from the term would throw away the visitor's
+   * own figure and answer a different question. Omit it and the ordinary PMT on the
+   * full term is used. A final month is short whenever the payment does not divide
+   * the debt exactly, which is the normal case here.
+   */
+  payment?: number;
   /** Paid every month from its offset onwards. */
   extraMonthly?: ExtraPrincipal;
   /** Paid once a year, starting at its offset. */
@@ -193,7 +203,10 @@ export function calculateAmortization(input: AmortizationInput): AmortizationRes
   const months = termMonths(input.months);
   const amount = Math.max(0, input.amount || 0);
   const monthlyRate = (input.annualRatePct || 0) / 100 / 12;
-  const payment = pmt(amount, monthlyRate, months);
+  const payment =
+    input.payment !== undefined && Number.isFinite(input.payment) && input.payment > 0
+      ? input.payment
+      : pmt(amount, monthlyRate, months);
 
   const oneTime = input.extraOneTime ?? [];
   const hasExtras =
