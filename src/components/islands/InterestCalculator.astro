@@ -1,27 +1,24 @@
 ---
 /**
- * Interest calculator island (R20A1 — task-first; finance; standard-form runtime UNCHANGED).
+ * Interest calculator island — compound interest accumulation.
  *
- * A single form on the UNCHANGED standard-form runtime + the Interest binding
- * (@lib/calculators/interest-form), which is the Interest-specific COMPOSITION layer over two FROZEN
- * engines — calculateSimpleInterest + calculateCompoundInterest. The SAME principal / rate / years
- * feed both; only the compound side receives the compounding frequency; the "compounding advantage"
- * is compound.totalInterest − simple.interest. Task-first: every input starts EMPTY, the frequency
- * defaults to Monthly, the result is empty on the server AND after hydration (the legacy island
- * SSR-seeded a $10,000 / 5% / 10y result and recomputed live on every keystroke), and the visitor
- * presses "Calculate" for the first result (live-after-first).
+ * FIELDS match the reference set one for one, in its order: initial investment ·
+ * annual contribution · monthly contribution · contribute at the beginning or end of
+ * each compounding period · interest rate · compound · investment length in years and
+ * months · tax rate · inflation rate. They are laid out two to a row so the whole
+ * form and its primary action sit inside one screen.
  *
- * The DOMINANT result is the COMPOUND interest earned (+ the final balance); simple interest earned,
- * simple final balance and the compounding advantage are supporting — ALL from the single composed
- * result (no duplicated calculation; no legacy innerHTML math). NO isUsableResult — the complete-result
- * guard lives in the binding's resultValue (a finite compound-interest sentinel; a valid $0 is the
- * finite 0 the default gate accepts). No runtime change; neither engine is touched, so Compound
- * Interest / Investment / Savings / Retirement and the reference tables stay byte-identical.
+ * Task-first: every personal field starts EMPTY and the result panel carries a
+ * LABELLED worked example, never a sample dressed as the visitor's own answer. Three
+ * controls are pre-set because they are structural rather than personal — the
+ * contribution timing (a radio group always has a value), the compounding frequency
+ * (so does a select), and the inflation assumption, without which the buying-power
+ * line has nothing to say.
  *
- * Static ids are namespaced per-instance WHEN more than one Interest calculator shares a document
- * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
+ * Compute, validation, state, focus and the announcement are owned by the shared
+ * form runtime and the interest binding; the island owns markup and the schedule's
+ * annual/monthly view, which is a VIEW of one computed result, never a recalculation.
  */
-import { COMPOUND_FREQUENCIES, DEFAULT_FREQUENCY, INTEREST_EXAMPLE_VALUES } from '@lib/calculators/interest-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -30,77 +27,197 @@ import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { COMPOUND_FREQUENCIES } from '@lib/calculators/interest';
 ---
 
-<div class="intcalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-interest>
+<div class="intcalc mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-interest>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Interest calculator">
-    <div class="space-y-4">
-      <div data-field="principal">
-        <label class="field-label" for="int-principal">Principal</label>
-        <div class="mt-1 flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="int-principal" name="principal" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="e.g. 10000" aria-describedby="int-principal-error" />
+    <div class="int-fields">
+      <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+        <div data-field="initialInvestment">
+          <label class="field-label" for="int-initial">Initial investment</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="int-initial" name="initialInvestment" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 20000" aria-describedby="int-initial-error" />
+          </div>
+          <p class="int-error" id="int-initial-error" data-error-for="initialInvestment" hidden></p>
         </div>
-        <p class="int-error" id="int-principal-error" data-error-for="principal" hidden></p>
-      </div>
 
-      <div class="grid grid-cols-2 gap-4">
         <div data-field="annualRatePct">
-          <label class="field-label" for="int-rate">Annual rate</label>
-          <div class="mt-1 flex">
+          <label class="field-label" for="int-rate">Interest rate</label>
+          <div class="flex">
             <input class="field rounded-r-none" id="int-rate" name="annualRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 5" aria-describedby="int-rate-error" />
             <span class="field-affix rounded-r-lg border-l-0">%</span>
           </div>
           <p class="int-error" id="int-rate-error" data-error-for="annualRatePct" hidden></p>
         </div>
-        <div data-field="years">
-          <label class="field-label" for="int-years">Years</label>
-          <input class="field mt-1" id="int-years" name="years" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 10" aria-describedby="int-years-error" />
-          <p class="int-error" id="int-years-error" data-error-for="years" hidden></p>
-        </div>
-      </div>
 
-      <div data-field="compoundsPerYear">
-        <label class="field-label" for="int-freq">Compounding</label>
-        <select class="field mt-1" id="int-freq" name="compoundsPerYear" aria-label="Compounding frequency">
-          {COMPOUND_FREQUENCIES.map((f) => <option value={f.value} selected={f.value === DEFAULT_FREQUENCY}>{f.label}</option>)}
-        </select>
+        <div data-field="annualContribution">
+          <label class="field-label" for="int-annual">Annual contribution</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="int-annual" name="annualContribution" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 5000" aria-describedby="int-annual-error" />
+          </div>
+          <p class="int-error" id="int-annual-error" data-error-for="annualContribution" hidden></p>
+        </div>
+
+        <div data-field="monthlyContribution">
+          <label class="field-label" for="int-monthly">Monthly contribution</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="int-monthly" name="monthlyContribution" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 0" aria-describedby="int-monthly-error" />
+          </div>
+          <p class="int-error" id="int-monthly-error" data-error-for="monthlyContribution" hidden></p>
+        </div>
+
+        <!-- Timing is a real difference, not a rounding one, so it gets its own row. -->
+        <fieldset class="int-timing col-span-2" data-field="contributeAt">
+          <legend class="field-label">Contribute at the</legend>
+          <div class="int-timing__group">
+            <label class="int-timing__opt"><input type="radio" name="contributeAt" value="beginning" data-int-timing checked /><span>beginning</span></label>
+            <label class="int-timing__opt"><input type="radio" name="contributeAt" value="end" data-int-timing /><span>end</span></label>
+            <span class="int-timing__tail">of each compounding period</span>
+          </div>
+          <p class="int-error" data-error-for="contributeAt" hidden></p>
+        </fieldset>
+
+        <div data-field="compound">
+          <label class="field-label" for="int-compound">Compound</label>
+          <select class="field" id="int-compound" name="compound" aria-describedby="int-compound-error">
+            {COMPOUND_FREQUENCIES.map((f) => <option value={f} selected={f === 'annually'}>{f}</option>)}
+          </select>
+          <p class="int-error" id="int-compound-error" data-error-for="compound" hidden></p>
+        </div>
+
+        <div data-field="years">
+          <label class="field-label" for="int-years">Investment length</label>
+          <div class="int-term">
+            <div class="flex int-term__part">
+              <input class="field rounded-r-none" id="int-years" name="years" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 5" aria-label="Investment length, years" aria-describedby="int-years-error" />
+              <span class="field-affix rounded-r-lg border-l-0">years</span>
+            </div>
+            <div class="flex int-term__part" data-field="months">
+              <input class="field rounded-r-none" id="int-months" name="months" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Investment length, months" aria-describedby="int-months-error" />
+              <span class="field-affix rounded-r-lg border-l-0">months</span>
+            </div>
+          </div>
+          <p class="int-error" id="int-years-error" data-error-for="years" hidden></p>
+          <p class="int-error" id="int-months-error" data-error-for="months" hidden></p>
+        </div>
+
+        <div data-field="taxRatePct">
+          <label class="field-label" for="int-tax">Tax rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="int-tax" name="taxRatePct" type="number" min="0" max="100" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="int-tax-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="int-error" id="int-tax-error" data-error-for="taxRatePct" hidden></p>
+        </div>
+
+        <div data-field="inflationRatePct">
+          <label class="field-label" for="int-inflation">Inflation rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="int-inflation" name="inflationRatePct" type="number" min="0" max="100" step="0.1" inputmode="decimal" autocomplete="off" value="3" aria-describedby="int-inflation-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="int-error" id="int-inflation-error" data-error-for="inflationRatePct" hidden></p>
+        </div>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <div class="mt-3 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-int-submit>Calculate</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
     </div>
     <p class="int-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell id="interest-result" state="empty" density="standard" label="Interest result" minHeight="18rem" placeholderAlignment="center">
+  <ResultShell id="interest-result" state="empty" density="complex" label="Interest result" minHeight="22rem">
     <ExampleNotice />
-    <EmptyResult message="Enter a principal, rate and time, then calculate to compare simple and compound interest." />
+    <EmptyResult message="Enter your investment, contributions, interest rate and length, then press Calculate to see the ending balance." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Compound interest earned">
+      <ResultSummary label="Ending balance">
         <ResultValue value="—" size="text-4xl" />
       </ResultSummary>
-      <p class="int-final">Final balance <strong data-int-final>—</strong></p>
 
-      <ResultBreakdown title="Simple vs. compound">
+      <ResultBreakdown title="Results">
         <dl class="int-metrics">
-          <div><dt>Simple interest earned</dt><dd data-int-simple>—</dd></div>
-          <div><dt>Simple final balance</dt><dd data-int-simple-final>—</dd></div>
-          <div class="int-advantage-row"><dt>Compounding advantage</dt><dd data-int-advantage>—</dd></div>
+          <div class="int-metrics__strong"><dt>Ending balance</dt><dd data-int-ending>—</dd></div>
+          <div><dt>Total principal</dt><dd data-int-principal>—</dd></div>
+          <div><dt>Total contributions</dt><dd data-int-contrib>—</dd></div>
+          <div class="int-metrics__strong"><dt>Total interest</dt><dd data-int-interest>—</dd></div>
+          <div><dt>Interest of initial investment</dt><dd data-int-interest-initial>—</dd></div>
+          <div><dt>Interest of the contributions</dt><dd data-int-interest-contrib>—</dd></div>
+          <div data-int-tax-row hidden><dt>Total tax paid</dt><dd data-int-tax>—</dd></div>
+          <div data-int-buying-row hidden><dt>Buying power of the end balance after inflation adjustment</dt><dd data-int-buying>—</dd></div>
         </dl>
+
+        <!-- What the ending balance is made of. Three parts of one whole, so a
+             labelled proportion bar rather than a pie: the segments share a baseline
+             and the legend carries both the share and the amount. -->
+        <div class="int-split" data-int-split hidden>
+          <div class="int-bar" aria-hidden="true">
+            <span class="int-seg int-seg--initial" data-int-seg-initial style="width:0%"></span>
+            <span class="int-seg int-seg--contrib" data-int-seg-contrib style="width:0%"></span>
+            <span class="int-seg int-seg--interest" data-int-seg-interest style="width:0%"></span>
+          </div>
+          <ul class="int-legend">
+            <li><span class="int-key int-key--initial" aria-hidden="true"></span>Initial investment <b data-int-share-initial>—</b> <span class="int-legend__amt" data-int-share-initial-amt>—</span></li>
+            <li><span class="int-key int-key--contrib" aria-hidden="true"></span>Contributions <b data-int-share-contrib>—</b> <span class="int-legend__amt" data-int-share-contrib-amt>—</span></li>
+            <li><span class="int-key int-key--interest" aria-hidden="true"></span>Interest <b data-int-share-interest>—</b> <span class="int-legend__amt" data-int-share-interest-amt>—</span></li>
+          </ul>
+        </div>
       </ResultBreakdown>
 
-      <p class="int-note">The compounding advantage is the extra earned purely because interest earns interest. Gross figures, before tax.</p>
+      <div data-int-schedule-block hidden>
+        <details class="int-disclosure">
+          <summary class="int-disclosure__summary">Accumulation schedule</summary>
+
+          <fieldset class="int-view">
+            <legend class="int-view__legend">Schedule</legend>
+            <div class="int-view__group">
+              <label class="int-view__opt"><input type="radio" name="int-view" value="yearly" checked data-int-view-radio /><span>Annual</span></label>
+              <label class="int-view__opt"><input type="radio" name="int-view" value="monthly" data-int-view-radio /><span>Monthly</span></label>
+            </div>
+          </fieldset>
+
+          <div class="int-schedule" data-int-schedule data-int-view="yearly">
+            <figure class="int-chart" data-int-chart-figure hidden>
+              <div class="int-chart__plot" data-int-chart></div>
+              <figcaption class="int-legend int-legend--chart">
+                <span><span class="int-key int-key--initial" aria-hidden="true"></span>Initial investment</span>
+                <span><span class="int-key int-key--contrib" aria-hidden="true"></span>Contributions</span>
+                <span><span class="int-key int-key--interest" aria-hidden="true"></span>Interest</span>
+              </figcaption>
+            </figure>
+
+            <div class="int-table-wrap">
+              <table class="int-table">
+                <caption class="sr-only">Accumulation schedule showing each period's deposit, the interest it earned and the balance it ended on.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" class="int-th-period"><span data-int-when-view="yearly">Year</span><span data-int-when-view="monthly">Month</span></th>
+                    <th scope="col" class="int-num">Deposit</th>
+                    <th scope="col" class="int-num">Interest</th>
+                    <th scope="col" class="int-num">Ending balance</th>
+                  </tr>
+                </thead>
+                <tbody data-int-rows="yearly"></tbody>
+                <tbody data-int-rows="monthly"></tbody>
+              </table>
+            </div>
+            <p class="int-schedule__note">The first period's deposit includes the initial investment. When interest compounds less often than monthly, the monthly rows show it as it accrues, so each year still totals the annual figure. Amounts are in US dollars (USD).</p>
+          </div>
+        </details>
+      </div>
     </div>
 
     <InvalidResult
       title="Check your entries"
-      message="Enter a principal, rate and number of years of zero or more."
+      message="Enter an initial investment, an interest rate and an investment length of at least one month. Contributions and the tax rate are optional and count as zero when left blank."
     />
 
     <ResultAnnouncement id="interest-live" />
@@ -108,55 +225,83 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
 </div>
 
 <style>
+  /* Series colours: one validated step per scheme rather than an automatic flip.
+     The same three the savings, loan and auto-loan charts use, so a series keeps its
+     identity across the site. */
+  .intcalc {
+    --int-initial: #7c3aed; /* plum — the sum invested at the start */
+    --int-contrib: #0e9f6e; /* emerald — money contributed over time */
+    --int-interest: #ea580c; /* burnt orange — money the investment earned */
+  }
+
+  .intcalc > :global(*) { min-width: 0; }
+
+  .int-fields { margin-top: 0.1rem; }
+
+  /* The form must show every field AND the primary action inside a 1366x768
+     viewport, so the label/control rhythm here is a touch tighter than the fleet
+     default. Scoped to this island — nothing else changes. */
+  .intcalc .field-label { margin-bottom: 0.15rem; line-height: 1.25; }
+
+  .int-timing { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .int-timing__group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    margin-top: 0.2rem;
+  }
+  .int-timing__opt { position: relative; display: inline-flex; }
+  .int-timing__opt input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .int-timing__opt span {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .int-timing__opt:has(input:checked) span {
+    background: var(--color-brand-600);
+    border-color: var(--color-brand-600);
+    color: #fff;
+  }
+  .int-timing__opt:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+  .int-timing__tail { font-size: 0.85rem; color: var(--muted); }
+
+  /* Years and months are one quantity in two boxes, sharing one grid cell. The unit
+     affixes are set tighter than the fleet default because "months" is a wide word:
+     at the standard padding it squeezed its own input down to 39px, too narrow to
+     read a two-digit entry in. */
+  .int-term { display: flex; gap: 0.4rem; }
+  .int-term__part { flex: 1 1 0; min-width: 0; }
+  .int-term__part > input { min-width: 0; }
+  .int-term :global(.field-affix) { padding-inline: 0.35rem; font-size: 0.75rem; flex: none; }
+
   .int-error {
-    margin: 0.3rem 0 0;
-    font-size: 0.78rem;
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .int-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .int-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .int-error {
-    color: #fca5a5;
-  }
+  :root[data-theme='dark'] .int-error { color: #fca5a5; }
 
-  .int-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
+  .int-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
-  .int-final {
-    margin: 0.5rem 0 0;
-    font-size: 0.95rem;
-    color: var(--muted);
-  }
-  .int-final strong {
-    color: var(--fg);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .int-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
-  }
+  .int-metrics { margin: 0; display: grid; gap: 0.2rem; }
   .int-metrics > div {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.35rem 0;
+    padding: 0.28rem 0;
     border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
-  .int-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
+  .int-metrics dt { color: var(--fg); }
   .int-metrics dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
@@ -164,52 +309,147 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     font-weight: 700;
     white-space: nowrap;
   }
-  .int-metrics .int-advantage-row {
-    border-bottom: none;
+  /* The two figures the reference sets in bold: the balance and the interest. */
+  .int-metrics__strong dt { font-weight: 700; color: var(--heading); }
+
+  /* Proportion bar: thin, one baseline, 2px surface gaps between segments. */
+  .int-split { margin-top: 0.85rem; }
+  .int-bar {
+    display: flex;
+    gap: 2px;
+    height: 0.6rem;
+    border-radius: 0.3rem;
+    overflow: hidden;
+    background: var(--line);
   }
-  .int-metrics .int-advantage-row dd {
-    color: var(--color-brand-700);
+  .int-seg { display: block; height: 100%; }
+  .int-seg--initial { background: var(--int-initial); }
+  .int-seg--contrib { background: var(--int-contrib); }
+  .int-seg--interest { background: var(--int-interest); }
+
+  .int-legend {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    font-size: 0.85rem;
+    color: var(--fg);
   }
-  .int-note {
-    margin: 0.9rem 0 0;
-    font-size: 0.78rem;
-    line-height: 1.5;
+  .int-legend li,
+  .int-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .int-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .int-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .int-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+  .int-key--initial { background: var(--int-initial); }
+  .int-key--contrib { background: var(--int-contrib); }
+  .int-key--interest { background: var(--int-interest); }
+
+  .int-disclosure { margin-top: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.6rem; }
+  .int-disclosure__summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--heading);
+    padding: 0.2rem 0;
+  }
+  .int-disclosure__summary:focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .int-view { border: 0; margin: 0.6rem 0 0; padding: 0; min-width: 0; }
+  .int-view__legend { font-size: 0.8rem; font-weight: 600; color: var(--muted); padding: 0; }
+  .int-view__group {
+    display: inline-flex;
+    margin-top: 0.3rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.1rem;
+  }
+  .int-view__opt { position: relative; display: inline-flex; }
+  .int-view__opt input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .int-view__opt span {
+    padding: 0.3rem 0.75rem;
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
     color: var(--muted);
   }
+  .int-view__opt:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .int-view__opt:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .int-schedule { margin-top: 0.75rem; }
+  .int-chart { margin: 0 0 0.75rem; }
+  .int-chart__plot { width: 100%; }
+  /* The chart and the table rows are built with the DOM API, so these must be global —
+     a scoped selector compiles to an attribute the generated elements never carry. */
+  .int-chart :global(.int-chart__svg) { display: block; width: 100%; height: auto; }
+  .int-chart :global(.int-chart__grid) { stroke: var(--line); stroke-width: 1; }
+  .int-chart :global(.int-chart__tick) { fill: var(--muted); font-size: 9px; }
+  .int-chart :global(.int-chart__seg--initial) { fill: var(--int-initial); }
+  .int-chart :global(.int-chart__seg--contrib) { fill: var(--int-contrib); }
+  .int-chart :global(.int-chart__seg--interest) { fill: var(--int-interest); }
+  .int-legend--chart { margin-top: 0.4rem; font-size: 0.8rem; }
+
+  .int-table-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
+  .int-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .int-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .int-table :global(.int-cell) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .int-table :global(.int-cell--period) { font-weight: 600; color: var(--fg); text-align: left; }
+  .int-table th.int-num,
+  .int-table :global(td.int-num) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .int-table :global(.int-year-end) > :global(.int-cell--yearend) {
+    background: var(--surface-2, var(--line));
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--heading);
+    text-align: left;
+    letter-spacing: 0.02em;
+  }
+
+  .int-schedule[data-int-view='yearly'] :global([data-int-rows='monthly']),
+  .int-schedule[data-int-view='monthly'] :global([data-int-rows='yearly']) { display: none; }
+  .int-schedule[data-int-view='yearly'] [data-int-when-view='monthly'],
+  .int-schedule[data-int-view='monthly'] [data-int-when-view='yearly'] { display: none; }
+
+  .int-schedule__note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
   import { interestBinding, INTEREST_EXAMPLE_VALUES } from '@lib/calculators/interest-form';
 
-  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
-
-  // When more than one Interest calculator shares a document (e.g. an embed gallery), the server-static
-  // ids (the three inputs, the frequency select, the error slots, the result shell, the live region)
-  // collide. Namespace THIS root's ids and repoint its in-root references so associations stay
-  // instance-local; a lone instance is left untouched. The runtime targets fields by [name] / [data-*].
+  /**
+   * Two instances of this island in one document would otherwise share element ids
+   * and the radio-group names that drive the timing and schedule controls, so a click
+   * in one would move the other. Everything unique is suffixed per instance.
+   */
   function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
-    const remap = new Map<string, string>();
     root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
-      const next = `${el.id}-${suffix}`;
-      remap.set(el.id, next);
+      const old = el.id;
+      const next = `${old}-${suffix}`;
       el.id = next;
-    });
-    const repoint = (attr: string) =>
-      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
-        const next = el
-          .getAttribute(attr)!
-          .split(/\s+/)
-          .map((token) => remap.get(token) ?? token)
-          .join(' ');
-        el.setAttribute(attr, next);
+      root.querySelectorAll<HTMLElement>(`[for="${old}"]`).forEach((l) => l.setAttribute('for', next));
+      root.querySelectorAll<HTMLElement>(`[aria-describedby~="${old}"]`).forEach((d) => {
+        const parts = (d.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+        d.setAttribute('aria-describedby', parts.map((p) => (p === old ? next : p)).join(' '));
       });
-    repoint('for');
-    repoint('aria-describedby');
-    repoint('aria-labelledby');
-    repoint('aria-controls');
+    });
+    root.querySelectorAll<HTMLInputElement>('input[type="radio"][name]').forEach((r) => {
+      r.name = `${r.name}-${suffix}`;
+    });
   }
 
+  let ns = 0;
   document.querySelectorAll<HTMLElement>('[data-interest]').forEach((root) => {
     if (document.querySelectorAll('[data-interest]').length > 1) uniquifyStaticIds(root, `i${++ns}`);
 
@@ -219,22 +459,18 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
       calculateButtonLabel: 'Calculate',
     });
 
-    // Clear the stale figures whenever the shell leaves the valid state (an invalid live edit, or
-    // Reset), so no stale figure lingers behind the hidden valid region. Presentation only.
-    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
-    if (shell) {
-      const clear = () => {
-        ['[data-int-final]', '[data-int-simple]', '[data-int-simple-final]', '[data-int-advantage]'].forEach((sel) => {
-          const el = root.querySelector<HTMLElement>(sel);
-          if (el) el.textContent = '—';
-        });
-        root.querySelectorAll<HTMLElement>('[data-result-when~="valid"] [data-result-value], [data-result-when~="valid"] [data-result-value-a11y]').forEach((el) => {
-          el.textContent = '—';
-        });
-      };
-      new MutationObserver(() => {
-        if (shell.dataset.resultState !== 'valid') clear();
-      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
-    }
+    // Annual ⇆ Monthly is a VIEW of one computed schedule, never a recalculation.
+    const schedule = root.querySelector<HTMLElement>('[data-int-schedule]');
+    root.querySelectorAll<HTMLInputElement>('[data-int-view-radio]').forEach((radio) =>
+      radio.addEventListener('change', () => {
+        if (schedule && radio.checked) schedule.dataset.intView = radio.value;
+      }),
+    );
+
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      const yearly = root.querySelector<HTMLInputElement>('[data-int-view-radio][value="yearly"]');
+      if (yearly) yearly.checked = true;
+      if (schedule) schedule.dataset.intView = 'yearly';
+    });
   });
 </script>

@@ -166,8 +166,9 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Interest Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Compare interest across accounts and contribution schedules.',
-    keywords: ['interest calculator', 'savings interest'],
+    description:
+      'Work out the compound interest and final balance on a lump sum plus regular contributions, allowing for tax and inflation.',
+    keywords: ['interest calculator', 'savings interest', 'compound interest accumulation'],
   },
   {
     slug: 'interest-rate-calculator',

@@ -81,6 +81,10 @@ const STRUCTURAL_DEFAULTS: Record<string, string> = {
   // one. Every personal field on that calculator still loads empty.
   annualReturnPct: 'retirement: the documented expected-return assumption',
   inflationPct: 'retirement: the documented inflation assumption',
+  // Interest's inflation assumption, for the same reason and at the same 3%: it is the
+  // documented starting assumption, not the visitor's figure, and without it the
+  // buying-power line has nothing to say. Every personal field there still loads empty.
+  inflationRatePct: 'interest: the documented inflation assumption',
   incomeIncreasePct: 'retirement: the documented income-growth assumption',
   incomeNeededPct: 'retirement: the documented share-of-income-needed assumption',
   futureSavingsPct: 'retirement: the documented share-of-income-saved assumption',

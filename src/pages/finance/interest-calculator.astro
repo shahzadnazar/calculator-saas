@@ -4,96 +4,100 @@ import InterestCalculator from '@components/islands/InterestCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'interest-calculator')!;
 const faqs = [
-  { question: 'What is the difference between simple and compound interest?', answer: 'Simple interest is calculated only on the original principal, so it stays flat. Compound interest is calculated on the principal plus previously earned interest, so it grows faster over time. This calculator shows both side by side.' },
-  { question: 'How do I calculate interest?', answer: 'Simple interest is I = P × r × t (principal × annual rate × years). Compound interest uses A = P × (1 + r/n)^(n·t), where n is how many times a year it compounds; the interest earned is A − P. The calculator applies both for you.' },
-  { question: 'How does compounding frequency change my interest?', answer: 'More frequent compounding — daily versus monthly versus annually — adds interest to the balance sooner, so it starts earning interest sooner. The effect is small at low rates and larger over long periods and higher rates.' },
-  { question: 'What is the difference between APR and APY?', answer: 'APR is the plain annual rate before compounding; APY (annual percentage yield) is the effective rate after compounding is included, so it is the number that reflects what you actually earn. At 5% compounded monthly, the APY is about 5.12%. Compare accounts by APY, not APR.' },
-  { question: 'Which type applies to my account?', answer: 'Most savings accounts and investments compound (often daily or monthly). Some short-term loans and bonds use simple interest. Check your account terms to see which applies and how often it compounds.' },
+  { question: 'How is compound interest calculated?', answer: 'Interest is added to the balance each compounding period, and the next period’s interest is worked out on the larger balance — so the interest earns interest. Enter your initial investment, any contributions, the rate, how often it compounds and how long you invest, and the calculator reports the ending balance and how much of it is interest.' },
+  { question: 'What does "contribute at the beginning or end" change?', answer: 'Whether a contribution is in the account before that period’s interest is worked out. At the beginning it earns from day one; at the end it starts earning next period. On the example plan that is the difference between $54,535.20 and $53,153.79 — the same $45,000 paid in either way, with $1,381.41 of interest riding on the timing alone.' },
+  { question: 'What is the difference between total principal and total contributions?', answer: 'Total contributions is everything you paid in over the term. Total principal is that plus the initial investment — all the money that came from you rather than from interest. Ending balance is always total principal plus total interest, exactly.' },
+  { question: 'Why is the interest split into two lines?', answer: 'Because the two halves behave very differently. The initial investment compounds for the whole term, while each contribution only compounds from the day it arrives. On the example plan the $20,000 lump sum earns $5,525.63 while $25,000 of contributions earns $4,009.56 — more money in, less interest out. Stretch the same plan to 20 years and the contributions overtake it.' },
+  { question: 'How does the tax rate work?', answer: 'Tax is charged on interest as it is earned, so what gets credited each period is the after-tax amount. That compounds too: at 22% the example plan ends at $52,259.47 rather than $54,535.20, of which $2,047.54 is tax paid and the rest is the growth that tax would have earned. Leave the field blank for a tax-free account.' },
+  { question: 'What does the buying-power figure mean?', answer: 'Inflation does not touch your balance — it changes what the balance will buy. At 3% inflation the example plan’s $54,535.20 has the purchasing power of $47,042.54 in today’s money. It is the honest way to read a long projection: the number grows, but so do prices.' },
+  { question: 'Which compounding frequency should I choose?', answer: 'Match whatever the account actually does — savings accounts typically compound daily or monthly, while bonds and CDs often compound semiannually or annually. More frequent compounding earns a little more at the same nominal rate: on the example plan, monthly instead of annually adds about $241 over five years.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the interest earned on a deposit and see exactly how much extra compounding adds compared with simple interest." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-10' }}>
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  intro="Work out the compound interest and final balance on a fixed sum plus regular contributions, with optional tax on the interest and an inflation adjustment."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-08-27' }}
+>
   <InterestCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter the <strong>principal</strong> — the amount you are depositing or lending.</li>
-      <li>Set the annual <strong>interest rate</strong> as a percentage.</li>
-      <li>Choose the <strong>time</strong> in years.</li>
-      <li>Pick how often interest <strong>compounds</strong> — annually, quarterly, monthly or daily (the default is monthly).</li>
-      <li>Press <strong>Calculate</strong> to see the interest under both methods and the compounding advantage between them.</li>
+      <li>Enter your <strong>initial investment</strong> — the lump sum the account starts with.</li>
+      <li>Add an <strong>annual contribution</strong>, a <strong>monthly contribution</strong>, or both, and say whether you <strong>contribute at the beginning or the end</strong> of each compounding period.</li>
+      <li>Set the <strong>interest rate</strong> and how often it <strong>compounds</strong>.</li>
+      <li>Enter the <strong>investment length</strong> in years and months, a <strong>tax rate</strong> if the interest is taxable, and an <strong>inflation rate</strong> to see what the end balance will actually buy.</li>
+      <li>Press <strong>Calculate</strong> to see the ending balance, what it is made of, and the accumulation schedule year by year or month by month.</li>
     </ol>
-
-    <h2>Simple vs. compound, side by side</h2>
-    <p>
-      The two methods differ in what interest is charged on. <strong>Simple interest</strong>
-      pays only on the original principal, so it adds the same amount every period and grows in
-      a straight line. <strong>Compound interest</strong> pays on the principal <em>plus</em>
-      the interest already earned, so each period's interest is slightly larger than the last.
-      The calculator shows both, then reports the <strong>compounding advantage</strong> — the
-      extra you earn purely because interest earns interest.
-    </p>
-
-    <h2>The two formulas</h2>
-    <p>Simple interest is the straight-line case:</p>
-    <p><strong>I = P × r × t</strong></p>
-    <p>Compound interest grows the balance every period, and the interest earned is the balance minus what you put in:</p>
-    <p><strong>A = P × (1 + r/n)<sup>nt</sup></strong>, and interest = A − P</p>
-    <ul>
-      <li><strong>P</strong> — the principal you start with</li>
-      <li><strong>r</strong> — the annual interest rate as a decimal (5% = 0.05)</li>
-      <li><strong>t</strong> — the time in years</li>
-      <li><strong>n</strong> — how many times interest compounds per year (1, 4, 12 or 365 here)</li>
-    </ul>
 
     <h2>A worked example</h2>
     <p>
-      Put <strong>$10,000</strong> away at <strong>5%</strong> for <strong>10 years</strong>.
-      With simple interest you earn a flat $500 a year, or <strong>$5,000</strong> total. With
-      monthly compounding — the tool's default — the balance grows to about
-      <strong>$16,470.09</strong>, so the interest earned is <strong>$6,470.09</strong>. The
-      difference, about <strong>$1,470</strong>, is the compounding advantage: money earned on
-      nothing but the interest itself.
+      Invest <strong>$20,000</strong>, add <strong>$5,000</strong> a year at the beginning of each
+      period, at <strong>5%</strong> compounded <strong>annually</strong> for <strong>5 years</strong>.
+      The ending balance is <strong>$54,535.20</strong>: <strong>$45,000</strong> of principal —
+      your $20,000 plus $25,000 of contributions — and <strong>$9,535.20</strong> of interest. At 3%
+      inflation, that balance has the buying power of <strong>$47,042.54</strong> in today's money.
+    </p>
+    <p>
+      The first year shows the mechanism plainly. The $5,000 contribution goes in at the start, so
+      interest is charged on the full $25,000 — that is $1,250, and the year closes at $26,250. In
+      year two, interest is worked out on $31,250 and comes to $1,562.50. Each year the base is
+      bigger, which is why the interest column climbs from $1,250 to $2,596.91 while the
+      contribution never changes.
     </p>
 
-    <h2>How compounding frequency changes the result</h2>
+    <h2>Where the interest comes from</h2>
     <p>
-      More frequent compounding adds interest to the balance sooner, so it starts earning on
-      itself sooner. The effect is real but shrinks with each step up in frequency. Using the
-      same $10,000 at 5% for 10 years:
+      The result splits interest into two lines because the two halves behave very differently. Your
+      <strong>initial investment earns $5,525.63</strong> — it compounds for all five years. Your
+      <strong>contributions earn $4,009.56</strong>, even though they total $25,000, because each one
+      only compounds from the day it arrives and the last one has barely any time at all.
     </p>
-    <table>
-      <thead>
-        <tr><th>Compounding frequency</th><th>Interest earned</th><th>Advantage over simple</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Annually</td><td>$6,288.95</td><td>$1,288.95</td></tr>
-        <tr><td>Quarterly</td><td>$6,436.19</td><td>$1,436.19</td></tr>
-        <tr><td>Monthly</td><td>$6,470.09</td><td>$1,470.09</td></tr>
-        <tr><td>Daily</td><td>$6,486.65</td><td>$1,486.65</td></tr>
-      </tbody>
-    </table>
     <p>
-      Every frequency beats simple interest, but moving from annual to daily adds under $200
-      here — the rate and the time horizon move the needle far more than the frequency does.
+      Time is what flips this. Run the same plan for <strong>20 years</strong> and the ending balance
+      reaches <strong>$226,662.21</strong>: the initial investment's interest grows to $33,065.95, but
+      the contributions' interest reaches $73,596.26 — more than double. A lump sum wins over short
+      horizons; a habit wins over long ones.
     </p>
 
-    <h2>APR vs. APY</h2>
+    <h2>What each field changes</h2>
+    <ul>
+      <li><strong>Contribution timing.</strong> Switching the example from beginning to end of period drops the ending balance to $53,153.79. The same money goes in; it simply spends less time invested.</li>
+      <li><strong>Compounding frequency.</strong> Monthly instead of annually raises the example to $54,776.32 — about $241 more over five years. More frequent compounding always earns more at the same nominal rate, but the gap is modest.</li>
+      <li><strong>Tax rate.</strong> A 22% rate ends the example at $52,259.47. Only $2,047.54 of the $2,275.73 difference is tax actually paid; the rest is the growth that tax would have gone on to earn.</li>
+      <li><strong>Inflation rate.</strong> It never changes the balance, only the buying-power line. It is the difference between a number that looks big and one you can spend.</li>
+    </ul>
+
+    <h2>Simple versus compound interest</h2>
     <p>
-      Rates are quoted two ways. <strong>APR</strong> is the nominal annual rate before
-      compounding; <strong>APY</strong> (annual percentage yield) folds compounding in and is the
-      effective rate you truly earn. A 5% APR compounded monthly is an APY of about
-      <strong>5.12%</strong>. When comparing savings accounts, compare the APY — it is apples to
-      apples, while APRs at different compounding frequencies are not.
+      Simple interest is charged on the original principal only, so it grows in a straight line:
+      $10,000 at 5% earns exactly $500 every year, forever. Compound interest is charged on the
+      balance, which includes the interest already earned, so it curves upward — and the longer the
+      term, the wider the gap. Over a year or two the difference is small; over decades it is most of
+      the result.
+    </p>
+    <p>
+      To work with a single lump sum and no contributions, the
+      <a href="/finance/compound-interest-calculator">compound interest calculator</a> is more
+      direct, and the <a href="/finance/simple-interest-calculator">simple interest calculator</a>
+      covers the straight-line case.
     </p>
 
-    <h2>Which type applies, and what this leaves out</h2>
+    <h2>Tips and limitations</h2>
+    <ul>
+      <li><strong>One steady rate.</strong> The projection holds the interest rate constant for the whole term. Real rates move, so revisit it as yours changes.</li>
+      <li><strong>Whole months.</strong> Terms are whole months, up to 100 years.</li>
+      <li><strong>Tax is a single flat rate.</strong> Real treatment depends on the account and your jurisdiction, and tax-advantaged accounts may owe nothing at all.</li>
+      <li><strong>Nominal unless you say otherwise.</strong> Every figure except the buying-power line is in future dollars, not today's.</li>
+      <li><strong>No fees or volatility.</strong> A steady rate is a reasonable model for a savings account or a bond, and a rough one for investments that rise and fall.</li>
+    </ul>
+
     <p>
-      Most savings accounts and investments compound, often daily or monthly, while some
-      short-term loans and bonds use simple interest — check your account terms. This tool models
-      a single lump sum: it does <em>not</em> account for regular deposits, taxes or fees. To add
-      recurring contributions, use the <a href="/finance/compound-interest-calculator">compound
-      interest calculator</a> or the <a href="/finance/investment-calculator">investment
-      calculator</a>. This is general educational information, not financial advice.
+      To project a savings habit with contributions that grow each year, see the
+      <a href="/finance/savings-calculator">savings calculator</a>; to model longer-term investing,
+      use the <a href="/finance/investment-calculator">investment calculator</a>. This is general
+      educational information, not financial advice.
     </p>
   </Fragment>
 </CalculatorLayout>
