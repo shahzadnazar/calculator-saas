@@ -19,7 +19,8 @@
  *     runtime's default finite gate). There is NO isUsableResult (the Inflation / Triangle pattern).
  */
 import { calculateAutoLoan, type AutoLoanResult, type AutoLoanRow } from './auto-loan';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+import { formatCurrency } from '@lib/format';
+import { drawLoanLineChart } from '@lib/result/loan-schedule';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -392,37 +393,18 @@ function fillSchedule(
   tbody.replaceChildren(frag);
 }
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-const svgEl = <K extends keyof SVGElementTagNameMap>(
-  name: K,
-  attrs: Record<string, string | number>,
-): SVGElementTagNameMap[K] => {
-  const el = document.createElementNS(SVG_NS, name);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-  return el;
-};
-
 /**
  * Balance, cumulative interest and cumulative amount paid across the term — three
- * series in the same unit (dollars) on ONE axis, so they are directly comparable.
- * Drawn as plain SVG polylines: 2px round-joined strokes, a hairline baseline and
- * left rule, no dashes and no per-point labels. The series colours come from CSS
- * custom properties, so light and dark are each their own validated step rather
- * than an automatic flip, and the legend beside the chart carries identity so
- * nothing depends on colour alone.
+ * series in the same unit on ONE axis, so they are directly comparable. The drawing
+ * itself is shared with the interest-rate calculator, which plots exactly the same
+ * three lines; only the numbers and the axis labels differ.
  */
 function drawBalanceChart(host: HTMLElement | null, r: AutoLoanComputed): void {
-  if (!host) return;
-  host.replaceChildren();
   const rows = r.schedule;
-  if (rows.length < 2) return;
-
-  const W = 320;
-  const H = 180;
-  const PAD = { top: 8, right: 8, bottom: 22, left: 46 };
-  const plotW = W - PAD.left - PAD.right;
-  const plotH = H - PAD.top - PAD.bottom;
-
+  if (rows.length < 2) {
+    if (host) host.replaceChildren();
+    return;
+  }
   let cumInterest = 0;
   let cumPaid = 0;
   const balance: number[] = [];
@@ -435,67 +417,23 @@ function drawBalanceChart(host: HTMLElement | null, r: AutoLoanComputed): void {
     interest.push(cumInterest);
     paid.push(cumPaid);
   }
-  // Round the top of the scale up to a clean number so the ticks read 0 / 25K / 50K
-  // rather than 0 / 22.5K / 45K — an axis is only useful if its labels are round.
-  const peak = niceCeiling(Math.max(r.loanAmount, cumPaid, 1));
-  const x = (i: number) => PAD.left + (i / (rows.length - 1)) * plotW;
-  const y = (v: number) => PAD.top + plotH - (v / peak) * plotH;
-  const points = (series: number[]) => series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-
-  const svg = svgEl('svg', {
-    viewBox: `0 0 ${W} ${H}`,
-    class: 'al-chart__svg',
-    role: 'img',
-    'aria-label':
-      `Balance falls from ${formatCurrency(r.loanAmount)} to zero over ${rows.length} months, ` +
-      `while total paid rises to ${formatCurrency(cumPaid)}, of which ${formatCurrency(cumInterest)} is interest. ` +
-      `The same figures are in the schedule table below.`,
-  });
-
-  // Recessive chrome: solid hairlines, never dashed, one step off the surface.
-  for (const t of [0, 0.5, 1]) {
-    const gy = PAD.top + plotH * t;
-    svg.append(svgEl('line', { x1: PAD.left, y1: gy, x2: W - PAD.right, y2: gy, class: 'al-chart__grid' }));
-    const label = svgEl('text', { x: PAD.left - 6, y: gy + 3.5, class: 'al-chart__tick', 'text-anchor': 'end' });
-    label.textContent = formatCompactUSD(peak * (1 - t));
-    svg.append(label);
-  }
-  for (const [i, m] of [0, rows.length - 1].entries()) {
-    const tx = svgEl('text', {
-      x: x(m),
-      y: H - 6,
-      class: 'al-chart__tick',
-      'text-anchor': i === 0 ? 'start' : 'end',
-    });
-    tx.textContent = i === 0 ? 'Month 1' : `Month ${rows.length}`;
-    svg.append(tx);
-  }
-
-  for (const [series, key] of [
-    [balance, 'balance'],
-    [interest, 'interest'],
-    [paid, 'paid'],
-  ] as const) {
-    svg.append(svgEl('polyline', { points: points(series), class: `al-chart__line al-chart__line--${key}` }));
-  }
-  host.append(svg);
-}
-
-/** The next "round" number at or above `value` — 1, 2, 2.5 or 5 × a power of ten. */
-function niceCeiling(value: number): number {
-  if (!Number.isFinite(value) || value <= 0) return 1;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
-  for (const step of [1, 2, 2.5, 5, 10]) {
-    if (value <= step * magnitude) return step * magnitude;
-  }
-  return 10 * magnitude;
-}
-
-/** Compact axis money: 40000 → "$40K", 900 → "$900". Ticks, never a data value. */
-function formatCompactUSD(value: number): string {
-  if (!Number.isFinite(value)) return '';
-  if (value >= 1000) return `$${Math.round(value / 1000)}K`;
-  return `$${Math.round(value)}`;
+  drawLoanLineChart(
+    host,
+    [
+      { key: 'balance', values: balance },
+      { key: 'interest', values: interest },
+      { key: 'paid', values: paid },
+    ],
+    {
+      prefix: 'al',
+      xStart: 'Month 1',
+      xEnd: `Month ${rows.length}`,
+      label:
+        `Balance falls from ${formatCurrency(r.loanAmount)} to zero over ${rows.length} months, ` +
+        `while total paid rises to ${formatCurrency(cumPaid)}, of which ${formatCurrency(cumInterest)} is interest. ` +
+        `The same figures are in the schedule table below.`,
+    },
+  );
 }
 
 const input = (root: HTMLElement, name: string) =>

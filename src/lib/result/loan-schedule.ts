@@ -156,9 +156,11 @@ export function drawDonut(
   // The box is wider than the ring because the labels sit OUTSIDE it: a label at the
   // far left needs its own width of room beyond the ring, or it clips at the edge.
   const W = 200;
-  const H = 130;
+  // Tall enough for a label ABOVE the ring as well as below it: a slice ending at 12
+  // o'clock puts its label at the very top, and at 130 the glyph ascenders clipped.
+  const H = 138;
   const CX = 100;
-  const CY = 62;
+  const CY = 69;
   const R = 40;
   const STROKE = 20;
   const C = 2 * Math.PI * R;
@@ -211,6 +213,132 @@ export function drawDonut(
     });
     text.textContent = percentLabel(fraction);
     svg.append(text);
+  }
+
+  host.append(svg);
+  return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* The amortization line chart                                         */
+/* ------------------------------------------------------------------ */
+
+/** One line: the CSS key that colours it, and its value at each period. */
+export interface LineSeries {
+  key: string;
+  values: readonly number[];
+}
+
+export interface LineChartOptions {
+  prefix: string;
+  /** Text description of the whole chart, for readers who cannot see it. */
+  label: string;
+  /** The two axis labels — only the ends are labelled, never every point. */
+  xStart: string;
+  xEnd: string;
+}
+
+/** The next "round" number at or above `value` — an axis is only useful if it reads round. */
+export function niceCeiling(value: number): number {
+  if (!(value > 0)) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+  for (const step of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) {
+    if (value <= step * magnitude) return step * magnitude;
+  }
+  return 10 * magnitude;
+}
+
+/** Compact dollars for a chart axis: $1.2K, $340K, $2.1M. */
+export function formatCompactUSD(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}K`;
+  return `${sign}$${Math.round(abs)}`;
+}
+
+/**
+ * How a loan runs its course: the balance falling, and interest and total paid
+ * rising, across the term.
+ *
+ * Every series is in the SAME unit on ONE axis, which is what makes them directly
+ * comparable — the point where the rising paid line crosses the falling balance is
+ * a real fact about the loan, not an artefact of two scales. Drawn as plain
+ * polylines with no dashes and no per-point labels; the caller's legend carries
+ * identity, and the schedule table below is the accessible view of the same numbers.
+ *
+ * Returns false when there is nothing to plot, so the caller can hide the figure.
+ */
+export function drawLoanLineChart(
+  host: HTMLElement | null,
+  series: readonly LineSeries[],
+  o: LineChartOptions,
+): boolean {
+  if (!host) return false;
+  host.replaceChildren();
+  const length = series[0]?.values.length ?? 0;
+  if (length < 2 || series.some((s) => s.values.length !== length)) return false;
+  if (series.some((s) => s.values.some((v) => !Number.isFinite(v)))) return false;
+
+  const W = 320;
+  const H = 180;
+  const PAD = { top: 8, right: 8, bottom: 22, left: 46 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  // Round the top of the scale up so the ticks read 0 / 25K / 50K rather than
+  // 0 / 22.5K / 45K.
+  const peak = niceCeiling(Math.max(...series.flatMap((s) => s.values.map(Math.abs)), 1));
+  const x = (i: number) => PAD.left + (i / (length - 1)) * plotW;
+  const y = (v: number) => PAD.top + plotH - (v / peak) * plotH;
+
+  const svg = svgEl('svg', {
+    viewBox: `0 0 ${W} ${H}`,
+    class: `${o.prefix}-chart__svg`,
+    role: 'img',
+    'aria-label': o.label,
+  });
+
+  // Recessive chrome: solid hairlines one step off the surface, never dashed.
+  for (const t of [0, 0.5, 1]) {
+    const gy = PAD.top + plotH * t;
+    svg.append(
+      svgEl('line', {
+        x1: PAD.left,
+        y1: gy,
+        x2: W - PAD.right,
+        y2: gy,
+        class: `${o.prefix}-chart__grid`,
+      }),
+    );
+    const label = svgEl('text', {
+      x: PAD.left - 6,
+      y: gy + 3.5,
+      class: `${o.prefix}-chart__tick`,
+      'text-anchor': 'end',
+    });
+    label.textContent = formatCompactUSD(peak * (1 - t));
+    svg.append(label);
+  }
+
+  for (const [i, text] of [o.xStart, o.xEnd].entries()) {
+    const tx = svgEl('text', {
+      x: PAD.left + (i === 0 ? 0 : plotW),
+      y: H - 6,
+      class: `${o.prefix}-chart__tick`,
+      'text-anchor': i === 0 ? 'start' : 'end',
+    });
+    tx.textContent = text;
+    svg.append(tx);
+  }
+
+  for (const s of series) {
+    svg.append(
+      svgEl('polyline', {
+        points: s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' '),
+        class: `${o.prefix}-chart__line ${o.prefix}-chart__line--${s.key}`,
+      }),
+    );
   }
 
   host.append(svg);

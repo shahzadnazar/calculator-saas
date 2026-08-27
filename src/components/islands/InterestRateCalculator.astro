@@ -1,98 +1,126 @@
 ---
 /**
- * Interest Rate calculator island (R15B3 — Loan family follow-on, 3 of 3; task-first migration).
+ * Interest rate calculator island — solve for the rate a loan implies.
  *
- * Task-first, direct-intent: all fields start EMPTY, the result is an instruction, and the visitor
- * presses "Calculate Interest Rate" for the first result; live-after-first afterwards. Compute,
- * validation, state, announcement and focus are owned by the shared runtime + the Interest Rate
- * binding (@lib/calculators/interest-rate-form), which wraps the UNCHANGED solveAnnualRate (a bisection
- * over the shared @lib/finance `pmt`). The complete-result guard lives in the binding's resultValue (a
- * NaN sentinel → the runtime's default finite gate) — there is NO isUsableResult.
+ * Three inputs, two to a row: the loan amount beside the monthly payment, then the
+ * term in years and months across the row so both boxes have room to read.
  *
- * INDEPENDENT of Loan / Home Equity / Amortization: this island imports the Interest Rate binding only
- * and shares no implementation file with any other calculator (mirror-not-share). The dominant result
- * is the estimated ANNUAL rate; the monthly rate and the supplied monthly payment are the prominent
- * secondary. The frozen contract exposes no schedule and only a "total repaid" figure — so NONE beyond
- * that is invented (no total-interest), and there is no amortization disclosure and no row-clearing
- * observer (nothing island-owned outlives a state change). Term is in MONTHS (the frozen source unit),
- * whole ≥ 1; a monthly payment too low to ever repay the loan is rejected, not shown as a misleading 0%.
+ * The answer is a rate, which is hard to feel on its own, so the result also carries
+ * what the loan costs — the total of every payment and the interest inside it — a
+ * PAYMENT BREAKDOWN ring splitting that total, and a LOAN AMORTIZATION GRAPH of the
+ * balance falling while interest and payments rise. All three come from one schedule
+ * computed at the solved rate, so they describe the loan the visitor entered.
  *
- * The estimator DISCLAIMER lives HERE (island-owned) so it appears exactly once on both the full page
- * and the embed (the embed renders only this island); it sits outside the live region, always visible.
+ * Task-first: every field starts EMPTY and the result panel carries a LABELLED
+ * worked example. Compute, validation, state, focus and the announcement belong to
+ * the shared form runtime and the interest-rate binding.
+ *
+ * The estimator disclaimer is ISLAND-OWNED so it travels with the embed, and it is
+ * the only place on the page that says it — the page copy must not repeat it.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
-<div class="ir mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-ir>
+<div class="ir mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-ir>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Interest rate calculator">
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid grid-cols-2 gap-x-3 gap-y-2">
       <div data-field="amount">
         <label class="field-label" for="ir-amount">Loan amount</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="ir-amount" name="amount" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="e.g. 20000" aria-describedby="ir-amount-error" />
+          <input class="field rounded-l-none" id="ir-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 32000" aria-describedby="ir-amount-error" />
         </div>
-        <p class="ir-field-error" id="ir-amount-error" data-error-for="amount" hidden></p>
+        <p class="ir-error" id="ir-amount-error" data-error-for="amount" hidden></p>
       </div>
 
       <div data-field="payment">
         <label class="field-label" for="ir-payment">Monthly payment</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="ir-payment" name="payment" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 380" aria-describedby="ir-payment-error" />
+          <input class="field rounded-l-none" id="ir-payment" name="payment" type="number" min="0" step="10" inputmode="decimal" autocomplete="off" placeholder="e.g. 960" aria-describedby="ir-payment-error" />
         </div>
-        <p class="ir-field-error" id="ir-payment-error" data-error-for="payment" hidden></p>
+        <p class="ir-error" id="ir-payment-error" data-error-for="payment" hidden></p>
       </div>
 
-      <div data-field="months">
-        <label class="field-label" for="ir-months">Term (months)</label>
-        <input class="field" id="ir-months" name="months" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 60" aria-describedby="ir-months-error" />
-        <p class="ir-field-error" id="ir-months-error" data-error-for="months" hidden></p>
+      <div class="col-span-2" data-field="termYears">
+        <label class="field-label" for="ir-term-years">Loan term</label>
+        <div class="ir-term">
+          <div class="flex ir-term__part">
+            <input class="field rounded-r-none" id="ir-term-years" name="termYears" type="number" min="0" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 3" aria-label="Loan term, years" aria-describedby="ir-term-years-error" />
+            <span class="field-affix rounded-r-lg border-l-0">years</span>
+          </div>
+          <div class="flex ir-term__part" data-field="termMonths">
+            <input class="field rounded-r-none" id="ir-term-months" name="termMonths" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Loan term, months" aria-describedby="ir-term-months-error" />
+            <span class="field-affix rounded-r-lg border-l-0">months</span>
+          </div>
+        </div>
+        <p class="ir-error" id="ir-term-years-error" data-error-for="termYears" hidden></p>
+        <p class="ir-error" id="ir-term-months-error" data-error-for="termMonths" hidden></p>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
+    <div class="mt-3 flex items-center gap-3">
       <button type="submit" class="btn btn-primary" data-ir-submit>Calculate Interest Rate</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
     </div>
     <p class="ir-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell id="ir-result" state="empty" density="standard" label="Interest rate result" minHeight="11rem">
+  <ResultShell id="ir-result" state="empty" density="complex" label="Interest rate result" minHeight="20rem">
     <ExampleNotice />
-    <EmptyResult message="Enter the loan amount, the monthly payment and the term in months, then calculate to see the annual interest rate those payments imply." />
+    <EmptyResult message="Enter the loan amount, the monthly payment and the term, then press Calculate to see the rate they imply." />
 
     <div data-result-when="valid">
-      <div class="ir-summary">
-        <ResultSummary label="Estimated annual interest rate">
-          <ResultValue value="—" size="text-4xl" />
-        </ResultSummary>
-        <dl class="ir-metrics">
-          <div><dt>Monthly rate</dt><dd data-ir-monthly>—</dd></div>
-          <div><dt>Monthly payment</dt><dd data-ir-payment>—</dd></div>
-        </dl>
-      </div>
-
-      <dl class="ir-supporting">
-        <div><dt>Loan amount</dt><dd data-ir-amount>—</dd></div>
-        <div><dt>Payments</dt><dd data-ir-payments>—</dd></div>
-        <div><dt>Total repaid</dt><dd data-ir-total>—</dd></div>
-      </dl>
+      <ResultSummary label="Interest rate">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
 
       <p class="ir-interpretation" data-ir-interpretation>—</p>
+
+      <ResultBreakdown title="Results">
+        <dl class="ir-metrics">
+          <div><dt data-ir-payments-label>Total of monthly payments</dt><dd data-ir-total>—</dd></div>
+          <div><dt>Total interest paid</dt><dd data-ir-interest>—</dd></div>
+          <div><dt>Monthly rate</dt><dd data-ir-monthly>—</dd></div>
+        </dl>
+
+        <!-- Payment breakdown: what the total repaid is made of. -->
+        <figure class="ir-donut" data-ir-donut-figure hidden>
+          <figcaption class="ir-figure__title">Payment breakdown</figcaption>
+          <div class="ir-donut__row">
+            <div class="ir-donut__plot" data-ir-donut></div>
+            <ul class="ir-legend">
+              <li><span class="ir-key ir-key--principal" aria-hidden="true"></span>Principal <b data-ir-share-principal>—</b> <span class="ir-legend__amt" data-ir-share-principal-amt>—</span></li>
+              <li><span class="ir-key ir-key--interest" aria-hidden="true"></span>Interest <b data-ir-share-interest>—</b> <span class="ir-legend__amt" data-ir-share-interest-amt>—</span></li>
+            </ul>
+          </div>
+        </figure>
+
+        <!-- Loan amortization graph: three series in the same unit on one axis. -->
+        <figure class="ir-chart" data-ir-chart-figure hidden>
+          <figcaption class="ir-figure__title">Loan amortization graph</figcaption>
+          <div class="ir-chart__plot" data-ir-chart></div>
+          <p class="ir-legend ir-legend--chart">
+            <span><span class="ir-key ir-key--balance" aria-hidden="true"></span>Balance</span>
+            <span><span class="ir-key ir-key--interest" aria-hidden="true"></span>Interest</span>
+            <span><span class="ir-key ir-key--paid" aria-hidden="true"></span>Payment</span>
+          </p>
+        </figure>
+      </ResultBreakdown>
     </div>
 
     <InvalidResult
       title="Check your entries"
-      message="Enter a loan amount, a monthly payment high enough to repay it, and a whole loan term of 1 month or more."
+      message="Enter the loan amount, the monthly payment and a term of at least one month. The payment must be large enough to repay the loan over that term."
     />
 
     <ResultAnnouncement id="ir-live" />
@@ -106,58 +134,52 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
 </div>
 
 <style>
-  .ir-field-error {
+  /* Series colours: one validated step per scheme rather than an automatic flip. The
+     same three the auto-loan graph uses, so a series keeps its identity across the
+     site — plum for the money borrowed, burnt orange for what it costs, emerald for
+     everything handed over. */
+  .ir {
+    --ir-principal: #7c3aed;
+    --ir-interest: #ea580c;
+    --ir-paid: #0e9f6e;
+  }
+
+  .ir > :global(*) { min-width: 0; }
+  .ir .field-label { margin-bottom: 0.15rem; line-height: 1.25; }
+
+  /* Years and months are one quantity in two boxes, across the full row so neither is
+     squeezed by its own unit affix. */
+  .ir-term { display: flex; gap: 0.4rem; }
+  .ir-term__part { flex: 1 1 0; min-width: 0; }
+  .ir-term__part > input { min-width: 0; }
+  .ir-term :global(.field-affix) { padding-inline: 0.4rem; font-size: 0.78rem; flex: none; }
+
+  .ir-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .ir-field-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .ir-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .ir-field-error {
-    color: #fca5a5;
-  }
+  :root[data-theme='dark'] .ir-error { color: #fca5a5; }
 
-  .ir-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
+  .ir-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
-  /* Summary: dominant annual rate + monthly rate / payment secondary */
-  .ir-summary {
-    display: grid;
-    gap: 1rem;
-    align-items: center;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 640px) {
-    .ir-summary {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-    }
-  }
-  .ir-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
-    align-self: center;
-  }
+  .ir-interpretation { margin: 0.4rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+
+  .ir-metrics { margin: 0; display: grid; gap: 0.2rem; }
   .ir-metrics > div {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.35rem 0;
+    padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
-  .ir-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
+  .ir-metrics dt { color: var(--fg); font-weight: 600; }
   .ir-metrics dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
@@ -166,46 +188,63 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     white-space: nowrap;
   }
 
-  /* Supporting row: amount / payments / total repaid */
-  .ir-supporting {
-    margin: 1.25rem 0 0;
-    display: grid;
-    gap: 0.5rem;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 480px) {
-    .ir-supporting {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 1rem;
-    }
-  }
-  .ir-supporting > div {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--line);
-    border-radius: 0.6rem;
-  }
-  .ir-supporting dt {
-    font-size: 0.78rem;
+  .ir-figure__title {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--muted);
   }
-  .ir-supporting dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    color: var(--heading);
-    font-weight: 700;
-  }
 
-  .ir-interpretation {
-    margin: 1.25rem 0 0;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    color: var(--fg);
+  .ir-donut { margin: 0.9rem 0 0; }
+  .ir-donut__row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .ir-donut__plot { flex: 0 0 auto; width: 11.5rem; }
+  .ir-donut :global(.ir-donut__svg) { display: block; width: 100%; height: auto; }
+  .ir-donut :global(.ir-donut__arc--principal) { stroke: var(--ir-principal); }
+  .ir-donut :global(.ir-donut__arc--interest) { stroke: var(--ir-interest); }
+  /* Labels wear text ink, never the series colour. */
+  .ir-donut :global(.ir-donut__label) { fill: var(--heading); font-size: 11px; font-weight: 700; }
+
+  .ir-chart { margin: 0.9rem 0 0; }
+  .ir-chart__plot { width: 100%; }
+  .ir-chart :global(.ir-chart__svg) { display: block; width: 100%; height: auto; }
+  .ir-chart :global(.ir-chart__grid) { stroke: var(--line); stroke-width: 1; }
+  .ir-chart :global(.ir-chart__tick) { fill: var(--muted); font-size: 9px; }
+  .ir-chart :global(.ir-chart__line) {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
   }
+  .ir-chart :global(.ir-chart__line--balance) { stroke: var(--ir-principal); }
+  .ir-chart :global(.ir-chart__line--interest) { stroke: var(--ir-interest); }
+  .ir-chart :global(.ir-chart__line--paid) { stroke: var(--ir-paid); }
+
+  .ir-legend {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+    flex: 1 1 9rem;
+    min-width: 0;
+  }
+  .ir-legend--chart { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
+  .ir-legend li,
+  .ir-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .ir-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .ir-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ir-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+  .ir-key--principal,
+  .ir-key--balance { background: var(--ir-principal); }
+  .ir-key--interest { background: var(--ir-interest); }
+  .ir-key--paid { background: var(--ir-paid); }
 
   .ir-disclaimer {
+    grid-column: 1 / -1;
     margin: 0;
     font-size: 0.8rem;
     line-height: 1.5;
