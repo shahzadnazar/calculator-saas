@@ -4,76 +4,84 @@ import SavingsCalculator from '@components/islands/SavingsCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'savings-calculator')!;
 const faqs = [
-  { question: 'How much will my savings grow?', answer: 'In "Project savings" mode, enter your starting balance, monthly deposit, expected return and time frame, and the calculator projects your future balance and how much of it is interest.' },
-  { question: 'How much do I need to save each month for a goal?', answer: 'Switch to "Reach a savings goal" mode, enter your target amount and time frame, and the calculator solves for the monthly deposit required — accounting for your starting balance and expected growth.' },
+  { question: 'How much will my savings grow?', answer: 'Enter your initial deposit, any annual or monthly contributions, the interest rate, how often it compounds and the number of years. The calculator returns your end balance and splits it into the deposit you started with, everything you contributed and the interest earned.' },
+  { question: 'When are contributions counted?', answer: 'At the end of each period. A monthly contribution is credited after that month’s interest and an annual contribution after the twelfth month’s, so neither earns interest in the period that created it. This is the conservative assumption, and it is why the first year’s interest is calculated on your initial deposit alone.' },
+  { question: 'What does the contribution "increase" do?', answer: 'It raises that contribution once a year, which is how savings usually behave in real life — you put a little more away as your income rises. A 3% annual increase on a $5,000 contribution makes it $5,150 in year two and $5,304.50 in year three. Leave it blank or at zero for a flat contribution.' },
+  { question: 'How does the tax rate change the result?', answer: 'Tax is charged on interest as it is earned, so the interest actually credited each period is the amount left after tax. That compounds too: on the example plan a 25% tax rate cuts interest from $14,797.59 to $10,767.06 — a $4,030.53 difference, of which $3,589.02 is tax paid and the rest is the growth that tax would have earned. Leave the field blank for a tax-free account.' },
+  { question: 'Which compounding frequency should I choose?', answer: 'Match whatever your account actually does — most savings accounts compound daily or monthly, while bonds and CDs often compound semiannually or annually. More frequent compounding always earns a little more at the same nominal rate, though the gap is small: on the example plan, daily instead of annually adds about $248 over ten years.' },
+  { question: 'Can I model withdrawals?', answer: 'Yes. A negative contribution is a withdrawal and a negative initial deposit is a starting debt, so you can project an account being drawn down as well as built up. The proportion bar and chart stand down when the balance is not a positive whole, but the figures and the schedule still work.' },
   { question: 'How much of my income should I save?', answer: 'A common guideline is the 50/30/20 rule: roughly 50% of take-home pay for needs, 30% for wants and 20% for saving and debt repayment. Saving 20% is a solid target, but any consistent amount beats none.' },
   { question: 'How big should my emergency fund be?', answer: 'Most guidance suggests three to six months of essential expenses, kept in an accessible, low-risk account such as a high-yield savings account. Build this first, before longer-term investing, so a surprise cost does not become debt.' },
-  { question: 'What return rate should I use?', answer: 'A high-yield savings account might return 3–5%, while long-term investments have historically returned more with more risk. Use a rate that matches where you will actually keep the money.' },
 ];
 ---
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Project how your savings grow with regular deposits, or work backwards to find the monthly amount needed to reach a specific goal."
+  intro="Estimate the end balance and interest of a savings account, allowing for annual and monthly contributions, contribution increases, compounding frequency and tax."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-22' }}
+  reviewMetadata={{ reviewedDate: '2026-08-27' }}
 >
   <SavingsCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Pick a mode: <strong>Project savings</strong> to grow deposits forward, or <strong>Reach a savings goal</strong> to solve for the deposit you need.</li>
-      <li>In Project mode, enter your <strong>starting balance</strong>, <strong>monthly deposit</strong>, expected <strong>annual return</strong> and number of <strong>years</strong>.</li>
-      <li>In Goal mode, enter your <strong>savings goal</strong>, starting balance, return and years instead.</li>
-      <li>Read the <strong>projected balance</strong> (or the <strong>required monthly deposit</strong>) and the split between what you put in and what growth added.</li>
+      <li>Enter your <strong>initial deposit</strong> — the balance the account starts with.</li>
+      <li>Add an <strong>annual contribution</strong>, a <strong>monthly contribution</strong>, or both. Beside each is an <strong>increase</strong>, the percent that contribution rises each year; leave it blank for a flat amount.</li>
+      <li>Set the <strong>interest rate</strong> and how often it <strong>compounds</strong>.</li>
+      <li>Enter the <strong>years to save</strong>, and a <strong>tax rate</strong> if the interest is taxable.</li>
+      <li>Press <strong>Calculate</strong> to see the end balance, what it is made of, and the year-by-year or month-by-month accumulation schedule.</li>
     </ol>
-
-    <h2>Two ways to plan</h2>
     <p>
-      <strong>Project savings</strong> shows where a consistent habit will take you — future
-      balance, total deposited and interest earned. <strong>Reach a savings goal</strong> flips
-      the question: name a target and a timeline, and it returns the monthly deposit required,
-      after crediting the growth on your starting balance. Both assume deposits are made monthly
-      with monthly compounding.
+      Switch to <strong>Reach a savings goal</strong> to ask the question the other way round:
+      name a target and the calculator solves for the flat monthly contribution that gets you
+      there, using the same deposit, rate, compounding, term and tax you entered.
     </p>
 
-    <h2>The formula</h2>
+    <h2>How the projection works</h2>
     <p>
-      Projecting forward combines the growth of your starting balance with the future value of a
-      stream of monthly deposits:
+      Interest accrues on the money actually in the account, at the rate the chosen compounding
+      frequency implies. <strong>Contributions are made at the end of each period</strong>: a
+      monthly contribution lands after that month's interest, an annual one after the twelfth
+      month's. Neither earns interest in the period that created it, which is why the first
+      year's interest is calculated on your initial deposit alone.
     </p>
-    <p><strong>FV = P(1 + i)<sup>n</sup> + D · ((1 + i)<sup>n</sup> − 1) / i</strong></p>
+    <p>
+      Tax is charged on interest as it is earned, so what gets credited each period is the
+      after-tax amount. That keeps the results honest in one specific way: the end balance is
+      always exactly your initial deposit plus total contributions plus interest earned, with no
+      rounding gap and nothing unaccounted for.
+    </p>
+
+    <h2>A worked example</h2>
+    <p>
+      Start with <strong>$20,000</strong>, contribute <strong>$5,000</strong> a year rising
+      <strong>3%</strong> annually, at <strong>3%</strong> interest compounded
+      <strong>annually</strong> for <strong>10 years</strong>. The end balance is
+      <strong>$92,116.99</strong>: the $20,000 you started with, <strong>$57,319.40</strong> of
+      contributions and <strong>$14,797.59</strong> of interest.
+    </p>
+    <p>
+      The first year shows the end-of-period rule plainly. Interest is $600 — three percent of
+      the $20,000 opening balance, not of the $25,000 that has been paid in by the time the year
+      closes — so the year ends at $25,600. In year two, interest is charged on that $25,600 and
+      the contribution has grown to $5,150.
+    </p>
+
+    <h2>What each field changes</h2>
     <ul>
-      <li><strong>FV</strong> — the projected future balance</li>
-      <li><strong>P</strong> — your starting balance</li>
-      <li><strong>D</strong> — the monthly deposit</li>
-      <li><strong>i</strong> — the monthly return (annual rate ÷ 12)</li>
-      <li><strong>n</strong> — the number of months (years × 12)</li>
+      <li><strong>Contribution increases.</strong> Dropping the 3% annual increase from the example above, so the contribution stays at $5,000, ends the ten years at $84,197.72 instead of $92,116.99 — the rising contribution is worth nearly $8,000.</li>
+      <li><strong>Compounding frequency.</strong> Switching that same plan from annually to daily raises the end balance to $92,364.84. More frequent compounding always earns more at the same nominal rate, but the gap is modest — about $248 over a decade.</li>
+      <li><strong>Tax rate.</strong> A 25% tax rate leaves $10,767.06 of interest rather than $14,797.59. Only $3,589.02 of that $4,030.53 difference is tax actually paid; the rest is the growth the tax would have gone on to earn.</li>
     </ul>
-    <p>
-      Goal mode rearranges the same equation to solve for <em>D</em>: it grows your starting
-      balance to the target date, subtracts that from the goal, and divides the shortfall by the
-      annuity factor ((1 + i)<sup>n</sup> − 1) / i.
-    </p>
 
-    <h2>A worked example: projecting forward</h2>
+    <h2>Projecting a monthly habit</h2>
     <p>
-      Save <strong>$500 a month</strong> in an account earning <strong>4%</strong> for
-      <strong>5 years</strong>, starting from zero. You finish with about
-      <strong>$33,149</strong> — roughly <strong>$30,000</strong> of deposits plus
-      <strong>$3,149</strong> of interest. Push the same habit to <strong>10 years</strong> and
-      the balance grows to about <strong>$73,625</strong>: the deposits double to $60,000, but the
-      interest more than quadruples to about $13,625, because each dollar has longer to compound.
-    </p>
-
-    <h2>Solving for a goal</h2>
-    <p>
-      Now flip it: you want <strong>$30,000</strong> in <strong>5 years</strong> at
-      <strong>4%</strong>, starting from zero. The calculator returns a required deposit of about
-      <strong>$452.50 a month</strong>. Begin with a <strong>$5,000</strong> balance instead and
-      that starting sum grows to about $6,105 on its own, cutting the required deposit to roughly
-      <strong>$360.41 a month</strong> — a concrete illustration of how a head start does part of
-      the work for you.
+      Save <strong>$500 a month</strong> in an account earning <strong>4%</strong> compounded
+      monthly for <strong>5 years</strong>, starting from zero. You finish with
+      <strong>$33,149.49</strong> — $30,000 of contributions plus $3,149.49 of interest. Push the
+      same habit to <strong>10 years</strong> and the balance reaches
+      <strong>$73,624.90</strong>: the contributions double to $60,000, but the interest more
+      than quadruples to $13,624.90, because each dollar has longer to compound.
     </p>
 
     <h2>How much should you save?</h2>
@@ -85,7 +93,7 @@ const faqs = [
       turning into debt.
     </p>
 
-    <h2>Choosing a realistic return</h2>
+    <h2>Choosing a realistic rate</h2>
     <p>
       Use a rate that matches where the money will actually sit. A high-yield savings account
       might return roughly 3–5%, while long-term investments have historically returned more with
@@ -97,15 +105,16 @@ const faqs = [
     <h2>Tips and limitations</h2>
     <ul>
       <li><strong>Automate it.</strong> A fixed transfer on payday is the single most reliable savings habit — you never have to decide to save.</li>
-      <li><strong>Whole years and monthly deposits.</strong> The projection assumes monthly deposits, monthly compounding and whole years, at one steady rate.</li>
-      <li><strong>Before tax and inflation.</strong> Interest in a taxable account is usually taxed, and results are in today's nominal dollars, so real buying power grows more slowly.</li>
-      <li><strong>Rates change.</strong> Savings rates move over time, so revisit the projection as your actual rate shifts.</li>
+      <li><strong>One steady rate.</strong> The projection holds the interest rate constant for the whole term. Real savings rates move, so revisit it as yours changes.</li>
+      <li><strong>Whole years.</strong> Terms are whole years, up to 100.</li>
+      <li><strong>Nominal dollars.</strong> Results are not adjusted for inflation, so real buying power grows more slowly than the balance suggests.</li>
+      <li><strong>Tax is a single flat rate.</strong> Real tax treatment depends on the account and your jurisdiction; tax-advantaged accounts may owe nothing at all.</li>
     </ul>
 
     <p>
       To model longer-term, higher-return investing with a contributions-versus-earnings split,
       see the <a href="/finance/investment-calculator">investment calculator</a>; to explore how
-      compounding frequency changes growth, use the
+      compounding frequency changes growth on a single sum, use the
       <a href="/finance/compound-interest-calculator">compound interest calculator</a>. This is
       general educational information, not financial advice.
     </p>
