@@ -1,188 +1,334 @@
 ---
 /**
- * Home Equity Loan calculator island (R15B2 — Loan family follow-on, 2 of 3; task-first migration).
+ * Home equity island — the two questions a home-equity borrower has, as two tools.
  *
- * Task-first, direct-intent: all fields start EMPTY, the result is an instruction, and the visitor
- * presses "Calculate Home Equity Loan" for the first result; live-after-first afterwards. Compute,
- * validation, state, announcement and focus are owned by the shared runtime + the Home Equity binding
- * (@lib/calculators/home-equity-loan-form), which wraps the UNCHANGED calculateHomeEquity / @lib/finance
- * `pmt` engine. The complete-result guard lives in the binding's resultValue (a NaN sentinel → the
- * runtime's default finite gate) — there is NO isUsableResult.
+ * FIRST, the loan itself: amount, rate and term produce the monthly payment, the total
+ * of every payment, the interest inside it, the ring splitting that total, the
+ * amortization schedule in both views and the amortization graph. Closing costs are an
+ * OPTIONAL disclosure behind an unchecked box — they never touch the payment, so they
+ * add what you actually receive and the real APR rather than changing the headline.
  *
- * INDEPENDENT of Loan and Amortization: this island imports the Home Equity binding only and shares no
- * implementation file with any other calculator (the mirror-not-share discipline). The dominant result
- * is the estimated monthly payment; the equity held and the LTV-capped maximum you can borrow are the
- * prominent secondary. The frozen result exposes no total-paid / total-interest / schedule, so NONE is
- * invented — and, unlike Loan, there is no amortization disclosure (and therefore no row-clearing
- * MutationObserver: nothing island-owned outlives a state change).
+ * SECOND, and optional, how much you could borrow at all: what the home is worth, what
+ * is still owed, and the loan-to-value the lender will go up to. It is a separate tool
+ * with its own form, its own result and its own binding, because a visitor usually
+ * wants one answer or the other — folding them together would mean six required fields
+ * to get either one.
  *
- * A requested loan ABOVE the LTV-capped maximum is a SHOWN informational outcome, not a rejection: the
- * payment, equity and maximum-borrow figures still render, with a neutral over-limit note. The borrowing
- * DISCLAIMER lives HERE (island-owned) so it appears exactly once on both the full page and the embed
- * (the embed renders only this island); it sits outside the live region and is not gated to a result.
+ * Both mount the shared form runtime on their own root, so state, validation, focus and
+ * the announcement are owned by the runtime and the two bindings. Neither knows about
+ * the other.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
-import { HOME_EQUITY_EXAMPLE_VALUES } from '@lib/calculators/home-equity-loan-form';
-
 ---
 
-<div class="he mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-he>
-  <!-- Inputs -->
-  <form class="card p-4" data-form novalidate aria-label="Home equity loan calculator">
-    <div class="grid gap-4 sm:grid-cols-2">
-      <div data-field="homeValue">
-        <label class="field-label" for="he-value">Home value</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="he-value" name="homeValue" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 400000" aria-describedby="he-value-error" />
+<div class="he-page mx-auto flex w-full max-w-5xl flex-col gap-8">
+  <!-- 1. The loan -->
+  <div class="he grid w-full gap-6 md:grid-cols-2 md:items-start" data-he>
+    <form class="card p-4" data-form novalidate aria-label="Home equity loan calculator">
+      <div class="he-fields">
+        <div data-field="loanAmount">
+          <label class="field-label" for="he-amount">Loan amount</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="he-amount" name="loanAmount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 150000" aria-describedby="he-amount-error" />
+          </div>
+          <p class="he-error" id="he-amount-error" data-error-for="loanAmount" hidden></p>
         </div>
-        <p class="he-field-error" id="he-value-error" data-error-for="homeValue" hidden></p>
-      </div>
 
-      <div data-field="mortgageBalance">
-        <label class="field-label" for="he-balance">Mortgage balance</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="he-balance" name="mortgageBalance" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 250000" aria-describedby="he-balance-error" />
+        <div data-field="annualRatePct">
+          <label class="field-label" for="he-rate">Interest rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="he-rate" name="annualRatePct" type="number" min="0" max="100" step="0.01" inputmode="decimal" autocomplete="off" placeholder="e.g. 8" aria-describedby="he-rate-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="he-error" id="he-rate-error" data-error-for="annualRatePct" hidden></p>
         </div>
-        <p class="he-field-error" id="he-balance-error" data-error-for="mortgageBalance" hidden></p>
-      </div>
 
-      <div data-field="maxLtvPct">
-        <label class="field-label" for="he-ltv">Maximum loan-to-value</label>
-        <div class="flex">
-          <input class="field rounded-r-none" id="he-ltv" name="maxLtvPct" type="number" min="0" max="100" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 85" aria-describedby="he-ltv-error" />
-          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        <div data-field="termYears">
+          <label class="field-label" for="he-term">Loan term</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="he-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 15" aria-describedby="he-term-error" />
+            <span class="field-affix rounded-r-lg border-l-0">years</span>
+          </div>
+          <p class="he-error" id="he-term-error" data-error-for="termYears" hidden></p>
         </div>
-        <p class="he-field-error" id="he-ltv-error" data-error-for="maxLtvPct" hidden></p>
       </div>
 
-      <div data-field="loanAmount">
-        <label class="field-label" for="he-loan">Loan amount you want</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="he-loan" name="loanAmount" type="number" min="0" step="5000" inputmode="decimal" autocomplete="off" placeholder="e.g. 50000" aria-describedby="he-loan-error" />
+      <!-- Optional: closing costs. Closed by default — the loan is answerable without them. -->
+      <div class="he-closing">
+        <label class="he-check">
+          <input type="checkbox" name="includeClosingCosts" data-he-include />
+          <span>Include closing costs below</span>
+        </label>
+
+        <div class="he-closing__body" data-he-closing-fields hidden>
+          <div data-field="closingAmount">
+            <label class="field-label" for="he-closing-amount">Closing costs</label>
+            <div class="he-closing__amount">
+              <div class="flex he-closing__input">
+                <span class="field-affix rounded-l-lg border-r-0" data-he-closing-affix>$</span>
+                <input class="field rounded-l-none" id="he-closing-amount" name="closingAmount" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 7500" aria-describedby="he-closing-amount-error" />
+              </div>
+              <select class="field he-closing__unit" name="closingUnit" aria-label="Closing costs unit">
+                <option value="usd" selected>$</option>
+                <option value="pct">% of loan</option>
+              </select>
+            </div>
+            <p class="he-error" id="he-closing-amount-error" data-error-for="closingAmount" hidden></p>
+          </div>
+
+          <fieldset class="he-treatment">
+            <legend class="field-label">to be</legend>
+            <label class="he-radio"><input type="radio" name="closingTreatment" value="deducted" checked /><span>deducted from loan</span></label>
+            <label class="he-radio"><input type="radio" name="closingTreatment" value="upfront" /><span>paid upfront</span></label>
+          </fieldset>
         </div>
-        <p class="he-field-error" id="he-loan-error" data-error-for="loanAmount" hidden></p>
       </div>
 
-      <div data-field="annualRatePct">
-        <label class="field-label" for="he-rate">Interest rate</label>
-        <div class="flex">
-          <input class="field rounded-r-none" id="he-rate" name="annualRatePct" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 8" aria-describedby="he-rate-error" />
-          <span class="field-affix rounded-r-lg border-l-0">%</span>
-        </div>
-        <p class="he-field-error" id="he-rate-error" data-error-for="annualRatePct" hidden></p>
+      <div class="mt-3 flex items-center gap-3">
+        <button type="submit" class="btn btn-primary" data-he-submit>Calculate</button>
+        <button type="button" class="btn btn-secondary" data-reset>Clear</button>
       </div>
+      <p class="he-live-note" data-live-note hidden>Changes update automatically.</p>
+    </form>
 
-      <div data-field="termYears">
-        <label class="field-label" for="he-term">Term (years)</label>
-        <input class="field" id="he-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="he-term-error" />
-        <p class="he-field-error" id="he-term-error" data-error-for="termYears" hidden></p>
-      </div>
-    </div>
+    <ResultShell id="he-result" state="empty" density="complex" label="Home equity loan result" minHeight="20rem">
+      <ExampleNotice />
+      <EmptyResult message="Enter the loan amount, the interest rate and the term, then press Calculate to see the monthly payment and what the loan costs." />
 
-    <div class="mt-3 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-he-submit>Calculate Home Equity Loan</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
-    </div>
-    <p class="he-live-note" data-live-note hidden>Changes update automatically.</p>
-  </form>
-
-  <!-- Result -->
-  <ResultShell id="he-result" state="empty" density="standard" label="Home equity loan result" minHeight="15rem">
-    <ExampleNotice />
-    <EmptyResult message="Enter your home value, mortgage balance, loan-to-value cap, loan amount, rate and term, then calculate to see your monthly payment and how much you can borrow." />
-
-    <div data-result-when="valid">
-      <div class="he-summary">
-        <ResultSummary label="Estimated monthly payment">
+      <div data-result-when="valid">
+        <ResultSummary label="Monthly pay">
           <ResultValue value="—" size="text-4xl" />
         </ResultSummary>
-        <dl class="he-metrics">
-          <div><dt>Your equity</dt><dd data-he-equity>—</dd></div>
-          <div><dt>Maximum you can borrow</dt><dd data-he-max>—</dd></div>
-        </dl>
+
+        <p class="he-interpretation" data-he-interpretation>—</p>
+
+        <ResultBreakdown title="What it costs">
+          <dl class="he-metrics">
+            <div><dt data-he-payments-label>Total of loan payments</dt><dd data-he-total>—</dd></div>
+            <div><dt>Total interest</dt><dd data-he-interest>—</dd></div>
+          </dl>
+
+          <!-- Only present once the visitor opens the closing-costs disclosure. -->
+          <div class="he-closing-result" data-he-closing hidden>
+            <p class="he-figure__title">With closing costs</p>
+            <dl class="he-metrics">
+              <div><dt>Closing costs</dt><dd data-he-closing-costs>—</dd></div>
+              <div><dt>Net cash you receive</dt><dd data-he-closing-net>—</dd></div>
+              <div data-he-closing-cash-row hidden><dt>Cash due at closing</dt><dd data-he-closing-cash>—</dd></div>
+              <div><dt>Real APR</dt><dd data-he-closing-apr>—</dd></div>
+            </dl>
+            <p class="he-closing-result__note" data-he-closing-note>—</p>
+          </div>
+
+          <figure class="he-donut" data-he-donut-figure hidden>
+            <figcaption class="he-figure__title">Payment breakdown</figcaption>
+            <div class="he-donut__row">
+              <div class="he-donut__plot" data-he-donut></div>
+              <ul class="he-legend">
+                <li><span class="he-key he-key--principal" aria-hidden="true"></span>Loan amount <b data-he-share-principal>—</b> <span class="he-legend__amt" data-he-share-principal-amt>—</span></li>
+                <li><span class="he-key he-key--interest" aria-hidden="true"></span>Interest <b data-he-share-interest>—</b> <span class="he-legend__amt" data-he-share-interest-amt>—</span></li>
+              </ul>
+            </div>
+          </figure>
+
+          <figure class="he-chart" data-he-chart-figure hidden>
+            <figcaption class="he-figure__title">Amortization graph</figcaption>
+            <div class="he-chart__plot" data-he-chart></div>
+            <p class="he-legend he-legend--chart">
+              <span><span class="he-key he-key--balance" aria-hidden="true"></span>Balance</span>
+              <span><span class="he-key he-key--interest" aria-hidden="true"></span>Interest</span>
+              <span><span class="he-key he-key--paid" aria-hidden="true"></span>Payment</span>
+            </p>
+          </figure>
+
+          <!-- Shown, not collapsed: the reference opens on the schedule, and it is
+               half the reason someone runs this calculator. -->
+          <div class="he-schedule" data-he-schedule data-he-view="yearly">
+            <p class="he-figure__title">Amortization schedule</p>
+            <fieldset class="he-view">
+              <legend class="sr-only">Schedule view</legend>
+              <label class="he-view__opt"><input type="radio" name="he-view" value="yearly" checked data-he-view-radio /><span>Annual</span></label>
+              <label class="he-view__opt"><input type="radio" name="he-view" value="monthly" data-he-view-radio /><span>Monthly</span></label>
+            </fieldset>
+
+            <div class="he-table-wrap">
+              <table class="he-table">
+                <caption class="sr-only">Amortization schedule showing each period's interest and principal and the balance remaining afterwards.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" class="he-th-period"><span data-he-when-view="yearly">Year</span><span data-he-when-view="monthly">Month</span></th>
+                    <th scope="col" class="he-num">Interest</th>
+                    <th scope="col" class="he-num">Principal</th>
+                    <th scope="col" class="he-num he-col-extra">Extra</th>
+                    <th scope="col" class="he-num">Ending balance</th>
+                  </tr>
+                </thead>
+                <tbody data-he-rows-yearly></tbody>
+                <tbody data-he-rows-monthly></tbody>
+              </table>
+            </div>
+            <p class="he-schedule__note">Amounts are in US dollars (USD).</p>
+          </div>
+        </ResultBreakdown>
       </div>
 
-      <p class="he-interpretation" data-he-interpretation>—</p>
-      <p class="he-overlimit" data-he-overlimit role="note" hidden></p>
+      <InvalidResult
+        title="Check your entries"
+        message="Enter a loan amount, an interest rate and a whole term from 1 to 30 years. Closing costs are optional."
+      />
+
+      <ResultAnnouncement id="he-live" />
+    </ResultShell>
+  </div>
+
+  <!-- 2. Optional: how much you could borrow at all -->
+  <section class="hb-section" aria-labelledby="hb-title">
+    <h2 class="hb-title" id="hb-title">The loan amount you can borrow</h2>
+    <p class="hb-intro">
+      Optional. Estimate the maximum home equity loan you may be able to borrow, based on
+      what your home is worth, what is left on your mortgage, and the loan-to-value ratio
+      your lender will accept.
+    </p>
+
+    <div class="hb grid w-full gap-6 md:grid-cols-2 md:items-start" data-hb>
+      <form class="card p-4" data-form novalidate aria-label="How much you can borrow calculator">
+        <div class="he-fields">
+          <div data-field="homeValue">
+            <label class="field-label" for="hb-value">Current value of your house</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="hb-value" name="homeValue" type="number" min="0" step="10000" inputmode="decimal" autocomplete="off" placeholder="e.g. 600000" aria-describedby="hb-value-error" />
+            </div>
+            <p class="he-error" id="hb-value-error" data-error-for="homeValue" hidden></p>
+          </div>
+
+          <div data-field="mortgageBalance">
+            <label class="field-label" for="hb-mortgage">Outstanding balance of your mortgage</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="hb-mortgage" name="mortgageBalance" type="number" min="0" step="10000" inputmode="decimal" autocomplete="off" placeholder="e.g. 250000" aria-describedby="hb-mortgage-error" />
+            </div>
+            <p class="he-error" id="hb-mortgage-error" data-error-for="mortgageBalance" hidden></p>
+          </div>
+
+          <div data-field="maxLtvPct">
+            <label class="field-label" for="hb-ltv">LTV ratio acceptable by lender</label>
+            <select class="field" id="hb-ltv" name="maxLtvPct" aria-describedby="hb-ltv-error">
+              <option value="70">70%</option>
+              <option value="75">75%</option>
+              <option value="80" selected>80%</option>
+              <option value="85">85%</option>
+              <option value="90">90%</option>
+              <option value="95">95%</option>
+              <option value="100">100%</option>
+            </select>
+            <p class="he-error" id="hb-ltv-error" data-error-for="maxLtvPct" hidden></p>
+          </div>
+        </div>
+
+        <div class="mt-3 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary" data-hb-submit>Calculate</button>
+          <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+        </div>
+        <p class="he-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ResultShell id="hb-result" state="empty" density="standard" label="Borrowing power result" minHeight="12rem">
+        <ExampleNotice />
+        <EmptyResult message="Enter your home's value, your mortgage balance and your lender's loan-to-value ratio to see how much you may be able to borrow." />
+
+        <div data-result-when="valid">
+          <ResultSummary label="You may borrow up to">
+            <ResultValue value="—" size="text-4xl" />
+          </ResultSummary>
+
+          <p class="he-interpretation" data-hb-summary>—</p>
+
+          <dl class="he-metrics">
+            <div><dt>Your current loan-to-value ratio</dt><dd data-hb-ltv>—</dd></div>
+            <div><dt>Equity you hold</dt><dd data-hb-equity>—</dd></div>
+          </dl>
+
+          <p class="hb-caveat">
+            Other factors affect what you finally qualify for. Applicants with a credit score
+            below 630 may not qualify for a home equity loan, other debts count against you,
+            and lenders typically will not approve a borrower with a debt-to-income ratio of
+            43% or higher.
+          </p>
+        </div>
+
+        <InvalidResult
+          title="Check your entries"
+          message="Enter your home's current value, the balance left on your mortgage, and the loan-to-value ratio your lender accepts."
+        />
+
+        <ResultAnnouncement id="hb-live" />
+      </ResultShell>
     </div>
-
-    <InvalidResult
-      title="Check your entries"
-      message="Enter a home value, mortgage balance, loan-to-value between 0 and 100 percent, loan amount, interest rate, and a whole loan term from 1 to 30 years."
-    />
-
-    <ResultAnnouncement id="he-live" />
-  </ResultShell>
-
-  <!-- Island-owned borrowing disclaimer: rendered once on both the full page and the embed. -->
-  <p class="he-disclaimer" role="note">
-    A home equity loan is secured by your home — missing payments can put the property at risk. These
-    figures are educational estimates, not financial advice or a loan offer.
-  </p>
+  </section>
 </div>
 
 <style>
-  .he-field-error {
+  /* Series colours: the same three the rest of the borrowing family uses, so a series
+     keeps its identity across the site. */
+  .he-page {
+    --he-principal: #7c3aed;
+    --he-interest: #ea580c;
+    --he-paid: #0e9f6e;
+  }
+
+  .he-page :global(*) { min-width: 0; }
+  .he-page .field-label { margin-bottom: 0.15rem; line-height: 1.25; }
+
+  .he-fields { display: grid; gap: 0.6rem; }
+
+  .he-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .he-field-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .he-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .he-field-error {
-    color: #fca5a5;
-  }
+  :root[data-theme='dark'] .he-error { color: #fca5a5; }
 
-  .he-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
+  .he-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
-  /* Summary: dominant payment + supporting equity / max-borrow */
-  .he-summary {
-    display: grid;
-    gap: 1rem;
-    align-items: center;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 640px) {
-    .he-summary {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-    }
-  }
-  .he-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
-    align-self: center;
-  }
+  /* ---- the optional closing-costs disclosure ---- */
+  .he-closing { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+  .he-check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 600; color: var(--heading); cursor: pointer; }
+  .he-check input { width: 1rem; height: 1rem; accent-color: var(--color-brand-600); }
+  .he-closing__body { margin-top: 0.6rem; padding-left: 1.5rem; display: grid; gap: 0.6rem; }
+  .he-closing__amount { display: flex; gap: 0.4rem; }
+  .he-closing__input { flex: 1 1 auto; min-width: 0; }
+  .he-closing__unit { flex: 0 0 7rem; }
+  .he-treatment { border: 0; padding: 0; margin: 0; }
+  .he-radio { display: flex; align-items: center; gap: 0.45rem; font-size: 0.88rem; color: var(--fg); cursor: pointer; padding: 0.1rem 0; }
+  .he-radio input { width: 0.95rem; height: 0.95rem; accent-color: var(--color-brand-600); }
+
+  /* ---- result ---- */
+  .he-interpretation { margin: 0.4rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+
+  .he-metrics { margin: 0; display: grid; gap: 0.2rem; }
   .he-metrics > div {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.35rem 0;
+    padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
-  .he-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
+  .he-metrics dt { color: var(--fg); font-weight: 600; }
   .he-metrics dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
@@ -191,43 +337,185 @@ import { HOME_EQUITY_EXAMPLE_VALUES } from '@lib/calculators/home-equity-loan-fo
     white-space: nowrap;
   }
 
-  .he-interpretation {
-    margin: 1.25rem 0 0;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    color: var(--fg);
-  }
-
-  /* Over-limit note: the frozen estimator warning, shown only when the requested
-     loan exceeds the LTV-capped maximum (the result itself stays valid). */
-  .he-overlimit {
-    margin: 0.85rem 0 0;
-    padding: 0.65rem 0.85rem;
-    border-radius: 0.6rem;
-    border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
-    background: color-mix(in srgb, var(--color-danger) 8%, transparent);
-    font-size: 0.9rem;
-    line-height: 1.45;
-    color: var(--heading);
-  }
-
-  .he-disclaimer {
-    margin: 0;
-    font-size: 0.8rem;
-    line-height: 1.5;
+  .he-figure__title {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--muted);
   }
+
+  .he-closing-result { margin-top: 0.9rem; }
+  .he-closing-result__note { margin: 0.5rem 0 0; font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
+
+  .he-donut { margin: 0.9rem 0 0; }
+  .he-donut__row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .he-donut__plot { flex: 0 0 auto; width: 11.5rem; }
+  .he-donut :global(.he-donut__svg) { display: block; width: 100%; height: auto; }
+  .he-donut :global(.he-donut__arc--principal) { stroke: var(--he-principal); }
+  .he-donut :global(.he-donut__arc--interest) { stroke: var(--he-interest); }
+  .he-donut :global(.he-donut__label) { fill: var(--heading); font-size: 11px; font-weight: 700; }
+
+  .he-chart { margin: 0.9rem 0 0; }
+  .he-chart__plot { width: 100%; }
+  .he-chart :global(.he-chart__svg) { display: block; width: 100%; height: auto; }
+  .he-chart :global(.he-chart__grid) { stroke: var(--line); stroke-width: 1; }
+  .he-chart :global(.he-chart__tick) { fill: var(--muted); font-size: 9px; }
+  .he-chart :global(.he-chart__line) { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .he-chart :global(.he-chart__line--balance) { stroke: var(--he-principal); }
+  .he-chart :global(.he-chart__line--interest) { stroke: var(--he-interest); }
+  .he-chart :global(.he-chart__line--paid) { stroke: var(--he-paid); }
+
+  .he-legend {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+    flex: 1 1 9rem;
+    min-width: 0;
+  }
+  .he-legend--chart { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
+  .he-legend li,
+  .he-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .he-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .he-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .he-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+  .he-key--principal,
+  .he-key--balance { background: var(--he-principal); }
+  .he-key--interest { background: var(--he-interest); }
+  .he-key--paid { background: var(--he-paid); }
+
+  /* ---- the schedule ---- */
+  .he-schedule { margin-top: 1.1rem; }
+  .he-view { border: 0; padding: 0; margin: 0 0 0.5rem; display: flex; gap: 0.4rem; }
+  /* The input covers the whole pill so it is genuinely clickable and focusable —
+     a zero-size, pointer-events:none input leaves only the label hittable. */
+  .he-view__opt { position: relative; display: inline-flex; }
+  .he-view__opt input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; }
+  .he-view__opt span {
+    display: inline-block;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .he-view__opt:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .he-view__opt:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .he-table-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
+  .he-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .he-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  /* Rows are built with the DOM API, so these must be global — a scoped selector
+     compiles to an attribute the generated cells never carry. */
+  .he-table :global(.he-cell) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .he-table :global(.he-cell--period) { font-weight: 600; color: var(--fg); text-align: left; }
+  .he-table th.he-num,
+  .he-table :global(td.he-num) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .he-table :global(.he-year-end) > :global(.he-cell--yearend) {
+    background: var(--surface-2, var(--line));
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--heading);
+    text-align: left;
+  }
+  /* This calculator has no extra-payment field, so that column never applies. */
+  .he-table th.he-col-extra,
+  .he-table :global(td.he-col-extra) { display: none; }
+
+  .he-schedule[data-he-view='yearly'] :global([data-he-rows-monthly]),
+  .he-schedule[data-he-view='monthly'] :global([data-he-rows-yearly]) { display: none; }
+  .he-schedule[data-he-view='yearly'] [data-he-when-view='monthly'],
+  .he-schedule[data-he-view='monthly'] [data-he-when-view='yearly'] { display: none; }
+
+  .he-schedule__note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
+
+  /* ---- the second, optional calculator ---- */
+  .hb-section { border-top: 1px solid var(--line); padding-top: 1.5rem; }
+  .hb-title { margin: 0 0 0.35rem; font-size: 1.25rem; font-weight: 800; color: var(--heading); }
+  .hb-intro { margin: 0 0 1rem; font-size: 0.92rem; line-height: 1.55; color: var(--muted); max-width: 68ch; }
+  .hb-caveat { margin: 0.9rem 0 0; font-size: 0.82rem; line-height: 1.55; color: var(--muted); }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
   import { homeEquityBinding, HOME_EQUITY_EXAMPLE_VALUES } from '@lib/calculators/home-equity-loan-form';
+  import { borrowingBinding, BORROWING_EXAMPLE_VALUES } from '@lib/calculators/home-equity-borrowing-form';
 
+  /* ---- 1. the loan ---- */
   document.querySelectorAll<HTMLElement>('[data-he]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-form]')!;
+
     mountFormCalculator(root, homeEquityBinding, {
       recalculationMode: 'live-after-first',
       example: { values: HOME_EQUITY_EXAMPLE_VALUES },
-      calculateButtonLabel: 'Calculate Home Equity Loan',
+      calculateButtonLabel: 'Calculate',
+    });
+
+    // The closing-costs disclosure. Opening it is a structural change, so it drives
+    // the runtime's live-after-first path (a no-op before the first calculation).
+    const include = root.querySelector<HTMLInputElement>('[data-he-include]')!;
+    const fields = root.querySelector<HTMLElement>('[data-he-closing-fields]')!;
+    const syncDisclosure = () => {
+      fields.hidden = !include.checked;
+    };
+    syncDisclosure();
+    include.addEventListener('change', () => {
+      syncDisclosure();
+      if (include.checked) fields.querySelector<HTMLInputElement>('[name="closingAmount"]')?.focus();
+    });
+
+    // The affix mirrors the unit, so the box always reads as what it holds.
+    const unit = root.querySelector<HTMLSelectElement>('[name="closingUnit"]')!;
+    const affix = root.querySelector<HTMLElement>('[data-he-closing-affix]')!;
+    const amount = root.querySelector<HTMLInputElement>('[name="closingAmount"]')!;
+    const syncUnit = () => {
+      const pct = unit.value === 'pct';
+      affix.textContent = pct ? '%' : '$';
+      amount.step = pct ? '0.1' : '100';
+      amount.placeholder = pct ? 'e.g. 5' : 'e.g. 7500';
+    };
+    syncUnit();
+    unit.addEventListener('change', syncUnit);
+
+    // Reset closes the disclosure again, so the checkbox and the panel must not drift.
+    form.addEventListener('reset', () => queueMicrotask(syncDisclosure));
+    root.querySelector('[data-reset]')?.addEventListener('click', () => queueMicrotask(() => {
+      syncDisclosure();
+      syncUnit();
+    }));
+
+    // Annual ⇆ Monthly is a VIEW of one computed schedule, never a recalculation.
+    const schedule = root.querySelector<HTMLElement>('[data-he-schedule]');
+    root.querySelectorAll<HTMLInputElement>('[data-he-view-radio]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        if (schedule && radio.checked) schedule.dataset.heView = radio.value;
+      });
+    });
+  });
+
+  /* ---- 2. how much you can borrow ---- */
+  document.querySelectorAll<HTMLElement>('[data-hb]').forEach((root) => {
+    mountFormCalculator(root, borrowingBinding, {
+      recalculationMode: 'live-after-first',
+      example: { values: BORROWING_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
     });
   });
 </script>
