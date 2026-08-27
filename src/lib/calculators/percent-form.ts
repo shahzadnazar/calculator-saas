@@ -4,6 +4,12 @@
  * tested; the DOM parts (readOperands, renderResult, resetOperands) are
  * exercised end-to-end. All numeric work delegates to the reviewed pure
  * `percentOf` / `whatPercent` / `percentChange`.
+ *
+ * Every equation's result carries its own WORKING — the arithmetic written out, the
+ * way the answer would be shown on paper. The steps travel WITH the result rather
+ * than being rebuilt from the DOM at render time, because the labelled example is
+ * computed from its own operands and never from the fields: reading the inputs in
+ * `renderResult` would print working that contradicted the example beside it.
  */
 import { percentOf, whatPercent, percentChange, percentOfWhat, percentageDifference, applyPercentChange } from './percent';
 import { formatNumber } from '@lib/format';
@@ -55,6 +61,63 @@ export interface ApplyChangeOperands {
   value: string;
   direction: string;
   percent: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* The working shown with each answer                                  */
+/* ------------------------------------------------------------------ */
+
+/** An answer and the arithmetic that produced it. */
+export interface StepResult {
+  value: number;
+  /** One line of working, e.g. "35% of 1,999 = 0.35 × 1,999 = 699.65". */
+  steps: string;
+}
+
+/** A figure as it appears in the working — the same rounding the answer uses. */
+const num = (value: number): string => formatNumber(value, 2);
+
+/**
+ * A multiplier as it appears in the working: 35% becomes 0.35, not 0.35000. Up to
+ * ten decimals, with the trailing zeros trimmed, so an awkward rate like 7.35% reads
+ * as 0.0735 rather than being rounded away to 0.07.
+ */
+export function multiplier(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return String(Number(value.toFixed(10)));
+}
+
+export function percentOfSteps(percent: number, value: number, result: number): string {
+  return `${num(percent)}% of ${num(value)} = ${multiplier(percent / 100)} × ${num(value)} = ${num(result)}`;
+}
+
+export function whatPercentSteps(part: number, whole: number, result: number): string {
+  return `${num(part)} ÷ ${num(whole)} × 100 = ${num(result)}%`;
+}
+
+export function percentChangeSteps(from: number, to: number, result: number): string {
+  return `(${num(to)} − ${num(from)}) ÷ ${num(from)} × 100 = ${num(result)}%`;
+}
+
+export function percentOfWhatSteps(part: number, percent: number, result: number): string {
+  return `${num(part)} ÷ ${multiplier(percent / 100)} = ${num(result)}`;
+}
+
+export function percentDifferenceSteps(a: number, b: number, result: number): string {
+  // Written against the MEAN, which is what makes this symmetric — and what most
+  // people are surprised by, so the working says it out loud.
+  return `|${num(a)} − ${num(b)}| ÷ ((${num(a)} + ${num(b)}) ÷ 2) × 100 = ${num(result)}%`;
+}
+
+export function applyChangeSteps(
+  value: number,
+  percent: number,
+  direction: 'increase' | 'decrease',
+  result: number,
+): string {
+  const factor = direction === 'decrease' ? 1 - percent / 100 : 1 + percent / 100;
+  const sign = direction === 'decrease' ? '−' : '+';
+  return `${num(value)} ${sign} ${num(percent)}% of ${num(value)} = ${num(value)} × ${multiplier(factor)} = ${num(result)}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -122,10 +185,13 @@ export interface PercentChangeResult {
   /** Signed percentage change ((to − from) / |from| × 100). */
   percent: number;
   direction: ChangeDirection;
+  /** The arithmetic written out. */
+  steps: string;
 }
 
 export function computePercentChangeResult(from: number, to: number): PercentChangeResult {
-  return { percent: percentChange(from, to), direction: changeDirection(from, to) };
+  const percent = percentChange(from, to);
+  return { percent, direction: changeDirection(from, to), steps: percentChangeSteps(from, to, percent) };
 }
 
 /** e.g. "25 percent increase", "10 percent decrease", "No change". */
@@ -196,14 +262,26 @@ export function validateApplyChange(o: ApplyChangeOperands): ValidationResult {
 /* Bindings                                                            */
 /* ------------------------------------------------------------------ */
 
-export const percentOfBinding: EquationCalculatorBinding<PercentOfOperands, number> = {
+/** Write the working into this equation's result. Absent markup is simply skipped. */
+function setSteps(scope: HTMLElement, steps: string): void {
+  const el = scope.querySelector<HTMLElement>('[data-eq-steps]');
+  if (el) el.textContent = steps;
+}
+
+export const percentOfBinding: EquationCalculatorBinding<PercentOfOperands, StepResult> = {
   readOperands: (root) => ({ percent: readField(root, 'percent'), value: readField(root, 'value') }),
   validate: validatePercentOf,
-  compute: (o) => percentOf(Number(o.percent), Number(o.value)),
-  resultValue: (r) => r,
-  describeResult: describeAmount,
+  compute: (o) => {
+    const percent = Number(o.percent);
+    const value = Number(o.value);
+    const result = percentOf(percent, value);
+    return { value: result, steps: percentOfSteps(percent, value, result) };
+  },
+  resultValue: (r) => r.value,
+  describeResult: (r) => describeAmount(r.value),
   renderResult(result, ctx: EquationRenderContext) {
-    setValue(ctx.result, describeAmount(result), describeAmount(result));
+    setValue(ctx.result, describeAmount(result.value), describeAmount(result.value));
+    setSteps(ctx.result, result.steps);
   },
   resetOperands(root) {
     clearField(root, 'percent');
@@ -211,15 +289,21 @@ export const percentOfBinding: EquationCalculatorBinding<PercentOfOperands, numb
   },
 };
 
-export const whatPercentBinding: EquationCalculatorBinding<WhatPercentOperands, number> = {
+export const whatPercentBinding: EquationCalculatorBinding<WhatPercentOperands, StepResult> = {
   readOperands: (root) => ({ part: readField(root, 'part'), whole: readField(root, 'whole') }),
   validate: validateWhatPercent,
-  compute: (o) => whatPercent(Number(o.part), Number(o.whole)),
-  resultValue: (r) => r,
-  describeResult: describePercentage,
+  compute: (o) => {
+    const part = Number(o.part);
+    const whole = Number(o.whole);
+    const result = whatPercent(part, whole);
+    return { value: result, steps: whatPercentSteps(part, whole, result) };
+  },
+  resultValue: (r) => r.value,
+  describeResult: (r) => describePercentage(r.value),
   renderResult(result, ctx: EquationRenderContext) {
-    const text = formatNumber(result, 2);
+    const text = formatNumber(result.value, 2);
     setValue(ctx.result, text, accessibleResultName(text, PERCENT_UNIT), PERCENT_UNIT);
+    setSteps(ctx.result, result.steps);
   },
   resetOperands(root) {
     clearField(root, 'part');
@@ -236,6 +320,7 @@ export const percentChangeBinding: EquationCalculatorBinding<PercentChangeOperan
   renderResult(result, ctx: EquationRenderContext) {
     const magnitude = result.direction === 'no change' ? formatNumber(0, 2) : formatNumber(Math.abs(result.percent), 2);
     setValue(ctx.result, magnitude, describePercentChange(result), PERCENT_UNIT);
+    setSteps(ctx.result, result.steps);
     // Direction as TEXT (never colour/arrow alone), derived from the operands.
     const dirEl = ctx.result.querySelector<HTMLElement>('[data-eq-direction]');
     if (dirEl) {
@@ -264,14 +349,20 @@ export const percentChangeBinding: EquationCalculatorBinding<PercentChangeOperan
  * figure comes from `percentExamples()` — the same reviewed `percentOf` /
  * `whatPercent` / `percentChange` the calculator uses — so nothing can drift.
  */
-export const percentOfWhatBinding: EquationCalculatorBinding<PercentOfWhatOperands, number> = {
+export const percentOfWhatBinding: EquationCalculatorBinding<PercentOfWhatOperands, StepResult> = {
   readOperands: (root) => ({ part: readField(root, 'part'), percent: readField(root, 'percent') }),
   validate: validatePercentOfWhat,
-  compute: (o) => percentOfWhat(Number(o.part), Number(o.percent)),
-  resultValue: (r) => r,
-  describeResult: describeAmount,
+  compute: (o) => {
+    const part = Number(o.part);
+    const percent = Number(o.percent);
+    const result = percentOfWhat(part, percent);
+    return { value: result, steps: percentOfWhatSteps(part, percent, result) };
+  },
+  resultValue: (r) => r.value,
+  describeResult: (r) => describeAmount(r.value),
   renderResult(result, ctx: EquationRenderContext) {
-    setValue(ctx.result, describeAmount(result), describeAmount(result));
+    setValue(ctx.result, describeAmount(result.value), describeAmount(result.value));
+    setSteps(ctx.result, result.steps);
   },
   resetOperands(root) {
     clearField(root, 'part');
@@ -279,15 +370,21 @@ export const percentOfWhatBinding: EquationCalculatorBinding<PercentOfWhatOperan
   },
 };
 
-export const percentDifferenceBinding: EquationCalculatorBinding<PercentDifferenceOperands, number> = {
+export const percentDifferenceBinding: EquationCalculatorBinding<PercentDifferenceOperands, StepResult> = {
   readOperands: (root) => ({ a: readField(root, 'a'), b: readField(root, 'b') }),
   validate: validatePercentDifference,
-  compute: (o) => percentageDifference(Number(o.a), Number(o.b)),
-  resultValue: (r) => r,
-  describeResult: describePercentage,
+  compute: (o) => {
+    const a = Number(o.a);
+    const b = Number(o.b);
+    const result = percentageDifference(a, b);
+    return { value: result, steps: percentDifferenceSteps(a, b, result) };
+  },
+  resultValue: (r) => r.value,
+  describeResult: (r) => describePercentage(r.value),
   renderResult(result, ctx: EquationRenderContext) {
-    const text = formatNumber(result, 2);
+    const text = formatNumber(result.value, 2);
     setValue(ctx.result, text, accessibleResultName(text, PERCENT_UNIT), PERCENT_UNIT);
+    setSteps(ctx.result, result.steps);
   },
   resetOperands(root) {
     clearField(root, 'a');
@@ -295,7 +392,7 @@ export const percentDifferenceBinding: EquationCalculatorBinding<PercentDifferen
   },
 };
 
-export const applyChangeBinding: EquationCalculatorBinding<ApplyChangeOperands, number> = {
+export const applyChangeBinding: EquationCalculatorBinding<ApplyChangeOperands, StepResult> = {
   readOperands: (root) => ({
     value: readField(root, 'value'),
     // The direction is a <select>, so it always has one of its two values.
@@ -303,12 +400,18 @@ export const applyChangeBinding: EquationCalculatorBinding<ApplyChangeOperands, 
     percent: readField(root, 'percent'),
   }),
   validate: validateApplyChange,
-  compute: (o) =>
-    applyPercentChange(Number(o.value), Number(o.percent), o.direction === 'decrease' ? 'decrease' : 'increase'),
-  resultValue: (r) => r,
-  describeResult: describeAmount,
+  compute: (o) => {
+    const value = Number(o.value);
+    const percent = Number(o.percent);
+    const direction = o.direction === 'decrease' ? 'decrease' : 'increase';
+    const result = applyPercentChange(value, percent, direction);
+    return { value: result, steps: applyChangeSteps(value, percent, direction, result) };
+  },
+  resultValue: (r) => r.value,
+  describeResult: (r) => describeAmount(r.value),
   renderResult(result, ctx: EquationRenderContext) {
-    setValue(ctx.result, describeAmount(result), describeAmount(result));
+    setValue(ctx.result, describeAmount(result.value), describeAmount(result.value));
+    setSteps(ctx.result, result.steps);
   },
   resetOperands(root) {
     clearField(root, 'value');

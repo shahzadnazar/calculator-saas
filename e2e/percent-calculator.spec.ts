@@ -24,6 +24,7 @@ const state = (page: Page, eq: string) => shell(page, eq).getAttribute('data-res
 const value = (page: Page, eq: string) => page.locator(`${eq} [data-result-when~="valid"] [data-result-value]`);
 const liveOf = (page: Page, eq: string) => page.locator(`${eq} [data-result-live]`);
 const submitOf = (page: Page, eq: string) => page.locator(`${eq} button[type="submit"]`);
+const stepsOf = (page: Page, eq: string) => page.locator(`${eq} [data-eq-steps]`);
 
 test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
@@ -298,4 +299,76 @@ test('the added equations stay independent of the original three', async ({ page
   for (const eq of [OF, WHAT, CHANGE, OF_WHAT, APPLY]) {
     await expect(shell(page, eq)).toHaveAttribute('data-result-state', 'example');
   }
+});
+
+/* ---- The working shown with each answer ---------------------------------- */
+
+test.describe('steps: every answer shows its arithmetic', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  test('the reference’s own worked example is written out under the answer', async ({ page }) => {
+    await page.fill('#pof-percent', '35');
+    await page.fill('#pof-value', '1999');
+    await submitOf(page, OF).click();
+    await expect(value(page, OF)).toHaveText('699.65');
+    await expect(stepsOf(page, OF)).toHaveText('35% of 1,999 = 0.35 × 1,999 = 699.65');
+    // Labelled as steps, and recessive against the answer it explains.
+    const [answer, steps] = await Promise.all([
+      value(page, OF).evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+      stepsOf(page, OF).evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+    ]);
+    expect(answer).toBeGreaterThan(steps * 1.5);
+    expect(await stepsOf(page, OF).evaluate((el) => getComputedStyle(el, '::before').content)).toContain('Steps');
+  });
+
+  test('each of the six equations writes out its own working', async ({ page }) => {
+    const cases: Array<[string, Record<string, string>, string]> = [
+      [OF, { '#pof-percent': '35', '#pof-value': '1999' }, '35% of 1,999 = 0.35 × 1,999 = 699.65'],
+      [WHAT, { '#wp-part': '50', '#wp-whole': '200' }, '50 ÷ 200 × 100 = 25%'],
+      [CHANGE, { '#pc-from': '200', '#pc-to': '250' }, '(250 − 200) ÷ 200 × 100 = 25%'],
+      [OF_WHAT, { '#pow-part': '30', '#pow-percent': '15' }, '30 ÷ 0.15 = 200'],
+      [DIFF, { '#pd-a': '10', '#pd-b': '6' }, '|10 − 6| ÷ ((10 + 6) ÷ 2) × 100 = 50%'],
+      [APPLY, { '#ac-value': '500', '#ac-percent': '10' }, '500 + 10% of 500 = 500 × 1.1 = 550'],
+    ];
+    for (const [eq, fields, expected] of cases) {
+      for (const [sel, v] of Object.entries(fields)) await page.fill(sel, v);
+      await submitOf(page, eq).click();
+      await expect(stepsOf(page, eq)).toHaveText(expected);
+    }
+  });
+
+  test('the working updates live with the answer', async ({ page }) => {
+    await page.fill('#pof-percent', '35');
+    await page.fill('#pof-value', '1999');
+    await submitOf(page, OF).click();
+    await page.fill('#pof-percent', '46');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(value(page, OF)).toHaveText('919.54');
+    await expect(stepsOf(page, OF)).toHaveText('46% of 1,999 = 0.46 × 1,999 = 919.54');
+  });
+
+  test('the labelled example carries the working for the numbers IT shows', async ({ page }) => {
+    // The example is computed from its own operands, never from the empty fields.
+    await expect(shell(page, OF)).toHaveAttribute('data-result-state', 'example');
+    const steps = (await stepsOf(page, OF).textContent())!;
+    const shown = (await value(page, OF).textContent())!;
+    expect(steps).not.toMatch(/NaN|Infinity|undefined/);
+    expect(steps.replace(/,/g, '')).toContain(shown.replace(/,/g, ''));
+  });
+
+  test('the working goes with the result when the entry stops being valid', async ({ page }) => {
+    // On load every equation shows its labelled example, working included — that is
+    // the example explaining itself, not a stray line.
+    await expect(stepsOf(page, DIFF)).toBeVisible();
+    await page.fill('#pof-percent', '35');
+    await page.fill('#pof-value', '1999');
+    await submitOf(page, OF).click();
+    await expect(stepsOf(page, OF)).toBeVisible();
+    await page.fill('#pof-value', '');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page, OF)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator(`${OF} [data-result-when~="valid"]`)).toBeHidden();
+  });
 });

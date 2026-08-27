@@ -55,6 +55,7 @@ const ex = percentExamples();
         <ResultSummary label="Amount">
           <ResultValue value="—" size="text-3xl" />
         </ResultSummary>
+        <p class="eq-steps" data-eq-steps></p>
       </div>
       <InvalidResult message="Enter both values to calculate." />
       <ResultAnnouncement id="pof-live" />
@@ -84,6 +85,7 @@ const ex = percentExamples();
         <ResultSummary label="Percentage">
           <ResultValue value="—" unit="%" size="text-3xl" />
         </ResultSummary>
+        <p class="eq-steps" data-eq-steps></p>
       </div>
       <InvalidResult message="Enter both values to calculate." />
       <ResultAnnouncement id="wp-live" />
@@ -115,6 +117,7 @@ const ex = percentExamples();
           <ResultValue value="—" unit="%" size="text-3xl" />
         </ResultSummary>
         <p class="eq-direction" data-eq-direction></p>
+        <p class="eq-steps" data-eq-steps></p>
       </div>
       <InvalidResult message="Enter both values to calculate." />
       <ResultAnnouncement id="pc-live" />
@@ -147,6 +150,7 @@ const ex = percentExamples();
         <ResultSummary label="Total">
           <ResultValue value="—" size="text-3xl" />
         </ResultSummary>
+        <p class="eq-steps" data-eq-steps></p>
       </div>
       <InvalidResult message="Enter both values to calculate." />
       <ResultAnnouncement id="pow-live" />
@@ -177,6 +181,7 @@ const ex = percentExamples();
         <ResultSummary label="Percentage difference">
           <ResultValue value="—" unit="%" size="text-3xl" />
         </ResultSummary>
+        <p class="eq-steps" data-eq-steps></p>
         <p class="eq-note">Measured against the average of the two — the order you enter them does not matter.</p>
       </div>
       <InvalidResult message="Enter both values to calculate." />
@@ -215,6 +220,7 @@ const ex = percentExamples();
         <ResultSummary label="New value">
           <ResultValue value="—" size="text-3xl" />
         </ResultSummary>
+        <p class="eq-steps" data-eq-steps></p>
       </div>
       <InvalidResult message="Enter a value and a percentage to calculate." />
       <ResultAnnouncement id="ac-live" />
@@ -309,6 +315,24 @@ const ex = percentExamples();
     padding-top: 0.9rem;
     border-top: 1px solid var(--line);
   }
+  /* The working under the answer: readable arithmetic, never competing with the
+     result it explains. Empty means absent, so the empty and invalid states show
+     no stray gap. */
+  .eq-steps {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .eq-steps:empty { display: none; }
+  .eq-steps::before {
+    content: 'Steps: ';
+    font-weight: 700;
+    color: var(--heading);
+  }
+
   .eq-direction {
     margin: 0.15rem 0 0;
     font-size: 0.95rem;
