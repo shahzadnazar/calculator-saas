@@ -30,62 +30,20 @@
  * balance.
  */
 
-/** How often interest is credited. The nine options the frequency selector offers. */
-export type CompoundFrequency =
-  | 'annually'
-  | 'semiannually'
-  | 'quarterly'
-  | 'monthly'
-  | 'semimonthly'
-  | 'biweekly'
-  | 'weekly'
-  | 'daily'
-  | 'continuously';
-
-/** Compounding periods per year. Continuous is the limit of this sequence, not a member. */
-export const COMPOUND_PERIODS: Readonly<Record<Exclude<CompoundFrequency, 'continuously'>, number>> =
-  {
-    annually: 1,
-    semiannually: 2,
-    quarterly: 4,
-    monthly: 12,
-    semimonthly: 24,
-    biweekly: 26,
-    weekly: 52,
-    daily: 365,
-  };
-
-/** Every frequency, in the order the selector renders them. */
-export const COMPOUND_FREQUENCIES: readonly CompoundFrequency[] = [
-  'annually',
-  'semiannually',
-  'quarterly',
-  'monthly',
-  'semimonthly',
-  'biweekly',
-  'weekly',
-  'daily',
-  'continuously',
-];
-
-/** True when `value` names one of the nine frequencies. */
-export function isCompoundFrequency(value: string): value is CompoundFrequency {
-  return (COMPOUND_FREQUENCIES as readonly string[]).includes(value);
-}
+import { monthlyGrowthFactor, type CompoundFrequency } from './compounding';
 
 /**
- * The factor one month of growth multiplies a balance by.
- *
- * Reducing every compounding frequency to a monthly factor is the whole trick: a
- * daily-compounded account and an annually-compounded one then differ only in this
- * number, and the projection loop never learns which it is running.
+ * The compounding primitives live in `./compounding`, shared with the Interest
+ * calculator. They stay part of this module's public surface so existing importers
+ * (the island's frequency selector, the tests) are unaffected.
  */
-export function monthlyGrowthFactor(annualRatePct: number, compound: CompoundFrequency): number {
-  const r = (annualRatePct || 0) / 100;
-  if (compound === 'continuously') return Math.exp(r / 12);
-  const n = COMPOUND_PERIODS[compound];
-  return Math.pow(1 + r / n, n / 12);
-}
+export {
+  COMPOUND_FREQUENCIES,
+  COMPOUND_PERIODS,
+  isCompoundFrequency,
+  monthlyGrowthFactor,
+  type CompoundFrequency,
+} from './compounding';
 
 /** Projections stop at 100 years — past that the schedule is noise, not a plan. */
 export const MAX_SAVINGS_YEARS = 100;

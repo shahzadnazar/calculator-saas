@@ -36,6 +36,13 @@ import {
   type SavingsPlanResult,
 } from './savings';
 import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+import {
+  drawAccumulationChart,
+  fillSchedule,
+  percentLabel,
+  share,
+  type YearStack,
+} from '@lib/result/accumulation';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -306,102 +313,9 @@ export function describeSavingsResult(result: SavingsComputed): string {
   return `You need to contribute ${spokenUSD(result.monthlyDeposit)} a month to reach your goal.`;
 }
 
-/** Share of a whole, clamped to 0–1 so a rounding artefact can never overflow a bar. */
-const share = (part: number, whole: number): number =>
-  whole > 0 ? Math.min(Math.max(part / whole, 0), 1) : 0;
-
-const percentLabel = (value: number): string => `${Math.round(value * 100)}%`;
-
-/** Compact dollars for a chart axis: $1.2K, $340K, $2.1M. */
-function formatCompactUSD(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
-  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}K`;
-  return `${sign}$${Math.round(abs)}`;
-}
-
-/** The next "round" number at or above `value` — 1, 2, 2.5 or 5 × a power of ten. */
-function niceCeiling(value: number): number {
-  if (!(value > 0)) return 1;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
-  for (const step of [1, 2, 2.5, 5, 10]) {
-    if (value <= step * magnitude) return step * magnitude;
-  }
-  return 10 * magnitude;
-}
-
 /* ------------------------------------------------------------------ */
-/* DOM rendering                                                       */
+/* Presentation                                                        */
 /* ------------------------------------------------------------------ */
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
-const svgEl = <K extends keyof SVGElementTagNameMap>(
-  name: K,
-  attrs: Record<string, string | number>,
-): SVGElementTagNameMap[K] => {
-  const el = document.createElementNS(SVG_NS, name);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-  return el;
-};
-
-/** One schedule row: the period as a row header, then deposit, interest and balance. */
-function scheduleRow(period: number, deposit: number, interest: number, balance: number): HTMLTableRowElement {
-  const tr = document.createElement('tr');
-  tr.className = 'sv-row';
-  const head = document.createElement('th');
-  head.scope = 'row';
-  head.className = 'sv-cell sv-cell--period';
-  head.textContent = String(period);
-  tr.append(head);
-  for (const value of [deposit, interest, balance]) {
-    const td = document.createElement('td');
-    td.className = 'sv-cell sv-num';
-    td.textContent = formatCurrency(value);
-    tr.append(td);
-  }
-  return tr;
-}
-
-/** The "End of year N" divider that closes each year in the monthly view. */
-function yearEndRow(year: number): HTMLTableRowElement {
-  const tr = document.createElement('tr');
-  tr.className = 'sv-year-end';
-  const cell = document.createElement('th');
-  cell.scope = 'rowgroup';
-  cell.colSpan = 4;
-  cell.className = 'sv-cell sv-cell--yearend';
-  cell.textContent = `End of year ${year}`;
-  tr.append(cell);
-  return tr;
-}
-
-function fillSchedules(scope: HTMLElement, plan: SavingsPlanResult): void {
-  const yearly = scope.querySelector<HTMLElement>('[data-sv-rows="yearly"]');
-  if (yearly) {
-    const frag = document.createDocumentFragment();
-    for (const y of plan.annual) frag.append(scheduleRow(y.year, y.deposit, y.interest, y.balance));
-    yearly.replaceChildren(frag);
-  }
-  const monthly = scope.querySelector<HTMLElement>('[data-sv-rows="monthly"]');
-  if (monthly) {
-    const frag = document.createDocumentFragment();
-    plan.months.forEach((m, i) => {
-      frag.append(scheduleRow(m.month, m.deposit, m.interest, m.balance));
-      if ((i + 1) % 12 === 0) frag.append(yearEndRow((i + 1) / 12));
-    });
-    monthly.replaceChildren(frag);
-  }
-}
-
-/** The three parts of a year-end balance. Negative anywhere means the stack is meaningless. */
-interface YearStack {
-  year: number;
-  initial: number;
-  contributions: number;
-  interest: number;
-  total: number;
-}
 
 function yearStacks(plan: SavingsPlanResult): YearStack[] | null {
   if (plan.initialDeposit < 0) return null;
@@ -425,117 +339,32 @@ function yearStacks(plan: SavingsPlanResult): YearStack[] | null {
   return out.length ? out : null;
 }
 
-/**
- * Accumulation by year: one column per year, split into the opening deposit, the
- * contributions paid in so far and the interest earned so far. The three parts are
- * the same unit on ONE axis and sum to that year's ending balance, so the column
- * height is the balance and the split explains it.
- *
- * Colours come from CSS custom properties, so light and dark are each their own
- * validated step rather than an automatic flip, and the legend beside the chart
- * carries identity — nothing here depends on colour alone. The schedule table below
- * is the accessible view of the same numbers.
- */
-function drawAccumulationChart(host: HTMLElement | null, plan: SavingsPlanResult): boolean {
-  if (!host) return false;
-  host.replaceChildren();
-  const stacks = yearStacks(plan);
-  if (!stacks || stacks.length < 1) return false;
+const SCHEDULE = { prefix: 'sv', format: formatCurrency };
 
-  const W = 320;
-  const H = 180;
-  const PAD = { top: 8, right: 8, bottom: 22, left: 46 };
-  const plotW = W - PAD.left - PAD.right;
-  const plotH = H - PAD.top - PAD.bottom;
+/** Both views of one computed plan. Only the monthly view carries year dividers. */
+function fillSchedules(scope: HTMLElement, plan: SavingsPlanResult): void {
+  fillSchedule(
+    scope.querySelector<HTMLElement>('[data-sv-rows="yearly"]'),
+    plan.annual.map((y) => ({ period: y.year, deposit: y.deposit, interest: y.interest, balance: y.balance })),
+    SCHEDULE,
+  );
+  fillSchedule(
+    scope.querySelector<HTMLElement>('[data-sv-rows="monthly"]'),
+    plan.months.map((m) => ({ period: m.month, deposit: m.deposit, interest: m.interest, balance: m.balance })),
+    SCHEDULE,
+    true,
+  );
+}
 
-  const peak = niceCeiling(Math.max(...stacks.map((s) => s.total), 1));
-  const slot = plotW / stacks.length;
-  const barW = Math.max(1, Math.min(28, slot * 0.72));
-  const radius = Math.min(3, barW / 2);
-  const y = (v: number) => PAD.top + plotH - (v / peak) * plotH;
-
-  const svg = svgEl('svg', {
-    viewBox: `0 0 ${W} ${H}`,
-    class: 'sv-chart__svg',
-    role: 'img',
-    'aria-label':
-      `Balance grows to ${formatCurrency(plan.endBalance)} over ${stacks.length} ` +
-      `year${stacks.length === 1 ? '' : 's'}, made up of ${formatCurrency(plan.initialDeposit)} ` +
-      `initial deposit, ${formatCurrency(plan.totalContributions)} contributions and ` +
-      `${formatCurrency(plan.totalInterest)} interest. The same figures are in the schedule table below.`,
-  });
-
-  // Recessive chrome: solid hairlines one step off the surface, never dashed.
-  for (const t of [0, 0.5, 1]) {
-    const gy = PAD.top + plotH * t;
-    svg.append(svgEl('line', { x1: PAD.left, y1: gy, x2: W - PAD.right, y2: gy, class: 'sv-chart__grid' }));
-    const label = svgEl('text', { x: PAD.left - 6, y: gy + 3.5, class: 'sv-chart__tick', 'text-anchor': 'end' });
-    label.textContent = formatCompactUSD(peak * (1 - t));
-    svg.append(label);
-  }
-
-  stacks.forEach((s, i) => {
-    const x = PAD.left + slot * i + (slot - barW) / 2;
-    const group = svgEl('g', { class: 'sv-chart__bar' });
-    // A native tooltip on the whole column — the hover layer, with no runtime cost.
-    const title = document.createElementNS(SVG_NS, 'title');
-    title.textContent =
-      `Year ${s.year}: ${formatCurrency(s.total)} — ` +
-      `${formatCurrency(s.initial)} initial, ${formatCurrency(s.contributions)} contributions, ` +
-      `${formatCurrency(s.interest)} interest`;
-    group.append(title);
-
-    // Clip the stack to a rounded column so the free end reads as one bar.
-    const clipId = `sv-bar-${i}`;
-    const clip = svgEl('clipPath', { id: clipId });
-    clip.append(
-      svgEl('rect', { x, y: y(s.total), width: barW, height: Math.max(0.5, y(0) - y(s.total)), rx: radius }),
-    );
-    group.append(clip);
-
-    const segments: [number, number, string][] = [];
-    let base = 0;
-    for (const [value, key] of [
-      [s.initial, 'initial'],
-      [s.contributions, 'contrib'],
-      [s.interest, 'interest'],
-    ] as const) {
-      if (value > 0) segments.push([base, base + value, key]);
-      base += value;
-    }
-    for (const [from, to, key] of segments) {
-      const top = y(to);
-      const height = y(from) - top;
-      // A 2px surface gap between segments, but only where the segment can spare it.
-      const gap = height > 5 && from > 0 ? 2 : 0;
-      group.append(
-        svgEl('rect', {
-          x,
-          y: top,
-          width: barW,
-          height: Math.max(0.5, height - gap),
-          class: `sv-chart__seg sv-chart__seg--${key}`,
-          'clip-path': `url(#${clipId})`,
-        }),
-      );
-    }
-    svg.append(group);
-  });
-
-  // Only the first and last year are labelled — an axis, not a number on every point.
-  for (const [i, s] of [stacks[0], stacks[stacks.length - 1]].entries()) {
-    const tx = svgEl('text', {
-      x: PAD.left + (i === 0 ? 0 : plotW),
-      y: H - 6,
-      class: 'sv-chart__tick',
-      'text-anchor': i === 0 ? 'start' : 'end',
-    });
-    tx.textContent = `Year ${s.year}`;
-    svg.append(tx);
-  }
-
-  host.append(svg);
-  return true;
+/** The chart's spoken description — what a reader who cannot see it needs told. */
+function chartLabel(plan: SavingsPlanResult): string {
+  const years = plan.annual.length;
+  return (
+    `Balance grows to ${formatCurrency(plan.endBalance)} over ${years} ` +
+    `year${years === 1 ? '' : 's'}, made up of ${formatCurrency(plan.initialDeposit)} ` +
+    `initial deposit, ${formatCurrency(plan.totalContributions)} contributions and ` +
+    `${formatCurrency(plan.totalInterest)} interest. The same figures are in the schedule table below.`
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -691,7 +520,11 @@ export const savingsBinding: FormCalculatorBinding<SavingsValues, SavingsCompute
       }
     }
 
-    const charted = drawAccumulationChart(q('[data-sv-chart]'), plan);
+    const charted = drawAccumulationChart(q('[data-sv-chart]'), yearStacks(plan) ?? [], {
+      prefix: 'sv',
+      format: formatCurrency,
+      label: chartLabel(plan),
+    });
     show('[data-sv-chart-figure]', charted);
 
     fillSchedules(scope, plan);
