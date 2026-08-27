@@ -74,7 +74,16 @@ const shells = (page: Page) => page.locator('[data-result-shell]');
 const STRUCTURAL_DEFAULTS: Record<string, string> = {
   startMonth: 'mortgage: repayment start defaults to the current month',
   startYear: 'mortgage: repayment start defaults to the current year',
-  withdrawalRatePct: 'retirement: the documented 4% safe-withdrawal assumption',
+  // Retirement's planning ASSUMPTIONS. These replaced the old 4% safe-withdrawal
+  // default when the calculator grew to four questions. None is the visitor's own
+  // figure — they are the documented starting assumptions the reference product
+  // ships, and a blank expected return is not a neutral state but an unanswerable
+  // one. Every personal field on that calculator still loads empty.
+  annualReturnPct: 'retirement: the documented expected-return assumption',
+  inflationPct: 'retirement: the documented inflation assumption',
+  incomeIncreasePct: 'retirement: the documented income-growth assumption',
+  incomeNeededPct: 'retirement: the documented share-of-income-needed assumption',
+  futureSavingsPct: 'retirement: the documented share-of-income-saved assumption',
   hoursPerWeek: 'salary: documented work-week assumption',
   daysPerWeek: 'salary: documented work-week assumption',
   weeksPerYear: 'salary: documented work-week assumption',

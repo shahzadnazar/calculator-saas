@@ -32,6 +32,21 @@ const faqs = [
       'A common rule of thumb, drawn from the 4% rule, is roughly 25 times your desired annual retirement spending. To draw $40,000 a year, that points to about $1,000,000 saved. It is a starting estimate, not a guarantee — Social Security, a pension or a paid-off home change the number.',
   },
   {
+    question: 'What do the four questions do?',
+    answer:
+      'They are the four ways people usually come at retirement, and they share the fields they have in common so you only type your age once. "How much do you need" works out the pot your target income requires and whether your current saving reaches it. "How can you save" starts from a pot you already have in mind. "How much can you withdraw" turns a savings plan into a monthly income. "How long can your money last" takes a pot and a withdrawal and tells you when it runs out.',
+  },
+  {
+    question: 'How is the income a pot supports worked out?',
+    answer:
+      'By the present value of the withdrawals it has to fund. Withdrawals are taken at the start of each month, rise with inflation so their buying power holds, and the remaining balance keeps earning the investment return until life expectancy. The same figure links a pot to an income in both directions, so "what you need" and "what you would draw" are always consistent with each other.',
+  },
+  {
+    question: 'Why is the income shown twice?',
+    answer:
+      'Because a dollar in thirty years is not a dollar today. The actual amount is what would land in your account on the day; today\'s money is that amount discounted back at your inflation rate, so you can judge it against what things cost now. Planning on the actual amount alone is the most common way to overestimate how comfortable a retirement will be.',
+  },
+  {
     question: 'What is the full retirement age?',
     answer:
       'For US Social Security, full retirement age is 67 for anyone born in 1960 or later (66–67 for those born earlier). You can claim reduced benefits as early as 62, or larger benefits by delaying up to age 70.',
@@ -42,13 +57,44 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Project your retirement savings from your current age and contributions, and estimate the yearly and monthly income it could provide using a safe withdrawal rate."
+  intro="Answer four retirement questions on one form: how much you need, how to save it, what you could withdraw, and how long your money would last."
   faqs={faqs}
   reviewMetadata={{ reviewedDate: '2026-08-09' }}
 >
   <RetirementCalculator />
 
   <Fragment slot="content">
+    <h2>Reading the result</h2>
+    <p>
+      The headline is the pot your plan requires at retirement. Underneath, the bar compares it
+      against what your current saving actually reaches, and the percentage is how far that gets
+      you. The table then turns both pots into a monthly income — once in the dollars of the day,
+      and once in today's money so you can weigh it against what things cost now.
+    </p>
+    <p>
+      If there is a gap, the result says what closing it would take three ways: a fixed amount every
+      month, a fixed amount every year, or a percentage of your income that rises as your income
+      does. They are three routes to the same pot, not three separate asks.
+    </p>
+    <p>
+      The <strong>balance by age</strong> chart plots both plans year by year — rising while you
+      save, peaking at retirement and drawn down to nothing at life expectancy. The gap between the
+      two curves is the gap you are trying to close.
+    </p>
+
+    <h2>The assumptions, and their limits</h2>
+    <p>
+      Every projection here assumes a steady investment return and steady inflation, contributions
+      credited once a year, and withdrawals taken monthly and rising with inflation. Real markets do
+      none of that: returns arrive unevenly, and a bad decade early in retirement does far more
+      damage than the same decade later.
+    </p>
+    <p>
+      So treat the figures as a direction rather than a promise. The useful questions are the
+      comparative ones — does saving two percent more close the gap, does working two more years,
+      does a lower target income — and those hold up much better than any single number does.
+    </p>
+
     <h2>How to use this calculator</h2>
     <ol>
       <li>Enter your <strong>current age</strong> and target <strong>retirement age</strong> — the gap is your years to save.</li>
