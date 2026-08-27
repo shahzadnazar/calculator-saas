@@ -41,13 +41,34 @@ export const MAX_MONTHLY_ROWS = 30 * 12;
 
 /** Ceiling on an annual cost-increase percent — generous, but keeps the schedule finite and sane. */
 export const MAX_INCREASE_PCT = 100;
-/** The year range the start date and every extra-payment date share. */
-export const MIN_YEAR = 1900;
-export const MAX_YEAR = 2200;
+import {
+  EXTRA_AMOUNT_MESSAGE,
+  EXTRA_YEAR_MESSAGE,
+  ONE_TIME_SLOTS,
+  emptyOneTimeList,
+  monthOffset,
+  parseOptionalYear,
+  type OneTimeValue,
+} from './extra-payments';
 
 export const INCREASE_MESSAGE = `Enter a yearly increase from 0 to ${MAX_INCREASE_PCT}%.`;
-export const EXTRA_AMOUNT_MESSAGE = 'Enter an extra payment of zero or more.';
-export const EXTRA_YEAR_MESSAGE = `Enter a year from ${MIN_YEAR} to ${MAX_YEAR}.`;
+
+/**
+ * The extra-payment vocabulary lives in `./extra-payments`, shared with the
+ * amortization calculator. It stays part of this module's public surface so existing
+ * importers and tests are unaffected.
+ */
+export {
+  EXTRA_AMOUNT_MESSAGE,
+  EXTRA_YEAR_MESSAGE,
+  MAX_YEAR,
+  MIN_YEAR,
+  ONE_TIME_SLOTS,
+  emptyOneTime,
+  emptyOneTimeList,
+  monthOffset,
+  type OneTimeValue,
+} from './extra-payments';
 
 /**
  * How the visitor is expressing a money field that has a meaningful base. Purely a PRESENTATION
@@ -131,21 +152,6 @@ export interface MortgageValues {
   showBiweekly: boolean;
 }
 
-/** One row of the one-time extra-payment list. */
-export interface OneTimeValue {
-  amount: string;
-  month: string;
-  year: string;
-}
-
-/** How many one-time extra-payment rows the form offers (the first is always visible). */
-export const ONE_TIME_SLOTS = 5;
-
-/** A blank one-time row — the shape `readValues` falls back to and `reset` restores. */
-export const emptyOneTime = (): OneTimeValue => ({ amount: '', month: '', year: '' });
-export const emptyOneTimeList = (): OneTimeValue[] =>
-  Array.from({ length: ONE_TIME_SLOTS }, emptyOneTime);
-
 export interface MortgageComputed extends ReturnType<typeof calculateMortgage> {
   /** The parsed home price and down payment (for the interpretation + the down-payment share). */
   homePrice: number;
@@ -208,30 +214,7 @@ function parseOptionalPercent(raw: string): 'invalid' | number {
   return n;
 }
 
-/** Optional whole four-digit year in the same range the start-date field accepts. */
-function parseOptionalYear(raw: string): 'empty' | 'invalid' | number {
-  const t = raw.trim();
-  if (t === '') return 'empty';
-  const n = Number(t);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < MIN_YEAR || n > MAX_YEAR) return 'invalid';
-  return n;
-}
 
-/**
- * Whole months from the repayment start to a given month/year — the offset the
- * engine schedules an extra payment at. A date at or before the loan's start
- * clamps to 0 (it simply applies from the first payment) rather than erroring,
- * and a date past the end produces an offset the schedule never reaches.
- */
-export function monthOffset(
-  startMonth: number,
-  startYear: number,
-  month: number,
-  year: number,
-): number {
-  if (![startMonth, startYear, month, year].every((n) => Number.isFinite(n))) return 0;
-  return Math.max(0, (year - startYear) * 12 + (month - startMonth));
-}
 
 /**
  * Normalise an entered down payment to the ABSOLUTE DOLLAR amount `calculateMortgage` accepts — the
