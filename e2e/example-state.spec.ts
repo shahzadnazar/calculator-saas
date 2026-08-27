@@ -86,6 +86,11 @@ const STRUCTURAL_DEFAULTS: Record<string, string> = {
   value: 'conversion: the ratified converter-family neutral value 1',
   quantity: 'square footage: a single area by default',
   people: 'tip: a bill splits one way by default',
+  // Auto loan's term became a free numeric field (54- and 66-month deals exist and a
+  // closed select could not express them), so its 60-month default is now visible to
+  // this check. It is the standard term the product ships with, not the visitor's own
+  // figure — the same kind of default the select carried before.
+  loanTermMonths: 'auto loan: the standard 60-month term is the structural default',
 };
 
 /** Values in controls the visitor would type their OWN figures into. */

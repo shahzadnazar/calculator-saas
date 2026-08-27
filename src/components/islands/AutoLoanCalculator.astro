@@ -24,99 +24,119 @@ import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
-import { TERM_OPTIONS, DEFAULT_TERM, AUTO_LOAN_EXAMPLE_VALUES } from '@lib/calculators/auto-loan-form';
+import { TERM_OPTIONS, DEFAULT_TERM, MAX_TERM_MONTHS } from '@lib/calculators/auto-loan-form';
+import { STATE_SALES_TAX, STATE_TAX_REVIEWED } from '@data/state-sales-tax';
 ---
 
 <div class="autoloan mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-autoloan>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Auto loan calculator">
-    <div class="space-y-4">
+    <div class="al-fields">
+      <div class="grid grid-cols-2 gap-3">
       <div data-field="autoPrice">
-        <label class="field-label" for="al-price">Vehicle price (USD)</label>
+        <label class="field-label" for="al-price">Auto price</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="al-price" name="autoPrice" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="e.g. 30000" aria-describedby="al-price-error" />
+          <input class="field rounded-l-none" id="al-price" name="autoPrice" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="e.g. 50000" aria-describedby="al-price-error" />
         </div>
         <p class="al-field-error" id="al-price-error" data-error-for="autoPrice" hidden></p>
       </div>
-
-      <div class="grid grid-cols-2 gap-4">
         <div data-field="loanTermMonths">
           <label class="field-label" for="al-term">Loan term</label>
-          <select class="field" id="al-term" name="loanTermMonths" aria-describedby="al-term-error">
-            {TERM_OPTIONS.map((m) => (<option value={m} selected={m === DEFAULT_TERM}>{m} months</option>))}
-          </select>
+          <div class="flex">
+            <input class="field rounded-r-none" id="al-term" name="loanTermMonths" type="number" min="1" max={MAX_TERM_MONTHS} step="1" inputmode="numeric" autocomplete="off" list="al-terms" value={DEFAULT_TERM} aria-describedby="al-term-error" />
+            <span class="field-affix rounded-r-lg border-l-0">months</span>
+          </div>
+          <datalist id="al-terms">{TERM_OPTIONS.map((m) => <option value={m}></option>)}</datalist>
           <p class="al-field-error" id="al-term-error" data-error-for="loanTermMonths" hidden></p>
         </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
         <div data-field="interestRatePct">
-          <label class="field-label" for="al-rate">Annual interest rate</label>
+          <label class="field-label" for="al-rate">Interest rate</label>
           <div class="flex">
             <input class="field rounded-r-none" id="al-rate" name="interestRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 5" aria-describedby="al-rate-error" />
             <span class="field-affix rounded-r-lg border-l-0">%</span>
           </div>
           <p class="al-field-error" id="al-rate-error" data-error-for="interestRatePct" hidden></p>
         </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div data-field="downPayment">
-          <label class="field-label" for="al-down">Down payment (USD)</label>
+        <div data-field="cashIncentives">
+          <label class="field-label" for="al-incentives">Cash incentives</label>
           <div class="flex">
             <span class="field-affix rounded-l-lg border-r-0">$</span>
-            <input class="field rounded-l-none" id="al-down" name="downPayment" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-down-error" />
+            <input class="field rounded-l-none" id="al-incentives" name="cashIncentives" type="number" min="0" step="250" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-incentives-error" />
+          </div>
+          <p class="al-field-error" id="al-incentives-error" data-error-for="cashIncentives" hidden></p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div data-field="downPayment">
+          <label class="field-label" for="al-down">Down payment</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="al-down" name="downPayment" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-down-error" />
           </div>
           <p class="al-field-error" id="al-down-error" data-error-for="downPayment" hidden></p>
         </div>
-        <div data-field="salesTaxRatePct">
-          <label class="field-label" for="al-tax">Sales-tax rate</label>
+        <div data-field="tradeInValue">
+          <label class="field-label" for="al-trade">Trade-in value</label>
           <div class="flex">
-            <input class="field rounded-r-none" id="al-tax" name="salesTaxRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-tax-error" />
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="al-trade" name="tradeInValue" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-trade-error" />
+          </div>
+          <p class="al-field-error" id="al-trade-error" data-error-for="tradeInValue" hidden></p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div data-field="amountOwedOnTradeIn">
+          <label class="field-label" for="al-owed">Amount owed on trade-in</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="al-owed" name="amountOwedOnTradeIn" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-owed-error" />
+          </div>
+          <p class="al-field-error" id="al-owed-error" data-error-for="amountOwedOnTradeIn" hidden></p>
+        </div>
+        <div data-field="stateCode">
+          <label class="field-label" for="al-state">Your state</label>
+          <select class="field" id="al-state" name="stateCode" data-al-state>
+            <option value="">— Select —</option>
+            {STATE_SALES_TAX.map((st) => <option value={st.code} data-rate={st.ratePct}>{st.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div data-field="salesTaxRatePct">
+          <label class="field-label" for="al-tax">Sales tax</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="al-tax" name="salesTaxRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-tax-error" />
             <span class="field-affix rounded-r-lg border-l-0">%</span>
           </div>
           <p class="al-field-error" id="al-tax-error" data-error-for="salesTaxRatePct" hidden></p>
         </div>
-      </div>
-
-      <details class="al-disclosure" data-al-disclosure>
-        <summary class="al-disclosure__summary">Trade-in &amp; fees (optional)</summary>
-        <div class="mt-4 grid grid-cols-2 gap-4">
-          <div data-field="tradeInValue">
-            <label class="field-label" for="al-trade">Trade-in value (USD)</label>
-            <div class="flex">
-              <span class="field-affix rounded-l-lg border-r-0">$</span>
-              <input class="field rounded-l-none" id="al-trade" name="tradeInValue" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-trade-error" />
-            </div>
-            <p class="al-field-error" id="al-trade-error" data-error-for="tradeInValue" hidden></p>
+        <div data-field="fees">
+          <label class="field-label" for="al-fees">Title, registration and other fees</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="al-fees" name="fees" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-fees-error" />
           </div>
-          <div data-field="amountOwedOnTradeIn">
-            <label class="field-label" for="al-owed">Amount owed on trade-in (USD)</label>
-            <div class="flex">
-              <span class="field-affix rounded-l-lg border-r-0">$</span>
-              <input class="field rounded-l-none" id="al-owed" name="amountOwedOnTradeIn" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-owed-error" />
-            </div>
-            <p class="al-field-error" id="al-owed-error" data-error-for="amountOwedOnTradeIn" hidden></p>
-          </div>
-          <div class="col-span-2" data-field="fees">
-            <label class="field-label" for="al-fees">Additional fees (USD)</label>
-            <div class="flex">
-              <span class="field-affix rounded-l-lg border-r-0">$</span>
-              <input class="field rounded-l-none" id="al-fees" name="fees" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="Optional" aria-describedby="al-fees-error" />
-            </div>
-            <p class="al-field-error" id="al-fees-error" data-error-for="fees" hidden></p>
-          </div>
+          <p class="al-field-error" id="al-fees-error" data-error-for="fees" hidden></p>
         </div>
-      </details>
+      </div>
+      <p class="al-state-note">A state fills in its base rate (reviewed {STATE_TAX_REVIEWED}); local taxes add to it — enter your real rate if you know it.</p>
 
       <div class="al-finance">
         <label class="al-finance__label">
-          <input type="checkbox" name="includeTaxesFeesInLoan" checked data-al-finance />
-          <span>Finance taxes and fees in the loan</span>
+          <input type="checkbox" name="includeTaxesFeesInLoan" data-al-finance />
+          <span>Include taxes and fees in loan</span>
         </label>
-        <p class="al-finance__note">When selected, estimated sales tax and entered fees are added to the financed balance. When cleared, they are excluded from the loan estimate and may be due upfront.</p>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
+    <div class="mt-4 flex items-center gap-3">
       <button type="submit" class="btn btn-primary" data-al-submit>Calculate Auto Loan Payment</button>
       <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
@@ -138,14 +158,78 @@ import { TERM_OPTIONS, DEFAULT_TERM, AUTO_LOAN_EXAMPLE_VALUES } from '@lib/calcu
       <p class="al-note al-note--warn" data-al-equity-note hidden></p>
 
       <dl class="al-metrics">
-        <div><dt>Amount financed</dt><dd data-al-financed>—</dd></div>
-        <div><dt>Estimated sales tax</dt><dd data-al-tax>—</dd></div>
-        <div><dt>Total interest</dt><dd data-al-interest>—</dd></div>
-        <div><dt>Total of loan payments</dt><dd data-al-top>—</dd></div>
+        <div><dt>Total loan amount</dt><dd data-al-financed>—</dd></div>
+        <div><dt>Sales tax</dt><dd data-al-tax>—</dd></div>
         <div><dt>Upfront payment</dt><dd data-al-upfront>—</dd></div>
+        <div data-al-incentives-row hidden><dt>Cash incentives</dt><dd data-al-incentives class="al-neg">—</dd></div>
         <div data-al-equity-row hidden><dt>Negative trade-in equity</dt><dd data-al-equity class="al-neg">—</dd></div>
-        <div class="al-metrics__total"><dt>Total cost</dt><dd data-al-total>—</dd></div>
+        <div><dt data-al-top-label>Total of loan payments</dt><dd data-al-top>—</dd></div>
+        <div><dt>Total loan interest</dt><dd data-al-interest>—</dd></div>
+        <div class="al-metrics__total"><dt>Total cost (price, interest, tax, fees)</dt><dd data-al-total>—</dd></div>
       </dl>
+
+      <!-- Loan breakdown. Principal against interest is a part-to-whole of TWO shares,
+           so it is a stacked proportion bar with both shares directly labelled — the
+           same idiom the mortgage result uses, and legible without relying on colour. -->
+      <div class="al-breakdown" data-al-breakdown hidden>
+        <p class="al-section-title">Loan breakdown</p>
+        <div class="al-bar" aria-hidden="true">
+          <span class="al-seg al-seg--principal" style="width:0%" data-al-seg="principal"></span>
+          <span class="al-seg al-seg--interest" style="width:0%" data-al-seg="interest"></span>
+        </div>
+        <ul class="al-legend">
+          <li><span class="al-key al-key--principal" aria-hidden="true"></span>Principal <b data-al-share-principal>—</b> <span class="al-legend__amt" data-al-share-principal-amt>—</span></li>
+          <li><span class="al-key al-key--interest" aria-hidden="true"></span>Interest <b data-al-share-interest>—</b> <span class="al-legend__amt" data-al-share-interest-amt>—</span></li>
+        </ul>
+      </div>
+
+      <div data-al-schedule-block hidden>
+        <details class="al-disclosure al-disclosure--schedule" data-al-schedule-disclosure>
+          <summary class="al-disclosure__summary">
+            <span>View amortization schedule</span>
+            <svg class="al-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </summary>
+
+          <div class="al-schedule" data-al-schedule data-al-view="yearly">
+            <fieldset class="al-view">
+              <legend class="al-view__legend">Schedule</legend>
+              <div class="al-view__group">
+                <label class="al-view__opt"><input type="radio" name="al-view" value="yearly" checked data-al-view-radio /><span>Annual</span></label>
+                <label class="al-view__opt"><input type="radio" name="al-view" value="monthly" data-al-view-radio /><span>Monthly</span></label>
+              </div>
+            </fieldset>
+
+            <!-- Balance / interest / total paid across the term. Three series in the
+                 SAME unit on one axis; the legend carries identity, and the table
+                 below is the accessible view of the same numbers. -->
+            <figure class="al-chart">
+              <div class="al-chart__plot" data-al-chart></div>
+              <figcaption class="al-legend al-legend--chart">
+                <span><span class="al-key al-key--balance" aria-hidden="true"></span>Balance</span>
+                <span><span class="al-key al-key--interest" aria-hidden="true"></span>Interest paid</span>
+                <span><span class="al-key al-key--paid" aria-hidden="true"></span>Total paid</span>
+              </figcaption>
+            </figure>
+
+            <div class="al-table-wrap">
+              <table class="al-table">
+                <caption class="sr-only">Amortization schedule showing the interest and principal of each payment and the balance remaining afterwards.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" class="al-th-period"><span data-al-when-view="yearly">Year</span><span data-al-when-view="monthly">Month</span></th>
+                    <th scope="col" class="al-num">Interest</th>
+                    <th scope="col" class="al-num">Principal</th>
+                    <th scope="col" class="al-num">Ending balance</th>
+                  </tr>
+                </thead>
+                <tbody data-al-rows="yearly"></tbody>
+                <tbody data-al-rows="monthly"></tbody>
+              </table>
+            </div>
+            <p class="al-schedule__note">Amounts are in US dollars (USD).</p>
+          </div>
+        </details>
+      </div>
 
       <p class="al-tax-assumption">Tax rules vary by jurisdiction. This estimate applies the entered sales-tax rate to the full vehicle price and does not apply a trade-in tax credit. Amounts are in US dollars (USD).</p>
     </div>
@@ -173,6 +257,220 @@ import { TERM_OPTIONS, DEFAULT_TERM, AUTO_LOAN_EXAMPLE_VALUES } from '@lib/calcu
 
   .al-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
+  .al-fields { display: grid; gap: 0.5rem; }
+  .al-state-note {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  /* ---- Chart series colours ------------------------------------------------
+     Three categorical slots, bound to the ENTITY not its rank, so principal is
+     the same colour in the breakdown bar and the balance line. The steps were
+     validated against both surfaces (lightness band, chroma floor, CVD
+     separation, normal-vision floor and >=3:1 contrast all pass in light AND
+     dark), so the same three carry over rather than being flipped by mode. */
+  .autoloan {
+    --al-principal: #7c3aed; /* plum — principal / remaining balance */
+    --al-interest: #ea580c; /* burnt orange — interest */
+    --al-paid: #0e9f6e; /* emerald — total paid to date */
+  }
+
+  .al-section-title {
+    margin: 1.25rem 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  /* Stacked proportion bar: thin, with a 2px surface gap doing the separating. */
+  .al-bar {
+    display: flex;
+    height: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--subtle);
+    gap: 2px;
+  }
+  .al-seg { display: block; height: 100%; }
+  .al-seg--principal { background: var(--al-principal); }
+  .al-seg--interest { background: var(--al-interest); }
+
+  .al-legend {
+    list-style: none;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+  }
+  .al-legend li,
+  .al-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .al-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .al-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .al-key {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+  }
+  .al-key--principal, .al-key--balance { background: var(--al-principal); }
+  .al-key--interest { background: var(--al-interest); }
+  .al-key--paid { background: var(--al-paid); }
+
+  /* ---- Balance chart ---- */
+  .al-chart { margin: 0 0 0.75rem; }
+  .al-chart__plot { width: 100%; }
+  .al-chart :global(.al-chart__svg) { display: block; width: 100%; height: auto; }
+  .al-chart :global(.al-chart__grid) { stroke: var(--line); stroke-width: 1; }
+  .al-chart :global(.al-chart__tick) { fill: var(--muted); font-size: 9px; }
+  .al-chart :global(.al-chart__line) {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .al-chart :global(.al-chart__line--balance) { stroke: var(--al-principal); }
+  .al-chart :global(.al-chart__line--interest) { stroke: var(--al-interest); }
+  .al-chart :global(.al-chart__line--paid) { stroke: var(--al-paid); }
+  .al-legend--chart { margin-top: 0.4rem; font-size: 0.8rem; }
+
+  /* ---- Schedule ---- */
+  .al-disclosure--schedule {
+    margin-top: 1.25rem;
+    border-top: 1px solid var(--line);
+    padding-top: 0.85rem;
+  }
+  .al-disclosure--schedule > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.35rem 0;
+  }
+  .al-disclosure--schedule > summary::-webkit-details-marker { display: none; }
+  .al-disclosure--schedule > summary:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 0.35rem;
+  }
+  .al-chevron { flex: none; color: var(--muted); transition: transform 0.15s ease; }
+  .al-disclosure--schedule[open] .al-chevron { transform: rotate(180deg); }
+
+  .al-schedule { margin-top: 0.75rem; }
+  .al-view { border: 0; margin: 0 0 0.6rem; padding: 0; }
+  .al-view::after { content: ''; display: block; clear: both; }
+  .al-view__legend {
+    float: left;
+    margin: 0 0.6rem 0 0;
+    padding: 0;
+    line-height: 2.6rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .al-view__group {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    background: var(--subtle);
+  }
+  .al-view__opt { position: relative; cursor: pointer; }
+  .al-view__opt input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+  .al-view__opt span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 0.7rem;
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .al-view__opt:has(input:checked) span {
+    background: var(--card);
+    color: var(--heading);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+  }
+  .al-view__opt:has(input:focus-visible) span {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  .al-table-wrap {
+    min-width: 0;
+    max-height: 20rem;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+  }
+  .al-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .al-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--subtle);
+    padding: 0.5rem 0.7rem;
+    font-weight: 600;
+    text-align: left;
+    color: var(--fg);
+    white-space: nowrap;
+  }
+  /* `:global` — the rows are created by the binding at runtime and carry no scope attribute. */
+  .al-table :global(th.al-num),
+  .al-table :global(td.al-num) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .al-table th.al-num { text-align: right; }
+  .al-table :global(.al-row) { border-top: 1px solid var(--line); }
+  .al-table :global(.al-cell) { padding: 0.45rem 0.7rem; }
+  .al-table :global(.al-cell--period) { text-align: left; font-weight: 600; color: var(--fg); }
+  .al-table :global(.al-year-end) {
+    border-top: 2px solid var(--line);
+    border-bottom: 2px solid var(--line);
+    background: color-mix(in srgb, var(--color-brand-600) 7%, var(--subtle));
+  }
+  .al-table :global(.al-cell--yearend) {
+    text-align: left;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--heading);
+  }
+
+  .al-schedule[data-al-view='yearly'] :global([data-al-rows='monthly']),
+  .al-schedule[data-al-view='monthly'] :global([data-al-rows='yearly']) { display: none; }
+  .al-schedule[data-al-view='yearly'] [data-al-when-view='monthly'],
+  .al-schedule[data-al-view='monthly'] [data-al-when-view='yearly'] { display: none; }
+
+  .al-schedule__note { margin: 0.7rem 0 0; font-size: 0.78rem; color: var(--muted); }
+
+  .autoloan > :global(*) { min-width: 0; }
+
   .al-disclosure { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0.5rem 0; }
   .al-disclosure__summary { cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--color-brand-600); padding: 0.25rem 0; }
 
@@ -189,7 +487,20 @@ import { TERM_OPTIONS, DEFAULT_TERM, AUTO_LOAN_EXAMPLE_VALUES } from '@lib/calcu
   }
   :root[data-theme='dark'] .al-note--warn { color: #fbbf24; }
 
-  .al-metrics { margin: 1.1rem 0 0; display: grid; gap: 0.25rem; }
+  /* Two columns from 520px up: eight single-column rows made the result panel taller
+     than the viewport, which pushed the headline payment off-screen when the runtime
+     focused the result after Calculate. Pairing them keeps the dominant figure in
+     view and reads denser, which is what the density target wants anyway. */
+  .al-metrics {
+    margin: 1.1rem 0 0;
+    display: grid;
+    gap: 0.1rem 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 520px) {
+    .al-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .al-metrics__total { grid-column: 1 / -1; }
+  }
   .al-metrics > div {
     display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem;
     padding: 0.35rem 0; border-bottom: 1px solid var(--line); font-size: 0.95rem;
@@ -217,16 +528,51 @@ import { TERM_OPTIONS, DEFAULT_TERM, AUTO_LOAN_EXAMPLE_VALUES } from '@lib/calcu
       calculateButtonLabel: 'Calculate Auto Loan Payment',
     });
 
+    const stateSel = root.querySelector<HTMLSelectElement>('[data-al-state]');
+    const taxInput = root.querySelector<HTMLInputElement>('[name="salesTaxRatePct"]');
+    const schedule = root.querySelector<HTMLElement>('[data-al-schedule]');
+    const viewRadios = Array.from(root.querySelectorAll<HTMLInputElement>('[data-al-view-radio]'));
+    const scheduleDisclosure = root.querySelector<HTMLDetailsElement>('[data-al-schedule-disclosure]');
+
+    // Choosing a state is a CONVENIENCE that writes its base rate into the sales-tax
+    // field; the maths only ever reads that field, so the rate stays the visitor's to
+    // correct. Typing over it clears the state, because the pair would otherwise claim
+    // a rate the state does not have.
+    stateSel?.addEventListener('change', () => {
+      const rate = stateSel.selectedOptions[0]?.dataset.rate;
+      if (taxInput && rate != null) {
+        taxInput.value = rate;
+        // Tell the runtime a value changed — assigning .value fires no event.
+        taxInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    taxInput?.addEventListener('input', () => {
+      if (!stateSel || stateSel.value === '') return;
+      const rate = stateSel.selectedOptions[0]?.dataset.rate;
+      if (taxInput.value !== rate) stateSel.value = '';
+    });
+
+    // Annual/Monthly is presentation only — the binding renders both bodies in full,
+    // so switching never recomputes and the radios sit OUTSIDE the form.
+    const applyView = () => {
+      const checked = viewRadios.find((r) => r.checked)?.value ?? 'yearly';
+      if (schedule) schedule.dataset.alView = checked;
+    };
+    for (const r of viewRadios) r.addEventListener('change', applyView);
+
     // The island restores the STRUCTURAL defaults on Reset — the runtime clears only the numeric
-    // fields. The term select + finance checkbox are native form inputs, so the runtime already
+    // fields. The term input + finance checkbox are native form inputs, so the runtime already
     // recomputes on them live-after-first (focus stays on the control, no scroll).
     root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
-      const term = root.querySelector<HTMLSelectElement>('[name="loanTermMonths"]');
+      const term = root.querySelector<HTMLInputElement>('[name="loanTermMonths"]');
       if (term) term.value = String(DEFAULT_TERM);
       const finance = root.querySelector<HTMLInputElement>('[name="includeTaxesFeesInLoan"]');
-      if (finance) finance.checked = true;
+      if (finance) finance.checked = false;
       const disclosure = root.querySelector<HTMLDetailsElement>('[data-al-disclosure]');
       if (disclosure) disclosure.open = false;
+      if (scheduleDisclosure) scheduleDisclosure.open = false;
+      for (const r of viewRadios) r.checked = r.value === 'yearly';
+      applyView();
     });
   });
 </script>
