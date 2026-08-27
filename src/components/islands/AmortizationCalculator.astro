@@ -1,128 +1,231 @@
 ---
 /**
- * Amortization calculator island (R11B1 + R11B1.1 hardening).
+ * Amortization calculator island.
  *
- * Task-first, direct-intent: all fields start EMPTY, the result is an instruction, and the visitor
- * presses "Calculate Amortization" for the first result; live-after-first afterwards. Compute,
- * validation, state, announcement and focus are owned by the shared runtime + the amortization
- * binding (@lib/calculators/amortization-form), which wraps the UNCHANGED calculateLoan / @lib/finance
- * engine. The complete-result guard lives in the binding's resultValue (a NaN sentinel → the runtime's
- * default finite gate) — there is NO isUsableResult.
+ * REQUIRED: loan amount, loan term (years + months) and interest rate. Everything
+ * else sits inside a labelled "Optional: make extra payments" disclosure that is
+ * closed and entirely blank on load, so an untouched form produces the ordinary
+ * loan and the result never mentions extras.
  *
- * The schedule is a native <details> DISCLOSURE, closed by default: the dominant monthly payment +
- * totals show first, and the visitor opens "View amortization schedule" on demand. Inside, the FULL
- * schedule renders every row (yearly summary + monthly breakdown, no pagination / virtualization),
- * built with the DOM API (never innerHTML), into a semantic <table> (caption + scoped headers). The
- * Yearly (default) / Monthly view is NATIVE RADIO inputs the ISLAND owns — a presentation switch over
- * the already-rendered rows that never recomputes and never announces. The island also reacts to
- * runtime state changes it does not itself cause: leaving `valid` (an invalid live edit) drops the
- * stale/possibly-malformed rows; returning to `empty` (Reset) also closes the disclosure and restores
- * the Yearly default.
+ * The extras block is the same shape the mortgage calculator uses — a loan start
+ * date, then extra principal monthly, yearly, or as dated one-off amounts — because
+ * it is the same job. Its dates are blank by default: a prefilled month and year
+ * would read as three payments already scheduled.
+ *
+ * Task-first: every personal field starts EMPTY and the result panel carries a
+ * LABELLED worked example. Compute, validation, state, focus and the announcement
+ * belong to the shared form runtime and the amortization binding; the island owns
+ * markup, the one-time row expander, and the schedule's annual/monthly view — which
+ * is a VIEW of one computed result, never a recalculation.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
-import { AMORTIZATION_EXAMPLE_VALUES } from '@lib/calculators/amortization-form';
+import { ONE_TIME_SLOTS } from '@lib/calculators/extra-payments';
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const ONE_TIME_ROWS = Array.from({ length: ONE_TIME_SLOTS }, (_, i) => i + 1);
 ---
 
-<div class="amort mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2" data-amort>
+<div class="amort mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-amort>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Amortization calculator">
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid grid-cols-2 gap-x-3 gap-y-2">
       <div data-field="amount">
         <label class="field-label" for="am-amount">Loan amount</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="am-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 250000" aria-describedby="am-amount-error" />
+          <input class="field rounded-l-none" id="am-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 200000" aria-describedby="am-amount-error" />
         </div>
-        <p class="am-field-error" id="am-amount-error" data-error-for="amount" hidden></p>
+        <p class="am-error" id="am-amount-error" data-error-for="amount" hidden></p>
       </div>
 
       <div data-field="annualInterestRate">
         <label class="field-label" for="am-rate">Interest rate</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="am-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 6.5" aria-describedby="am-rate-error" />
+          <input class="field rounded-r-none" id="am-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 6" aria-describedby="am-rate-error" />
           <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
-        <p class="am-field-error" id="am-rate-error" data-error-for="annualInterestRate" hidden></p>
+        <p class="am-error" id="am-rate-error" data-error-for="annualInterestRate" hidden></p>
       </div>
 
-      <div data-field="termYears">
-        <label class="field-label" for="am-term">Term (years)</label>
-        <input class="field" id="am-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="am-term-error" />
-        <p class="am-field-error" id="am-term-error" data-error-for="termYears" hidden></p>
+      <div class="col-span-2" data-field="termYears">
+        <label class="field-label" for="am-term-years">Loan term</label>
+        <div class="am-term">
+          <div class="flex am-term__part">
+            <input class="field rounded-r-none" id="am-term-years" name="termYears" type="number" min="0" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 15" aria-label="Loan term, years" aria-describedby="am-term-years-error" />
+            <span class="field-affix rounded-r-lg border-l-0">years</span>
+          </div>
+          <div class="flex am-term__part" data-field="termMonths">
+            <input class="field rounded-r-none" id="am-term-months" name="termMonths" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Loan term, months" aria-describedby="am-term-months-error" />
+            <span class="field-affix rounded-r-lg border-l-0">months</span>
+          </div>
+        </div>
+        <p class="am-error" id="am-term-years-error" data-error-for="termYears" hidden></p>
+        <p class="am-error" id="am-term-months-error" data-error-for="termMonths" hidden></p>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-am-submit>Calculate Amortization</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <details class="am-optional" data-am-optional>
+      <summary class="am-optional__summary">Optional: make extra payments</summary>
+
+      <div class="am-optional__body">
+        <div data-field="startYear">
+          <label class="field-label" for="am-start-month">Loan start date</label>
+          <div class="am-start">
+            <select class="field am-start__month" id="am-start-month" name="startMonth" aria-label="Loan start month">
+              <option value="" selected>Month</option>
+              {MONTHS.map((m, i) => <option value={i + 1}>{m}</option>)}
+            </select>
+            <input class="field am-start__year" name="startYear" type="number" min="1900" max="2200" step="1" inputmode="numeric" autocomplete="off" placeholder="Year" aria-label="Loan start year" aria-describedby="am-start-year-error" />
+          </div>
+          <p class="am-error" id="am-start-year-error" data-error-for="startYear" hidden></p>
+          <p class="am-hint">Only used to date the extra payments below. Leave it blank to start from the first payment.</p>
+        </div>
+
+        <div class="am-extra" data-field="extraMonthlyAmount">
+          <label class="field-label" for="am-extra-monthly">Extra monthly pay</label>
+          <div class="am-extra__row">
+            <div class="flex am-extra__money">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="am-extra-monthly" name="extraMonthlyAmount" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="am-extra-monthly-error" />
+            </div>
+            <span class="am-extra__from">from</span>
+            <select class="field am-extra__month" name="extraMonthlyMonth" aria-label="Extra monthly payment start month"><option value="" selected>Loan start</option>{MONTHS.map((m, i) => <option value={i + 1}>{m}</option>)}</select>
+            <input class="field am-extra__year" name="extraMonthlyYear" type="number" min="1900" max="2200" step="1" inputmode="numeric" autocomplete="off" aria-label="Extra monthly payment start year" aria-describedby="am-extra-monthly-year-error" />
+          </div>
+          <p class="am-error" id="am-extra-monthly-error" data-error-for="extraMonthlyAmount" hidden></p>
+          <p class="am-error" id="am-extra-monthly-year-error" data-error-for="extraMonthlyYear" hidden></p>
+        </div>
+
+        <div class="am-extra" data-field="extraYearlyAmount">
+          <label class="field-label" for="am-extra-yearly">Extra yearly pay</label>
+          <div class="am-extra__row">
+            <div class="flex am-extra__money">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="am-extra-yearly" name="extraYearlyAmount" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="am-extra-yearly-error" />
+            </div>
+            <span class="am-extra__from">from</span>
+            <select class="field am-extra__month" name="extraYearlyMonth" aria-label="Extra yearly payment start month"><option value="" selected>Loan start</option>{MONTHS.map((m, i) => <option value={i + 1}>{m}</option>)}</select>
+            <input class="field am-extra__year" name="extraYearlyYear" type="number" min="1900" max="2200" step="1" inputmode="numeric" autocomplete="off" aria-label="Extra yearly payment start year" aria-describedby="am-extra-yearly-year-error" />
+          </div>
+          <p class="am-error" id="am-extra-yearly-error" data-error-for="extraYearlyAmount" hidden></p>
+          <p class="am-error" id="am-extra-yearly-year-error" data-error-for="extraYearlyYear" hidden></p>
+        </div>
+
+        {
+          ONE_TIME_ROWS.map((n) => (
+            <div class="am-extra" data-field={`extraOneTime${n}Amount`} data-am-onetime={n} hidden={n > 1}>
+              <label class="field-label" for={`am-extra-once-${n}`}>
+                {n === 1 ? 'Extra one-time pay' : `One-time pay #${n}`}
+              </label>
+              <div class="am-extra__row">
+                <div class="flex am-extra__money">
+                  <span class="field-affix rounded-l-lg border-r-0">$</span>
+                  <input class="field rounded-l-none" id={`am-extra-once-${n}`} name={`extraOneTime${n}Amount`} type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby={`am-extra-once-${n}-error`} />
+                </div>
+                <span class="am-extra__from">in</span>
+                <select class="field am-extra__month" name={`extraOneTime${n}Month`} aria-label={`One-time payment ${n} month`}><option value="" selected>Loan start</option>{MONTHS.map((m, i) => <option value={i + 1}>{m}</option>)}</select>
+                <input class="field am-extra__year" name={`extraOneTime${n}Year`} type="number" min="1900" max="2200" step="1" inputmode="numeric" autocomplete="off" aria-label={`One-time payment ${n} year`} aria-describedby={`am-extra-once-${n}-year-error`} />
+              </div>
+              <p class="am-error" id={`am-extra-once-${n}-error`} data-error-for={`extraOneTime${n}Amount`} hidden />
+              <p class="am-error" id={`am-extra-once-${n}-year-error`} data-error-for={`extraOneTime${n}Year`} hidden />
+            </div>
+          ))
+        }
+
+        <button type="button" class="am-add-onetime" data-am-add-onetime>+ Add another one-time payment</button>
+      </div>
+    </details>
+
+    <div class="mt-3 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-am-submit>Calculate</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
     </div>
     <p class="am-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell id="am-result" state="empty" density="complex" label="Amortization result" minHeight="12rem">
+  <ResultShell id="am-result" state="empty" density="complex" label="Amortization result" minHeight="20rem">
     <ExampleNotice />
-    <EmptyResult message="Enter your loan amount, interest rate, and term, then calculate to see your monthly payment and full amortization schedule." />
+    <EmptyResult message="Enter the loan amount, term and interest rate, then press Calculate to see the payment and its schedule." />
 
     <div data-result-when="valid">
-      <div class="am-summary">
-        <ResultSummary label="Estimated monthly payment">
-          <ResultValue value="—" size="text-3xl" />
-        </ResultSummary>
+      <ResultSummary label="Monthly pay">
+        <ResultValue value="—" size="text-4xl" />
+      </ResultSummary>
+
+      <ResultBreakdown title="Results">
+        <!-- Where the money goes: two parts of one total. The ring is labelled with
+             each share and the legend carries the names and the amounts, so nothing
+             here asks a reader to judge an angle. -->
+        <figure class="am-donut" data-am-donut-figure hidden>
+          <div class="am-donut__plot" data-am-donut></div>
+          <figcaption class="am-legend">
+            <span><span class="am-key am-key--principal" aria-hidden="true"></span>Principal <b data-am-share-principal>—</b> <span class="am-legend__amt" data-am-share-principal-amt>—</span></span>
+            <span><span class="am-key am-key--interest" aria-hidden="true"></span>Interest <b data-am-share-interest>—</b> <span class="am-legend__amt" data-am-share-interest-amt>—</span></span>
+          </figcaption>
+        </figure>
+
         <dl class="am-metrics">
+          <div><dt data-am-count-label>Total of monthly payments</dt><dd data-am-total>—</dd></div>
           <div><dt>Total interest</dt><dd data-am-interest>—</dd></div>
-          <div><dt>Total paid</dt><dd data-am-total>—</dd></div>
-          <div><dt>Payments</dt><dd data-am-count>—</dd></div>
         </dl>
-      </div>
+
+        <!-- Only shown when an extra payment actually applies. -->
+        <div class="am-extras-out" data-am-extras hidden>
+          <p class="am-extras-out__title">With your extra payments</p>
+          <dl class="am-metrics">
+            <div><dt>Extra principal paid</dt><dd data-am-extra-total>—</dd></div>
+            <div><dt>Interest saved</dt><dd data-am-interest-saved>—</dd></div>
+            <div><dt>Time saved</dt><dd data-am-time-saved>—</dd></div>
+            <div><dt>Paid off in</dt><dd data-am-payoff>—</dd></div>
+            <div><dt>Interest without the extras</dt><dd data-am-interest-without>—</dd></div>
+          </dl>
+        </div>
+      </ResultBreakdown>
 
       <details class="am-disclosure" data-am-disclosure>
-        <summary class="am-disclosure__summary">
-          <span>View amortization schedule</span>
-          <svg class="am-disclosure__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </summary>
+        <summary class="am-disclosure__summary">Amortization schedule</summary>
 
         <div class="am-schedule" data-am-schedule data-am-view="yearly">
           <fieldset class="am-view">
-            <legend class="sr-only">Schedule view</legend>
+            <legend class="am-view__legend">Schedule</legend>
             <div class="am-view__group">
-              <label class="am-view__opt"><input type="radio" name="am-view" value="yearly" checked data-am-view-radio /><span>Yearly</span></label>
+              <label class="am-view__opt"><input type="radio" name="am-view" value="yearly" checked data-am-view-radio /><span>Annual</span></label>
               <label class="am-view__opt"><input type="radio" name="am-view" value="monthly" data-am-view-radio /><span>Monthly</span></label>
             </div>
           </fieldset>
 
           <div class="am-table-wrap">
             <table class="am-table">
-              <caption class="sr-only">Amortization schedule showing principal paid, interest paid and remaining balance for each period.</caption>
+              <caption class="sr-only">Amortization schedule showing each period's interest and principal and the balance remaining afterwards.</caption>
               <thead>
                 <tr>
-                  <th scope="col" class="am-th-period">
-                    <span data-am-when-view="yearly">Year</span><span data-am-when-view="monthly">Month</span>
-                  </th>
-                  <th scope="col" class="am-num">Principal</th>
+                  <th scope="col" class="am-th-period"><span data-am-when-view="yearly">Year</span><span data-am-when-view="monthly">Month</span></th>
                   <th scope="col" class="am-num">Interest</th>
-                  <th scope="col" class="am-num">Balance</th>
+                  <th scope="col" class="am-num">Principal</th>
+                  <th scope="col" class="am-num am-col-extra">Extra</th>
+                  <th scope="col" class="am-num">Ending balance</th>
                 </tr>
               </thead>
               <tbody data-am-rows="yearly"></tbody>
               <tbody data-am-rows="monthly"></tbody>
             </table>
           </div>
-          <p class="am-schedule__note">Balances are shown to the nearest dollar. Amounts are in US dollars (USD).</p>
+          <p class="am-schedule__note">Amounts are in US dollars (USD).</p>
         </div>
       </details>
     </div>
 
     <InvalidResult
       title="Check your entries"
-      message="Enter a loan amount, an interest rate, and a whole loan term from 1 to 30 years."
+      message="Enter a loan amount, an interest rate and a loan term of at least one month. Extra payments are optional and count as zero when left blank."
     />
 
     <ResultAnnouncement id="am-live" />
@@ -130,58 +233,121 @@ import { AMORTIZATION_EXAMPLE_VALUES } from '@lib/calculators/amortization-form'
 </div>
 
 <style>
-  .am-field-error {
+  /* Series colours: one validated step per scheme rather than an automatic flip. The
+     same two the loan and auto-loan charts use, so a series keeps its identity. */
+  .amort {
+    --am-principal: #7c3aed; /* plum — the money borrowed */
+    --am-interest: #ea580c; /* burnt orange — the cost of borrowing it */
+  }
+
+  .amort > :global(*) { min-width: 0; }
+  .amort .field-label { margin-bottom: 0.15rem; line-height: 1.25; }
+
+  /* Years and months are one quantity in two boxes. The unit affixes are tighter than
+     the fleet default because "months" is a wide word. */
+  .am-term { display: flex; gap: 0.4rem; }
+  .am-term__part { flex: 1 1 0; min-width: 0; }
+  .am-term__part > input { min-width: 0; }
+  .am-term :global(.field-affix) { padding-inline: 0.4rem; font-size: 0.78rem; flex: none; }
+
+  .am-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .am-field-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .am-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .am-field-error {
-    color: #fca5a5;
+  :root[data-theme='dark'] .am-error { color: #fca5a5; }
+
+  .am-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  /* The optional block: closed, blank and inert until a visitor opens it. */
+  .am-optional { margin-top: 0.75rem; border-top: 1px solid var(--line); padding-top: 0.5rem; }
+  .am-optional__summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--heading);
+    padding: 0.2rem 0;
+  }
+  .am-optional__summary:focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+  .am-optional__body { display: grid; gap: 0.6rem; margin-top: 0.6rem; }
+  .am-hint { margin: 0.25rem 0 0; font-size: 0.75rem; line-height: 1.4; color: var(--muted); }
+
+  .am-start { display: flex; gap: 0.4rem; }
+  /* Wide enough for the "Month" placeholder — a truncated default reads as broken. */
+  .am-start__month { flex: 0 0 8rem; }
+  .am-start__year { flex: 1 1 0; min-width: 0; }
+
+  .am-extra__row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+  .am-extra__money { flex: 1 1 7rem; min-width: 0; }
+  .am-extra__from { font-size: 0.8rem; color: var(--muted); flex: none; }
+  /* Wide enough for the "Loan start" default — a truncated default reads as broken. */
+  .am-extra__month { flex: 0 0 8rem; }
+  .am-extra__year { flex: 0 1 5rem; min-width: 4rem; }
+
+  /* Below ~430px the four parts cannot share a line without the money field
+     collapsing, so the date controls wrap onto their own row. */
+  @media (max-width: 27rem) {
+    .am-extra__money { flex: 1 1 100%; }
+    .am-extra__month,
+    .am-extra__year { flex: 1 1 0; }
   }
 
-  .am-live-note {
-    margin-top: 0.75rem;
+  .am-add-onetime {
+    justify-self: start;
+    background: none;
+    border: 0;
+    padding: 0.2rem 0;
     font-size: 0.8rem;
-    color: var(--muted);
+    font-weight: 600;
+    color: var(--color-brand-600);
+    cursor: pointer;
+  }
+  .am-add-onetime:focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+  .am-add-onetime[hidden] { display: none; }
+
+  /* Result */
+  .am-donut { margin: 0 0 0.85rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .am-donut__plot { flex: 0 0 auto; width: 11.5rem; }
+  .am-donut :global(.am-donut__svg) { display: block; width: 100%; height: auto; }
+  .am-donut :global(.am-donut__arc--principal) { stroke: var(--am-principal); }
+  .am-donut :global(.am-donut__arc--interest) { stroke: var(--am-interest); }
+  /* Labels wear text ink, never the series colour. */
+  .am-donut :global(.am-donut__label) {
+    fill: var(--heading);
+    font-size: 11px;
+    font-weight: 700;
   }
 
-  /* Summary: dominant payment + supporting totals */
-  .am-summary {
+  .am-legend {
     display: grid;
-    gap: 1rem;
-    align-items: center;
-    grid-template-columns: 1fr;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+    flex: 1 1 9rem;
+    min-width: 0;
   }
-  @media (min-width: 640px) {
-    .am-summary {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-    }
-  }
-  .am-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
-    align-self: center;
-  }
+  .am-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .am-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .am-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .am-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+  .am-key--principal { background: var(--am-principal); }
+  .am-key--interest { background: var(--am-interest); }
+
+  .am-metrics { margin: 0; display: grid; gap: 0.2rem; }
   .am-metrics > div {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.35rem 0;
+    padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
-  .am-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
+  .am-metrics dt { color: var(--fg); font-weight: 600; }
   .am-metrics dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
@@ -190,142 +356,86 @@ import { AMORTIZATION_EXAMPLE_VALUES } from '@lib/calculators/amortization-form'
     white-space: nowrap;
   }
 
-  /* Disclosure */
-  .am-disclosure {
-    margin-top: 1.5rem;
-    border-top: 1px solid var(--line);
-    padding-top: 1rem;
-  }
-  .am-disclosure__summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    cursor: pointer;
-    list-style: none;
-    font-weight: 700;
-    color: var(--heading);
-    padding: 0.35rem 0;
-  }
-  .am-disclosure__summary::-webkit-details-marker {
-    display: none;
-  }
-  .am-disclosure__summary:focus-visible {
-    outline: 2px solid var(--color-brand-600);
-    outline-offset: 3px;
-    border-radius: 0.35rem;
-  }
-  .am-disclosure__chevron {
-    flex: none;
-    transition: transform 0.15s ease;
+  .am-extras-out { margin-top: 0.9rem; }
+  .am-extras-out__title {
+    margin: 0 0 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--muted);
   }
-  .am-disclosure[open] .am-disclosure__chevron {
-    transform: rotate(180deg);
-  }
 
-  .am-schedule {
-    margin-top: 0.75rem;
+  .am-disclosure { margin-top: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.6rem; }
+  .am-disclosure__summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--heading);
+    padding: 0.2rem 0;
   }
+  .am-disclosure__summary:focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
 
-  /* View selector — native radios styled as a segmented control */
-  .am-view {
-    border: 0;
-    margin: 0;
-    padding: 0;
-    min-width: 0;
-  }
+  .am-view { border: 0; margin: 0.6rem 0 0; padding: 0; min-width: 0; }
+  .am-view__legend { font-size: 0.8rem; font-weight: 600; color: var(--muted); padding: 0; }
   .am-view__group {
     display: inline-flex;
+    margin-top: 0.3rem;
     border: 1px solid var(--line);
-    border-radius: 0.55rem;
-    padding: 0.125rem;
+    border-radius: 0.5rem;
+    padding: 0.1rem;
   }
-  .am-view__opt {
-    position: relative;
-    display: inline-flex;
-  }
-  .am-view__opt input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    cursor: pointer;
-  }
+  .am-view__opt { position: relative; display: inline-flex; }
+  .am-view__opt input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
   .am-view__opt span {
-    padding: 0.35rem 0.9rem;
-    border-radius: 0.45rem;
-    font-size: 0.85rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--muted);
   }
-  .am-view__opt:has(input:checked) span {
-    background: var(--color-brand-600);
-    color: #fff;
-  }
-  .am-view__opt:has(input:focus-visible) span {
-    outline: 2px solid var(--color-brand-600);
-    outline-offset: 2px;
-  }
+  .am-view__opt:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .am-view__opt:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
 
-  .am-table-wrap {
-    margin-top: 1rem;
-    max-height: 24rem;
-    overflow: auto;
-    border: 1px solid var(--line);
-    border-radius: 0.6rem;
-  }
-  .am-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.875rem;
-  }
+  .am-schedule { margin-top: 0.5rem; }
+  .am-table-wrap { margin-top: 0.6rem; max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
+  .am-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   .am-table thead th {
     position: sticky;
     top: 0;
-    z-index: 1;
-    background: var(--subtle);
-    padding: 0.55rem 0.75rem;
-    font-weight: 600;
+    background: var(--surface);
     text-align: left;
-    color: var(--fg);
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
+  /* Rows are built with the DOM API, so these must be global — a scoped selector
+     compiles to an attribute the generated cells never carry. */
+  .am-table :global(.am-cell) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .am-table :global(.am-cell--period) { font-weight: 600; color: var(--fg); text-align: left; }
   .am-table th.am-num,
-  .am-table td.am-num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-  .am-table :global(.am-row) {
-    border-top: 1px solid var(--line);
-  }
-  .am-table :global(.am-cell) {
-    padding: 0.5rem 0.75rem;
-  }
-  .am-table :global(.am-cell--period) {
+  .am-table :global(td.am-num) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .am-table :global(.am-year-end) > :global(.am-cell--yearend) {
+    background: var(--surface-2, var(--line));
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--heading);
     text-align: left;
-    font-weight: 600;
-    color: var(--fg);
+    letter-spacing: 0.02em;
   }
 
-  /* View gating — show only the active view's rows + header label */
+  /* The Extra column exists only when something was actually paid into it. */
+  .am-schedule:not([data-am-has-extras]) th.am-col-extra,
+  .am-schedule:not([data-am-has-extras]) :global(td.am-col-extra) { display: none; }
+
   .am-schedule[data-am-view='yearly'] :global([data-am-rows='monthly']),
-  .am-schedule[data-am-view='monthly'] :global([data-am-rows='yearly']) {
-    display: none;
-  }
+  .am-schedule[data-am-view='monthly'] :global([data-am-rows='yearly']) { display: none; }
   .am-schedule[data-am-view='yearly'] [data-am-when-view='monthly'],
-  .am-schedule[data-am-view='monthly'] [data-am-when-view='yearly'] {
-    display: none;
-  }
+  .am-schedule[data-am-view='monthly'] [data-am-when-view='yearly'] { display: none; }
 
-  .am-schedule__note {
-    margin: 0.75rem 0 0;
-    font-size: 0.8rem;
-    line-height: 1.45;
-    color: var(--muted);
-  }
+  .am-schedule__note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
 </style>
 
 <script>
@@ -336,45 +446,42 @@ import { AMORTIZATION_EXAMPLE_VALUES } from '@lib/calculators/amortization-form'
     mountFormCalculator(root, amortizationBinding, {
       recalculationMode: 'live-after-first',
       example: { values: AMORTIZATION_EXAMPLE_VALUES },
-      calculateButtonLabel: 'Calculate Amortization',
+      calculateButtonLabel: 'Calculate',
     });
 
-    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
-    const disclosure = root.querySelector<HTMLDetailsElement>('[data-am-disclosure]');
+    // One-time rows past the first are revealed on demand, so the optional block does
+    // not open onto five near-identical empty rows.
+    const rows = Array.from(root.querySelectorAll<HTMLElement>('[data-am-onetime]'));
+    const addButton = root.querySelector<HTMLButtonElement>('[data-am-add-onetime]');
+    const syncAdd = () => {
+      if (addButton) addButton.hidden = rows.every((r) => !r.hidden);
+    };
+    addButton?.addEventListener('click', () => {
+      const next = rows.find((r) => r.hidden);
+      if (next) {
+        next.hidden = false;
+        next.querySelector<HTMLInputElement>('input')?.focus();
+      }
+      syncAdd();
+    });
+    syncAdd();
+
+    // Annual ⇆ Monthly is a VIEW of one computed schedule, never a recalculation.
     const schedule = root.querySelector<HTMLElement>('[data-am-schedule]');
-    const radios = Array.from(root.querySelectorAll<HTMLInputElement>('[data-am-view-radio]'));
+    root.querySelectorAll<HTMLInputElement>('[data-am-view-radio]').forEach((radio) =>
+      radio.addEventListener('change', () => {
+        if (schedule && radio.checked) schedule.dataset.amView = radio.value;
+      }),
+    );
 
-    // The island owns the Yearly/Monthly view — a presentation-only switch over the schedule the
-    // runtime already rendered in full. Native radios: focus stays on the selected radio, no
-    // recompute (they sit OUTSIDE the form), no announcement.
-    const applyView = () => {
-      const checked = radios.find((r) => r.checked)?.value ?? 'yearly';
-      if (schedule) schedule.dataset.amView = checked;
-    };
-    for (const r of radios) r.addEventListener('change', applyView);
-
-    const clearRows = () =>
-      root.querySelectorAll<HTMLElement>('[data-am-rows]').forEach((tb) => tb.replaceChildren());
-    const restoreYearly = () => {
-      for (const r of radios) r.checked = r.value === 'yearly';
-      applyView();
-    };
-
-    // React to runtime state transitions the island does not itself cause. Leaving `valid` (an
-    // invalid live edit) drops the stale/possibly-malformed rows so a malformed schedule can never
-    // remain in the DOM; returning to `empty` (Reset) also closes the disclosure and restores Yearly.
-    // A `valid` update is owned by the binding's renderResult, so the observer never touches it.
-    if (shell) {
-      const observer = new MutationObserver(() => {
-        const state = shell.dataset.resultState;
-        if (state === 'valid') return;
-        clearRows();
-        if (state === 'empty') {
-          if (disclosure) disclosure.open = false;
-          restoreYearly();
-        }
-      });
-      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
-    }
+    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
+      const optional = root.querySelector<HTMLDetailsElement>('[data-am-optional]');
+      if (optional) optional.open = false;
+      rows.forEach((r, i) => (r.hidden = i > 0));
+      syncAdd();
+      const yearly = root.querySelector<HTMLInputElement>('[data-am-view-radio][value="yearly"]');
+      if (yearly) yearly.checked = true;
+      if (schedule) schedule.dataset.amView = 'yearly';
+    });
   });
 </script>

@@ -9,19 +9,50 @@ const faqs = [
   { question: 'How do I calculate an amortization schedule?', answer: 'First find the fixed payment with M = P·r(1+r)ⁿ ÷ ((1+r)ⁿ − 1), where P is the loan, r the monthly rate and n the number of payments. Then for each month, interest = balance × r, principal = payment − interest, and the new balance = balance − principal. Repeat until the balance is zero.' },
   { question: 'What is negative amortization?', answer: 'Negative amortization happens when your payment is smaller than the interest due, so the unpaid interest is added to the balance and the debt actually grows instead of shrinking. It can occur with some adjustable-rate or minimum-payment "option" loans and deferred plans, and it is a warning sign to watch for.' },
   { question: 'Why is early interest so high?', answer: 'Interest is charged on the outstanding balance, which is largest at the start. So early payments are mostly interest and only slowly chip away at principal — the balance then falls faster as the loan matures and the interest share shrinks.' },
-  { question: 'How can I pay off a loan faster?', answer: 'Extra payments applied to principal shrink the balance ahead of schedule, which lowers the interest charged on every future payment. Even small additional amounts early in the loan — when interest dominates — save a surprising amount over the full term.' },
+  { question: 'How can I pay off a loan faster?', answer: 'Extra payments applied to principal shrink the balance ahead of schedule, which lowers the interest charged on every future payment. Even small additional amounts early in the loan — when interest dominates — save a surprising amount over the full term. Open "Optional: make extra payments" to model it: on a $200,000 loan at 6% over 15 years, an extra $300 a month clears the debt 3 years 3 months early and saves $25,072.62 in interest.' },
+  { question: 'Do extra payments lower my monthly bill?', answer: 'No. The scheduled payment is fixed for the life of the loan, so paying extra shortens the term rather than shrinking the bill. That is what makes it powerful: every dollar of extra principal removes all the future interest that dollar would have attracted.' },
+  { question: 'When is an extra payment counted?', answer: 'After that month\'s interest has already accrued. Interest is charged on the balance at the start of the month, so extra principal paid this month starts saving you interest from next month onward. The dates you give each extra payment are counted from the loan start date.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="See exactly how each payment on a loan splits between principal and interest, and how the balance falls over the full term — month by month or year by year." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="See exactly how each payment on a loan splits between principal and interest, how the balance falls over the full term, and what extra payments would save you." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-27' }}>
   <AmortizationCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter the <strong>loan amount</strong>, the annual <strong>interest rate</strong> and the <strong>term</strong> in years.</li>
-      <li>Read the fixed monthly payment, then open the schedule below it.</li>
-      <li>Toggle the <strong>schedule view</strong> between a <strong>yearly</strong> summary and the full <strong>monthly</strong> breakdown.</li>
+      <li>Enter the <strong>loan amount</strong>, the <strong>loan term</strong> in years and months, and the annual <strong>interest rate</strong>.</li>
+      <li>Read the fixed monthly payment and the ring beneath it, which shows how the total splits between principal and interest.</li>
+      <li>Optionally open <strong>make extra payments</strong> to add extra principal monthly, yearly or as dated one-off amounts, and see what it saves.</li>
+      <li>Open the <strong>amortization schedule</strong> and toggle it between an <strong>annual</strong> summary and the full <strong>monthly</strong> breakdown.</li>
       <li>Follow the interest and principal columns down the table to see where each payment goes and what you still owe.</li>
     </ol>
+
+    <h2>A worked example</h2>
+    <p>
+      A <strong>$200,000</strong> loan at <strong>6%</strong> over <strong>15 years</strong> costs
+      <strong>$1,687.71</strong> a month. Over 180 payments that is
+      <strong>$303,788.46</strong> — the $200,000 borrowed plus <strong>$103,788.46</strong> of
+      interest, so roughly a third of everything you pay is the cost of borrowing.
+    </p>
+    <p>
+      The first year shows why the schedule matters. Of the $20,252.56 paid,
+      <strong>$11,769.23</strong> is interest and only <strong>$8,483.33</strong> reduces the
+      balance. By year nine the split has reversed: $6,559.25 interest against $13,693.31 of
+      principal. The payment never changes; what changes is where it goes.
+    </p>
+
+    <h2>What extra payments do</h2>
+    <p>
+      Extra principal does not reduce the monthly bill — it shortens the loan. Take the same
+      $200,000 at 6% over 15 years and add <strong>$300 a month</strong>: the payment stays
+      $1,687.71, but the loan clears in <strong>11 years 9 months</strong> instead of 15, saving
+      <strong>$25,072.62</strong> in interest for $42,000 of extra principal.
+    </p>
+    <p>
+      Timing is most of the effect. Extra principal paid early removes interest from every
+      remaining payment, while the same amount paid near the end removes almost none — by then the
+      balance is small and there is little interest left to avoid. An extra payment is also applied
+      after that month's interest has accrued, so it starts saving from the following month.
+    </p>
 
     <h2>What amortization is</h2>
     <p>
