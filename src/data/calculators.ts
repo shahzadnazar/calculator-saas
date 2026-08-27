@@ -185,8 +185,9 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Investment Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Model returns on a lump sum or recurring investments over time.',
-    keywords: ['investment calculator', 'return on investment', 'future value'],
+    description:
+      'Project what a starting amount and regular contributions grow to, with the accumulation schedule year by year and month by month.',
+    keywords: ['investment calculator', 'return on investment', 'future value', 'accumulation schedule', 'compound growth'],
     aliases: ['roi calculator'],
     phrases: ['investment growth', 'how my investment grows', 'future value of investment'],
   },
