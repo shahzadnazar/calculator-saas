@@ -1,29 +1,39 @@
 /**
- * Payment form binding (R8B1 — standard-form wave, calculator #14; product family
- * MULTI-MODE, on the standard-form runtime + the small `isUsableResult` extension).
+ * Payment form binding — two modes, one loan.
  *
- * Payment has two modes — Fixed term (solve for the monthly payment) and Fixed
- * payment (solve for the payoff time). They are a STRUCTURAL selector: the shared
- * loan amount + interest rate stay put while ONE conditional field swaps (term ⇆
- * monthly payment) and the equation, labels and dominant result change. The runtime
- * already recomputes on the mode radio's structural `input`; the island owns the
- * conditional field's visibility + the action label; this binding owns reading the
- * mode, selecting the reviewed formula, validating only the ACTIVE mode's field, and
- * rendering a mode-specific result.
+ * FIXED TERM takes a term and solves for the monthly payment. FIXED PAYMENTS takes
+ * the payment and solves for how long it takes. The loan amount and interest rate
+ * are shared; only one field swaps between them, and the dominant result changes
+ * with it.
  *
- * The pure `loanPayment` / `solveMonths` are UNCHANGED and frozen by the
- * characterization suite (payment.test.ts). Everything here is at the VALIDATION /
- * PRESENTATION boundary. Two product decisions shape it:
- *   • Impossible payoff (a positive payment that never covers the interest →
- *     Infinity) is a VALID informational result — "Never" — not an input error.
- *     `isUsableResult` widens the runtime's success gate to accept it.
- *   • No result enrichment: summary-level only (payment or payoff time + the number
- *     of payments). No total paid, total interest or amortization schedule.
- * Inputs are parsed strictly — never `Number(value) || 0`.
+ * Both modes then produce the SAME enrichment — the total of all payments, the
+ * total interest, a principal-against-interest ring and the full amortization
+ * schedule — because once the payment and the term are both known the loan is
+ * completely determined, whichever of the two was the answer. That enrichment comes
+ * from `calculateAmortization`, so the schedule under a payment calculation is the
+ * same schedule the amortization calculator would produce for the same loan.
+ *
+ * `loanPayment` and `solveMonths` are UNCHANGED and frozen by payment.test.ts; they
+ * still decide the headline. Everything else here is at the validation and
+ * presentation boundary.
+ *
+ * THE "NEVER" OUTCOME. A positive payment that does not cover the monthly interest
+ * pays a loan off never. That is a true, useful answer rather than a typo, so it
+ * renders as a valid informational result: `isUsableResult` widens the runtime's
+ * success gate to accept it, and it carries no schedule, no totals and no ring,
+ * because there is no finite loan to describe.
  */
 import { loanPayment, solveMonths } from './payment';
-import { formatCurrency } from '@lib/format';
+import { calculateAmortization, MAX_TERM_MONTHS, type AmortizationResult } from './amortization';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
 import { presentDuration } from '@lib/format-duration';
+import {
+  drawDonut,
+  fillLoanSchedule,
+  percentLabel,
+  share,
+  type LoanScheduleRow,
+} from '@lib/result/loan-schedule';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -32,6 +42,9 @@ import type {
 } from '@lib/result/form-runtime';
 
 export type PaymentMode = 'term' | 'payment';
+
+/** The term ceiling, shared with the amortization schedule it produces. */
+export const MAX_TERM_YEARS = MAX_TERM_MONTHS / 12;
 
 export interface PaymentValues {
   mode: PaymentMode;
@@ -43,12 +56,29 @@ export interface PaymentValues {
 
 /**
  * The computed result. Three shapes: a fixed-term monthly payment, a fixed-payment
- * payoff, and the informational "never pays off" outcome (a positive payment that
- * does not cover the monthly interest).
+ * payoff, and the informational "never pays off" outcome.
+ *
+ * The two solvable shapes carry the same `plan`, so everything below the headline is
+ * rendered identically for both.
  */
 export type PaymentComputed =
-  | { status: 'payment'; mode: 'term'; monthlyPayment: number; paymentCount: number }
-  | { status: 'payoff'; mode: 'payment'; months: number; paymentCount: number }
+  | {
+      status: 'payment';
+      mode: 'term';
+      monthlyPayment: number;
+      paymentCount: number;
+      plan: AmortizationResult;
+    }
+  | {
+      status: 'payoff';
+      mode: 'payment';
+      /** The exact, unrounded solve — what the headline duration is phrased from. */
+      months: number;
+      /** Whole payments actually made; the last one is usually short. */
+      paymentCount: number;
+      monthlyPayment: number;
+      plan: AmortizationResult;
+    }
   | { status: 'never'; mode: 'payment'; reason: 'payment-does-not-cover-interest' };
 
 /* ------------------------------------------------------------------ */
@@ -57,7 +87,7 @@ export type PaymentComputed =
 
 type NumParse = 'empty' | 'invalid' | number;
 
-/** Finite and strictly greater than zero: loan amount, term, monthly payment. */
+/** Finite and strictly greater than zero. */
 function parsePositive(raw: string): NumParse {
   const t = raw.trim();
   if (t === '') return 'empty';
@@ -66,7 +96,7 @@ function parsePositive(raw: string): NumParse {
   return n;
 }
 
-/** Finite and >= 0: an interest rate. 0% is valid; there is no maximum. */
+/** Finite and at least zero. */
 function parseNonNegative(raw: string): NumParse {
   const t = raw.trim();
   if (t === '') return 'empty';
@@ -75,12 +105,17 @@ function parseNonNegative(raw: string): NumParse {
   return n;
 }
 
-/**
- * Validate payment values. The loan amount (> 0) and interest rate (>= 0) are always
- * required. Only the ACTIVE mode's field is required + validated — the inactive
- * field (hidden + disabled by the island) is excluded, so a blank monthly payment is
- * never an error while solving for the payment, and vice-versa.
- */
+/** A whole number of years, 1 … MAX_TERM_YEARS. Fractions are rejected, not rounded. */
+function parseTermYears(raw: string): NumParse {
+  const t = raw.trim();
+  if (t === '') return 'empty';
+  const n = Number(t);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > MAX_TERM_YEARS) return 'invalid';
+  return n;
+}
+
+export const TERM_MESSAGE = `Enter a whole number of years from 1 to ${MAX_TERM_YEARS}.`;
+
 export function validatePaymentValues(values: PaymentValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
 
@@ -92,10 +127,11 @@ export function validatePaymentValues(values: PaymentValues): ValidationResult {
   if (rate === 'empty') fieldErrors.annualRatePct = 'Enter an interest rate.';
   else if (rate === 'invalid') fieldErrors.annualRatePct = 'Enter an interest rate of zero or more.';
 
+  // Only the ACTIVE mode's field is required; the other is hidden and disabled.
   if (values.mode === 'term') {
-    const term = parsePositive(values.termYears);
+    const term = parseTermYears(values.termYears);
     if (term === 'empty') fieldErrors.termYears = 'Enter a loan term.';
-    else if (term === 'invalid') fieldErrors.termYears = 'Enter a loan term greater than zero.';
+    else if (term === 'invalid') fieldErrors.termYears = TERM_MESSAGE;
   } else {
     const payment = parsePositive(values.payment);
     if (payment === 'empty') fieldErrors.payment = 'Enter a monthly payment.';
@@ -114,11 +150,17 @@ export function computePayment(values: PaymentValues): PaymentComputed {
   const rate = Number(values.annualRatePct);
 
   if (values.mode === 'term') {
-    const months = Number(values.termYears) * 12;
+    const months = Math.round(Number(values.termYears) * 12);
     const monthlyPayment = loanPayment(principal, rate, months);
-    // In term mode the number of payments IS the term in months (an input, not a
-    // derived floor/ceil); round guards the rare fractional-year entry.
-    return { status: 'payment', mode: 'term', monthlyPayment, paymentCount: Math.round(months) };
+    return {
+      status: 'payment',
+      mode: 'term',
+      monthlyPayment,
+      // In term mode the number of payments IS the term in months — an input, not a
+      // derived figure.
+      paymentCount: months,
+      plan: calculateAmortization({ amount: principal, annualRatePct: rate, months }),
+    };
   }
 
   const payment = Number(values.payment);
@@ -126,40 +168,132 @@ export function computePayment(values: PaymentValues): PaymentComputed {
   if (!Number.isFinite(months)) {
     return { status: 'never', mode: 'payment', reason: 'payment-does-not-cover-interest' };
   }
-  return { status: 'payoff', mode: 'payment', months, paymentCount: Math.ceil(months) };
+
+  // The solve is fractional; the loan is repaid over whole months, the last of which
+  // is short. Rounding UP is what makes the schedule end on a zero balance rather
+  // than one payment shy of it.
+  const wholeMonths = Math.min(Math.max(1, Math.ceil(months - 1e-9)), MAX_TERM_MONTHS);
+  const plan = calculateAmortization({
+    amount: principal,
+    annualRatePct: rate,
+    months: wholeMonths,
+    payment,
+  });
+
+  return {
+    status: 'payoff',
+    mode: 'payment',
+    months,
+    paymentCount: plan.payoffMonths,
+    monthlyPayment: payment,
+    plan,
+  };
 }
 
+/* ------------------------------------------------------------------ */
+/* The complete-result guard                                           */
+/* ------------------------------------------------------------------ */
+
+const reconTol = (magnitude: number) => Math.max(1, Math.abs(magnitude) * 1e-6);
+const ROW_SUM_TOL = 1e-6;
+const ZERO_BAL_TOL = 1e-2;
+
 /**
- * The usability gate (R8B1 extension). An ordinary payment or payoff is usable when
- * its magnitude is finite; the "never" outcome is ALWAYS usable — it is a meaningful
- * informational answer rendered in the valid region, not an input error. A malformed
- * number (defensive) falls through to the invalid state.
+ * True only when the plan under a headline is wholly self-consistent — the totals
+ * against each other, every row's payment against its own parts, the summed
+ * principal against the loan, the yearly rows against the months they collapse, and
+ * a final balance of zero.
  */
+function planReconciles(p: AmortizationResult): boolean {
+  if (![p.loanAmount, p.totalInterest, p.totalOfPayments, p.monthlyPayment].every(
+    (v) => Number.isFinite(v) && v >= 0,
+  )) {
+    return false;
+  }
+  if (p.schedule.length < 1 || p.schedule.length !== p.payoffMonths) return false;
+  if (p.payoffMonths > MAX_TERM_MONTHS) return false;
+  if (Math.abs(p.loanAmount + p.totalInterest - p.totalOfPayments) > reconTol(p.totalOfPayments)) {
+    return false;
+  }
+
+  let sumPrincipal = 0;
+  let sumInterest = 0;
+  for (let i = 0; i < p.schedule.length; i++) {
+    const r = p.schedule[i];
+    if (r.period !== i + 1) return false;
+    if (![r.payment, r.principal, r.interest, r.balance].every((v) => Number.isFinite(v) && v >= 0)) {
+      return false;
+    }
+    if (Math.abs(r.payment - (r.principal + r.interest)) > ROW_SUM_TOL) return false;
+    sumPrincipal += r.principal;
+    sumInterest += r.interest;
+  }
+  if (Math.abs(sumPrincipal - p.loanAmount) > reconTol(p.loanAmount)) return false;
+  if (Math.abs(sumInterest - p.totalInterest) > reconTol(p.totalInterest)) return false;
+  if (Math.abs(p.schedule[p.schedule.length - 1].balance) > ZERO_BAL_TOL) return false;
+
+  if (p.annual.length !== Math.ceil(p.payoffMonths / 12)) return false;
+  let months = 0;
+  let ySumInterest = 0;
+  for (let i = 0; i < p.annual.length; i++) {
+    const y = p.annual[i];
+    if (y.period !== i + 1 || y.monthCount < 1 || y.monthCount > 12) return false;
+    months += y.monthCount;
+    const closing = p.schedule[months - 1];
+    if (!closing || Math.abs(closing.balance - y.balance) > reconTol(y.balance)) return false;
+    ySumInterest += y.interest;
+  }
+  if (months !== p.payoffMonths) return false;
+  if (Math.abs(ySumInterest - sumInterest) > reconTol(sumInterest)) return false;
+  return true;
+}
+
+const FAIL = Number.NaN;
+
+/**
+ * The dominant magnitude — but only once the whole result reconciles.
+ *
+ * "Never" is deliberately NaN here: it is not a magnitude at all. `isUsableResult`
+ * is what lets it through as a valid informational result.
+ */
+export function paymentResultValue(result: PaymentComputed): number {
+  if (result.status === 'never') return FAIL;
+  if (!planReconciles(result.plan)) return FAIL;
+
+  if (result.status === 'payment') {
+    if (!Number.isFinite(result.monthlyPayment) || result.monthlyPayment < 0) return FAIL;
+    if (result.paymentCount !== result.plan.payoffMonths) return FAIL;
+    // The headline payment must be the payment the schedule was actually built on.
+    if (Math.abs(result.monthlyPayment - result.plan.monthlyPayment) > ROW_SUM_TOL) return FAIL;
+    return result.monthlyPayment;
+  }
+
+  if (!Number.isFinite(result.months) || result.months <= 0) return FAIL;
+  if (result.paymentCount !== result.plan.payoffMonths) return FAIL;
+  // The solve and the schedule must agree to within the rounding up of a part month.
+  if (result.paymentCount < Math.floor(result.months)) return FAIL;
+  if (result.paymentCount > Math.ceil(result.months)) return FAIL;
+  return result.months;
+}
+
+/** "Never" is a real answer, so the runtime's finite gate is widened to accept it. */
 export function isUsablePayment(result: PaymentComputed): boolean {
-  if (result.status === 'never') return true;
-  if (result.status === 'payment') return Number.isFinite(result.monthlyPayment) && result.monthlyPayment >= 0;
-  return Number.isFinite(result.months) && result.months >= 0;
+  return result.status === 'never' || Number.isFinite(paymentResultValue(result));
 }
 
 /* ------------------------------------------------------------------ */
 /* Presentation (pure)                                                 */
 /* ------------------------------------------------------------------ */
 
-/** The secondary "N monthly payments" line (singular at 1). */
-export function paymentsLabel(count: number): string {
-  return `${count} monthly payment${count === 1 ? '' : 's'}`;
-}
-
-/** A USD amount in spoken form, e.g. "386 dollars and 66 cents", "1000 dollars". */
+/** A USD amount in spoken form, e.g. "1687 dollars and 71 cents". */
 export function spokenUSD(value: number): string {
-  const cents = Math.round(value * 100);
+  const cents = Math.round(Math.abs(value) * 100);
   const dollars = Math.floor(cents / 100);
   const rem = cents % 100;
   const d = `${dollars} dollar${dollars === 1 ? '' : 's'}`;
   return rem === 0 ? d : `${d} and ${rem} cent${rem === 1 ? '' : 's'}`;
 }
 
-/** Concise announcement — the dominant mode-owned result only. */
 export function describePaymentResult(result: PaymentComputed): string {
   if (result.status === 'payment') {
     return `Your estimated monthly payment is ${spokenUSD(result.monthlyPayment)}.`;
@@ -170,22 +304,64 @@ export function describePaymentResult(result: PaymentComputed): string {
   return 'At this payment amount, the loan will never be paid off because the payment does not cover the monthly interest.';
 }
 
+/**
+ * The sentence under the headline, in the reference's words: what you pay, how
+ * often, and for how long.
+ */
+export function payoffSentence(result: PaymentComputed): string {
+  if (result.status === 'never') return '';
+  const payment =
+    result.status === 'payment' ? result.monthlyPayment : result.monthlyPayment;
+  const duration =
+    result.status === 'payment'
+      ? presentDuration(result.paymentCount).display
+      : presentDuration(result.months).display;
+  return `You will need to pay ${formatCurrency(payment)} every month for ${duration} to pay off the debt.`;
+}
+
 /* ------------------------------------------------------------------ */
 /* The binding                                                         */
 /* ------------------------------------------------------------------ */
 
-const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+const field = (root: HTMLElement, name: string) =>
+  root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+
 const readMode = (root: HTMLElement): PaymentMode =>
-  root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'payment' ? 'payment' : 'term';
+  root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'payment'
+    ? 'payment'
+    : 'term';
+
+const SCHEDULE = { prefix: 'pay', format: formatCurrency };
+
+const toRows = (
+  rows: readonly { period: number; interest: number; principal: number; extra: number; balance: number }[],
+): LoanScheduleRow[] =>
+  rows.map((r) => ({
+    period: r.period,
+    interest: r.interest,
+    principal: r.principal,
+    extra: r.extra,
+    balance: r.balance,
+  }));
+
+function donutLabel(plan: AmortizationResult): string {
+  const p = share(plan.loanAmount, plan.totalOfPayments);
+  const i = share(plan.totalInterest, plan.totalOfPayments);
+  return (
+    `Of ${formatCurrency(plan.totalOfPayments)} paid in total, ` +
+    `${formatCurrency(plan.loanAmount)} (${percentLabel(p)}) is principal and ` +
+    `${formatCurrency(plan.totalInterest)} (${percentLabel(i)}) is interest.`
+  );
+}
 
 export const paymentBinding: FormCalculatorBinding<PaymentValues, PaymentComputed> = {
   readValues(root) {
     return {
       mode: readMode(root),
-      principal: input(root, 'principal')?.value ?? '',
-      annualRatePct: input(root, 'annualRatePct')?.value ?? '',
-      termYears: input(root, 'termYears')?.value ?? '',
-      payment: input(root, 'payment')?.value ?? '',
+      principal: field(root, 'principal')?.value ?? '',
+      annualRatePct: field(root, 'annualRatePct')?.value ?? '',
+      termYears: field(root, 'termYears')?.value ?? '',
+      payment: field(root, 'payment')?.value ?? '',
     };
   },
 
@@ -193,14 +369,7 @@ export const paymentBinding: FormCalculatorBinding<PaymentValues, PaymentCompute
 
   compute: computePayment,
 
-  /** Default-gate magnitude — consulted only if `isUsableResult` were absent: the
-   *  payment or the months; NaN for 'never' (which `isUsableResult` marks usable so
-   *  it renders as a valid informational result rather than an error). */
-  resultValue(result) {
-    if (result.status === 'payment') return result.monthlyPayment;
-    if (result.status === 'payoff') return result.months;
-    return NaN;
-  },
+  resultValue: paymentResultValue,
 
   isUsableResult: isUsablePayment,
 
@@ -209,46 +378,80 @@ export const paymentBinding: FormCalculatorBinding<PaymentValues, PaymentCompute
   renderResult(result, context: FormRenderContext) {
     const scope = context.result;
     const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
-    const setLabel = (text: string) => {
-      const el = q('[data-result-when~="valid"] [data-result-summary-label]');
+    const setText = (sel: string, text: string) => {
+      const el = q(sel);
       if (el) el.textContent = text;
     };
-    const setValue = (shown: string, spoken: string) => {
-      const v = q('[data-result-when~="valid"] [data-result-value]');
-      if (v) v.textContent = shown;
-      const a = q('[data-result-when~="valid"] [data-result-value-a11y]');
-      if (a) a.textContent = spoken;
+    const show = (sel: string, visible: boolean) => {
+      const el = q(sel);
+      if (el) el.hidden = !visible;
     };
-    const setDetail = (text: string) => {
-      const el = q('[data-pm-detail]');
-      if (el) el.textContent = text;
+    const setValue = (label: string, shown: string, spoken: string) => {
+      setText('[data-result-when~="valid"] [data-result-summary-label]', label);
+      setText('[data-result-when~="valid"] [data-result-value]', shown);
+      setText('[data-result-when~="valid"] [data-result-value-a11y]', spoken);
     };
 
-    if (result.status === 'payment') {
-      setLabel('Estimated monthly payment');
-      setValue(formatCurrency(result.monthlyPayment), spokenUSD(result.monthlyPayment));
-      setDetail(paymentsLabel(result.paymentCount));
-    } else if (result.status === 'payoff') {
-      setLabel('Estimated payoff time');
-      const { display, spoken } = presentDuration(result.months);
-      setValue(display, spoken);
-      setDetail(paymentsLabel(result.paymentCount));
-    } else {
-      // 'never' — a VALID informational outcome (Decision A). No invalid styling, no
-      // aria-invalid, no zero/Infinity/NaN, no logarithm/denominator language.
-      setLabel('Estimated payoff time');
-      setValue('Never', 'Never');
-      setDetail(
-        'This payment does not cover the monthly interest, so the balance will not decrease. Increase the monthly payment to pay off the loan.',
+    if (result.status === 'never') {
+      setValue('Payoff time', 'Never', 'never');
+      setText(
+        '[data-pay-note]',
+        'This payment does not cover the monthly interest, so the balance never falls. Increase the payment above the interest charged each month.',
       );
+      show('[data-pay-note]', true);
+      // Nothing below the headline describes a loan that is never repaid.
+      show('[data-pay-details]', false);
+      return;
     }
+
+    show('[data-pay-details]', true);
+    const plan = result.plan;
+
+    if (result.status === 'payment') {
+      setValue(
+        'Monthly payment',
+        formatCurrency(result.monthlyPayment),
+        spokenUSD(result.monthlyPayment),
+      );
+    } else {
+      const duration = presentDuration(result.months);
+      setValue('Payoff time', duration.display, duration.spoken);
+    }
+
+    setText('[data-pay-note]', payoffSentence(result));
+    show('[data-pay-note]', true);
+
+    setText('[data-pay-count-label]', `Total of ${result.paymentCount} payments`);
+    setText('[data-pay-total]', formatCurrency(plan.totalOfPayments));
+    setText('[data-pay-interest]', formatCurrency(plan.totalInterest));
+
+    const charted = drawDonut(
+      q('[data-pay-donut]'),
+      [
+        { key: 'principal', value: plan.loanAmount },
+        { key: 'interest', value: plan.totalInterest },
+      ],
+      { prefix: 'pay', label: donutLabel(plan) },
+    );
+    show('[data-pay-donut-figure]', charted);
+    if (charted) {
+      const p = share(plan.loanAmount, plan.totalOfPayments);
+      const i = share(plan.totalInterest, plan.totalOfPayments);
+      setText('[data-pay-share-principal]', percentLabel(p));
+      setText('[data-pay-share-interest]', percentLabel(i));
+      setText('[data-pay-share-principal-amt]', formatCurrencyRounded(plan.loanAmount));
+      setText('[data-pay-share-interest-amt]', formatCurrencyRounded(plan.totalInterest));
+    }
+
+    fillLoanSchedule(scope.querySelector<HTMLElement>('[data-pay-rows="yearly"]'), toRows(plan.annual), SCHEDULE);
+    fillLoanSchedule(scope.querySelector<HTMLElement>('[data-pay-rows="monthly"]'), toRows(plan.schedule), SCHEDULE, true);
   },
 
   resetValues(root, _mode: ResetMode) {
-    // The island restores Fixed-term mode + its labels/visibility; the binding clears
-    // every entered value, including the in-session-preserved inactive field.
+    // The island restores Fixed-term mode and its field/labels; the binding clears
+    // every value.
     for (const name of ['principal', 'annualRatePct', 'termYears', 'payment']) {
-      const el = input(root, name);
+      const el = field(root, name);
       if (el) el.value = '';
     }
   },
@@ -259,11 +462,14 @@ export const paymentBinding: FormCalculatorBinding<PaymentValues, PaymentCompute
 /* ------------------------------------------------------------------ */
 
 /**
- * Example inputs for the labelled worked result shown on first load.
- *
- * These are OURS, not the visitor's. The shared runtime computes them and calls
- * this binding's own `renderResult`, so the example reuses the calculator's real
- * result markup and can never drift from the engine. The visitor's fields are
- * never written to — they load and stay empty behind it.
+ * The labelled example shown on first load — the published worked case the engine
+ * tests pin to the cent, so the example a visitor sees is provably the same
+ * arithmetic the calculator will do with their own numbers.
  */
-export const PAYMENT_EXAMPLE_VALUES: PaymentValues = { mode: 'term', principal: '25000', annualRatePct: '7.5', termYears: '5', payment: '500' };
+export const PAYMENT_EXAMPLE_VALUES: PaymentValues = {
+  mode: 'term',
+  principal: '200000',
+  annualRatePct: '6',
+  termYears: '15',
+  payment: '',
+};

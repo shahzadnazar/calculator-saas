@@ -4,11 +4,13 @@ import PaymentCalculator from '@components/islands/PaymentCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'payment-calculator')!;
 const faqs = [
-  { question: 'What can this calculator solve for?', answer: 'Two things. "Monthly payment" finds the payment for a loan of a given amount, rate and term. "Payoff time" finds how long it takes to pay off a loan if you pay a set amount each month. Pick one under "Solve for".' },
+  { question: 'What can this calculator solve for?', answer: 'Two things, depending on what is already fixed. "Fixed term" takes the term and finds the monthly payment. "Fixed payments" takes the payment and finds how long the loan runs. Either way you get the same enrichment beneath the answer: the total of all payments, the total interest, how the total splits between principal and interest, and the full amortization schedule.' },
   { question: 'How is a monthly loan payment calculated?', answer: 'With the amortization formula M = P · r(1+r)ⁿ ÷ ((1+r)ⁿ − 1), where P is the loan amount, r is the monthly rate (annual rate ÷ 12) and n is the number of monthly payments. The calculator applies it for you; you just enter the amount, rate and term.' },
   { question: 'Why might a loan "never" pay off?', answer: 'If your monthly payment is less than the monthly interest, the balance grows instead of shrinking, so the loan is never repaid. In "Payoff time" mode the calculator shows "Never" and explains it — the fix is a larger payment.' },
   { question: 'Does a longer loan term cost more?', answer: 'Yes. A longer term lowers the monthly payment but increases the total interest, because you borrow the money for longer. A shorter term costs more each month but far less overall.' },
   { question: 'How do I lower my monthly payment?', answer: 'A longer term or a lower interest rate reduces the payment, and a bigger down payment reduces the amount borrowed. Weigh a lower payment against the extra total interest a longer term brings.' },
+  { question: 'Why is my last payment smaller?', answer: 'In "Fixed payments" mode the payment you choose rarely divides the debt exactly, so the final month collects only what is left. On a $200,000 loan at 6% paid at $2,000 a month, the 139th and last payment is $1,951.56 rather than the full $2,000. The schedule shows it.' },
+  { question: 'What does the ring show?', answer: 'How the total of everything you pay splits between the money you borrowed and the interest it costs. On a $200,000 loan at 6% over 15 years, the $303,788.46 total is 66% principal and 34% interest — so roughly a third of every dollar paid is the cost of borrowing.' },
 ];
 ---
 <CalculatorLayout
@@ -16,30 +18,54 @@ const faqs = [
   presentation="task-first"
   intro="Calculate a loan's monthly payment from its term, or find how long it takes to pay off a balance at a fixed monthly payment."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-22' }}
+  reviewMetadata={{ reviewedDate: '2026-08-27' }}
 >
   <PaymentCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Under <strong>Solve for</strong>, choose <strong>Monthly payment</strong> or <strong>Payoff time</strong>.</li>
+      <li>Under <strong>What is fixed?</strong>, choose <strong>Fixed term</strong> or <strong>Fixed payments</strong>.</li>
       <li>Enter the <strong>loan amount</strong> and the <strong>interest rate</strong>.</li>
-      <li>In Monthly-payment mode, add the <strong>loan term</strong> in years; in Payoff-time mode, add the <strong>monthly payment</strong> you can afford.</li>
-      <li>Read the result — either the required monthly payment or how long the debt takes to clear.</li>
+      <li>With a fixed term, add the <strong>loan term</strong> in years; with fixed payments, add the <strong>monthly pay</strong> you can afford.</li>
+      <li>Read the answer, then the ring and totals beneath it, and open the <strong>amortization schedule</strong> for the year-by-year or month-by-month detail.</li>
     </ol>
+
+    <h2>A worked example, from either end</h2>
+    <p>
+      A <strong>$200,000</strong> loan at <strong>6%</strong> over <strong>15 years</strong> costs
+      <strong>$1,687.71</strong> a month. Across 180 payments that is
+      <strong>$303,788.46</strong> — the $200,000 borrowed plus <strong>$103,788.46</strong> of
+      interest, so 34% of everything you pay is the cost of borrowing.
+    </p>
+    <p>
+      Now fix the payment instead. Paying <strong>$2,000</strong> a month on the same loan clears it
+      in <strong>11 years, 7 months</strong> — 139 payments totalling
+      <strong>$277,951.56</strong>, of which <strong>$77,951.56</strong> is interest. Paying $312.29
+      more each month finishes three and a half years sooner and saves nearly $26,000, because every
+      extra dollar removes the interest it would otherwise have attracted.
+    </p>
+
+    <h2>Reading the schedule</h2>
+    <p>
+      The payment never changes, but where it goes does. In year one of the fixed-term example,
+      $11,769.23 of the $20,252.56 paid is interest and only $8,483.33 reduces the balance. By year
+      nine that has reversed: $6,559.25 interest against $13,693.31 of principal. Interest is
+      charged on what you still owe, so it shrinks as the balance does.
+    </p>
 
     <h2>Two questions, one tool</h2>
     <p>
-      Choose <strong>Monthly payment</strong> when you know how long you want the loan to run and
-      need the payment that fits that term. Choose <strong>Payoff time</strong> when you know what
-      you can pay each month and want to know how long you'll be paying. They are two sides of the
-      same amortization math, approached from opposite ends.
+      Choose <strong>Fixed term</strong> when you know how long you want the loan to run and need
+      the payment that fits it. Choose <strong>Fixed payments</strong> when you know what you can
+      pay each month and want to know how long you will be paying. They are two sides of the same
+      amortization math approached from opposite ends, which is why the schedule and totals
+      underneath are identical either way.
     </p>
 
     <h2>The formulas</h2>
-    <p>Monthly-payment mode uses the standard amortization formula:</p>
+    <p>Fixed-term mode uses the standard amortization formula:</p>
     <p><strong>M = P · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
-    <p>Payoff-time mode rearranges it to solve for the number of months:</p>
+    <p>Fixed-payments mode rearranges it to solve for the number of months:</p>
     <p><strong>n = −ln(1 − P · r / M) / ln(1 + r)</strong></p>
     <ul>
       <li><strong>M</strong> — the monthly payment</li>
@@ -59,7 +85,7 @@ const faqs = [
 
     <h2>A worked example: solving for the payoff time</h2>
     <p>
-      Flip to Payoff-time mode with the same <strong>$20,000</strong> at <strong>6%</strong>, and
+      Flip to Fixed payments with the same <strong>$20,000</strong> at <strong>6%</strong>, and
       say you can pay <strong>$500 a month</strong> — more than the $386.66 a 5-year term requires.
       The calculator returns a payoff time of about <strong>3 years, 9 months</strong>. Paying more
       each month clears the debt sooner and cuts the interest, because the balance falls faster.
@@ -67,7 +93,7 @@ const faqs = [
 
     <h2>When a loan never pays off</h2>
     <p>
-      In Payoff-time mode, if your monthly payment is smaller than the monthly interest charge, the
+      In Fixed-payments mode, if your monthly payment is smaller than the monthly interest charge, the
       balance grows instead of shrinking and the loan is never repaid. The calculator recognizes
       this and shows <strong>Never</strong> rather than a misleading number — the fix is simply a
       larger payment that clears the interest with something left over for principal.

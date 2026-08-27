@@ -1,234 +1,332 @@
 ---
 /**
- * Payment calculator island (R8B1 — standard-form wave, calculator #14; product
- * family MULTI-MODE, on the standard-form runtime + the small `isUsableResult`
- * extension).
+ * Payment calculator island — two modes over one loan.
  *
- * Task-first, direct-intent: mode defaults to Fixed term, all fields start EMPTY,
- * the result is empty (an instruction, not the legacy $20,000 / 6% / 5-year sample),
- * and the visitor presses "Calculate Payment" (or "Calculate Payoff Time") for the
- * first result. Live-after-first afterwards. Compute, validation, state, announcement
- * and focus are owned by the shared runtime + the payment binding
- * (@lib/calculators/payment-form).
+ * FIXED TERM takes a term and reports the monthly payment; FIXED PAYMENTS takes the
+ * payment and reports how long it takes. The loan amount and interest rate are
+ * shared and stay put; ONE conditional field swaps between them, and the dominant
+ * result changes with it. Both then show the same enrichment — the payoff sentence,
+ * the two totals, a principal-against-interest ring and the full schedule — because
+ * once the payment and the term are both known the loan is entirely determined.
  *
- * "Solve for" is a native radio group — a STRUCTURAL selector the runtime recomputes
- * on. Its two modes swap ONE conditional field: Fixed term shows the loan term (and
- * solves for the monthly payment); Fixed payment shows the monthly payment (and solves
- * for the payoff time). The island OWNS the conditional field's visibility + the action
- * label: the inactive field is hidden AND disabled (out of the keyboard + a11y order,
- * never submitted), its stale error cleared and its VALUE preserved for an in-session
- * switch back; on a switch the mode-owned result is briefly blanked so no stale value
- * shows under the new mode. The binding owns formula selection, validating only the
- * active field, the mode-specific result — including the informational "Never" payoff —
- * and clearing every value on reset.
+ * The mode radios are a STRUCTURAL selector the shared runtime already recomputes
+ * on. The island owns the conditional field's visibility, the action label, and
+ * blanking the mode-owned figures on a switch so no stale value shows under the new
+ * mode while the live recompute is pending. The inactive field is hidden AND
+ * disabled — out of the keyboard and accessibility order, never submitted — with its
+ * entered value preserved for a switch back.
+ *
+ * Task-first: every field starts EMPTY and the result panel carries a LABELLED
+ * worked example. The "Never" payoff is a valid informational result, not an error;
+ * it shows the reason and hides everything that would describe a loan that is never
+ * repaid.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
-import ResultInterpretation from '@components/result/ResultInterpretation.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
-import { PAYMENT_EXAMPLE_VALUES } from '@lib/calculators/payment-form';
-
 ---
 
-<div class="payment mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-payment>
+<div class="payment mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-payment>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Loan payment calculator">
-    <fieldset class="pm-modes">
-      <legend class="field-label">Solve for</legend>
+    <fieldset class="pay-modes">
+      <legend class="field-label">What is fixed?</legend>
       <div class="seg-group">
-        <label class="seg"><input type="radio" name="mode" value="term" checked /><span>Monthly payment</span></label>
-        <label class="seg"><input type="radio" name="mode" value="payment" /><span>Payoff time</span></label>
+        <label class="seg"><input type="radio" name="mode" value="term" checked /><span>Fixed term</span></label>
+        <label class="seg"><input type="radio" name="mode" value="payment" /><span>Fixed payments</span></label>
       </div>
     </fieldset>
 
-    <div class="mt-5 space-y-4">
-      <div data-field="principal">
-        <label class="field-label" for="pm-principal">Loan amount</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="pm-principal"
-            name="principal"
-            type="number"
-            min="0"
-            step="500"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 20000"
-            aria-describedby="pm-principal-error"
-          />
+    <div class="pay-fields">
+      <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+        <div data-field="principal">
+          <label class="field-label" for="pay-amount">Loan amount</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="pay-amount" name="principal" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 200000" aria-describedby="pay-amount-error" />
+          </div>
+          <p class="pay-error" id="pay-amount-error" data-error-for="principal" hidden></p>
         </div>
-        <p class="pm-field-error" id="pm-principal-error" data-error-for="principal" hidden></p>
-      </div>
 
-      <div data-field="annualRatePct">
-        <label class="field-label" for="pm-rate">Interest rate</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="pm-rate"
-            name="annualRatePct"
-            type="number"
-            min="0"
-            step="0.1"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 6"
-            aria-describedby="pm-rate-error"
-          />
-          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        <!-- Conditional: fixed term asks for the term... -->
+        <div data-field="termYears" data-pay-term>
+          <label class="field-label" for="pay-term">Loan term</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="pay-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 15" aria-describedby="pay-term-error" />
+            <span class="field-affix rounded-r-lg border-l-0">years</span>
+          </div>
+          <p class="pay-error" id="pay-term-error" data-error-for="termYears" hidden></p>
         </div>
-        <p class="pm-field-error" id="pm-rate-error" data-error-for="annualRatePct" hidden></p>
-      </div>
 
-      <!-- Conditional: Fixed term shows the loan term. -->
-      <div data-field="termYears" data-pm-term>
-        <label class="field-label" for="pm-term">Loan term</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="pm-term"
-            name="termYears"
-            type="number"
-            min="0"
-            step="0.5"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 5"
-            aria-describedby="pm-term-error"
-          />
-          <span class="field-affix rounded-r-lg border-l-0">years</span>
+        <!-- ...fixed payments asks for the payment instead. -->
+        <div data-field="payment" data-pay-payment hidden>
+          <label class="field-label" for="pay-monthly">Monthly pay</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="pay-monthly" name="payment" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 2000" aria-describedby="pay-monthly-error" disabled />
+          </div>
+          <p class="pay-error" id="pay-monthly-error" data-error-for="payment" hidden></p>
         </div>
-        <p class="pm-field-error" id="pm-term-error" data-error-for="termYears" hidden></p>
-      </div>
 
-      <!-- Conditional: Fixed payment shows the monthly payment. -->
-      <div data-field="payment" data-pm-payment hidden>
-        <label class="field-label" for="pm-payment">Monthly payment</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="pm-payment"
-            name="payment"
-            type="number"
-            min="0"
-            step="10"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 400"
-            aria-describedby="pm-payment-error"
-            disabled
-          />
+        <div data-field="annualRatePct">
+          <label class="field-label" for="pay-rate">Interest rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="pay-rate" name="annualRatePct" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 6" aria-describedby="pay-rate-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="pay-error" id="pay-rate-error" data-error-for="annualRatePct" hidden></p>
         </div>
-        <p class="pm-field-error" id="pm-payment-error" data-error-for="payment" hidden></p>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-pm-submit>Calculate Payment</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <div class="mt-3 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-pay-submit>Calculate Payment</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
     </div>
-    <p class="pm-live-note" data-live-note hidden>Changes update automatically.</p>
+    <p class="pay-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell
-    id="pm-result"
-    state="empty"
-    density="standard"
-    label="Loan payment result"
-    minHeight="18rem"
-    placeholderAlignment="center"
-  >
+  <ResultShell id="pay-result" state="empty" density="complex" label="Loan payment result" minHeight="20rem">
     <ExampleNotice />
-    <EmptyResult message="Enter the loan details, then calculate the payment or payoff time." />
+    <EmptyResult message="Enter the loan amount and interest rate, then a term or a monthly payment, and press Calculate." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Estimated monthly payment">
+      <ResultSummary label="Monthly payment">
         <ResultValue value="—" size="text-4xl" />
       </ResultSummary>
-      <ResultInterpretation>
-        <span data-pm-detail></span>
-      </ResultInterpretation>
+
+      <p class="pay-note" data-pay-note hidden></p>
+
+      <!-- Everything below describes a loan that is actually repaid, so it stands
+           down for the "Never" outcome. -->
+      <div data-pay-details hidden>
+        <ResultBreakdown title="Results">
+          <figure class="pay-donut" data-pay-donut-figure hidden>
+            <div class="pay-donut__plot" data-pay-donut></div>
+            <figcaption class="pay-legend">
+              <span><span class="pay-key pay-key--principal" aria-hidden="true"></span>Principal <b data-pay-share-principal>—</b> <span class="pay-legend__amt" data-pay-share-principal-amt>—</span></span>
+              <span><span class="pay-key pay-key--interest" aria-hidden="true"></span>Interest <b data-pay-share-interest>—</b> <span class="pay-legend__amt" data-pay-share-interest-amt>—</span></span>
+            </figcaption>
+          </figure>
+
+          <dl class="pay-metrics">
+            <div><dt data-pay-count-label>Total of payments</dt><dd data-pay-total>—</dd></div>
+            <div><dt>Total interest</dt><dd data-pay-interest>—</dd></div>
+          </dl>
+        </ResultBreakdown>
+
+        <details class="pay-disclosure">
+          <summary class="pay-disclosure__summary">Amortization schedule</summary>
+
+          <div class="pay-schedule" data-pay-schedule data-pay-view="yearly">
+            <fieldset class="pay-view">
+              <legend class="pay-view__legend">Schedule</legend>
+              <div class="pay-view__group">
+                <label class="pay-view__opt"><input type="radio" name="pay-view" value="yearly" checked data-pay-view-radio /><span>Annual</span></label>
+                <label class="pay-view__opt"><input type="radio" name="pay-view" value="monthly" data-pay-view-radio /><span>Monthly</span></label>
+              </div>
+            </fieldset>
+
+            <div class="pay-table-wrap">
+              <table class="pay-table">
+                <caption class="sr-only">Amortization schedule showing each period's interest and principal and the balance remaining afterwards.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" class="pay-th-period"><span data-pay-when-view="yearly">Year</span><span data-pay-when-view="monthly">Month</span></th>
+                    <th scope="col" class="pay-num">Interest</th>
+                    <th scope="col" class="pay-num">Principal</th>
+                    <th scope="col" class="pay-num pay-col-extra">Extra</th>
+                    <th scope="col" class="pay-num">Ending balance</th>
+                  </tr>
+                </thead>
+                <tbody data-pay-rows="yearly"></tbody>
+                <tbody data-pay-rows="monthly"></tbody>
+              </table>
+            </div>
+            <p class="pay-schedule__note">The last payment is smaller whenever the monthly amount does not divide the debt exactly. Amounts are in US dollars (USD).</p>
+          </div>
+        </details>
+      </div>
     </div>
 
     <InvalidResult
       title="Check your entries"
-      message="Enter the loan amount, interest rate, and — depending on the mode — a term or a monthly payment."
+      message="Enter the loan amount, the interest rate, and — depending on what is fixed — a term or a monthly payment."
     />
 
-    <ResultAnnouncement id="pm-live" />
+    <ResultAnnouncement id="pay-live" />
   </ResultShell>
 </div>
 
 <style>
-  .pm-modes {
-    border: 0;
-    margin: 0;
-    padding: 0;
-    min-width: 0;
+  /* Series colours: one validated step per scheme rather than an automatic flip. The
+     same two the amortization and auto-loan charts use, so a series keeps its
+     identity across the site. */
+  .payment {
+    --pay-principal: #7c3aed; /* plum — the money borrowed */
+    --pay-interest: #ea580c; /* burnt orange — the cost of borrowing it */
   }
+
+  .payment > :global(*) { min-width: 0; }
+  .payment .field-label { margin-bottom: 0.15rem; line-height: 1.25; }
+
+  .pay-modes { border: 0; margin: 0; padding: 0; min-width: 0; }
   .seg-group {
     display: inline-flex;
-    margin-top: 0.4rem;
+    margin-top: 0.25rem;
     border: 1px solid var(--line);
     border-radius: 0.55rem;
     padding: 0.125rem;
   }
-  .seg {
-    position: relative;
-    display: inline-flex;
-  }
-  .seg input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    cursor: pointer;
-  }
+  .seg { position: relative; display: inline-flex; }
+  .seg input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
   .seg span {
-    padding: 0.35rem 0.9rem;
+    padding: 0.3rem 0.85rem;
     border-radius: 0.45rem;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--muted);
   }
-  .seg:has(input:checked) span {
-    background: var(--color-brand-600);
-    color: #fff;
-  }
-  .seg:has(input:focus-visible) span {
-    outline: 2px solid var(--color-brand-600);
-    outline-offset: 2px;
-  }
+  .seg:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .seg:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
 
-  .pm-field-error {
+  .pay-fields { margin-top: 0.6rem; }
+
+  .pay-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .pm-field-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .pay-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .pm-field-error {
-    color: #fca5a5;
+  :root[data-theme='dark'] .pay-error { color: #fca5a5; }
+
+  .pay-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+
+  .pay-note { margin: 0.4rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+
+  .pay-donut { margin: 0 0 0.85rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .pay-donut__plot { flex: 0 0 auto; width: 11.5rem; }
+  .pay-donut :global(.pay-donut__svg) { display: block; width: 100%; height: auto; }
+  .pay-donut :global(.pay-donut__arc--principal) { stroke: var(--pay-principal); }
+  .pay-donut :global(.pay-donut__arc--interest) { stroke: var(--pay-interest); }
+  /* Labels wear text ink, never the series colour. */
+  .pay-donut :global(.pay-donut__label) { fill: var(--heading); font-size: 11px; font-weight: 700; }
+
+  .pay-legend {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+    flex: 1 1 9rem;
+    min-width: 0;
+  }
+  .pay-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .pay-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .pay-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pay-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+  .pay-key--principal { background: var(--pay-principal); }
+  .pay-key--interest { background: var(--pay-interest); }
+
+  .pay-metrics { margin: 0; display: grid; gap: 0.2rem; }
+  .pay-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.92rem;
+  }
+  .pay-metrics dt { color: var(--fg); font-weight: 600; }
+  .pay-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
   }
 
-  .pm-live-note {
-    margin-top: 0.75rem;
+  .pay-disclosure { margin-top: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.6rem; }
+  .pay-disclosure__summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--heading);
+    padding: 0.2rem 0;
+  }
+  .pay-disclosure__summary:focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .pay-view { border: 0; margin: 0.6rem 0 0; padding: 0; min-width: 0; }
+  .pay-view__legend { font-size: 0.8rem; font-weight: 600; color: var(--muted); padding: 0; }
+  .pay-view__group {
+    display: inline-flex;
+    margin-top: 0.3rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.1rem;
+  }
+  .pay-view__opt { position: relative; display: inline-flex; }
+  .pay-view__opt input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .pay-view__opt span {
+    padding: 0.3rem 0.75rem;
+    border-radius: 0.4rem;
     font-size: 0.8rem;
+    font-weight: 600;
     color: var(--muted);
   }
+  .pay-view__opt:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .pay-view__opt:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .pay-schedule { margin-top: 0.5rem; }
+  .pay-table-wrap { margin-top: 0.6rem; max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
+  .pay-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .pay-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  /* Rows are built with the DOM API, so these must be global — a scoped selector
+     compiles to an attribute the generated cells never carry. */
+  .pay-table :global(.pay-cell) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .pay-table :global(.pay-cell--period) { font-weight: 600; color: var(--fg); text-align: left; }
+  .pay-table th.pay-num,
+  .pay-table :global(td.pay-num) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pay-table :global(.pay-year-end) > :global(.pay-cell--yearend) {
+    background: var(--surface-2, var(--line));
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--heading);
+    text-align: left;
+    letter-spacing: 0.02em;
+  }
+
+  /* The shared schedule builder always emits an Extra column, because the
+     amortization calculator has extra payments. This one does not, so the column is
+     never shown — one row shape, two calculators, no branching in the builder. */
+  .pay-table th.pay-col-extra,
+  .pay-table :global(td.pay-col-extra) { display: none; }
+
+  .pay-schedule[data-pay-view='yearly'] :global([data-pay-rows='monthly']),
+  .pay-schedule[data-pay-view='monthly'] :global([data-pay-rows='yearly']) { display: none; }
+  .pay-schedule[data-pay-view='yearly'] [data-pay-when-view='monthly'],
+  .pay-schedule[data-pay-view='monthly'] [data-pay-when-view='yearly'] { display: none; }
+
+  .pay-schedule__note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
 </style>
 
 <script>
@@ -242,17 +340,14 @@ import { PAYMENT_EXAMPLE_VALUES } from '@lib/calculators/payment-form';
       calculateButtonLabel: 'Calculate Payment',
     });
 
-    // The island owns the visible mode presentation. The runtime recomputes on the
-    // mode radio's structural `input` (unchanged); here we keep the conditional field
-    // + action label in step and, on a switch, blank the mode-owned result so no stale
-    // value shows under the new mode while the live recompute is pending.
-    const submitBtn = root.querySelector<HTMLElement>('[data-pm-submit]');
+    const submitBtn = root.querySelector<HTMLElement>('[data-pay-submit]');
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
-    const termWrap = root.querySelector<HTMLElement>('[data-pm-term]');
-    const payWrap = root.querySelector<HTMLElement>('[data-pm-payment]');
+    const termWrap = root.querySelector<HTMLElement>('[data-pay-term]');
+    const payWrap = root.querySelector<HTMLElement>('[data-pay-payment]');
     const termInput = termWrap?.querySelector<HTMLInputElement>('input');
     const payInput = payWrap?.querySelector<HTMLInputElement>('input');
-    const isPayoff = () => root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'payment';
+    const isPayoff = () =>
+      root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'payment';
 
     const clearError = (name: string) => {
       root.querySelector<HTMLElement>(`[name="${name}"]`)?.removeAttribute('aria-invalid');
@@ -263,10 +358,9 @@ import { PAYMENT_EXAMPLE_VALUES } from '@lib/calculators/payment-form';
       }
     };
 
-    // Conditional field: term XOR monthly payment. The inactive field is hidden AND
-    // disabled (out of the keyboard + a11y order, never submitted); its stale error is
-    // cleared and its entered VALUE preserved for an in-session switch back. The binding
-    // excludes it from validation by mode and clears every value on reset.
+    // Conditional field: term XOR monthly payment. The inactive one is hidden AND
+    // disabled — out of the keyboard and a11y order, never submitted — with its stale
+    // error cleared and its entered VALUE preserved for a switch back.
     const syncMode = () => {
       const payoff = isPayoff();
       if (submitBtn) submitBtn.textContent = payoff ? 'Calculate Payoff Time' : 'Calculate Payment';
@@ -277,15 +371,20 @@ import { PAYMENT_EXAMPLE_VALUES } from '@lib/calculators/payment-form';
       clearError(payoff ? 'termYears' : 'payment');
     };
 
+    // Blank the mode-owned figures on a switch so no stale value shows under the new
+    // mode while the live recompute is pending.
     const blankResult = () => {
       for (const sel of [
         '[data-result-when~="valid"] [data-result-value]',
         '[data-result-when~="valid"] [data-result-value-a11y]',
-        '[data-pm-detail]',
+        '[data-pay-total]',
+        '[data-pay-interest]',
       ]) {
         const el = root.querySelector<HTMLElement>(sel);
         if (el) el.textContent = '—';
       }
+      const note = root.querySelector<HTMLElement>('[data-pay-note]');
+      if (note) note.textContent = '';
     };
 
     root.querySelectorAll<HTMLInputElement>('[name="mode"]').forEach((r) =>
@@ -294,11 +393,24 @@ import { PAYMENT_EXAMPLE_VALUES } from '@lib/calculators/payment-form';
         if (shell?.dataset.resultState === 'valid') blankResult();
       }),
     );
+
+    // Annual ⇆ Monthly is a VIEW of one computed schedule, never a recalculation.
+    const schedule = root.querySelector<HTMLElement>('[data-pay-schedule]');
+    root.querySelectorAll<HTMLInputElement>('[data-pay-view-radio]').forEach((radio) =>
+      radio.addEventListener('change', () => {
+        if (schedule && radio.checked) schedule.dataset.payView = radio.value;
+      }),
+    );
+
     root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
       const termRadio = root.querySelector<HTMLInputElement>('[name="mode"][value="term"]');
       if (termRadio) termRadio.checked = true;
       syncMode();
+      const yearly = root.querySelector<HTMLInputElement>('[data-pay-view-radio][value="yearly"]');
+      if (yearly) yearly.checked = true;
+      if (schedule) schedule.dataset.payView = 'yearly';
     });
+
     syncMode();
   });
 </script>
