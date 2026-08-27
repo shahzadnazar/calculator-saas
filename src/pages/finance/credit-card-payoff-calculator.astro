@@ -4,86 +4,103 @@ import CreditCardPayoffCalculator from '@components/islands/CreditCardPayoffCalc
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'credit-card-payoff-calculator')!;
 const faqs = [
-  { question: 'How long will it take to pay off my credit card?', answer: 'Enter your balance, APR and monthly payment under "Monthly payment", and the calculator shows the payoff time and the total interest you will pay. Switch to "Target payoff time" to find the payment needed to clear it by a target date.' },
-  { question: 'What happens if I only pay the minimum?', answer: 'Minimum payments are designed to keep you in debt as long as possible. On a high balance, paying only the minimum can take over a decade and cost more in interest than the original purchase. Paying even a little extra each month dramatically shortens the timeline.' },
-  { question: 'How can I pay off credit card debt faster?', answer: 'Pay more than the minimum, and if you have several cards use a payoff order: the avalanche method (highest APR first) costs the least interest, while the snowball method (smallest balance first) gives quicker wins for motivation. A 0% balance-transfer card can also pause interest while you clear the principal.' },
+  { question: 'How long will it take to pay off my credit cards?', answer: 'Enter what you can put toward your cards each month, then add each card\'s balance, minimum payment and interest rate. The calculator builds a debt-avalanche plan and shows when every card is clear, what the whole plan costs, and the payment schedule for each card.' },
+  { question: 'What is the debt avalanche method?', answer: 'You pay the minimum on every card and put every spare dollar toward the card with the highest interest rate. When that card clears, its whole payment rolls onto the next-highest rate. It clears the debt for the least total interest of any order, because the most expensive balance is always the one shrinking fastest.' },
+  { question: 'Is the avalanche better than the snowball method?', answer: 'Mathematically, yes — the avalanche always costs less interest. The snowball method targets the smallest balance first instead, which clears individual cards sooner and can be easier to stick with. If the motivation of closing a card is what keeps you going, the snowball\'s slightly higher cost may be worth paying.' },
+  { question: 'What happens if I only pay the minimum?', answer: 'Minimum payments are designed to keep you in debt as long as possible. On a high balance, paying only the minimum can take over a decade and cost more in interest than the original purchase. Every dollar above the minimum attacks the balance directly.' },
+  { question: 'Why does my payment change part-way through the plan?', answer: 'Because a freed-up payment is immediately redirected. When a card needs only part of its usual payment in its final month, the remainder goes to the next card that same month — and once the card is gone, its entire payment does. That is why the schedule shows each card\'s payment stepping up over time.' },
   { question: 'Should I use a balance transfer?', answer: 'A 0% introductory-APR balance transfer can save a lot of interest if you clear the balance before the promotional period ends. Weigh the transfer fee (typically 3–5%) and be sure the payment you can afford will actually pay it off in time — the rate jumps once the intro period is over.' },
-  { question: 'Will credit card companies negotiate a payoff?', answer: 'Sometimes — but usually only on seriously delinquent accounts, where a lender may accept a lump-sum settlement for less than the full balance. It is not an option for accounts in good standing, and a settlement can hurt your credit score, so treat it as a last resort rather than a strategy.' },
   { question: 'How is credit card interest calculated?', answer: 'Card interest is quoted as an APR but usually charged daily on your balance. Divide the APR by 365 for the daily rate, and the issuer applies it to your average balance each day, so carrying a balance even a few days costs interest. Paying the statement in full each month avoids it entirely.' },
 ];
 ---
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="See how long it takes to pay off a credit card and what it costs in interest — or the monthly payment needed to be debt-free by a set date."
+  intro="Plan the fastest, cheapest way out of credit card debt: enter what you can pay each month and the details of each card, and see when they are all clear and what it costs."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-22' }}
+  reviewMetadata={{ reviewedDate: '2026-08-27' }}
 >
   <CreditCardPayoffCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Under <strong>Calculate by</strong>, choose <strong>Monthly payment</strong> or <strong>Target payoff time</strong>.</li>
-      <li>Enter your <strong>card balance</strong> and its <strong>APR</strong>.</li>
-      <li>In Monthly-payment mode, add the <strong>payment</strong> you will make each month; in Target mode, add the number of <strong>months</strong> you want to be debt-free in.</li>
-      <li>Read the payoff time (or the required payment) along with the total interest you'll pay.</li>
+      <li>Enter the <strong>monthly budget</strong> you can set aside for credit cards in total.</li>
+      <li>Add each card's <strong>balance</strong>, <strong>minimum payment</strong> and <strong>interest rate</strong>. Naming a card is optional, but it makes the plan easier to follow.</li>
+      <li>Press <strong>Calculate Payoff</strong> to see how long the whole plan takes and what it costs.</li>
+      <li>Read the per-card schedule to see exactly what to pay on each card, month by month.</li>
     </ol>
     <p>
-      Either way, the goal is the same: pay as far above the monthly interest charge as you can, so
-      more of every payment attacks the balance.
+      Your budget has to cover every minimum payment before any plan is possible — that is the floor
+      the card issuers set. Everything you can add above that floor is what actually clears the debt.
+    </p>
+
+    <h2>The debt avalanche method</h2>
+    <p>
+      With several cards you have one real decision to make: where does the spare money go? The
+      avalanche answers it with arithmetic. Pay every card its minimum, then send every remaining
+      dollar to the card with the <strong>highest interest rate</strong> — because that is the
+      balance charging you the most for each additional month it survives.
+    </p>
+    <p>
+      When the top card clears, its entire payment rolls onto the next-highest rate, which is why the
+      plan accelerates: the amount attacking your debt grows every time a card disappears, even
+      though your budget never changes. No other payment order clears the same debt for less
+      interest.
     </p>
 
     <h2>How credit card interest works</h2>
     <p>
-      Card interest is quoted as an <strong>APR</strong> but usually charged on your balance, so
-      carrying a balance costs money every month. Divide the APR by 12 for the monthly rate: a 22%
-      APR is about 1.83% a month. Because the charge is based on what you owe, the interest shrinks
-      as the balance falls — which is why extra payments snowball. Paying the statement in full each
+      Card interest is quoted as an <strong>APR</strong> but charged on your balance, so carrying a
+      balance costs money every month. Divide the APR by 12 for the monthly rate: a 22% APR is about
+      1.83% a month. Because the charge is based on what you owe, the interest shrinks as the balance
+      falls — which is why extra payments compound in your favour. Paying the statement in full each
       month avoids interest entirely.
     </p>
 
-    <h2>The formula</h2>
-    <p>In Monthly-payment mode, the months to clear the balance are:</p>
-    <p><strong>n = −ln(1 − B · r / M) / ln(1 + r)</strong></p>
-    <p>In Target mode, the required payment uses the amortization formula:</p>
-    <p><strong>M = B · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
-    <ul>
-      <li><strong>B</strong> — the current card balance</li>
-      <li><strong>r</strong> — the monthly rate (APR ÷ 12)</li>
-      <li><strong>M</strong> — the monthly payment</li>
-      <li><strong>n</strong> — the number of months</li>
-    </ul>
-
-    <h2>A worked example: the minimum-payment trap</h2>
+    <h2>A worked example: three cards, $500 a month</h2>
     <p>
-      Take a <strong>$5,000</strong> balance at a typical <strong>22% APR</strong>. The first
-      month's interest alone is $5,000 × (22% ÷ 12) ≈ <strong>$91.67</strong>. Pay
-      <strong>$120</strong> and only about <strong>$28</strong> reduces the balance — the payoff
-      drags out to about <strong>6 years, 8 months</strong> and roughly <strong>$4,600</strong> in
-      interest, nearly the size of the original balance.
+      Say you owe <strong>$4,600 at 18.99%</strong>, <strong>$3,900 at 19.99%</strong> and
+      <strong>$6,000 at 15.99%</strong>, with minimums of $100, $90 and $120. That is
+      <strong>$14,500</strong> of debt and <strong>$310</strong> of minimums. Putting
+      <strong>$500</strong> a month toward the cards clears all three in
+      <strong>38 months</strong> for <strong>$18,971.20</strong> — of which
+      <strong>$4,471.20</strong> is interest.
     </p>
     <p>
-      Bump the payment to <strong>$250</strong> and about $158 of the first payment hits principal.
-      The same debt clears in roughly <strong>2 years, 2 months</strong> for about
-      <strong>$1,500</strong> of interest. That is the entire game: every dollar above the interest
-      charge attacks the principal directly.
+      The plan starts by paying $280 on the 19.99% card (its $90 minimum plus the whole $190
+      surplus), while the other two get their minimums. That card clears in month 16, and its $280
+      moves to the 18.99% card, which now gets $380 a month and clears in month 28. Everything then
+      lands on the last card, which takes the full $500 until it is gone in month 38.
+    </p>
+    <p>
+      Watch what the extra money does: the same $500 budget pays off the first card in 16 months, the
+      second 12 months later, and the third only 10 months after that. The debt clears faster and
+      faster because the payment attacking it keeps growing.
     </p>
 
-    <h2>Setting a target payoff date</h2>
+    <h2>Why the payment order matters so much</h2>
     <p>
-      Switch to <strong>Target payoff time</strong> to work backwards. To clear that same
-      <strong>$5,000</strong> at <strong>22%</strong> in <strong>24 months</strong>, the calculator
-      returns a required payment of about <strong>$259.39 a month</strong>, for roughly
-      <strong>$1,225</strong> of total interest. Shorten the target and the payment rises but the
-      interest falls — a direct way to price the trade-off between monthly cash and total cost.
+      The minimums alone are a slow, expensive plan. Those same three cards charge
+      <strong>$217.71</strong> of interest in the first month, so paying the
+      <strong>$310</strong> of minimums leaves only about <strong>$92</strong> attacking a
+      <strong>$14,500</strong> debt. It still clears — in <strong>82 months</strong>, or nearly
+      seven years, at a cost of <strong>$10,696</strong> in interest.
+    </p>
+    <p>
+      Raising the budget to <strong>$500</strong> — $190 a month more — cuts that to
+      <strong>38 months</strong> and <strong>$4,471</strong> of interest. You pay more each month
+      and <em>less in total</em>: <strong>$18,971</strong> instead of <strong>$25,196</strong>, a
+      saving of over <strong>$6,200</strong>, because every one of those extra dollars goes straight
+      at the principal of the most expensive card instead of renting it for another year.
     </p>
 
     <h2>Strategies to clear it faster</h2>
     <ul>
-      <li><strong>Avalanche</strong> — with multiple cards, pay extra on the highest-APR card first. This costs the least total interest.</li>
-      <li><strong>Snowball</strong> — pay the smallest balance first for a quick, motivating win, then roll that payment into the next card.</li>
+      <li><strong>Avalanche</strong> — highest interest rate first. This is what the calculator plans, and it costs the least total interest.</li>
+      <li><strong>Snowball</strong> — smallest balance first for a quick, motivating win, then roll that payment into the next card. It costs a little more but is easier for some people to sustain.</li>
       <li><strong>Balance transfer</strong> — a 0% intro-APR card pauses interest; clear the balance before the promo ends and mind the transfer fee (typically 3–5%).</li>
       <li><strong>Pay biweekly</strong> — half-payments every two weeks make one extra monthly payment a year and cut the balance the interest is charged on.</li>
+      <li><strong>Stop adding charges</strong> — a plan only works on a balance that has stopped growing.</li>
     </ul>
 
     <h2>Why paying it down beats saving</h2>
@@ -97,16 +114,19 @@ const faqs = [
 
     <h2>Limitations</h2>
     <ul>
-      <li>It assumes a <strong>fixed payment</strong> and a <strong>fixed APR</strong>; real minimum payments shrink as the balance falls, which stretches payoff much longer.</li>
+      <li>It assumes a <strong>fixed monthly budget</strong> and a <strong>fixed rate</strong> on each card; real minimum payments shrink as the balance falls, and real rates can change.</li>
       <li>It assumes you <strong>stop adding new charges</strong> — fresh purchases restart the cycle.</li>
-      <li>Payoff totals assume a <strong>full final payment</strong>, so they may slightly overstate the last payment and the interest.</li>
+      <li>Interest is applied monthly. Most issuers compound daily, which costs slightly more than shown.</li>
+      <li>It does not model <strong>fees</strong>, penalty APRs, or the effect of a missed payment.</li>
     </ul>
 
     <p>
       For a general fixed-rate debt with a set term, see the
-      <a href="/finance/payment-calculator">payment calculator</a>; to grow savings once the cards
-      are clear, try the <a href="/finance/savings-calculator">savings calculator</a>. This is
-      general educational information, not financial advice.
+      <a href="/finance/payment-calculator">payment calculator</a>; to work out the rate a quoted
+      payment implies, use the <a href="/finance/interest-rate-calculator">interest rate
+      calculator</a>; and to grow savings once the cards are clear, try the
+      <a href="/finance/savings-calculator">savings calculator</a>. This is general educational
+      information, not financial advice.
     </p>
   </Fragment>
 </CalculatorLayout>
