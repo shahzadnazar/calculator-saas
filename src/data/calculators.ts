@@ -150,8 +150,10 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'finance',
     status: 'live',
     description:
-      'Project how savings and investments grow over time with compound interest and regular contributions.',
-    keywords: ['compound interest calculator', 'investment growth', 'interest compounding'],
+      'Convert an interest rate between compounding periods — APR to APY and back — so two quotes can be compared on equal terms.',
+    keywords: ['compound interest calculator', 'apr to apy', 'apy calculator', 'interest compounding', 'effective annual rate'],
+    aliases: ['apr to apy calculator', 'effective annual rate calculator'],
+    phrases: ['convert apr to apy', 'what is my apy', 'compare interest rates'],
   },
   {
     slug: 'simple-interest-calculator',

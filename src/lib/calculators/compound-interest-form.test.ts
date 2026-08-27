@@ -1,210 +1,247 @@
 import { describe, it, expect } from 'vitest';
 import {
-  compoundInterestBinding,
-  validateCompoundValues,
-  computeCompound,
-  completeCompoundValue,
-  describeCompoundResult,
-  proportion,
-  parseNonNegative,
-  parseWholeYears,
-  parseOptionalNonNegative,
-  DEFAULT_FREQUENCY,
-  COMPOUND_FREQUENCIES,
-  MAX_YEARS,
+  COMPOUND_EXAMPLE_VALUES,
+  FREQUENCY_LABELS,
+  MAX_RATE,
   MSG,
+  compoundInterestBinding,
+  compoundPhrase,
+  completeCompoundValue,
+  computeCompound,
+  describeCompound,
+  formatRate,
+  periodsPerYear,
+  presentCompound,
+  validateCompound,
+  type CompoundComputed,
   type CompoundValues,
 } from './compound-interest-form';
-import { calculateCompoundInterest } from './compound-interest';
+import { COMPOUND_FREQUENCIES, convertCompoundRate } from './compounding';
 
 /**
- * Compound Interest binding unit tests (R21A1 — final migration). Validation, the pass-through to the
- * FROZEN calculateCompoundInterest (whose full matrix stays compound-interest.test.ts's authority), the
- * complete-result guard (tamper + engine reconciliation), the proportion split, the announcement, and
- * the DOM read/reset helpers via a mock root. No compound math is reimplemented here.
+ * The rate converter, frozen against the published reference case: 6% compounded
+ * monthly is equivalent to 6.16778% compounded annually.
+ *
+ * The property that matters most here is not any single conversion but that every
+ * pair is REVERSIBLE — two rates are only equivalent if each converts back to the
+ * other. The guard enforces it, and these tests check it across all 81 pairings.
  */
 
-const vals = (v: Partial<CompoundValues> = {}): CompoundValues => ({
-  principal: '10000',
-  annualRatePct: '7',
-  years: '20',
-  compoundsPerYear: '12',
-  contribution: '200',
-  ...v,
+const REF: CompoundValues = COMPOUND_EXAMPLE_VALUES;
+const at = (over: Partial<CompoundValues> = {}): CompoundValues => ({ ...REF, ...over });
+const errs = (v: CompoundValues): Record<string, string> => {
+  const r = validateCompound(v);
+  return r.ok ? {} : (r.fieldErrors ?? {});
+};
+
+describe('validation', () => {
+  it('accepts the reference entry', () => {
+    expect(validateCompound(REF)).toEqual({ ok: true });
+  });
+
+  it('requires a rate', () => {
+    expect(errs(at({ inputRate: '' })).inputRate).toBe(MSG.rateRequired);
+    expect(errs(at({ inputRate: '   ' })).inputRate).toBe(MSG.rateRequired);
+  });
+
+  it('accepts 0% — a rate that earns nothing is still a rate', () => {
+    expect(validateCompound(at({ inputRate: '0' }))).toEqual({ ok: true });
+  });
+
+  it('rejects a negative or unparseable rate', () => {
+    for (const bad of ['-1', 'abc', 'NaN']) {
+      expect(errs(at({ inputRate: bad })).inputRate).toBe(MSG.rateNonNegative);
+    }
+  });
+
+  it(`rejects a rate above ${MAX_RATE}% as a typo`, () => {
+    expect(errs(at({ inputRate: '201' })).inputRate).toBe(MSG.rateMax);
+    expect(validateCompound(at({ inputRate: String(MAX_RATE) }))).toEqual({ ok: true });
+  });
 });
 
-function mockRoot(v: Partial<Record<keyof CompoundValues, string>> = {}) {
-  const store: Record<string, { value: string }> = {
-    principal: { value: v.principal ?? '' },
-    annualRatePct: { value: v.annualRatePct ?? '' },
-    years: { value: v.years ?? '' },
-    compoundsPerYear: { value: v.compoundsPerYear ?? DEFAULT_FREQUENCY },
-    contribution: { value: v.contribution ?? '' },
-  };
-  const root = {
-    querySelector(sel: string) {
-      const m = sel.match(/\[name="(\w+)"\]/);
-      return m && store[m[1]] ? store[m[1]] : null;
-    },
-  } as unknown as HTMLElement;
-  return { root, store };
-}
+describe('the reference case', () => {
+  const c = computeCompound(REF);
+  const p = presentCompound(c);
 
-describe('compound-interest binding — contract', () => {
-  it('does NOT implement isUsableResult (the guard lives in resultValue)', () => {
+  it('converts 6% monthly to the rate the reference reports', () => {
+    expect(c.outputRate).toBeCloseTo(6.167781186449828, 10);
+    expect(p.outputRate).toBe('6.16778%');
+  });
+
+  it('says it in the reference’s own sentence', () => {
+    expect(p.summary).toBe('6% compound monthly (APR) is equivalent to 6.16778% compound annually (APY).');
+  });
+
+  it('reports what the rate actually earns in a year', () => {
+    expect(p.effectiveAnnual).toBe('6.16778%');
+    expect(c.effectiveAnnualPct).toBeCloseTo(6.167781186449828, 10);
+  });
+
+  it('announces the conversion', () => {
+    expect(describeCompound(c)).toBe(
+      '6 percent compound monthly (APR) is equivalent to 6.16778 percent compound annually (APY).',
+    );
+  });
+
+  it('carries the full ladder for the chart, in the selector’s order', () => {
+    expect(c.ladder.map((s) => s.compound)).toEqual([...COMPOUND_FREQUENCIES]);
+    expect(c.ladder).toHaveLength(9);
+  });
+
+  it('the ladder runs from annual to continuous, never falling', () => {
+    const values = c.ladder.map((s) => s.effectiveAnnualPct);
+    expect(values[0]).toBeCloseTo(6, 10); // annual compounding earns exactly the nominal rate
+    expect(values[values.length - 1]).toBeCloseTo(6.183654654535962, 9); // continuous
+    for (let i = 1; i < values.length; i++) expect(values[i]).toBeGreaterThanOrEqual(values[i - 1]);
+  });
+
+  it('monthly compounding is already most of the way to continuous', () => {
+    const by = Object.fromEntries(c.ladder.map((s) => [s.compound, s.effectiveAnnualPct]));
+    const gainToMonthly = by.monthly - by.annually;
+    const gainTotal = by.continuously - by.annually;
+    expect(gainToMonthly / gainTotal).toBeGreaterThan(0.9);
+  });
+});
+
+describe('conversions in every direction', () => {
+  it('every one of the 81 pairings converts back to where it started', () => {
+    for (const from of COMPOUND_FREQUENCIES) {
+      for (const to of COMPOUND_FREQUENCIES) {
+        const there = convertCompoundRate(6, from, to);
+        const back = convertCompoundRate(there, to, from);
+        expect(back).toBeCloseTo(6, 9);
+      }
+    }
+  });
+
+  it('converting to the same period returns the rate untouched, to the last bit', () => {
+    for (const f of COMPOUND_FREQUENCIES) {
+      // Not merely close: routing through the effective rate and back would land on
+      // 5.999999999999872, which must never be printed as an "equivalent" rate.
+      expect(convertCompoundRate(6, f, f)).toBe(6);
+    }
+  });
+
+  it('a 0% rate is 0% at every period', () => {
+    for (const to of COMPOUND_FREQUENCIES) {
+      expect(convertCompoundRate(0, 'monthly', to)).toBeCloseTo(0, 12);
+    }
+  });
+
+  it('converting the other way gives a LOWER nominal rate', () => {
+    // 6% annually needs only 5.84106% compounded monthly to match it.
+    const c = computeCompound(at({ inputCompound: 'annually', outputCompound: 'monthly' }));
+    expect(presentCompound(c).outputRate).toBe('5.84106%');
+    expect(c.outputRate).toBeLessThan(6);
+  });
+
+  it('the equivalent of a same-period conversion is explained rather than shown as a change', () => {
+    const p = presentCompound(computeCompound(at({ outputCompound: 'monthly' })));
+    expect(p.outputRate).toBe('6%');
+    expect(p.summary).toContain('already what you asked for');
+  });
+});
+
+describe('presentation', () => {
+  it('prints five decimals, trimming what is not needed', () => {
+    expect(formatRate(6.167781186449828)).toBe('6.16778%');
+    expect(formatRate(6)).toBe('6%');
+    expect(formatRate(0)).toBe('0%');
+    expect(formatRate(Number.NaN)).toBe('—');
+  });
+
+  it('names each period the way its paperwork does', () => {
+    expect(compoundPhrase('monthly')).toBe('monthly (APR)');
+    expect(compoundPhrase('annually')).toBe('annually (APY)');
+    expect(compoundPhrase('quarterly')).toBe('quarterly');
+    expect(FREQUENCY_LABELS.monthly).toBe('Monthly (APR)');
+    expect(FREQUENCY_LABELS.annually).toBe('Annually (APY)');
+  });
+
+  it('labels every frequency the selector offers', () => {
+    for (const f of COMPOUND_FREQUENCIES) {
+      expect(FREQUENCY_LABELS[f]).toBeTruthy();
+      expect(compoundPhrase(f)).toBeTruthy();
+    }
+  });
+
+  it('reports periods per year, and that continuous has none', () => {
+    expect(periodsPerYear('monthly')).toBe(12);
+    expect(periodsPerYear('daily')).toBe(365);
+    expect(periodsPerYear('continuously')).toBeNull();
+  });
+
+  it('never leaks a NaN, an Infinity or an undefined into the words', () => {
+    const p = presentCompound(computeCompound(at({ inputRate: '0' })));
+    const text = [p.summary, p.outputRate, p.effectiveAnnual, p.inputLabel, p.outputLabel].join(' ');
+    expect(text).not.toMatch(/NaN|Infinity|undefined/);
+  });
+});
+
+describe('the complete-result guard', () => {
+  const good = computeCompound(REF);
+  const broken = (mutate: (c: CompoundComputed) => void): CompoundComputed => {
+    const copy = JSON.parse(JSON.stringify(good)) as CompoundComputed;
+    mutate(copy);
+    return copy;
+  };
+
+  it('accepts a result that reconciles, returning the converted rate', () => {
+    expect(completeCompoundValue(good)).toBeCloseTo(6.16778, 4);
+  });
+
+  it('rejects a pair that does not convert back — the whole claim of equivalence', () => {
+    expect(completeCompoundValue(broken((c) => (c.outputRate += 0.5)))).toBeNaN();
+    expect(completeCompoundValue(broken((c) => (c.inputRate = 7)))).toBeNaN();
+    expect(completeCompoundValue(broken((c) => (c.outputCompound = 'daily')))).toBeNaN();
+  });
+
+  it('rejects an effective annual rate the two ends disagree about', () => {
+    expect(completeCompoundValue(broken((c) => (c.effectiveAnnualPct += 0.5)))).toBeNaN();
+  });
+
+  it('rejects a ladder that is short, non-finite, or out of order', () => {
+    expect(completeCompoundValue(broken((c) => (c.ladder = c.ladder.slice(1))))).toBeNaN();
+    expect(
+      completeCompoundValue(
+        broken((c) => {
+          (c.ladder as { effectiveAnnualPct: number }[])[3].effectiveAnnualPct = Number.NaN;
+        }),
+      ),
+    ).toBeNaN();
+    // More frequent compounding can never earn less.
+    expect(
+      completeCompoundValue(
+        broken((c) => {
+          (c.ladder as { effectiveAnnualPct: number }[])[8].effectiveAnnualPct = 0;
+        }),
+      ),
+    ).toBeNaN();
+  });
+
+  it('rejects a non-finite or out-of-range figure', () => {
+    expect(completeCompoundValue(broken((c) => (c.inputRate = Number.NaN)))).toBeNaN();
+    expect(completeCompoundValue(broken((c) => (c.inputRate = -1)))).toBeNaN();
+    expect(completeCompoundValue(broken((c) => (c.inputRate = MAX_RATE + 1)))).toBeNaN();
+    expect(completeCompoundValue(broken((c) => (c.outputRate = Number.NaN)))).toBeNaN();
+  });
+
+  it('a 0% conversion is a finite 0 the default gate accepts — no isUsableResult', () => {
+    const zero = computeCompound(at({ inputRate: '0' }));
+    expect(completeCompoundValue(zero)).toBe(0);
     expect(compoundInterestBinding.isUsableResult).toBeUndefined();
   });
-
-  it('the default frequency is Monthly (12) and exposes all FIVE UI options incl. Semi-annually', () => {
-    expect(DEFAULT_FREQUENCY).toBe('12');
-    expect(COMPOUND_FREQUENCIES.map((f) => f.value)).toEqual(['1', '2', '4', '12', '365']);
-    expect(COMPOUND_FREQUENCIES.find((f) => f.value === '2')?.label).toBe('Semi-annually');
-  });
-
-  it('resultValue is the complete-result guard: the dominant FUTURE VALUE when coherent', () => {
-    const c = computeCompound(vals());
-    expect(compoundInterestBinding.resultValue(c)).toBe(c.futureValue);
-    expect(compoundInterestBinding.resultValue(c)).toBeCloseTo(144572.72045492515, 6);
-  });
 });
 
-describe('compound-interest binding — strict validation', () => {
-  it('parseNonNegative / parseWholeYears / parseOptionalNonNegative', () => {
-    expect(parseNonNegative('')).toBe('empty');
-    expect(parseNonNegative('0')).toBe(0);
-    expect(parseNonNegative('-1')).toBe('invalid');
-    expect(parseWholeYears('20')).toBe(20);
-    expect(parseWholeYears('0')).toBe('invalid');
-    expect(parseWholeYears('1.5')).toBe('invalid');
-    expect(parseWholeYears(String(MAX_YEARS + 1))).toBe('invalid');
-    expect(parseOptionalNonNegative('')).toBe(0); // blank → 0
-    expect(parseOptionalNonNegative('200')).toBe(200);
-    expect(parseOptionalNonNegative('-5')).toBe('invalid');
+describe('the worked example', () => {
+  it('validates, so the example a visitor sees is a real calculation', () => {
+    expect(validateCompound(COMPOUND_EXAMPLE_VALUES)).toEqual({ ok: true });
   });
 
-  it('ordinary input is valid; zeros (principal/rate) valid; blank contribution valid', () => {
-    expect(validateCompoundValues(vals()).ok).toBe(true);
-    expect(validateCompoundValues(vals({ principal: '0' })).ok).toBe(true);
-    expect(validateCompoundValues(vals({ annualRatePct: '0' })).ok).toBe(true);
-    expect(validateCompoundValues(vals({ contribution: '' })).ok).toBe(true);
-  });
-
-  it('requires principal, rate and years, keyed to the field', () => {
-    const empty = validateCompoundValues({ principal: '', annualRatePct: '', years: '', compoundsPerYear: '12', contribution: '' });
-    expect(empty.ok).toBe(false);
-    if (!empty.ok) {
-      expect(empty.fieldErrors?.principal).toBe(MSG.principalRequired);
-      expect(empty.fieldErrors?.annualRatePct).toBe(MSG.rateRequired);
-      expect(empty.fieldErrors?.years).toBe(MSG.yearsRequired);
-    }
-  });
-
-  it('rejects negative principal / rate and a negative contribution (UI policy)', () => {
-    const negP = validateCompoundValues(vals({ principal: '-1' }));
-    if (!negP.ok) expect(negP.fieldErrors?.principal).toBe(MSG.principalInvalid);
-    const negR = validateCompoundValues(vals({ annualRatePct: '-2' }));
-    if (!negR.ok) expect(negR.fieldErrors?.annualRatePct).toBe(MSG.rateInvalid);
-    const negC = validateCompoundValues(vals({ contribution: '-100' }));
-    expect(negC.ok).toBe(false);
-    if (!negC.ok) expect(negC.fieldErrors?.contribution).toBe(MSG.contributionInvalid);
-  });
-
-  it('years must be a WHOLE number in [1, 100]: 0, fractional and >100 are rejected', () => {
-    for (const bad of ['0', '1.5', '101', '-3']) {
-      const r = validateCompoundValues(vals({ years: bad }));
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.fieldErrors?.years).toBe(MSG.yearsInvalid);
-    }
-    expect(validateCompoundValues(vals({ years: '1' })).ok).toBe(true);
-    expect(validateCompoundValues(vals({ years: '100' })).ok).toBe(true);
-  });
-});
-
-describe('compound-interest binding — computation (delegating to the frozen engine)', () => {
-  const ref = (v: CompoundValues) =>
-    calculateCompoundInterest({ principal: Number(v.principal), annualRatePct: Number(v.annualRatePct), years: Number(v.years), compoundsPerYear: Number(v.compoundsPerYear), contribution: v.contribution.trim() === '' ? 0 : Number(v.contribution) });
-
-  it('delegates to calculateCompoundInterest and echoes the parsed inputs + series', () => {
-    const v = vals();
-    const c = computeCompound(v);
-    const r = ref(v);
-    expect(c.futureValue).toBe(r.futureValue);
-    expect(c.totalPrincipal).toBe(r.totalPrincipal);
-    expect(c.totalContributions).toBe(r.totalContributions);
-    expect(c.totalInterest).toBe(r.totalInterest);
-    expect(c.series).toEqual(r.series); // passed through unchanged (no reconstruction)
-    expect({ principal: c.principal, annualRatePct: c.annualRatePct, years: c.years, compoundsPerYear: c.compoundsPerYear, contribution: c.contribution }).toEqual({ principal: 10000, annualRatePct: 7, years: 20, compoundsPerYear: 12, contribution: 200 });
-  });
-
-  it('every UI frequency computes and passes the guard (incl. Semi-annually)', () => {
-    for (const f of ['1', '2', '4', '12', '365'] as const) {
-      const c = computeCompound(vals({ compoundsPerYear: f }));
-      expect(Number.isNaN(completeCompoundValue(c))).toBe(false);
-      expect(completeCompoundValue(c)).toBe(c.futureValue);
-    }
-  });
-
-  it('a blank contribution is treated as 0 (no deposits)', () => {
-    const c = computeCompound(vals({ contribution: '' }));
-    expect(c.contribution).toBe(0);
-    expect(c.totalContributions).toBe(0);
-    expect(c.futureValue).toBeCloseTo(40387.38848982184, 6);
-  });
-
-  it('a zero-principal + zero-contribution result is a VALID $0 (0, not NaN)', () => {
-    const c = computeCompound(vals({ principal: '0', contribution: '' }));
-    // principal 0, contribution 0 → future value 0
-    expect(c.futureValue).toBe(0);
-    expect(completeCompoundValue(c)).toBe(0);
-    expect(Number.isNaN(completeCompoundValue(c))).toBe(false);
-  });
-
-  it('rejects tampered / inconsistent results (guard reconciles via a fresh engine recompute)', () => {
-    const c = computeCompound(vals());
-    expect(Number.isNaN(completeCompoundValue({ ...c, futureValue: c.futureValue + 1 }))).toBe(true);
-    expect(Number.isNaN(completeCompoundValue({ ...c, totalInterest: c.totalInterest + 1 }))).toBe(true);
-    expect(Number.isNaN(completeCompoundValue({ ...c, series: c.series.slice(0, -1) }))).toBe(true); // wrong length
-    expect(Number.isNaN(completeCompoundValue({ ...c, principal: -1 }))).toBe(true);
-    expect(Number.isNaN(completeCompoundValue({ ...c, years: 0 }))).toBe(true);
-    expect(Number.isNaN(completeCompoundValue({ ...c, years: 1.5 }))).toBe(true);
-    expect(Number.isNaN(completeCompoundValue({ ...c, years: MAX_YEARS + 1 }))).toBe(true);
-    expect(Number.isNaN(completeCompoundValue({ ...c, compoundsPerYear: 6 }))).toBe(true); // unsupported frequency
-    expect(Number.isNaN(completeCompoundValue({ ...c, futureValue: Number.POSITIVE_INFINITY }))).toBe(true);
-  });
-});
-
-describe('compound-interest binding — proportion split', () => {
-  it('principal / contributions / interest percentages sum to ~100 for a positive result', () => {
-    const p = proportion(computeCompound(vals()));
-    expect(p.principal + p.contributions + p.interest).toBeCloseTo(100, 6);
-  });
-
-  it('guards division by zero: a $0 future value gives all-zero widths (never NaN)', () => {
-    const p = proportion(computeCompound(vals({ principal: '0', contribution: '' })));
-    expect(p).toEqual({ principal: 0, contributions: 0, interest: 0 });
-  });
-});
-
-describe('compound-interest binding — description + DOM', () => {
-  it('announces the future value, horizon and interest earned', () => {
-    const c = computeCompound(vals());
-    expect(describeCompoundResult(c)).toBe('Future value after 20 years: $144,572.72, including $86,572.72 in interest earned.');
-  });
-
-  it('readValues reads all five controls; defaults an unknown frequency to Monthly', () => {
-    const { root } = mockRoot({ principal: '5000', annualRatePct: '6', years: '30', compoundsPerYear: '2', contribution: '100' });
-    expect(compoundInterestBinding.readValues(root)).toEqual({ principal: '5000', annualRatePct: '6', years: '30', compoundsPerYear: '2', contribution: '100' });
-    const { root: r2 } = mockRoot({ compoundsPerYear: '7' });
-    expect(compoundInterestBinding.readValues(r2).compoundsPerYear).toBe('12');
-  });
-
-  it('resetValues clears principal/rate/years/contribution and restores Monthly', () => {
-    const { root, store } = mockRoot({ principal: '99999', annualRatePct: '9', years: '40', compoundsPerYear: '365', contribution: '500' });
-    compoundInterestBinding.resetValues(root, 'personal');
-    expect(store.principal.value).toBe('');
-    expect(store.annualRatePct.value).toBe('');
-    expect(store.years.value).toBe('');
-    expect(store.compoundsPerYear.value).toBe('12');
-    expect(store.contribution.value).toBe('');
+  it('is the published reference case and passes the same guard as any other result', () => {
+    const c = computeCompound(COMPOUND_EXAMPLE_VALUES);
+    expect(compoundInterestBinding.resultValue(c)).toBeCloseTo(6.16778, 4);
+    expect(presentCompound(c).outputRate).toBe('6.16778%');
   });
 });

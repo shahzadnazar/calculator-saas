@@ -1,359 +1,271 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Compound Interest calculator — R21A1 task-first migration (finance; the FINAL legacy migration). One
- * form on the UNCHANGED standard-form runtime via its OWN compound-interest-form.ts binding, wrapping
- * the UNCHANGED calculateCompoundInterest (frozen by compound-interest.test.ts; the SHARED engine).
- * Task-first: principal/rate/years start EMPTY, frequency defaults Monthly, contribution optional, the
- * result is EMPTY on the server AND after hydration (the legacy island seeded a $10,000/7%/20y/$200
- * result live). FUTURE VALUE dominant + proportion bar + breakdown + Balance-by-year table. Expected
- * values are INDEPENDENT hard-coded fixtures (formatCurrency 2dp / formatCurrencyRounded 0dp).
+ * Compound interest — converting a rate between compounding periods.
+ *
+ * Task-first: the rate starts EMPTY, the two periods are structural defaults (monthly in,
+ * annually out, as the reference has them), the visitor presses Calculate for the first
+ * result, live-after-first thereafter.
+ *
+ * Pinned to the published reference: 6% compound monthly (APR) is equivalent to 6.16778%
+ * compound annually (APY). Beneath it, the ladder of what that rate earns at every one of
+ * the nine periods — bars encoding the gain OVER annual compounding, which has a true zero,
+ * with every exact rate printed beside its bar.
+ *
+ * This is deliberately not a growth projection; the Interest calculator owns that, and the
+ * reference draws the same line.
  */
-
 const ROUTE = '/finance/compound-interest-calculator';
-const EMBED = '/embed/finance/compound-interest-calculator';
-const GUIDE = '/guides/understanding-compound-interest';
 const DEBOUNCE = 300;
 
-const shell = (page: Page) => page.locator('#compound-result');
-const dominant = (page: Page) => page.locator('#compound-result [data-result-when~="valid"] [data-result-value]').first();
-const principal = (page: Page) => page.locator('[data-ci-principal]');
-const contrib = (page: Page) => page.locator('[data-ci-contrib]');
-const interest = (page: Page) => page.locator('[data-ci-interest]');
-const live = (page: Page) => page.locator('#compound-live');
-const submit = (page: Page) => page.locator('[data-compound] button[type="submit"]');
-const rows = (page: Page) => page.locator('[data-ci-rows] tr');
-const region = (page: Page, when: string) => page.locator(`#compound-result [data-result-when~="${when}"]`);
+const shell = (page: Page) => page.locator('#ci-result');
+const primary = (page: Page) => page.locator('#ci-result [data-result-value]');
+const summary = (page: Page) => page.locator('[data-ci-summary]');
+const effective = (page: Page) => page.locator('[data-ci-effective]');
+const output = (page: Page) => page.locator('[data-ci-output]');
+const chart = (page: Page) => page.locator('[data-ci-chart-figure]');
+const ladderRows = (page: Page) => page.locator('.ci-rate tbody tr');
+const live = (page: Page) => page.locator('#ci-live');
+const submit = (page: Page) => page.locator('[data-ci-submit]');
+const region = (page: Page, when: string) => page.locator(`#ci-result [data-result-when~="${when}"]`);
 
-type Inp = Partial<{ principal: string; rate: string; years: string; freq: string; contribution: string }>;
-const doCalc = async (page: Page, i: Inp) => {
-  if (i.principal !== undefined) await page.locator('[name="principal"]').fill(i.principal);
-  if (i.rate !== undefined) await page.locator('[name="annualRatePct"]').fill(i.rate);
-  if (i.years !== undefined) await page.locator('[name="years"]').fill(i.years);
-  if (i.freq !== undefined) await page.locator('[name="compoundsPerYear"]').selectOption(i.freq);
-  if (i.contribution !== undefined) await page.locator('[name="contribution"]').fill(i.contribution);
+const calc = async (page: Page, rate = '6', from = 'monthly', to = 'annually') => {
+  await page.fill('[name="inputRate"]', rate);
+  await page.selectOption('[name="inputCompound"]', from);
+  await page.selectOption('[name="outputCompound"]', to);
   await submit(page).click();
 };
-const DEFAULT: Inp = { principal: '10000', rate: '7', years: '20', contribution: '200' };
 
-test.describe('compound-interest: task-first', () => {
+test.describe('compound interest: the rate converter', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
   });
 
-  /* ---- SSR / hydration parity ---- */
-
-  test('server-rendered result equals the hydrated one — empty, no baked $10,000 sample', async ({ page }) => {
-    const raw = await (await page.request.get(ROUTE)).text();
-    const server = await page.evaluate((html) => {
-      const d = new DOMParser().parseFromString(html, 'text/html');
-      return {
-        state: d.querySelector('#compound-result')?.getAttribute('data-result-state') ?? null,
-        dominant: d.querySelector('#compound-result [data-result-when~="valid"] [data-result-value]')?.textContent?.trim() ?? null,
-        principal: d.querySelector<HTMLInputElement>('[name="principal"]')?.getAttribute('value') ?? '',
-        freq: d.querySelector<HTMLSelectElement>('[name="compoundsPerYear"]')?.value ?? null,
-        rowCount: d.querySelectorAll('[data-ci-rows] tr').length,
-      };
-    }, raw);
-    await page.goto(ROUTE, { waitUntil: 'networkidle' });
-    expect(server.state).toBe('empty');
-    expect(server.dominant).toBe('—');
-    expect(server.principal).toBe('');
-    expect(server.freq).toBe('12');
-    expect(server.rowCount).toBe(0); // no baked series
+  test('loads empty, with the reference’s own default periods', async ({ page }) => {
+    await expect(page.locator('[name="inputRate"]')).toHaveValue('');
+    await expect(page.locator('[name="inputCompound"]')).toHaveValue('monthly');
+    await expect(page.locator('[name="outputCompound"]')).toHaveValue('annually');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-  });
-
-  /* ---- initial state ---- */
-
-  test('loads empty — inputs blank, frequency Monthly, no result', async ({ page }) => {
-    await expect(page.locator('[name="principal"]')).toHaveValue('');
-    await expect(page.locator('[name="annualRatePct"]')).toHaveValue('');
-    await expect(page.locator('[name="years"]')).toHaveValue('');
-    await expect(page.locator('[name="compoundsPerYear"]')).toHaveValue('12');
-    await expect(page.locator('[name="contribution"]')).toHaveValue('');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-    // The example fills this calculator's OWN valid region, so it is visible on load.
-    await expect(region(page, 'valid')).toBeVisible();
+    await expect(region(page, 'empty')).toBeHidden();
     await expect(live(page)).toHaveText('');
   });
 
-  test('does not calculate before the first Calculate', async ({ page }) => {
-    await page.locator('[name="principal"]').fill('10000');
-    await page.locator('[name="annualRatePct"]').fill('7');
-    await page.locator('[name="years"]').fill('20');
+  test('offers all nine compounding periods, labelled as their paperwork names them', async ({ page }) => {
+    for (const name of ['inputCompound', 'outputCompound']) {
+      const options = page.locator(`[name="${name}"] option`);
+      await expect(options).toHaveCount(9);
+      await expect(options.first()).toHaveText('Annually (APY)');
+      await expect(options.nth(3)).toHaveText('Monthly (APR)');
+      await expect(options.last()).toHaveText('Continuously');
+    }
+  });
+
+  test('does not calculate before the first submission', async ({ page }) => {
+    await page.fill('[name="inputRate"]', '6');
     await page.waitForTimeout(DEBOUNCE);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
   });
 
-  /* ---- the legacy default sample (independent fixtures) ---- */
+  /* ---- the reference result ---- */
 
-  test('10000 / 7% / 20y / monthly / $200 → future value + breakdown + announcement', async ({ page }) => {
-    await doCalc(page, DEFAULT);
+  test('the reference case prints the published figure and sentence', async ({ page }) => {
+    await calc(page);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(dominant(page)).toHaveText('$144,572.72'); // future value (dominant)
-    await expect(principal(page)).toHaveText('$10,000');
-    await expect(contrib(page)).toHaveText('$48,000');
-    await expect(interest(page)).toHaveText('$86,573'); // rounded
-    await expect(live(page)).toHaveText('Future value after 20 years: $144,572.72, including $86,572.72 in interest earned.');
-  });
-
-  test('the proportion bar segments get non-zero widths that reflect the split', async ({ page }) => {
-    await doCalc(page, DEFAULT);
-    const widths = await page.evaluate(() =>
-      [...document.querySelectorAll<HTMLElement>('#compound-result [data-ci-seg]')].map((el) => el.style.width),
+    await expect(primary(page)).toHaveText('6.16778%');
+    await expect(summary(page)).toHaveText(
+      '6% compound monthly (APR) is equivalent to 6.16778% compound annually (APY).',
     );
-    // three segments, each a non-empty percentage, none 0% for this positive result
-    expect(widths).toHaveLength(3);
-    for (const w of widths) expect(w).toMatch(/^\d+(\.\d+)?%$/);
-    for (const w of widths) expect(parseFloat(w)).toBeGreaterThan(0);
+    await expect(effective(page)).toHaveText('6.16778%');
+    await expect(live(page)).toHaveText(
+      '6 percent compound monthly (APR) is equivalent to 6.16778 percent compound annually (APY).',
+    );
+    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
   });
 
-  /* ---- yearly series table ---- */
-
-  test('the Balance-by-year table has 21 rows with the exact year-0 and final rows', async ({ page }) => {
-    await doCalc(page, DEFAULT);
-    await expect(rows(page)).toHaveCount(21); // year 0..20
-    const first = rows(page).nth(0);
-    await expect(first.locator('th')).toHaveText('0');
-    await expect(first.locator('td').nth(2)).toHaveText('$10,000'); // year-0 balance = principal
-    const last = rows(page).nth(20);
-    await expect(last.locator('th')).toHaveText('20');
-    await expect(last.locator('td').nth(0)).toHaveText('$48,000'); // cumulative contributions
-    await expect(last.locator('td').nth(1)).toHaveText('$86,573'); // cumulative interest
-    await expect(last.locator('td').nth(2)).toHaveText('$144,573'); // final balance
+  test('the answer is mirrored inline beside the inputs, as the reference shows it', async ({ page }) => {
+    await calc(page);
+    await expect(output(page)).toHaveText('6.16778%');
   });
 
-  /* ---- frequency options ---- */
-
-  test('each compounding frequency recomputes (Semi-annually is a distinct option)', async ({ page }) => {
-    await doCalc(page, { ...DEFAULT, freq: '1' }); // annually
-    await expect(dominant(page)).toHaveText('$46,895.94');
-    await page.locator('[name="compoundsPerYear"]').selectOption('2'); // semi-annually (live-after-first)
-    await expect(dominant(page)).toHaveText('$56,502.65');
-    await page.locator('[name="compoundsPerYear"]').selectOption('12'); // monthly
-    await expect(dominant(page)).toHaveText('$144,572.72');
+  test('converting the other way gives a lower nominal rate', async ({ page }) => {
+    await calc(page, '6', 'annually', 'monthly');
+    await expect(primary(page)).toHaveText('5.84106%');
+    await expect(summary(page)).toContainText('is equivalent to 5.84106% compound monthly (APR)');
   });
 
-  /* ---- contribution + zero cases ---- */
-
-  test('a blank contribution is treated as 0', async ({ page }) => {
-    await doCalc(page, { principal: '10000', rate: '7', years: '20', contribution: '' });
-    await expect(dominant(page)).toHaveText('$40,387.39');
-    await expect(contrib(page)).toHaveText('$0');
+  test('a card’s APR converts to the annual cost nobody advertises', async ({ page }) => {
+    await calc(page, '24.99', 'monthly', 'annually');
+    await expect(primary(page)).toHaveText('28.06061%');
   });
 
-  test('a zero rate is a VALID result: only the deposits accumulate, interest $0', async ({ page }) => {
-    await doCalc(page, { principal: '5000', rate: '0', years: '10', contribution: '100' });
+  test('converting to the same period explains rather than pretending to convert', async ({ page }) => {
+    await calc(page, '6', 'monthly', 'monthly');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(dominant(page)).toHaveText('$17,000.00');
-    await expect(contrib(page)).toHaveText('$12,000');
-    await expect(interest(page)).toHaveText('$0');
+    await expect(primary(page)).toHaveText('6%');
+    await expect(summary(page)).toContainText('already what you asked for');
+  });
+
+  test('a 0% rate is 0% at every period', async ({ page }) => {
+    await calc(page, '0', 'daily', 'annually');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('0%');
+  });
+
+  /* ---- the ladder ---- */
+
+  test('the ladder lists all nine periods with their exact rates', async ({ page }) => {
+    await calc(page);
+    await expect(chart(page)).toBeVisible();
+    await expect(ladderRows(page)).toHaveCount(9);
+
+    await expect(ladderRows(page).first().locator('th')).toHaveText('annually');
+    await expect(ladderRows(page).first().locator('.ci-rate__value')).toHaveText('6%');
+    await expect(ladderRows(page).last().locator('th')).toHaveText('continuously');
+    await expect(ladderRows(page).last().locator('.ci-rate__value')).toHaveText('6.184%');
+    await expect(ladderRows(page).nth(3).locator('.ci-rate__value')).toHaveText('6.168%');
+  });
+
+  test('the bars encode the gain over annual compounding, from a true zero', async ({ page }) => {
+    await calc(page);
+    const widths = await page
+      .locator('.ci-rate__bar')
+      .evaluateAll((els) => els.map((el) => parseFloat((el as HTMLElement).style.width)));
+    expect(widths).toHaveLength(9);
+    // Annual compounding is the baseline, so its bar is empty rather than full.
+    expect(widths[0]).toBe(0);
+    // Continuous is the ceiling.
+    expect(widths[8]).toBeCloseTo(100, 5);
+    // Never falling — more frequent compounding can never earn less.
+    for (let i = 1; i < widths.length; i++) expect(widths[i]).toBeGreaterThanOrEqual(widths[i - 1]);
+    // Most of the gain is already won by monthly.
+    expect(widths[3]).toBeGreaterThan(90);
+  });
+
+  test('the two periods being converted are the ones emphasised', async ({ page }) => {
+    await calc(page, '6', 'monthly', 'annually');
+    const highlighted = page.locator('.ci-rate__row[data-highlight]');
+    await expect(highlighted).toHaveCount(2);
+    await expect(highlighted.first().locator('th')).toHaveText('annually');
+    await expect(highlighted.last().locator('th')).toHaveText('monthly');
+
+    // The emphasis follows the selection, not a fixed position.
+    await page.selectOption('[name="outputCompound"]', 'daily');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(page.locator('.ci-rate__row[data-highlight]').last().locator('th')).toHaveText('daily');
+  });
+
+  test('the ladder is a real table, so the numbers are readable without the bars', async ({ page }) => {
+    await calc(page);
+    await expect(page.locator('.ci-rate caption')).toHaveCount(1);
+    await expect(page.locator('.ci-rate thead th')).toHaveText([
+      'Compounding',
+      'Extra over annual',
+      'Effective annual rate',
+    ]);
+    // Every row carries its own label and value, never colour alone.
+    await expect(page.locator('.ci-rate tbody th')).toHaveCount(9);
+    await expect(page.locator('.ci-rate__value')).toHaveCount(9);
   });
 
   /* ---- validation ---- */
 
-  test('an empty principal on Calculate is invalid and focuses the principal field', async ({ page }) => {
-    await doCalc(page, { rate: '7', years: '20' });
+  test('the rate is required, non-negative and bounded', async ({ page }) => {
+    await calc(page, '');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[name="principal"]')).toBeFocused();
+    await expect(page.locator('[data-error-for="inputRate"]')).toHaveText('Enter an interest rate.');
+
+    await calc(page, '-1');
+    await expect(page.locator('[data-error-for="inputRate"]')).toHaveText(
+      'Enter an interest rate of zero or more.',
+    );
+
+    await calc(page, '201');
+    await expect(page.locator('[data-error-for="inputRate"]')).toHaveText(
+      'Enter an interest rate of 200% or less.',
+    );
   });
 
-  test('a fractional or out-of-range years is rejected', async ({ page }) => {
-    await doCalc(page, { ...DEFAULT, years: '1.5' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await page.locator('[name="years"]').fill('101');
+  test('an empty explicit submission focuses the rate and associates the error', async ({ page }) => {
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    const rate = page.locator('[name="inputRate"]');
+    await expect(rate).toBeFocused();
+    await expect(rate).toHaveAttribute('aria-invalid', 'true');
+    // The inline readout must not keep showing a rate the result has dropped.
+    await expect(output(page)).toHaveText('—');
   });
 
-  test('negative principal / rate / contribution are rejected', async ({ page }) => {
-    await doCalc(page, { ...DEFAULT, principal: '-1000' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await page.locator('[name="principal"]').fill('10000');
-    await page.locator('[name="contribution"]').fill('-50');
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  /* ---- live update / reset ---- */
+
+  test('changing either period recalculates live without moving focus', async ({ page }) => {
+    await calc(page);
+    await page.fill('[name="inputRate"]', '12');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(primary(page)).toHaveText('12.6825%');
+    await expect(page.locator('[name="inputRate"]')).toBeFocused();
   });
 
-  /* ---- live-after-first + stale clearing ---- */
-
-  test('after the first result, editing the principal recalculates live', async ({ page }) => {
-    await doCalc(page, DEFAULT);
-    await expect(dominant(page)).toHaveText('$144,572.72');
-    await page.locator('[name="principal"]').fill('20000');
-    await page.locator('[name="principal"]').blur();
-    await expect(dominant(page)).not.toHaveText('$144,572.72');
-  });
-
-  test('an invalid live edit clears the stale result AND the series table', async ({ page }) => {
-    await doCalc(page, DEFAULT);
-    await expect(rows(page)).toHaveCount(21);
-    await page.locator('[name="principal"]').fill('');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(dominant(page)).toHaveText('—');
-    await expect(rows(page)).toHaveCount(0); // series cleared
-  });
-
-  /* ---- reset ---- */
-
-  test('reset clears the inputs, restores Monthly, empties the result + series', async ({ page }) => {
-    await doCalc(page, { ...DEFAULT, freq: '365' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await page.locator('[data-reset]').click();
-    await expect(page.locator('[name="principal"]')).toHaveValue('');
-    await expect(page.locator('[name="annualRatePct"]')).toHaveValue('');
-    await expect(page.locator('[name="years"]')).toHaveValue('');
-    await expect(page.locator('[name="compoundsPerYear"]')).toHaveValue('12');
-    await expect(page.locator('[name="contribution"]')).toHaveValue('');
+  test('clear empties the rate and restores both default periods', async ({ page }) => {
+    await calc(page, '9', 'daily', 'quarterly');
+    await page.click('[data-reset]');
+    await expect(page.locator('[name="inputRate"]')).toHaveValue('');
+    await expect(page.locator('[name="inputCompound"]')).toHaveValue('monthly');
+    await expect(page.locator('[name="outputCompound"]')).toHaveValue('annually');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(rows(page)).toHaveCount(0);
     await expect(live(page)).toHaveText('');
+    await expect(output(page)).toHaveText('—');
   });
 
-  /* ---- keyboard / no-scroll-jump / responsive / theme / embed / monetization ---- */
+  /* ---- presentation ---- */
 
-  test('keyboard submission works from the years field', async ({ page }) => {
-    await page.locator('[name="principal"]').fill('10000');
-    await page.locator('[name="annualRatePct"]').fill('7');
-    await page.locator('[name="years"]').fill('20');
-    await page.locator('[name="years"]').press('Enter');
+  test('keyboard submission works from the rate field', async ({ page }) => {
+    await page.fill('[name="inputRate"]', '6');
+    await page.locator('[name="inputRate"]').press('Enter');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('6.16778%');
   });
 
-  test('calculating does not jump the scroll position', async ({ page }) => {
-    const before = await page.evaluate(() => window.scrollY);
-    await doCalc(page, DEFAULT);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    expect(await page.evaluate(() => window.scrollY)).toBe(before);
-  });
-
-  test('desktop shows the future value within the first viewport; no overflow', async ({ page }) => {
+  test('desktop shows the inputs, the action and the answer at 1366×768', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await doCalc(page, DEFAULT);
-    const box = await dominant(page).boundingBox();
-    expect(box!.y).toBeLessThan(768);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow).toBeLessThanOrEqual(1);
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[name="inputRate"]')).toBeInViewport();
+    await expect(submit(page)).toBeInViewport();
+    await calc(page);
+    await expect(primary(page)).toBeInViewport();
   });
 
   test('mobile does not overflow horizontally', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await doCalc(page, DEFAULT);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await calc(page);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test('renders in dark scheme', async ({ page }) => {
+  test('renders in dark scheme, with the emphasis still distinguishable', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
-    await doCalc(page, DEFAULT);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await calc(page);
+    await expect(primary(page)).toBeVisible();
+    await expect(chart(page)).toBeVisible();
+    const [accent, context] = await Promise.all([
+      page.locator('.ci-rate__row[data-highlight] .ci-rate__bar').first().evaluate((el) => getComputedStyle(el).backgroundColor),
+      page.locator('.ci-rate__row:not([data-highlight]) .ci-rate__bar').first().evaluate((el) => getComputedStyle(el).backgroundColor),
+    ]);
+    expect(accent).not.toBe(context);
   });
 
-  test('no NaN / Infinity / undefined renders for an ordinary result', async ({ page }) => {
-    await doCalc(page, { principal: '50000', rate: '6.5', years: '30', contribution: '500' });
-    const text = await shell(page).innerText();
-    expect(text).not.toMatch(/NaN|Infinity|undefined/);
-  });
-
-  test('the generated embed mounts the same island (empty SSR, then a result)', async ({ page }) => {
-    await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-    await doCalc(page, DEFAULT);
-    await expect(dominant(page)).toHaveText('$144,572.72');
+  test('the generated embed mounts the same island', async ({ page }) => {
+    await page.goto('/embed/finance/compound-interest-calculator', { waitUntil: 'domcontentloaded' });
+    await calc(page);
+    await expect(page.locator('#ci-result')).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('6.16778%');
+    await expect(ladderRows(page)).toHaveCount(9);
   });
 
   test('the live page carries no monetization output', async ({ page }) => {
-    const html = await page.content();
-    expect(html).not.toMatch(/adsbygoogle|data-ad-client|googlesyndication/);
-  });
-});
-
-/* -------------------- guide-embed regression -------------------- */
-
-test.describe('compound-interest: understanding-compound-interest guide embed', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
-  });
-
-  test('the island mounts inside the guide, empty-first, and calculates + renders the table', async ({ page }) => {
-    const errors: string[] = [];
-    page.on('pageerror', (e) => errors.push(String(e)));
-    await expect(page.locator('[data-compound]')).toHaveCount(1);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-    await doCalc(page, DEFAULT);
-    await expect(dominant(page)).toHaveText('$144,572.72');
-    await expect(rows(page)).toHaveCount(21);
-    expect(errors).toEqual([]); // no hydration/runtime errors
-  });
-});
-
-/* -------------------- same-document two-instance isolation -------------------- */
-
-test.describe('compound-interest: same-document instance isolation', () => {
-  const FIXTURE = 'http://localhost:4399/__compound-two-instance-fixture';
-
-  async function mountTwo(page: Page) {
-    const raw = await (await page.request.get('http://localhost:4399/finance/compound-interest-calculator')).text();
-    const parts = await page.evaluate((html) => {
-      const d = new DOMParser().parseFromString(html, 'text/html');
-      const root = d.querySelector('[data-compound]');
-      const links = [...d.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.getAttribute('href'));
-      const script = [...d.querySelectorAll('script[type="module"][src]')]
-        .map((s) => s.getAttribute('src'))
-        .find((src) => /CompoundInterestCalculator/.test(src ?? ''));
-      return { rootHTML: root?.outerHTML ?? '', links, script };
-    }, raw);
-    const doc =
-      `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
-      parts.links.map((h) => `<link rel="stylesheet" href="${h}">`).join('') +
-      `</head><body><div id="inst-a">${parts.rootHTML}</div><div id="inst-b">${parts.rootHTML}</div>` +
-      `<script type="module" src="${parts.script}"></script></body></html>`;
-    await page.route('**/__compound-two-instance-fixture', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: doc }));
-    await page.goto(FIXTURE, { waitUntil: 'networkidle' });
-    await expect(page.locator('#inst-a [data-compound]')).toHaveCount(1);
-    await expect(page.locator('#inst-b [data-compound]')).toHaveCount(1);
-  }
-
-  test('two instances have no duplicate ids and every reference resolves in its own instance', async ({ page }) => {
-    await mountTwo(page);
-    const duplicates = await page.evaluate(() => {
-      const counts: Record<string, number> = {};
-      for (const el of document.querySelectorAll('[id]')) counts[el.id] = (counts[el.id] || 0) + 1;
-      return Object.entries(counts).filter(([, n]) => n > 1).map(([id]) => id);
-    });
-    expect(duplicates).toEqual([]);
-    const ok = await page.evaluate(() => {
-      for (const scope of ['#inst-a', '#inst-b']) {
-        const root = document.querySelector(scope)!;
-        for (const el of root.querySelectorAll('[aria-describedby]')) {
-          const refs = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
-          for (const id of refs) {
-            const t = document.getElementById(id);
-            if (!t || !t.closest(scope)) return false;
-          }
-        }
-      }
-      return true;
-    });
-    expect(ok).toBe(true);
-  });
-
-  test('calculating and resetting one instance never touches the other', async ({ page }) => {
-    await mountTwo(page);
-    const A = (sel: string) => page.locator(`#inst-a ${sel}`);
-    const B = (sel: string) => page.locator(`#inst-b ${sel}`);
-    const calcA = async () => {
-      await A('[name="principal"]').fill('10000');
-      await A('[name="annualRatePct"]').fill('7');
-      await A('[name="years"]').fill('20');
-      await A('[name="contribution"]').fill('200');
-      await A('button[type="submit"]').click();
-    };
-    await calcA();
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$144,572.72');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
-    await A('[data-reset]').click();
-    await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('[data-mon-region]')).toHaveCount(0);
+    expect(await page.content()).not.toContain('data-mon-');
   });
 });
