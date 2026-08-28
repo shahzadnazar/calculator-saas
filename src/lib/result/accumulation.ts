@@ -36,6 +36,12 @@ export interface ScheduleOptions {
   prefix: string;
   /** Formats a money cell. */
   format: (value: number) => string;
+  /**
+   * Whether to render the deposit column. Simple interest has no deposits — nothing
+   * is ever added to the balance — so its schedule is period · interest · balance,
+   * and a column of zeroes would be noise rather than information. Defaults to true.
+   */
+  showDeposit?: boolean;
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -90,7 +96,8 @@ function tableRow(row: ScheduleRow, o: ScheduleOptions): HTMLTableRowElement {
   head.className = `${o.prefix}-cell ${o.prefix}-cell--period`;
   head.textContent = String(row.period);
   tr.append(head);
-  for (const value of [row.deposit, row.interest, row.balance]) {
+  const values = o.showDeposit === false ? [row.interest, row.balance] : [row.deposit, row.interest, row.balance];
+  for (const value of values) {
     const td = document.createElement('td');
     td.className = `${o.prefix}-cell ${o.prefix}-num`;
     td.textContent = o.format(value);
@@ -105,7 +112,7 @@ function yearEndRow(year: number, o: ScheduleOptions): HTMLTableRowElement {
   tr.className = `${o.prefix}-year-end`;
   const cell = document.createElement('th');
   cell.scope = 'rowgroup';
-  cell.colSpan = 4;
+  cell.colSpan = o.showDeposit === false ? 3 : 4;
   cell.className = `${o.prefix}-cell ${o.prefix}-cell--yearend`;
   cell.textContent = `End of year ${year}`;
   tr.append(cell);

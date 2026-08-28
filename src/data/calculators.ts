@@ -160,8 +160,11 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Simple Interest Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Calculate interest earned or owed using the simple interest formula.',
-    keywords: ['simple interest calculator', 'interest formula'],
+    description:
+      'Calculate simple interest and the end balance, or solve back for the principal, term or rate — with the working shown.',
+    keywords: ['simple interest calculator', 'interest formula', 'I = Prt', 'solve for principal', 'solve for rate'],
+    aliases: ['simple interest formula calculator'],
+    phrases: ['calculate simple interest', 'interest on a loan', 'what rate do I need'],
   },
   {
     slug: 'interest-calculator',

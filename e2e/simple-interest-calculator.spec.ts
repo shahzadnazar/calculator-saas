@@ -1,245 +1,359 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Simple interest calculator — R9A1 standard-form wave (calculator #17; product family
- * FINANCE-SIMPLE, runtime unchanged, no isUsableResult). Single mode, no structural selectors.
- * Covers the task-first doctrine end-to-end: empty start, explicit first calc, live-after-first,
- * the interest-earned dominant hierarchy with the total subordinate, zero/fractional validity,
- * strict validation, the single dominant announcement, USD wording, the embed route and the guide
- * embed. Task-first ORDER + first-viewport are additionally asserted by e2e/task-first-layout.spec.ts.
+ * Simple interest — one formula, solved for whichever variable is missing.
+ *
+ * Four tabs (Balance / Principal / Term / Rate) as real radios, so they are
+ * keyboard-operable; each hides the field that has become the answer. The rate and the
+ * term each carry their own period, because a rate quoted per month against a term in
+ * years is a real combination and multiplying them as they stand is off by twelve.
+ *
+ * Pinned to the published reference: $20,000 at 3% a year for 10 years earns $6,000 and
+ * ends at $26,000 — a 77% / 23% ring, a flat $600 a year, and the working written out
+ * as "Total Interest = ... = $6,000.00" then "End Balance = ... = $26,000.00".
  */
 const ROUTE = '/finance/simple-interest-calculator';
 const DEBOUNCE = 300;
 
 const shell = (page: Page) => page.locator('#si-result');
 const primary = (page: Page) => page.locator('#si-result [data-result-value]');
-const summaryLabel = (page: Page) => page.locator('#si-result [data-result-summary-label]');
-const interpretation = (page: Page) => page.locator('#si-result [data-si-interpretation]');
-const total = (page: Page) => page.locator('#si-result [data-si-total]');
-const liveRegion = (page: Page) => page.locator('#si-live');
-const submit = (page: Page) => page.getByRole('button', { name: 'Calculate Simple Interest' });
-const resetBtn = (page: Page) => page.getByRole('button', { name: 'Reset' });
+const balance = (page: Page) => page.locator('[data-si-balance]');
+const interest = (page: Page) => page.locator('[data-si-interest]');
+const solvedRow = (page: Page) => page.locator('[data-si-solved-row]');
+const steps = (page: Page) => page.locator('[data-si-steps] .si-step');
+const donut = (page: Page) => page.locator('[data-si-donut-figure]');
+const chart = (page: Page) => page.locator('[data-si-chart-figure]');
+const schedule = (page: Page) => page.locator('[data-si-schedule]');
+const rows = (page: Page) => page.locator('[data-si-rows] tr');
+const live = (page: Page) => page.locator('#si-live');
+const submit = (page: Page) => page.locator('[data-si-submit]');
 const region = (page: Page, when: string) => page.locator(`#si-result [data-result-when~="${when}"]`);
+const row = (page: Page, name: string) => page.locator(`[data-field="${name}"]`);
 
-const calc = async (page: Page, principal = '5000', rate = '5', years = '3') => {
-  await page.fill('[name="principal"]', principal);
-  await page.fill('[name="annualRatePct"]', rate);
-  await page.fill('[name="years"]', years);
+const mode = async (page: Page, value: string) => page.locator(`[name="solveFor"][value="${value}"]`).check();
+
+/** Fill only the fields the current tab actually shows. */
+const fill = async (page: Page, values: Record<string, string>) => {
+  for (const [name, v] of Object.entries(values)) await page.fill(`[name="${name}"]`, v);
+};
+const calcBalance = async (page: Page, over: Record<string, string> = {}) => {
+  await fill(page, { principal: '20000', ratePerUnitPct: '3', term: '10', ...over });
   await submit(page).click();
 };
 
-test.beforeEach(async ({ page }) => {
-  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-});
+test.describe('simple interest: the four tabs', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
 
-/* ---- Initial state ------------------------------------------------------ */
+  test('loads empty on the Balance tab, with the end balance hidden', async ({ page }) => {
+    await expect(page.locator('[name="solveFor"][value="balance"]')).toBeChecked();
+    for (const name of ['principal', 'ratePerUnitPct', 'term']) {
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+      await expect(row(page, name)).toBeVisible();
+    }
+    // The end balance IS the answer here, so it is not a question.
+    await expect(row(page, 'endBalance')).toBeHidden();
+    await expect(page.locator('[name="rateUnit"]')).toHaveValue('year');
+    await expect(page.locator('[name="termUnit"]')).toHaveValue('year');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    await expect(live(page)).toHaveText('');
+  });
 
-test('loads empty: blank fields, empty result, Calculate + Reset visible, no live note', async ({ page }) => {
-  await expect(page.locator('[name="principal"]')).toHaveValue('');
-  await expect(page.locator('[name="annualRatePct"]')).toHaveValue('');
-  await expect(page.locator('[name="years"]')).toHaveValue('');
-  await expect(submit(page)).toBeVisible();
-  await expect(resetBtn(page)).toBeVisible();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-  // The empty placeholder is replaced by the labelled example on load.
-  await expect(region(page, 'empty')).toBeHidden();
-  await expect(region(page, 'valid')).toBeVisible();
-  await expect(page.locator('[data-live-note]')).toBeHidden();
-  await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).not.toHaveText('—');
-});
+  test('offers the reference’s four tabs, in its order', async ({ page }) => {
+    await expect(page.locator('.si-tab span')).toHaveText(['Balance', 'Principal', 'Term', 'Rate']);
+  });
 
-test('does not calculate before the first submission', async ({ page }) => {
-  await page.fill('[name="principal"]', '5000');
-  await page.fill('[name="annualRatePct"]', '5');
-  await page.fill('[name="years"]', '3');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(liveRegion(page)).toHaveText('');
-});
+  test('each tab stops asking for the field it is solving for', async ({ page }) => {
+    const solvedField: Record<string, string> = {
+      balance: 'endBalance',
+      principal: 'principal',
+      term: 'term',
+      rate: 'ratePerUnitPct',
+    };
+    for (const [tab, solved] of Object.entries(solvedField)) {
+      await mode(page, tab);
+      // The number is never asked for on its own tab.
+      await expect(page.locator(`[name="${solved}"]`)).toBeHidden();
+      // Every other field is still a question.
+      for (const name of ['endBalance', 'principal', 'ratePerUnitPct', 'term']) {
+        if (name !== solved) await expect(page.locator(`[name="${name}"]`)).toBeVisible();
+      }
+    }
+  });
 
-/* ---- Valid result + hierarchy ------------------------------------------- */
+  test('a money row disappears entirely, but a row with a unit keeps it', async ({ page }) => {
+    // Principal and end balance have no unit, so nothing is left to show.
+    await mode(page, 'principal');
+    await expect(row(page, 'principal')).toBeHidden();
+    await mode(page, 'balance');
+    await expect(row(page, 'endBalance')).toBeHidden();
 
-test('valid result: interest dominant, total subordinate, with interpretation and USD wording', async ({ page }) => {
-  await calc(page, '5000', '5', '3');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(summaryLabel(page)).toHaveText('Interest earned');
-  await expect(primary(page)).toHaveText('$750.00');
-  await expect(interpretation(page)).toHaveText('At 5% simple interest for 3 years, the interest earned is $750.00.');
-  await expect(total(page)).toHaveText('$5,750.00');
-  // Explicit USD wording is visible on the page.
-  await expect(page.getByText('Principal amount in USD')).toBeVisible();
-  await expect(page.getByText('Interest and total are in US dollars (USD).')).toBeVisible();
-  // The dominant interest is visually larger than the subordinate total row.
-  const primarySize = await primary(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  const cellSize = await total(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(primarySize).toBeGreaterThan(cellSize * 1.5);
-});
+    // Term and rate DO have a unit, and it is what the answer comes back in — hiding
+    // it would leave invisible state deciding the output.
+    await mode(page, 'term');
+    await expect(row(page, 'term')).toBeVisible();
+    await expect(page.locator('[name="term"]')).toBeHidden();
+    await expect(page.locator('[name="termUnit"]')).toBeVisible();
 
-test('a fractional duration is accepted (2.5 years)', async ({ page }) => {
-  await calc(page, '1000', '5', '2.5');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$125.00'); // 1000 × 0.05 × 2.5
-  await expect(total(page)).toHaveText('$1,125.00');
-});
+    await mode(page, 'rate');
+    await expect(row(page, 'ratePerUnitPct')).toBeVisible();
+    await expect(page.locator('[name="ratePerUnitPct"]')).toBeHidden();
+    await expect(page.locator('[name="rateUnit"]')).toBeVisible();
+  });
 
-test('an entered principal of 0 is valid and shows $0.00 interest and total', async ({ page }) => {
-  await calc(page, '0', '5', '3');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$0.00');
-  await expect(total(page)).toHaveText('$0.00');
-});
+  test('offers all four periods for both the rate and the term', async ({ page }) => {
+    await expect(page.locator('[name="rateUnit"] option')).toHaveText([
+      'per year',
+      'per month',
+      'per week',
+      'per day',
+    ]);
+    await expect(page.locator('[name="termUnit"] option')).toHaveText(['years', 'months', 'weeks', 'days']);
+  });
 
-test('an entered rate of 0 is valid: no interest, total = principal', async ({ page }) => {
-  await calc(page, '1000', '0', '3');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$0.00');
-  await expect(total(page)).toHaveText('$1,000.00');
-  await expect(interpretation(page)).toContainText('no interest accrues');
-});
+  test('does not calculate before the first submission', async ({ page }) => {
+    await fill(page, { principal: '20000', ratePerUnitPct: '3', term: '10' });
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  });
 
-test('an entered duration of 0 years is valid: no interest, total = principal', async ({ page }) => {
-  await calc(page, '1000', '5', '0');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$0.00');
-  await expect(total(page)).toHaveText('$1,000.00');
-  await expect(interpretation(page)).toContainText('0 years');
-});
+  /* ---- the reference result ---- */
 
-/* ---- Validation --------------------------------------------------------- */
+  test('the reference case prints the published figures', async ({ page }) => {
+    await calcBalance(page);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('$26,000.00');
+    await expect(balance(page)).toHaveText('$26,000.00');
+    await expect(interest(page)).toHaveText('$6,000.00');
+    await expect(live(page)).toHaveText('End balance: 26000 dollars.');
+    // On the Balance tab the answer IS the balance, so no separate answer row.
+    await expect(solvedRow(page)).toBeHidden();
+    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+  });
 
-test('an empty explicit submission focuses the principal field and associates the error', async ({ page }) => {
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  const principal = page.locator('[name="principal"]');
-  await expect(principal).toBeFocused();
-  await expect(principal).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.locator('[data-error-for="principal"]')).toHaveText('Enter a principal amount.');
-});
+  test('the calculation steps are written out as the reference shows them', async ({ page }) => {
+    await calcBalance(page);
+    await expect(steps(page)).toHaveCount(2);
+    await expect(steps(page).nth(0)).toContainText('Total Interest = $20,000 × 3% × 10');
+    await expect(steps(page).nth(0)).toContainText('= $6,000.00');
+    await expect(steps(page).nth(1)).toContainText('End Balance = $20,000 + $6,000.00');
+    await expect(steps(page).nth(1)).toContainText('= $26,000.00');
+  });
 
-test('negative principal, rate and years are each rejected with a clear message', async ({ page }) => {
-  await calc(page, '-1000', '5', '3');
-  await expect(page.locator('[data-error-for="principal"]')).toHaveText('Enter a principal amount of zero or more.');
-  await calc(page, '1000', '-5', '3');
-  await expect(page.locator('[data-error-for="annualRatePct"]')).toHaveText('Enter an annual interest rate of zero or more.');
-  await calc(page, '1000', '5', '-3');
-  await expect(page.locator('[data-error-for="years"]')).toHaveText('Enter a time period of zero years or more.');
-});
+  test('the breakdown ring splits the balance 77% / 23%', async ({ page }) => {
+    await calcBalance(page);
+    await expect(donut(page)).toBeVisible();
+    const svg = page.locator('.si-donut__svg');
+    await expect(svg).toHaveCount(1);
+    await expect(svg).toHaveAttribute('role', 'img');
+    expect(await svg.getAttribute('aria-label')).toContain('$26,000.00');
+    await expect(page.locator('[data-si-share-principal]')).toHaveText('77%');
+    await expect(page.locator('[data-si-share-interest]')).toHaveText('23%');
+  });
 
-/* ---- Live-after-first + announcement ------------------------------------ */
+  test('the accumulation graph runs from year 0 to the end of the term', async ({ page }) => {
+    await calcBalance(page);
+    await expect(chart(page)).toBeVisible();
+    await expect(page.locator('.si-chart__svg')).toHaveCount(1);
+    // Eleven columns: year zero plus ten years.
+    await expect(page.locator('.si-chart__seg--initial')).toHaveCount(11);
+    // Year zero has no interest yet, so only ten interest segments are drawn.
+    await expect(page.locator('.si-chart__seg--interest')).toHaveCount(10);
+    await expect(page.locator('.si-chart__tick', { hasText: 'Year 0' })).toHaveCount(1);
+    await expect(page.locator('.si-chart__tick', { hasText: 'Year 10' })).toHaveCount(1);
+  });
 
-test('live-after-first: edits recalculate without moving focus, and announce once', async ({ page }) => {
-  await calc(page, '5000', '5', '3');
-  await expect(liveRegion(page)).toHaveText('Your simple interest is 750 dollars.');
-  await expect(page.locator('[data-live-note]')).toBeVisible();
-  // Edit the rate live — the result updates, focus stays on the field, no scroll jump.
-  await page.locator('[name="annualRatePct"]').fill('10');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(primary(page)).toHaveText('$1,500.00'); // 5000 × 0.10 × 3
-  await expect(page.locator('[name="annualRatePct"]')).toBeFocused();
-  await expect(liveRegion(page)).toHaveText('Your simple interest is 1500 dollars.');
-});
+  test('the schedule is a flat $600 a year climbing to the end balance', async ({ page }) => {
+    await calcBalance(page);
+    await expect(schedule(page)).toBeVisible();
+    await expect(rows(page)).toHaveCount(10);
 
-test('announces the dominant result concisely, never the total', async ({ page }) => {
-  await calc(page, '5000', '5', '3');
-  await expect(liveRegion(page)).toHaveText('Your simple interest is 750 dollars.');
-  await expect(liveRegion(page)).not.toContainText(/total|5,?750/i);
-});
+    const cells = (i: number) => rows(page).nth(i).locator('td');
+    await expect(rows(page).nth(0).locator('th')).toHaveText('1');
+    await expect(cells(0).nth(0)).toHaveText('$600.00');
+    await expect(cells(0).nth(1)).toHaveText('$20,600.00');
+    await expect(cells(4).nth(1)).toHaveText('$23,000.00');
+    await expect(cells(9).nth(0)).toHaveText('$600.00');
+    await expect(cells(9).nth(1)).toHaveText('$26,000.00');
+  });
 
-test('keyboard submission works from a field', async ({ page }) => {
-  await page.fill('[name="principal"]', '5000');
-  await page.fill('[name="annualRatePct"]', '5');
-  await page.locator('[name="years"]').fill('3');
-  await page.locator('[name="years"]').press('Enter');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$750.00');
-});
+  /* ---- the other three tabs ---- */
 
-/* ---- Reset -------------------------------------------------------------- */
+  test('the Principal tab solves back from an end balance', async ({ page }) => {
+    await mode(page, 'principal');
+    await fill(page, { endBalance: '30000', ratePerUnitPct: '3', term: '10' });
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(solvedRow(page)).toBeVisible();
+    await expect(page.locator('[data-si-solved-label]')).toHaveText('Principal');
+    await expect(page.locator('[data-si-solved]')).toHaveText('$23,076.92');
+    await expect(balance(page)).toHaveText('$30,000.00');
+  });
 
-test('reset clears fields, returns to empty, clears the announcement', async ({ page }) => {
-  await calc(page, '5000', '5', '3');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await resetBtn(page).click();
-  await expect(page.locator('[name="principal"]')).toHaveValue('');
-  await expect(page.locator('[name="annualRatePct"]')).toHaveValue('');
-  await expect(page.locator('[name="years"]')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(liveRegion(page)).toHaveText('');
-  await expect(page.locator('[data-live-note]')).toBeHidden();
-});
+  test('the Term tab solves in the unit chosen beside it', async ({ page }) => {
+    await mode(page, 'term');
+    await fill(page, { endBalance: '30000', principal: '20000', ratePerUnitPct: '3' });
+    await submit(page).click();
+    await expect(page.locator('[data-si-solved-label]')).toHaveText('Term');
+    await expect(page.locator('[data-si-solved]')).toHaveText('16.67 years');
 
-/* ---- Integrity ---------------------------------------------------------- */
+    await page.selectOption('[name="termUnit"]', 'month');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(page.locator('[data-si-solved]')).toHaveText('200 months');
+  });
 
-test('renders no NaN / Infinity / undefined', async ({ page }) => {
-  await calc(page, '5000', '5', '3');
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-});
+  test('the Rate tab solves in the period it is quoted in', async ({ page }) => {
+    await mode(page, 'rate');
+    await fill(page, { endBalance: '30000', principal: '20000', term: '10' });
+    await submit(page).click();
+    await expect(page.locator('[data-si-solved-label]')).toHaveText('Interest rate');
+    await expect(page.locator('[data-si-solved]')).toHaveText('5% per year');
+    await expect(live(page)).toHaveText('Interest rate: 5% per year. End balance $30,000.00.');
+  });
 
-/* ---- Responsive / theme ------------------------------------------------- */
+  test('a monthly rate is not multiplied against a term in years as it stands', async ({ page }) => {
+    await calcBalance(page, { ratePerUnitPct: '0.25' });
+    await page.selectOption('[name="rateUnit"]', 'month');
+    await page.waitForTimeout(DEBOUNCE);
+    // 0.25% a month for 10 years is 3% a year — $6,000, not $500.
+    await expect(interest(page)).toHaveText('$6,000.00');
+  });
 
-test('desktop shows the dominant result within the first viewport at 1366×768', async ({ page }) => {
-  await page.setViewportSize({ width: 1366, height: 768 });
-  await calc(page, '5000', '5', '3');
-  await expect(primary(page)).toBeInViewport();
-});
+  test('switching tabs clears a result computed for the old question', async ({ page }) => {
+    await calcBalance(page);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await mode(page, 'rate');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  });
 
-test('mobile stacks inputs → result and does not overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  const formBox = (await page.locator('form[data-form]').boundingBox())!;
-  const resultTop = (await shell(page).boundingBox())!.y;
-  expect(resultTop).toBeGreaterThanOrEqual(formBox.y + formBox.height - 1);
-  await calc(page, '5000', '5', '3');
-  await expect(primary(page)).toHaveText('$750.00');
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
-});
+  /* ---- validation ---- */
 
-test('renders in dark scheme', async ({ page }) => {
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await calc(page, '5000', '5', '3');
-  await expect(primary(page)).toBeVisible();
-});
+  test('each visible field is required and range-checked', async ({ page }) => {
+    await fill(page, { principal: '0', ratePerUnitPct: '3', term: '10' });
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="principal"]')).toHaveText(
+      'Enter a principal greater than zero.',
+    );
 
-/* ---- Embed + monetization ----------------------------------------------- */
+    await calcBalance(page, { ratePerUnitPct: '' });
+    await expect(page.locator('[data-error-for="ratePerUnitPct"]')).toHaveText('Enter the interest rate.');
 
-test('the embed route mounts the same interactive island', async ({ page }) => {
-  await page.goto('/embed/finance/simple-interest-calculator', { waitUntil: 'domcontentloaded' });
-  await page.fill('[name="principal"]', '5000');
-  await page.fill('[name="annualRatePct"]', '5');
-  await page.fill('[name="years"]', '3');
-  await page.getByRole('button', { name: 'Calculate Simple Interest' }).click();
-  await expect(page.locator('#si-result [data-result-value]')).toHaveText('$750.00');
-});
+    await calcBalance(page, { term: '-1' });
+    await expect(page.locator('[data-error-for="term"]')).toHaveText('Enter a term of zero or more.');
+  });
 
-test('the live page carries no monetization output', async ({ page }) => {
-  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-  expect(await page.content()).not.toContain('data-mon-');
-});
+  test('a balance below the principal has no positive term or rate', async ({ page }) => {
+    await mode(page, 'rate');
+    await fill(page, { endBalance: '15000', principal: '20000', term: '10' });
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="endBalance"]')).toHaveText(
+      'The end balance must be at least the principal — simple interest only adds to it.',
+    );
+  });
 
-/* ---- Guide embed (simple-interest-explained) ---------------------------- */
+  test('the two divisions say so rather than returning a number', async ({ page }) => {
+    await mode(page, 'term');
+    await fill(page, { endBalance: '26000', principal: '20000', ratePerUnitPct: '0' });
+    await submit(page).click();
+    await expect(page.locator('[data-error-for="ratePerUnitPct"]')).toContainText('at 0% no term ever reaches');
 
-test('the guide that embeds the island renders the migrated task-first tool', async ({ page }) => {
-  await page.goto('/guides/simple-interest-explained', { waitUntil: 'domcontentloaded' });
-  // Exactly one H1 (the guide's); the embedded island injects no page H1 or breadcrumb.
-  await expect(page.locator('h1')).toHaveCount(1);
-  await expect(page.locator('[data-simple-interest] h1')).toHaveCount(0);
-  await expect(page.locator('[data-simple-interest] nav')).toHaveCount(0);
-  // Guide prose remains present.
-  await expect(page.getByText('Not all interest compounds.')).toBeVisible();
-  // Empty (not prefilled) initial state, then an explicit calc works.
-  await expect(page.locator('#si-result')).toHaveAttribute('data-result-state', 'example');
-  await expect(page.locator('[name="principal"]')).toHaveValue('');
-  await page.fill('[name="principal"]', '5000');
-  await page.fill('[name="annualRatePct"]', '5');
-  await page.fill('[name="years"]', '3');
-  await page.getByRole('button', { name: 'Calculate Simple Interest' }).click();
-  await expect(page.locator('#si-result [data-result-value]')).toHaveText('$750.00');
-  // Reset returns to empty.
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await expect(page.locator('#si-result')).toHaveAttribute('data-result-state', 'empty');
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
-  expect(await page.content()).not.toContain('data-mon-');
+    await mode(page, 'rate');
+    await fill(page, { endBalance: '26000', principal: '20000', term: '0' });
+    await submit(page).click();
+    await expect(page.locator('[data-error-for="term"]')).toContainText('in no time at all');
+  });
+
+  test('a stale value from another tab never blocks the current one', async ({ page }) => {
+    await mode(page, 'principal');
+    await fill(page, { endBalance: '-500' });
+    await mode(page, 'balance');
+    await calcBalance(page);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('$26,000.00');
+  });
+
+  test('an empty explicit submission focuses the first field the tab asks for', async ({ page }) => {
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[name="principal"]')).toBeFocused();
+  });
+
+  /* ---- live update / reset ---- */
+
+  test('a valid live update recomputes without moving focus', async ({ page }) => {
+    await calcBalance(page);
+    await page.fill('[name="term"]', '20');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(primary(page)).toHaveText('$32,000.00');
+    await expect(page.locator('[name="term"]')).toBeFocused();
+  });
+
+  test('clear empties the fields and returns to the Balance tab', async ({ page }) => {
+    await mode(page, 'rate');
+    await fill(page, { endBalance: '30000', principal: '20000', term: '10' });
+    await submit(page).click();
+    await page.selectOption('[name="termUnit"]', 'month');
+
+    await page.click('[data-reset]');
+    await expect(page.locator('[name="solveFor"][value="balance"]')).toBeChecked();
+    await expect(page.locator('[name="termUnit"]')).toHaveValue('year');
+    for (const name of ['principal', 'endBalance', 'ratePerUnitPct', 'term']) {
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+    }
+    await expect(row(page, 'endBalance')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(live(page)).toHaveText('');
+  });
+
+  /* ---- presentation ---- */
+
+  test('keyboard submission works from a field', async ({ page }) => {
+    await fill(page, { principal: '20000', ratePerUnitPct: '3', term: '10' });
+    await page.locator('[name="term"]').press('Enter');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('$26,000.00');
+  });
+
+  test('desktop shows the tabs, the inputs, the action and the balance at 1366×768', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.si-tabs')).toBeInViewport();
+    await expect(submit(page)).toBeInViewport();
+    await calcBalance(page);
+    await expect(primary(page)).toBeInViewport();
+  });
+
+  test('mobile does not overflow horizontally', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await calcBalance(page);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test('renders in dark scheme', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await calcBalance(page);
+    await expect(primary(page)).toBeVisible();
+    await expect(donut(page)).toBeVisible();
+    await expect(chart(page)).toBeVisible();
+  });
+
+  test('the generated embed mounts the same island', async ({ page }) => {
+    await page.goto('/embed/finance/simple-interest-calculator', { waitUntil: 'domcontentloaded' });
+    await calcBalance(page);
+    await expect(page.locator('#si-result')).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page)).toHaveText('$26,000.00');
+    await expect(rows(page)).toHaveCount(10);
+  });
+
+  test('the live page carries no monetization output', async ({ page }) => {
+    await expect(page.locator('[data-mon-region]')).toHaveCount(0);
+    expect(await page.content()).not.toContain('data-mon-');
+  });
 });
