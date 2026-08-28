@@ -1,31 +1,28 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Pace calculator — R7C-2E1 standard-form wave (calculator #12). SINGLE-MODE:
- * distance + a composite h:m:s elapsed time → the SELECTED-UNIT pace (dominant) with
- * secondary pace/speed conversions and equivalent finish times. The km/mi control is
- * the runtime's unit selector and CONVERTS the entered distance. Covers the doctrine
- * end-to-end plus the composite-time validation, the converting unit selector, the
- * selected-unit result hierarchy, and the equivalent-finish-time wording.
+ * Pace — the three-way solver, plus the multipoint splits and the finish-time projection
+ * the same page carries.
+ *
+ * Time, distance and pace are one relationship, so the form has three targets rather than
+ * three calculators. The box being solved for locks, and the answer is written back into it.
  */
 const ROUTE = '/health/pace-calculator';
 const DEBOUNCE = 300;
 
 const shell = (page: Page) => page.locator('#pc-result');
-const primary = (page: Page) => page.locator('#pc-result [data-result-value]');
-const primaryUnit = (page: Page) => page.locator('#pc-result [data-result-when~="valid"] [data-result-unit]');
-const otherPace = (page: Page) => page.locator('#pc-result [data-pc-otherpace]');
-const otherPaceLabel = (page: Page) => page.locator('#pc-result [data-pc-otherpace-label]');
-const speed1 = (page: Page) => page.locator('#pc-result [data-pc-speed1]');
-const speed2 = (page: Page) => page.locator('#pc-result [data-pc-speed2]');
+const value = (page: Page) => page.locator('#pc-result [data-pace-value]');
+const unit = (page: Page) => page.locator('#pc-result [data-pace-unit]');
+const fact = (page: Page, key: string) => page.locator(`#pc-result [data-pace-${key}]`);
+const equiv = (page: Page, key: string) => page.locator(`#pc-result [data-equiv="${key}"]`);
 const liveRegion = (page: Page) => page.locator('#pc-live');
 const submit = (page: Page) => page.locator('form[data-form] button[type="submit"]');
 const region = (page: Page, when: string) => page.locator(`#pc-result [data-result-when~="${when}"]`);
-const raceTime = (page: Page, i: number) => page.locator(`#pc-result [data-pc-race="${i}"] [data-pc-race-time]`);
 
-const calcKm = async (page: Page) => {
-  await page.fill('[name="distance"]', '5');
-  await page.fill('[name="m"]', '25'); // 5 km in 25:00 → 5:00 /km
+/** 6 miles in 48:00 → 8:00 per mile. */
+const calcPace = async (page: Page) => {
+  await page.fill('[name="m"]', '48');
+  await page.fill('[name="distance"]', '6');
   await submit(page).click();
 };
 
@@ -33,226 +30,365 @@ test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
-/* ---- Initial state ------------------------------------------------------ */
+/* ---- The solver --------------------------------------------------------- */
 
-test('loads empty: fields blank, unit km, result empty, Calculate visible, no live note', async ({ page }) => {
-  for (const name of ['distance', 'h', 'm', 's']) {
-    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
-  }
-  await expect(page.locator('[data-unit="km"]')).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('[data-unit="mi"]')).toHaveAttribute('aria-checked', 'false');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-  // The empty placeholder is replaced by the labelled example on load.
-  await expect(region(page, 'empty')).toBeHidden();
-  await expect(region(page, 'valid')).toBeVisible();
-  await expect(submit(page)).toHaveText('Calculate Pace');
-  await expect(page.locator('[data-live-note]')).toBeHidden();
-  await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).not.toHaveText('—');
+test.describe('the three-way solver', () => {
+  test('offers the three targets and opens on Pace', async ({ page }) => {
+    const labels = await page.locator('.pc-radios label').allTextContents();
+    expect(labels.map((l) => l.trim())).toEqual(['Pace', 'Time', 'Distance']);
+    await expect(page.locator('[name="solveFor"][value="pace"]')).toBeChecked();
+  });
+
+  test('locks the box it is working out, and only that one', async ({ page }) => {
+    await expect(page.locator('[name="paceMin"]')).toHaveJSProperty('readOnly', true);
+    await expect(page.locator('[name="m"]')).toHaveJSProperty('readOnly', false);
+    await expect(page.locator('[name="distance"]')).toHaveJSProperty('readOnly', false);
+
+    await page.locator('[name="solveFor"][value="time"]').check();
+    await expect(page.locator('[name="m"]')).toHaveJSProperty('readOnly', true);
+    await expect(page.locator('[name="paceMin"]')).toHaveJSProperty('readOnly', false);
+  });
+
+  test('finds the pace from a time and a distance', async ({ page }) => {
+    await calcPace(page);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(value(page)).toHaveText('8:00');
+    await expect(unit(page)).toHaveText('per Mile');
+    await expect(fact(page, 'time')).toHaveText('48:00');
+    await expect(fact(page, 'distance')).toHaveText('6 Miles');
+    await expect(fact(page, 'pace')).toHaveText('8:00 per Mile');
+    await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
+  });
+
+  test('finds the time from a distance and a pace', async ({ page }) => {
+    await page.locator('[name="solveFor"][value="time"]').check();
+    await page.fill('[name="distance"]', '6');
+    await page.fill('[name="paceMin"]', '8');
+    await page.fill('[name="paceSec"]', '0');
+    await submit(page).click();
+    await expect(value(page)).toHaveText('48:00');
+    await expect(fact(page, 'time')).toHaveText('48:00');
+  });
+
+  test('finds the distance from a time and a pace', async ({ page }) => {
+    await page.locator('[name="solveFor"][value="distance"]').check();
+    await page.fill('[name="m"]', '48');
+    await page.fill('[name="paceMin"]', '8');
+    await page.fill('[name="paceSec"]', '0');
+    await submit(page).click();
+    await expect(value(page)).toHaveText('6');
+    await expect(unit(page)).toHaveText('Miles');
+  });
+
+  test('writes the answer back into its own box, so it carries into the next sum', async ({ page }) => {
+    await calcPace(page);
+    await expect(page.locator('[name="paceMin"]')).toHaveValue('8');
+    await expect(page.locator('[name="paceSec"]')).toHaveValue('0');
+  });
+
+  test('reports the same run in the other units', async ({ page }) => {
+    await calcPace(page);
+    await expect(fact(page, 'permi')).toHaveText('8:00 / mile');
+    await expect(fact(page, 'perkm')).toHaveText('4:58 / km');
+    await expect(fact(page, 'mph')).toHaveText('7.50 mph');
+    await expect(fact(page, 'kmh')).toHaveText('12.07 km/h');
+  });
+
+  test('the pace unit is independent of the distance unit', async ({ page }) => {
+    await page.selectOption('[name="distanceUnit"]', 'km');
+    await page.selectOption('[name="paceUnit"]', 'mi');
+    await page.fill('[name="m"]', '50');
+    await page.fill('[name="distance"]', '10');
+    await submit(page).click();
+    await expect(value(page)).toHaveText('8:03'); // 5:00/km per mile
+    await expect(unit(page)).toHaveText('per Mile');
+    await expect(fact(page, 'perkm')).toHaveText('5:00 / km');
+  });
+
+  test('a common-distance chip fills the box in the selected unit', async ({ page }) => {
+    await page.selectOption('[name="distanceUnit"]', 'km');
+    await page.locator('[data-race="marathon"]').click();
+    await expect(page.locator('[name="distance"]')).toHaveValue('42.195');
+    await page.selectOption('[name="distanceUnit"]', 'mi');
+    await page.locator('[data-race="marathon"]').click();
+    await expect(page.locator('[name="distance"]')).toHaveValue('26.2188');
+  });
 });
 
-test('does not calculate before the first submission', async ({ page }) => {
-  await page.fill('[name="distance"]', '5');
-  await page.fill('[name="m"]', '25');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(liveRegion(page)).toHaveText('');
+/* ---- Equivalent times ---------------------------------------------------- */
+
+test.describe('equivalent finish times', () => {
+  test('reports every standard distance at the solved pace', async ({ page }) => {
+    await calcPace(page);
+    await expect(equiv(page, '1mi')).toHaveText('8:00');
+    await expect(equiv(page, '5k')).toHaveText('24:51');
+    await expect(equiv(page, '10k')).toHaveText('49:43');
+    await expect(equiv(page, 'half')).toHaveText('1:44:53');
+    await expect(equiv(page, 'marathon')).toHaveText('3:29:45');
+  });
+
+  test('the times rise with distance, always', async ({ page }) => {
+    await calcPace(page);
+    const keys = ['1k', '1mi', '5k', '10k', 'half', 'marathon'];
+    const toSeconds = (t: string) => {
+      const parts = t.split(':').map(Number);
+      return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
+    };
+    const values = [];
+    for (const k of keys) values.push(toSeconds((await equiv(page, k).textContent())!));
+    for (let i = 1; i < values.length; i++) expect(values[i]).toBeGreaterThan(values[i - 1]);
+  });
 });
 
-/* ---- Valid results ------------------------------------------------------ */
+/* ---- Validation ---------------------------------------------------------- */
 
-test('valid kilometre result: dominant pace/km, secondary pace/mi + both speeds, finish times', async ({ page }) => {
-  await calcKm(page);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('5:00');
-  await expect(primaryUnit(page)).toHaveText('/km');
-  await expect(otherPaceLabel(page)).toHaveText('Pace per mile');
-  await expect(otherPace(page)).toHaveText('8:03 /mi');
-  await expect(speed1(page)).toHaveText('12.0 km/h'); // primary-unit-aligned speed first
-  await expect(speed2(page)).toHaveText('7.5 mph');
-  await expect(raceTime(page, 0)).toHaveText('25:00'); // 5K equals the input
-  await expect(raceTime(page, 1)).toHaveText('50:00'); // 10K
-  await expect(page.locator('[data-live-note]')).toBeVisible();
-  // The dominant pace is visually larger than the secondary metrics.
-  const primarySize = await primary(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  const cellSize = await speed1(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(primarySize).toBeGreaterThan(cellSize * 1.5);
+test.describe('validation', () => {
+  test('asks only for the two boxes it reads', async ({ page }) => {
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="time"]')).toHaveText('Enter a time.');
+    await expect(page.locator('[data-error-for="distance"]')).toHaveText('Enter a distance.');
+    await expect(page.locator('[data-error-for="pace"]')).toBeHidden();
+  });
+
+  test('never rolls 60 seconds into the next minute — it says so', async ({ page }) => {
+    await page.fill('[name="m"]', '10');
+    await page.fill('[name="s"]', '60');
+    await page.fill('[name="distance"]', '2');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="time"]')).toHaveText('Enter seconds from 0 to 59.');
+  });
+
+  test('an all-zero time is not a duration', async ({ page }) => {
+    await page.fill('[name="h"]', '0');
+    await page.fill('[name="m"]', '0');
+    await page.fill('[name="s"]', '0');
+    await page.fill('[name="distance"]', '6');
+    await submit(page).click();
+    await expect(page.locator('[data-error-for="time"]')).toHaveText('Enter a time greater than zero.');
+  });
+
+  test('a zero distance is refused rather than dividing by it', async ({ page }) => {
+    await page.fill('[name="m"]', '48');
+    await page.fill('[name="distance"]', '0');
+    await submit(page).click();
+    await expect(page.locator('[data-error-for="distance"]')).toHaveText('Enter a distance greater than zero.');
+    await expect(shell(page)).not.toContainText(/NaN|Infinity/);
+  });
 });
 
-test('valid mile result: the dominant pace follows the selected unit (per mile)', async ({ page }) => {
-  await page.click('[data-unit="mi"]');
-  await page.fill('[name="distance"]', '5'); // 5 mi in 25:00 → 5:00 /mi
-  await page.fill('[name="m"]', '25');
-  await submit(page).click();
-  await expect(primary(page)).toHaveText('5:00');
-  await expect(primaryUnit(page)).toHaveText('/mi');
-  await expect(otherPaceLabel(page)).toHaveText('Pace per kilometre');
-  await expect(otherPace(page)).toHaveText('3:06 /km');
-  await expect(speed1(page)).toHaveText('12.0 mph'); // mile-aligned speed first
-  await expect(speed2(page)).toHaveText('19.3 km/h');
-});
-
-test('the elapsed-time inputs are a labelled fieldset group (Hours / Minutes / Seconds)', async ({ page }) => {
-  await expect(page.locator('form[data-form] fieldset legend')).toHaveText('Elapsed time');
-  await expect(page.locator('label[for="pc-h"]')).toHaveText('Hours');
-  await expect(page.locator('label[for="pc-m"]')).toHaveText('Minutes');
-  await expect(page.locator('label[for="pc-s"]')).toHaveText('Seconds');
-});
-
-test('the equivalent-finish-time table is accessible (caption + column + row headers)', async ({ page }) => {
-  await calcKm(page);
-  await expect(page.locator('#pc-result table caption')).toHaveText(
-    'Equivalent times if you hold this pace for the full distance.',
-  );
-  const cols = page.locator('#pc-result table thead th');
-  await expect(cols).toHaveCount(2);
-  await expect(cols.nth(0)).toHaveText('Distance');
-  await expect(cols.nth(1)).toHaveText('Equivalent time');
-  const firstRow = page.locator('#pc-result table tbody tr').first().locator('th');
-  await expect(firstRow).toHaveAttribute('scope', 'row');
-  await expect(firstRow).toHaveText('5K');
-});
-
-/* ---- Validation --------------------------------------------------------- */
-
-test('an empty explicit submission focuses the distance field and associates the error', async ({ page }) => {
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  const dist = page.locator('[name="distance"]');
-  await expect(dist).toBeFocused();
-  await expect(dist).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.locator('[data-error-for="distance"]')).toHaveText('Enter a distance.');
-});
-
-test('minutes and seconds of 60 are rejected (never normalised)', async ({ page }) => {
-  await page.fill('[name="distance"]', '5');
-  await page.fill('[name="m"]', '60');
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(page.locator('[data-error-for="m"]')).toHaveText('Enter whole minutes from 0 to 59.');
-  await page.fill('[name="m"]', '5');
-  await page.fill('[name="s"]', '60');
-  await submit(page).click();
-  await expect(page.locator('[data-error-for="s"]')).toHaveText('Enter whole seconds from 0 to 59.');
-});
-
-test('a zero total elapsed time is rejected', async ({ page }) => {
-  await page.fill('[name="distance"]', '5'); // time all empty → total 0
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(page.locator('[data-error-for="time"]')).toHaveText('Enter an elapsed time greater than zero.');
-});
-
-/* ---- Live-after-first --------------------------------------------------- */
+/* ---- Live-after-first, reset, announcement -------------------------------- */
 
 test('updates automatically after the first success, without moving focus', async ({ page }) => {
-  await calcKm(page);
-  await expect(primary(page)).toHaveText('5:00');
-  const mins = page.locator('[name="m"]');
-  await mins.focus();
-  await mins.fill('20'); // 5 km in 20:00 → 4:00 /km
+  await calcPace(page);
+  const d = page.locator('[name="distance"]');
+  await d.focus();
+  await d.fill('12');
   await page.waitForTimeout(DEBOUNCE);
-  await expect(primary(page)).toHaveText('4:00');
-  await expect(mins).toBeFocused();
+  await expect(value(page)).toHaveText('4:00');
+  await expect(d).toBeFocused();
 });
 
-/* ---- Distance-unit conversion ------------------------------------------- */
-
-test('switching units before the first result converts the distance and does not calculate', async ({ page }) => {
-  await page.fill('[name="distance"]', '5');
-  await page.click('[data-unit="mi"]');
-  await expect(page.locator('[name="distance"]')).toHaveValue('3.107'); // 5 / 1.609344
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(liveRegion(page)).toHaveText('');
-});
-
-test('switching units on an empty distance leaves it empty with no error', async ({ page }) => {
-  await page.click('[data-unit="mi"]');
-  await expect(page.locator('[name="distance"]')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-});
-
-test('switching units after a result converts, recalculates, keeps focus on the selector, announces once', async ({ page }) => {
-  await calcKm(page); // 5 km → 5:00 /km
-  await expect(primary(page)).toHaveText('5:00');
-  await page.click('[data-unit="mi"]');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(page.locator('[name="distance"]')).toHaveValue('3.107');
-  await expect(primary(page)).toHaveText('8:03'); // now dominant per-mile pace
-  await expect(primaryUnit(page)).toHaveText('/mi');
-  await expect(page.locator('[data-unit="mi"]')).toBeFocused();
-  await expect(liveRegion(page)).toHaveText('Your pace is 8 minutes and 3 seconds per mile.');
-});
-
-test('a unit round trip returns a stable distance value', async ({ page }) => {
-  await page.fill('[name="distance"]', '5');
-  await page.click('[data-unit="mi"]');
-  await expect(page.locator('[name="distance"]')).toHaveValue('3.107');
-  await page.click('[data-unit="km"]');
-  await expect(page.locator('[name="distance"]')).toHaveValue('5');
-});
-
-/* ---- Reset -------------------------------------------------------------- */
-
-test('reset clears fields, restores km, returns to empty', async ({ page }) => {
-  await page.click('[data-unit="mi"]');
-  await calcKm(page); // fills distance 5, m 25 in mi mode
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+test('Clear empties every box and unlocks the right one', async ({ page }) => {
+  await page.locator('[name="solveFor"][value="time"]').check();
+  await page.fill('[name="distance"]', '6');
+  await page.fill('[name="paceMin"]', '8');
+  await page.fill('[name="paceSec"]', '0');
+  await submit(page).click();
   await page.click('[data-reset]');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  for (const name of ['distance', 'h', 'm', 's']) {
+  await expect(page.locator('[name="solveFor"][value="pace"]')).toBeChecked();
+  // The reset restores the radio silently; the lock must follow it.
+  await expect(page.locator('[name="m"]')).toHaveJSProperty('readOnly', false);
+  await expect(page.locator('[name="paceMin"]')).toHaveJSProperty('readOnly', true);
+  for (const name of ['h', 'm', 's', 'distance', 'paceMin', 'paceSec']) {
     await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
   }
-  await expect(page.locator('[data-unit="km"]')).toHaveAttribute('aria-checked', 'true');
+});
+
+test('announces the figure that was asked for, and nothing else', async ({ page }) => {
+  await calcPace(page);
+  await expect(liveRegion(page)).toHaveText('Your pace is 8:00 per Mile.');
+  await expect(liveRegion(page)).not.toContainText(/marathon|3:29/i);
+});
+
+test('loads with empty boxes and a labelled example result', async ({ page }) => {
+  for (const name of ['h', 'm', 's', 'distance', 'paceMin', 'paceSec']) {
+    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+  }
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  await expect(region(page, 'empty')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
 });
 
-/* ---- Announcement + integrity ------------------------------------------- */
+/* ---- Multipoint Pace Calculator ------------------------------------------ */
 
-test('announces the dominant pace concisely, never the speeds or the finish-time table', async ({ page }) => {
-  await calcKm(page);
-  await expect(liveRegion(page)).toHaveText('Your pace is 5 minutes per kilometre.');
-  await expect(liveRegion(page)).not.toContainText(/km\/h|mph|5K|10K|Marathon/);
+test.describe('Multipoint Pace Calculator', () => {
+  const fillPoint = async (page: Page, row: number, distance: string, h: string, m: string, s: string) => {
+    const tr = page.locator(`[data-mp-row="${row}"]`);
+    await tr.locator('[data-mp-distance]').fill(distance);
+    await tr.locator('[data-mp-h]').fill(h);
+    await tr.locator('[data-mp-m]').fill(m);
+    await tr.locator('[data-mp-s]').fill(s);
+  };
+
+  test('sits under the main calculator as its own tool', async ({ page }) => {
+    const mp = page.locator('[data-multipoint]');
+    await expect(mp.getByRole('heading', { name: 'Multipoint Pace Calculator' })).toBeVisible();
+    const main = (await page.locator('[data-pace]').boundingBox())!;
+    expect((await mp.boundingBox())!.y).toBeGreaterThanOrEqual(main.y + main.height - 1);
+  });
+
+  test('measures the first leg from the start line and each later one from the point before', async ({ page }) => {
+    await page.selectOption('[name="mpUnit"]', 'km');
+    await fillPoint(page, 0, '1', '0', '5', '0');
+    await fillPoint(page, 1, '2', '0', '10', '20');
+    await fillPoint(page, 2, '5', '0', '25', '20');
+    await page.locator('[data-mp-form] button[type="submit"]').click();
+    const rows = page.locator('[data-mp-out] tr');
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toContainText('5:00 / km');
+    await expect(rows.nth(1)).toContainText('5:20 / km');
+    await expect(rows.nth(2)).toContainText('5:00 / km');
+    // The running average at the end: 25:20 over 5 km.
+    await expect(rows.nth(2)).toContainText('5:04 / km');
+  });
+
+  test('adds a point on request', async ({ page }) => {
+    await expect(page.locator('[data-mp-row]')).toHaveCount(4);
+    await page.locator('[data-mp-add]').click();
+    await expect(page.locator('[data-mp-row]')).toHaveCount(5);
+  });
+
+  test('says what is wrong rather than showing a broken table', async ({ page }) => {
+    await page.locator('[data-mp-form] button[type="submit"]').click();
+    await expect(page.locator('[data-mp-error]')).toBeVisible();
+    await expect(page.locator('[data-mp-results]')).toBeHidden();
+
+    await fillPoint(page, 0, '1', '', '', '');
+    await page.locator('[data-mp-form] button[type="submit"]').click();
+    await expect(page.locator('[data-mp-error]')).toContainText('both a distance and a time');
+    await expect(page.locator('[data-mp-results]')).toBeHidden();
+  });
+
+  test('a leg that covers no ground has no pace rather than a made-up one', async ({ page }) => {
+    await page.selectOption('[name="mpUnit"]', 'km');
+    await fillPoint(page, 0, '1', '0', '5', '0');
+    await fillPoint(page, 1, '1', '0', '6', '0'); // stood still
+    await page.locator('[data-mp-form] button[type="submit"]').click();
+    const second = page.locator('[data-mp-out] tr').nth(1);
+    await expect(second).toContainText('—');
+    await expect(page.locator('[data-mp-results]')).not.toContainText(/NaN|Infinity/);
+  });
+
+  test('Clear empties it', async ({ page }) => {
+    await page.selectOption('[name="mpUnit"]', 'km');
+    await fillPoint(page, 0, '1', '0', '5', '0');
+    await page.locator('[data-mp-form] button[type="submit"]').click();
+    await expect(page.locator('[data-mp-results]')).toBeVisible();
+    await page.locator('[data-mp-reset]').click();
+    await expect(page.locator('[data-mp-results]')).toBeHidden();
+    await expect(page.locator('[data-mp-row="0"] [data-mp-distance]')).toHaveValue('');
+  });
 });
 
-test('renders no NaN / Infinity / undefined / malformed duration', async ({ page }) => {
-  await calcKm(page);
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-  await expect(primary(page)).toHaveText(/^\d+:\d{2}$/);
+/* ---- Finish Time Calculator ---------------------------------------------- */
+
+test.describe('Finish Time Calculator', () => {
+  const project = async (page: Page) => {
+    await page.selectOption('[data-ft-unit]', 'km');
+    await page.locator('[data-ft-covered]').fill('10');
+    await page.locator('[data-ft-h]').fill('0');
+    await page.locator('[data-ft-m]').fill('50');
+    await page.locator('[data-ft-s]').fill('0');
+    await page.locator('[data-ft-total]').fill('42.195');
+    await page.locator('[data-ft-form] button[type="submit"]').click();
+  };
+
+  test('projects the whole race at the pace held so far', async ({ page }) => {
+    await project(page);
+    await expect(page.locator('[data-ft-finish]')).toHaveText('3:30:59');
+    await expect(page.locator('[data-ft-pace]')).toContainText('5:00 / km');
+    await expect(page.locator('[data-ft-remaining]')).toHaveText('32.2 kilometers');
+    await expect(page.locator('[data-ft-remaining-time]')).toHaveText('2:40:59');
+  });
+
+  test('the remaining time plus the elapsed time is the finish time', async ({ page }) => {
+    await project(page);
+    const secs = (t: string) => {
+      const p = t.split(':').map(Number);
+      return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
+    };
+    const finish = secs((await page.locator('[data-ft-finish]').textContent())!);
+    const remaining = secs((await page.locator('[data-ft-remaining-time]').textContent())!);
+    expect(remaining + 3000).toBe(finish);
+  });
+
+  test('refuses when there is nothing left to project', async ({ page }) => {
+    await page.selectOption('[data-ft-unit]', 'km');
+    await page.locator('[data-ft-covered]').fill('10');
+    await page.locator('[data-ft-m]').fill('50');
+    await page.locator('[data-ft-total]').fill('10');
+    await page.locator('[data-ft-form] button[type="submit"]').click();
+    await expect(page.locator('[data-ft-error]')).toContainText('longer than the distance');
+    await expect(page.locator('[data-ft-results]')).toBeHidden();
+  });
+
+  test('a common-distance chip fills the total in the selected unit', async ({ page }) => {
+    await page.selectOption('[data-ft-unit]', 'km');
+    await page.locator('[data-ft-race]').last().click();
+    await expect(page.locator('[data-ft-total]')).toHaveValue('42.195');
+  });
+
+  test('Clear empties it', async ({ page }) => {
+    await project(page);
+    await expect(page.locator('[data-ft-results]')).toBeVisible();
+    await page.locator('[data-ft-reset]').click();
+    await expect(page.locator('[data-ft-results]')).toBeHidden();
+    await expect(page.locator('[data-ft-covered]')).toHaveValue('');
+  });
+
+  test('its Calculate never submits the main calculator', async ({ page }) => {
+    await page.locator('[data-ft-form] button[type="submit"]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  });
 });
 
-/* ---- Responsive / theme / embed / monetization ------------------------- */
+/* ---- Responsive / theme / embed / monetization --------------------------- */
 
-test('desktop shows the primary pace within the first viewport at 1366×768', async ({ page }) => {
+test('desktop shows the result within the first viewport at 1366×768', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
-  await calcKm(page);
-  await expect(primary(page)).toBeInViewport();
+  await calcPace(page);
+  await expect(value(page)).toBeInViewport();
 });
 
-test('mobile stacks inputs → result and does not overflow', async ({ page }) => {
+test('mobile stacks inputs → action → result and does not overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
   const formBox = (await page.locator('form[data-form]').boundingBox())!;
   const resultTop = (await shell(page).boundingBox())!.y;
   expect(resultTop).toBeGreaterThanOrEqual(formBox.y + formBox.height - 1);
-  await calcKm(page);
-  await expect(primary(page)).toHaveText('5:00');
+  await calcPace(page);
+  await expect(value(page)).toHaveText('8:00');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
 test('renders in dark scheme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
-  await calcKm(page);
-  await expect(primary(page)).toBeVisible();
+  await calcPace(page);
+  await expect(value(page)).toBeVisible();
 });
 
-test('the embed route mounts the same interactive island', async ({ page }) => {
+test('the embed route mounts the main calculator without the extra tools', async ({ page }) => {
   await page.goto('/embed/health/pace-calculator', { waitUntil: 'domcontentloaded' });
-  await page.fill('[name="distance"]', '5');
-  await page.fill('[name="m"]', '25');
+  await page.fill('[name="m"]', '48');
+  await page.fill('[name="distance"]', '6');
   await page.locator('form[data-form] button[type="submit"]').click();
-  await expect(page.locator('#pc-result [data-result-value]')).toHaveText('5:00');
+  await expect(page.locator('#pc-result [data-pace-value]')).toHaveText('8:00');
+  await expect(page.locator('[data-multipoint]')).toHaveCount(0);
+  await expect(page.locator('[data-finish]')).toHaveCount(0);
 });
 
 test('the live page carries no monetization output', async ({ page }) => {
