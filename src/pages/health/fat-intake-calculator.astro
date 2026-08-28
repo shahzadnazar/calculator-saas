@@ -8,24 +8,48 @@ const faqs = [
   { question: 'How do I calculate my fat intake in grams?', answer: 'Multiply your daily calories by the fat percentage, then divide by 9 (the calories in a gram of fat). For 2,000 calories at 30%: 2,000 × 0.30 = 600 calories from fat, ÷ 9 ≈ 67 grams a day.' },
   { question: 'Is dietary fat bad for you?', answer: 'No — fat is essential for hormones, vitamin absorption and cell health. What matters is the type: favour unsaturated fats and limit saturated and trans fats.' },
   { question: 'What is the difference between healthy and unhealthy fats?', answer: 'Unsaturated fats (olive and avocado oil, nuts, seeds, oily fish) support heart health and should make up most of your intake. Saturated fats (fatty meat, butter, full-fat dairy) are best kept moderate, and artificial trans fats are best avoided entirely.' },
-  { question: 'How do I know my calorie target?', answer: 'Estimate your daily calorie needs with the calorie calculator, then enter that number here to get your fat range.' },
+  { question: 'How much saturated fat should I eat?', answer: 'The Dietary Guidelines cap saturated fat at under 10% of daily calories. The American Heart Association recommends a tighter limit of under 6% for people working to lower their LDL cholesterol. The calculator shows both, as ceilings rather than targets — they are limits not to cross, not amounts to reach.' },
+  { question: 'Why does a fat calculator ask for my height and activity?', answer: 'Because every figure it reports is a share of the Calories you burn, not a function of your body weight. It estimates your basal metabolic rate from your age, gender, height and weight, multiplies by your activity level, and takes the recommended shares of the result. That is also why it and the calorie calculator always agree on the calorie figure — it is the same calculation.' },
 ];
 ---
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Find your recommended daily fat intake in grams, based on your calorie target and the standard 20–35% of calories from fat."
+  intro="Find your recommended daily fat intake in grams — the total-fat range, and the two published limits on saturated fat — from the Calories your own body burns."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-18' }}
+  reviewMetadata={{ reviewedDate: '2026-08-28' }}
 >
   <FatIntakeCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter your <strong>daily calorie target</strong> — your maintenance figure, or a loss or gain target.</li>
-      <li>Press <strong>Calculate</strong> to see your recommended fat intake as a range in grams, from the low end of the guideline to the high end.</li>
+      <li>Choose <strong>US Units</strong> or <strong>Metric Units</strong>. Switching converts figures you have already typed rather than clearing them.</li>
+      <li>Enter your <strong>age</strong> and select your <strong>gender</strong>.</li>
+      <li>Enter your <strong>height</strong> and <strong>weight</strong>.</li>
+      <li>Pick the <strong>activity</strong> level that best matches a typical week.</li>
+      <li>Press <strong>Calculate</strong> to see your total-fat range and the two limits on saturated fat.</li>
     </ol>
-    <p>If you do not know your calorie target yet, estimate it with the <a href="/health/calorie-calculator">calorie calculator</a> and bring the number here.</p>
+    <p>
+      <strong>+ Settings</strong> holds two choices most people never change: which of the three
+      published BMR equations to use for the calorie figure, and a body fat percentage for the one
+      that needs it. <strong>Other Units</strong> opens a converter above the calculator for anyone
+      whose scales read in stones; it is not a third unit system, and the calculator stays on
+      whichever system you chose.
+    </p>
+    <p>
+      You no longer need to bring a calorie figure with you — the calculator works it out from your
+      own details, using the same engine as the
+      <a href="/health/calorie-calculator">calorie calculator</a>, so the two always agree.
+    </p>
+
+    <h2>Why it asks for your body, not your calories</h2>
+    <p>
+      Every number this calculator reports is a share of the energy you actually use, so it has to
+      know what that is. It estimates your basal metabolic rate from your age, gender, height and
+      weight, multiplies by your activity level to get your daily Calories, and takes the
+      recommended shares of that. Enter the same details here and in the calorie calculator and
+      you will get the same calorie figure, because it is the same calculation.
+    </p>
 
     <h2>How much fat you need</h2>
     <p>
@@ -44,7 +68,13 @@ const faqs = [
       <li><strong>percentage</strong> — the share of calories from fat (20% to 35%)</li>
       <li><strong>9</strong> — calories per gram of fat</li>
     </ul>
-    <p>The calculator reports the low end (20%), a moderate midpoint (27.5%) and the high end (35%).</p>
+    <p>
+      The calculator reports the low end (20%) and the high end (35%) as a band, then applies the
+      same arithmetic to the two published caps on saturated fat: under 10% of Calories in the
+      Dietary Guidelines, and the tighter under 6% the American Heart Association recommends for
+      people working to lower their cholesterol. Trans fat gets no row at all, because there is no
+      recommended level of it — the guidance is simply to keep it as low as you can.
+    </p>
 
     <h2>A worked example</h2>
     <p>

@@ -1,202 +1,560 @@
 ---
 /**
- * Fat-intake calculator island (R7C-2D — standard-form wave, calculator #11).
+ * Fat-intake island — the reference's fields, its "+ Settings" disclosure and its report, on
+ * the UNCHANGED standard-form runtime.
  *
- * Task-first, direct-intent: the calorie field starts EMPTY, the result is empty (an
- * instruction, not a prefilled 2,000-kcal sample), and the visitor presses "Calculate
- * Fat Intake" for the first result. Live-after-first afterwards. All interaction,
- * validation, state, announcement and focus are owned by the shared runtime
- * (UNCHANGED); this island is markup + the fat-intake binding
- * (@lib/calculators/fat-intake-form).
+ * Three tabs, two of which are unit systems; "Other Units" opens the shared five-category
+ * `UnitConverterPanel` above the calculator and leaves the selected system alone.
  *
- * The PRIMARY result is the reviewed daily fat RANGE (min 20% – max 35%), never
- * collapsed to one average; the AMDR proportion breakdown (lower / moderate / upper)
- * is an accessible subordinate reference. No number is fabricated here.
+ * Every figure here is a share of the Calories the visitor burns, which is why the form asks
+ * for height, age and activity rather than weight alone. The DOMINANT figure is the total-fat
+ * range; beneath it sit the two published ceilings on saturated fat, written as limits rather
+ * than targets so neither can be mistaken for a number to reach.
  */
-import { FAT_BANDS, FAT_INTAKE_EXAMPLE_VALUES } from '@lib/calculators/fat-intake-form';
+import {
+  ACTIVITY_BANDS,
+  ACTIVITY_BAND_NOTES,
+  DEFAULT_ACTIVITY,
+  BMR_FORMULAS,
+  FAT_AGE_MIN,
+  FAT_AGE_MAX,
+} from '@lib/calculators/fat-intake-form';
+import UnitConverterPanel from '@components/calc/UnitConverterPanel.astro';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
-import ResultValue from '@components/result/ResultValue.astro';
 import ResultInterpretation from '@components/result/ResultInterpretation.astro';
 import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
+
+const UNIT_TABS = [
+  { value: 'imperial', label: 'US Units' },
+  { value: 'metric', label: 'Metric Units' },
+];
+
+/** Row labels and shares are static; only the gram figures change at runtime. */
+const BASIS_ROWS = [
+  { key: 'total', label: 'Total fat', basis: '20 - 35% of Calories' },
+  { key: 'saturated-guidelines', label: 'Saturated fat, Dietary Guidelines', basis: 'under 10% of Calories' },
+  { key: 'saturated-aha', label: 'Saturated fat, American Heart Association', basis: 'under 6% of Calories' },
+];
 ---
 
-<div class="fatintake mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-fatintake>
-  <!-- Inputs -->
-  <form class="card p-4" data-form novalidate aria-label="Fat intake calculator">
-    <div data-field="calories">
-      <label class="field-label" for="fi-cal">Daily calorie target</label>
-      <div class="flex">
-        <input
-          class="field rounded-r-none"
-          id="fi-cal"
-          name="calories"
-          type="number"
-          min="0"
-          step="50"
-          inputmode="numeric"
-          autocomplete="off"
-          placeholder="e.g. 2000"
-          aria-describedby="fi-cal-hint fi-calories-error"
-        />
-        <span class="field-affix rounded-r-lg border-l-0">kcal</span>
-      </div>
-      <p class="fi-hint" id="fi-cal-hint">
-        Not sure of your daily calories? Estimate them with the
-        <a href="/health/calorie-calculator">calorie calculator</a>.
-      </p>
-      <p class="fi-field-error" id="fi-calories-error" data-error-for="calories" hidden></p>
+<div class="fiwrap mx-auto w-full max-w-4xl" data-fatintake>
+  <UnitConverterPanel id="fi-converter" />
+
+  <div class="ficalc grid gap-6 md:grid-cols-2 md:items-start">
+    <!-- Inputs -->
+    <div>
+      <form class="card p-4" data-form novalidate aria-label="Fat intake calculator">
+        <div class="fi-tabs">
+          <div class="fi-tabs__systems" role="radiogroup" aria-label="Unit system">
+            {UNIT_TABS.map((t, i) => (
+              <button type="button" class:list={['fi-tab', i === 0 && 'is-active']} data-unit={t.value} role="radio" aria-checked={i === 0 ? 'true' : 'false'}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <button type="button" class="fi-tab fi-tab--toggle" data-converter-toggle aria-expanded="false" aria-controls="fi-converter">
+            Other Units
+          </button>
+        </div>
+
+        <div class="fi-row" data-field="age">
+          <label class="field-label fi-row__label" for="fi-age">Age</label>
+          <div class="fi-inputs">
+            <input class="field fi-input" id="fi-age" name="age" type="number" min={FAT_AGE_MIN} max={FAT_AGE_MAX} step="1" inputmode="numeric" autocomplete="off" placeholder="25" aria-describedby="fi-age-error" />
+            <span class="fi-hint">ages {FAT_AGE_MIN} - {FAT_AGE_MAX}</span>
+          </div>
+        </div>
+        <p class="fi-error" id="fi-age-error" data-error-for="age" hidden></p>
+
+        <fieldset class="fi-row fi-row--radios" data-field="sex">
+          <legend class="field-label fi-row__label">Gender</legend>
+          <div class="fi-radios">
+            <label class="fi-radio"><input type="radio" name="sex" value="male" checked /><span>male</span></label>
+            <label class="fi-radio"><input type="radio" name="sex" value="female" /><span>female</span></label>
+          </div>
+        </fieldset>
+
+        <!-- US height + weight -->
+        <div data-group="imperial">
+          <div class="fi-row" data-field="height">
+            <label class="field-label fi-row__label" for="fi-ft">Height</label>
+            <div class="fi-inputs">
+              <div class="fi-pair">
+                <input class="field fi-input" id="fi-ft" name="heightFt" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="5" aria-label="Height, feet" aria-describedby="pr-height-error" />
+                <span class="fi-unit">feet</span>
+              </div>
+              <div class="fi-pair">
+                <input class="field fi-input" id="fi-in" name="heightIn" type="number" min="0" max="11" step="1" inputmode="numeric" autocomplete="off" placeholder="10" aria-label="Height, inches" aria-describedby="pr-height-error" />
+                <span class="fi-unit">inches</span>
+              </div>
+            </div>
+          </div>
+          <p class="fi-error" id="fi-height-error" data-error-for="height" hidden></p>
+
+          <div class="fi-row" data-field="weightLb">
+            <label class="field-label fi-row__label" for="fi-lb">Weight</label>
+            <div class="fi-inputs">
+              <div class="fi-pair">
+                <input class="field fi-input fi-input--wide" id="fi-lb" name="weightLb" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="160" aria-describedby="pr-weightLb-error" />
+                <span class="fi-unit">pounds</span>
+              </div>
+            </div>
+          </div>
+          <p class="fi-error" id="fi-weightLb-error" data-error-for="weightLb" hidden></p>
+        </div>
+
+        <!-- Metric height + weight -->
+        <div data-group="metric" hidden>
+          <div class="fi-row" data-field="heightCm">
+            <label class="field-label fi-row__label" for="fi-cm">Height</label>
+            <div class="fi-inputs">
+              <div class="fi-pair">
+                <input class="field fi-input fi-input--wide" id="fi-cm" name="heightCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="180" aria-describedby="pr-heightCm-error" />
+                <span class="fi-unit">cm</span>
+              </div>
+            </div>
+          </div>
+          <p class="fi-error" id="fi-heightCm-error" data-error-for="heightCm" hidden></p>
+
+          <div class="fi-row" data-field="weightKg">
+            <label class="field-label fi-row__label" for="fi-kg">Weight</label>
+            <div class="fi-inputs">
+              <div class="fi-pair">
+                <input class="field fi-input fi-input--wide" id="fi-kg" name="weightKg" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="60" aria-describedby="pr-weightKg-error" />
+                <span class="fi-unit">kg</span>
+              </div>
+            </div>
+          </div>
+          <p class="fi-error" id="fi-weightKg-error" data-error-for="weightKg" hidden></p>
+        </div>
+
+        <div class="fi-row fi-row--activity" data-field="activity">
+          <label class="field-label fi-row__label" for="fi-activity">Activity</label>
+          <select class="field fi-select" id="fi-activity" name="activity" aria-describedby="pr-activity-error">
+            {ACTIVITY_BANDS.map((b) => (
+              <option value={b.value} selected={b.value === DEFAULT_ACTIVITY}>{b.selectLabel}</option>
+            ))}
+          </select>
+        </div>
+        <p class="fi-error" id="fi-activity-error" data-error-for="activity" hidden></p>
+
+        <button type="button" class="fi-settings-toggle" data-settings-toggle aria-expanded="false" aria-controls="fi-settings">
+          <span class="fi-settings-toggle__sign" aria-hidden="true">+</span> Settings
+        </button>
+
+        <div class="fi-settings" id="fi-settings" data-settings hidden>
+          <fieldset class="fi-set" data-field="formula">
+            <legend class="fi-set__legend">BMR estimation formula</legend>
+            <div class="fi-set__options">
+              {BMR_FORMULAS.map((f, i) => (
+                <label class="fi-radio"><input type="radio" name="formula" value={f.value} checked={i === 0} /><span>{f.label}</span></label>
+              ))}
+            </div>
+          </fieldset>
+
+          <div class="fi-set" data-field="bodyFatPct" data-bodyfat hidden>
+            <label class="fi-set__legend" for="fi-bf">Body fat percentage</label>
+            <div class="fi-inputs">
+              <div class="fi-pair">
+                <input class="field fi-input" id="fi-bf" name="bodyFatPct" type="number" min="0" max="99.9" step="0.1" inputmode="decimal" autocomplete="off" placeholder="20" aria-describedby="pr-bodyFatPct-error" />
+                <span class="fi-unit">%</span>
+              </div>
+              <span class="fi-hint">Katch-McArdle works from lean mass</span>
+            </div>
+            <p class="fi-error" id="fi-bodyFatPct-error" data-error-for="bodyFatPct" hidden></p>
+          </div>
+        </div>
+
+        <div class="mt-5 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary">Calculate</button>
+          <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+        </div>
+        <p class="fi-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ul class="fi-notes">
+        {ACTIVITY_BAND_NOTES.map((n) => <li>{n}</li>)}
+      </ul>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Fat Intake</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
-    </div>
-    <p class="fi-live-note" data-live-note hidden>Changes update automatically.</p>
-  </form>
+    <!-- Result -->
+    <ResultShell
+      id="fi-result"
+      state="empty"
+      density="standard"
+      label="Your daily fat intake result"
+      minHeight="20rem"
+      placeholderAlignment="center"
+    >
+      <ExampleNotice />
+      <EmptyResult message="Enter your age, gender, height, weight and activity level, then calculate." />
 
-  <!-- Result -->
-  <ResultShell
-    id="fi-result"
-    state="empty"
-    density="standard"
-    label="Your daily fat intake"
-    minHeight="22rem"
-    placeholderAlignment="center"
-  >
-    <ExampleNotice />
-    <EmptyResult message="Enter your details, then calculate your estimated daily fat intake." />
+      <div data-result-when="valid">
+        <ResultSummary label="Recommended daily fat">
+          <span aria-hidden="true">
+            <span class="result-value text-4xl" data-fat-low>—</span><span class="fi-sep">–</span><span class="result-value text-4xl" data-fat-high>—</span>&nbsp;<span class="result-unit">grams/day</span>
+          </span>
+          <span class="sr-only" data-fat-a11y></span>
+        </ResultSummary>
+        <ResultInterpretation>
+          Total fat, at 20 to 35 per cent of the Calories you burn. It is a band to sit inside,
+          not a number to hit — what matters more than the total is how much of it is saturated,
+          which the two limits below cap.
+        </ResultInterpretation>
 
-    <div data-result-when="valid">
-      <ResultSummary label="Estimated daily fat intake">
-        <ResultValue value="—" unit="g/day" />
-      </ResultSummary>
-      <ResultInterpretation>
-        <span data-fi-interpretation></span>
-      </ResultInterpretation>
-
-      <ResultBreakdown title="By proportion of calories">
-        <table class="fi-bands">
-          <thead>
-            <tr>
-              <th scope="col">Proportion</th>
-              <th scope="col" class="fi-num">Fat</th>
-            </tr>
-          </thead>
-          <tbody>
-            {
-              FAT_BANDS.map((b) => (
-                <tr data-fi-band={b.key}>
-                  <th scope="row">{b.label}</th>
-                  <td class="fi-num">
-                    <span data-fi-band-value>—</span>
-                  </td>
+        <ResultBreakdown title="Fat by recommendation">
+          <div class="fi-bases__scroll">
+          <table class="fi-bases">
+            <thead>
+              <tr><th scope="col">Recommendation</th><th scope="col">Share</th><th scope="col" class="fi-num">Fat</th></tr>
+            </thead>
+            <tbody>
+              {BASIS_ROWS.map((row) => (
+                <tr data-basis={row.key}>
+                  <th scope="row">{row.label}</th>
+                  <td class="fi-rate">{row.basis}</td>
+                  <td class="fi-num" data-basis-grams>—</td>
                 </tr>
-              ))
-            }
-          </tbody>
-        </table>
-        <p class="fi-note">
-          The midpoint is a calculation reference within the displayed 20–35% range, not a separate recommendation.
-        </p>
-        <p class="fi-note">
-          The Acceptable Macronutrient Distribution Range puts fat at 20–35% of daily calories, at 9 kcal per
-          gram. A general estimate, not medical or dietary advice.
-        </p>
-      </ResultBreakdown>
-    </div>
+              ))}
+            </tbody>
+          </table>
+          </div>
+          <p class="fi-note">
+            Every row is a share of the <span data-fat-calories>—</span> Calories a day your entries
+            work out to, at fat's 9 Calories per gram — which is why this calculator asks for your
+            height and activity, and not only your weight. Trans fat has no recommended level at
+            all: the guidance is to keep it as low as you can.
+          </p>
+        </ResultBreakdown>
+      </div>
 
-    <InvalidResult title="Check your details" message="Enter your daily calorie target to estimate your fat range." />
+      <InvalidResult title="Check your entries" message="Enter your age, height, weight and activity level to estimate your fat intake." />
 
-    <ResultAnnouncement id="fi-live" />
-  </ResultShell>
+      <ResultAnnouncement id="fi-live" />
+    </ResultShell>
+  </div>
 </div>
 
 <style>
+  .fi-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.9rem;
+  }
+  .fi-tabs__systems {
+    display: flex;
+    gap: 0.3rem;
+  }
+  .fi-tab {
+    min-height: 2.75rem;
+    padding: 0 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    background: var(--card);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .fi-tab.is-active {
+    border-color: var(--color-brand-600);
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+  .fi-tab:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+  .fi-tab--toggle[aria-expanded='true'] {
+    border-color: var(--color-brand-600);
+    color: var(--color-brand-700);
+  }
+
+  .fi-row {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+    border: 0;
+    margin: 0;
+  }
+  .fi-row__label {
+    margin: 0;
+    font-size: 0.86rem;
+  }
+  .fi-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .fi-pair {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .fi-input {
+    width: 5rem;
+    min-height: 2.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .fi-input--wide {
+    width: 7rem;
+  }
+  .fi-select {
+    width: 100%;
+    min-height: 2.75rem;
+    font-size: 0.84rem;
+  }
+  .fi-unit,
   .fi-hint {
-    margin-top: 0.4rem;
     font-size: 0.8rem;
     color: var(--muted);
   }
-
-  .fi-field-error {
-    margin-top: 0.3rem;
+  .fi-radios {
+    display: flex;
+    gap: 0.9rem;
+  }
+  .fi-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+    font-size: 0.88rem;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .fi-radio input {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: var(--color-brand-600);
+  }
+  .fi-error {
+    margin: 0.1rem 0 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .fi-field-error {
+    :root:not([data-theme='light']) .fi-error {
       color: #fca5a5;
     }
   }
-  :root[data-theme='dark'] .fi-field-error {
+  :root[data-theme='dark'] .fi-error {
     color: #fca5a5;
   }
-
   .fi-live-note {
-    margin-top: 0.75rem;
+    margin-top: 0.7rem;
     font-size: 0.8rem;
     color: var(--muted);
   }
+  .fi-notes {
+    margin: 0.7rem 0 0;
+    padding: 0 0 0 1.1rem;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--muted);
+  }
 
-  /* AMDR proportion breakdown */
-  .fi-bands {
+  .fi-settings-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 2.75rem;
+    margin-top: 0.2rem;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--color-brand-700);
+    cursor: pointer;
+  }
+  .fi-settings-toggle__sign {
+    font-size: 1rem;
+    line-height: 1;
+  }
+  :root[data-theme='dark'] .fi-settings-toggle {
+    color: var(--color-brand-300);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .fi-settings-toggle {
+      color: var(--color-brand-300);
+    }
+  }
+  .fi-settings {
+    margin-top: 0.4rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    background: var(--subtle);
+  }
+  .fi-set {
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
+  .fi-set + .fi-set {
+    margin-top: 0.6rem;
+  }
+  .fi-set__legend {
+    display: block;
+    padding: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+  .fi-set__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+
+  /* The dash belongs to the headline, so it takes the headline's size. */
+  .fi-sep {
+    margin: 0 0.3rem;
+    font-size: 1.6rem;
+    line-height: 1;
+    vertical-align: 0.12em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* The dash belongs to the headline, so it takes the headline's size. */
+  .fi-sep {
+    margin: 0 0.3rem;
+    font-size: 1.6rem;
+    line-height: 1;
+    vertical-align: 0.12em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* Three columns of prose and figures do not fit a 390px phone. The table scrolls inside
+     its own box rather than pushing the page sideways, and the rate wraps instead of
+     forcing a minimum width. */
+  .fi-bases__scroll {
+    overflow-x: auto;
+  }
+  .fi-bases {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.84rem;
   }
-  .fi-bands th,
-  .fi-bands td {
-    padding: 0.4rem 0.4rem;
+  .fi-bases th,
+  .fi-bases td {
+    padding: 0.35rem 0;
     border-bottom: 1px solid var(--line);
     text-align: left;
+    vertical-align: baseline;
   }
-  .fi-bands thead th {
+  .fi-bases thead th {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--muted);
     font-weight: 700;
   }
-  .fi-bands tbody th {
-    font-weight: 600;
+  .fi-bases tbody th {
+    font-weight: 500;
     color: var(--fg);
-    text-align: left;
+    padding-right: 0.6rem;
+  }
+  .fi-rate {
+    color: var(--muted);
+    font-size: 0.78rem;
+    padding-right: 0.6rem;
   }
   .fi-num {
     text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  .fi-bases tbody td.fi-num {
+    font-weight: 700;
     color: var(--heading);
-    font-weight: 700;
   }
-  .fi-bands thead th.fi-num {
-    color: var(--muted);
-    font-weight: 700;
-  }
-
   .fi-note {
     margin: 0.7rem 0 0;
-    font-size: 0.8rem;
-    line-height: 1.45;
+    font-size: 0.78rem;
+    line-height: 1.5;
     color: var(--muted);
+  }
+
+  @media (max-width: 26rem) {
+    .fi-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.25rem;
+    }
   }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { fatIntakeBinding, FAT_INTAKE_EXAMPLE_VALUES } from '@lib/calculators/fat-intake-form';
+  import { mountUnitConverterPanel } from '@lib/calculators/unit-converter-panel';
+  import {
+    fatIntakeBinding,
+    FAT_INTAKE_EXAMPLE_VALUES,
+    needsBodyFat,
+    type BmrFormula,
+  } from '@lib/calculators/fat-intake-form';
 
-  document.querySelectorAll<HTMLElement>('[data-fatintake]').forEach((root) =>
+  document.querySelectorAll<HTMLElement>('[data-fatintake]').forEach((root) => {
     mountFormCalculator(root, fatIntakeBinding, {
       recalculationMode: 'live-after-first',
       example: { values: FAT_INTAKE_EXAMPLE_VALUES },
-      calculateButtonLabel: 'Calculate Fat Intake',
-    }),
-  );
+      calculateButtonLabel: 'Calculate',
+    });
+
+    mountUnitConverterPanel(root);
+
+    // "+ Settings" — a plain disclosure, closed on load.
+    const settings = root.querySelector<HTMLElement>('[data-settings]');
+    const settingsToggle = root.querySelector<HTMLButtonElement>('[data-settings-toggle]');
+    const sign = settingsToggle?.querySelector<HTMLElement>('.fi-settings-toggle__sign');
+    if (settings && settingsToggle) {
+      settingsToggle.addEventListener('click', () => {
+        const open = settings.hidden;
+        settings.hidden = !open;
+        settingsToggle.setAttribute('aria-expanded', String(open));
+        if (sign) sign.textContent = open ? '−' : '+';
+      });
+    }
+
+    /** Only Katch-McArdle reads a body-fat percentage, so only it asks for one. */
+    const bodyFatRow = root.querySelector<HTMLElement>('[data-bodyfat]');
+    const bodyFat = root.querySelector<HTMLInputElement>('[name="bodyFatPct"]');
+    const syncBodyFat = () => {
+      const formula = (root.querySelector<HTMLInputElement>('[name="formula"]:checked')?.value ??
+        'mifflin') as BmrFormula;
+      const wanted = needsBodyFat(formula);
+      if (bodyFatRow) bodyFatRow.hidden = !wanted;
+      if (!wanted) {
+        if (bodyFat) bodyFat.value = '';
+        const err = root.querySelector<HTMLElement>('[data-error-for="bodyFatPct"]');
+        if (err) err.hidden = true;
+      }
+    };
+    root.querySelectorAll<HTMLInputElement>('[name="formula"]').forEach((r) =>
+      r.addEventListener('change', syncBodyFat),
+    );
+    syncBodyFat();
+
+    // A required box behind a closed Settings panel is a dead end; open it first.
+    root.querySelector<HTMLFormElement>('[data-form]')?.addEventListener(
+      'submit',
+      () => {
+        if (!settings || !settingsToggle || !settings.hidden) return;
+        if (!bodyFatRow || bodyFatRow.hidden) return;
+        settings.hidden = false;
+        settingsToggle.setAttribute('aria-expanded', 'true');
+        if (sign) sign.textContent = '−';
+      },
+      true,
+    );
+  });
 </script>

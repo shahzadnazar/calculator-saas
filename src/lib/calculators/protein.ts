@@ -84,7 +84,10 @@ export function gramsFromWeight(weightKg: number, gPerKg: number): number {
 
 /** grams = (calories × share) ÷ 4, rounded. */
 export function gramsFromCalories(calories: number, percent: number): number {
-  return Math.round((calories * (percent / 100)) / KCAL_PER_GRAM_PROTEIN);
+  // Multiply BEFORE dividing: `percent / 100` is not exact in binary, so 2610 × 0.35 comes
+  // out as 913.4999999999999 and a figure sitting exactly on a rounding boundary falls the
+  // wrong way. 2610 × 35 is an integer, and 91350 / 100 / 9 lands on 101.5 as it should.
+  return Math.round((calories * percent) / 100 / KCAL_PER_GRAM_PROTEIN);
 }
 
 export function calculateProtein(input: ProteinInput): ProteinResult {
