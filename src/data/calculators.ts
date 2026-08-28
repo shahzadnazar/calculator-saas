@@ -324,8 +324,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Body Fat Calculator',
     category: 'health',
     status: 'live',
-    description: 'Estimate body fat percentage using the U.S. Navy method.',
-    keywords: ['body fat calculator', 'body fat percentage'],
+    description: 'Estimate body fat from tape measurements with the U.S. Navy method, plus mass, category and a BMI estimate.',
+    keywords: ['body fat calculator', 'navy method body fat', 'body fat percentage', 'lean body mass', 'body fat category'],
   },
   {
     slug: 'ideal-weight-calculator',
