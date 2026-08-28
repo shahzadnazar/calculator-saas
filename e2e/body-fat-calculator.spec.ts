@@ -351,3 +351,15 @@ test.describe('doctrine', () => {
     await expect(page.locator('[data-bf-row="navy"]')).toHaveText('15.7%');
   });
 });
+
+test('Clear from female hides the hip row again, not just the radio', async ({ page }) => {
+  await page.check('[name="sex"][value="female"]');
+  await expect(page.locator('[data-measure="hip"]')).toBeVisible();
+  await page.click('[data-reset]');
+  await expect(page.locator('[name="sex"][value="male"]')).toBeChecked();
+  await expect(page.locator('[data-measure="hip"]')).toBeHidden();
+  // The gauges live inside the valid-result block, which is itself hidden while the panel is
+  // empty — so assert on the attribute the sync sets, not on painted visibility.
+  await expect(page.locator('[data-gauge-for="male"]')).not.toHaveAttribute('hidden', /.*/);
+  await expect(page.locator('[data-gauge-for="female"]')).toHaveAttribute('hidden', /.*/);
+});

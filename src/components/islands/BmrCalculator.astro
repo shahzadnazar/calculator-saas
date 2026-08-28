@@ -498,6 +498,9 @@ const CONVERTER_ROWS = [
     );
     syncBodyFat();
 
+    // Reset restores the radios silently, so re-derive what depends on them.
+    root.addEventListener('calculator:reset', syncBodyFat);
+
     /**
      * A required field the visitor cannot see is a dead end: if they pick Katch-McArdle,
      * close Settings and then submit, the runtime would try to focus a hidden box. Open the

@@ -664,6 +664,9 @@ const ZIGZAG = zigzagSchedules(0).map((s) => ({ key: s.key, title: s.title }));
     );
     syncBodyFat();
 
+    // Reset restores the radios silently, so re-derive what depends on them.
+    root.addEventListener('calculator:reset', syncBodyFat);
+
     // A required box behind a closed Settings panel is a dead end; open it first.
     root.querySelector<HTMLFormElement>('[data-form]')?.addEventListener(
       'submit',

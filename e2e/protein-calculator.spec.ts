@@ -354,3 +354,12 @@ test('the live page carries no monetization output', async ({ page }) => {
   await expect(page.locator('[data-mon-region]')).toHaveCount(0);
   expect(await page.content()).not.toContain('data-mon-');
 });
+
+test('Clear from Katch-McArdle hides the body-fat box again, not just the radio', async ({ page }) => {
+  await page.locator('[data-settings-toggle]').click();
+  await page.locator('[name="formula"][value="katch-mcardle"]').check();
+  await expect(page.locator('[data-bodyfat]')).toBeVisible();
+  await page.click('[data-reset]');
+  await expect(page.locator('[name="formula"][value="mifflin"]')).toBeChecked();
+  await expect(page.locator('[data-bodyfat]')).toBeHidden();
+});

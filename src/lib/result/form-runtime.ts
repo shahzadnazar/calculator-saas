@@ -642,6 +642,17 @@ export function mountFormCalculator<V, R>(
           selectUnit(axis, axis.initial, false); // values already cleared — no conversion
         }
       }
+      /**
+       * Tell the island the form went back to its defaults.
+       *
+       * `resetValues` restores radios by setting `.checked` directly, which fires no event —
+       * so any island that SHOWS OR HIDES a field based on a radio (a hip measurement only
+       * women need, a body-fat box only one equation reads, an age box that swaps for a
+       * measured maximum) would be left displaying the state before the reset while the
+       * radios say otherwise. At worst that hides a field the form now requires. This event
+       * is the runtime saying "re-derive whatever you derived from these controls".
+       */
+      root.dispatchEvent(new CustomEvent('calculator:reset', { bubbles: false }));
     }
 
     // 3. Render the result / invalid guidance.

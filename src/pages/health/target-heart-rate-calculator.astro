@@ -9,23 +9,55 @@ const faqs = [
   { question: 'What is a normal maximum heart rate?', answer: 'The common estimate is 220 minus your age, so about 190 bpm at 30 and 170 bpm at 50. It is only an average — individual maximums vary by 10–20 bpm — but it is a reliable starting point for setting zones.' },
   { question: 'What is the Karvonen method?', answer: 'It calculates target heart rate using your heart-rate reserve (maximum minus resting), which accounts for your individual fitness level and gives more personalised zones than a simple percentage of maximum. The formula is: target = resting + intensity% × (max − resting).' },
   { question: 'What are heart rate zones for?', answer: 'Different intensities train different systems. Lower zones (60–70%) build endurance and use fat for fuel; higher zones (80–90%) improve cardiovascular fitness and speed. Training across zones is more effective than always working at one intensity.' },
+  { question: 'Which maximum heart rate formula should I use?', answer: 'Haskell & Fox (220 − age) is the familiar one and the default. Tanaka, Monahan & Seals (208 − 0.7 × age) came from a much larger meta-analysis and generally fits older adults better. Nes and colleagues (211 − 0.64 × age) came from a large Norwegian population study. They agree closely in your thirties and diverge with age. If you have a measured maximum from a supervised test, use that instead.' },
+  { question: 'What is the Borg scale?', answer: 'It rates how hard exercise feels, from 6 (no effort) to 20 (maximal), and the modified CR10 scale does the same from 0 to 10. They describe the same five intensity bands the percentages do, which is why choosing one changes the column heading but never the beats per minute. They are what you use when you do not have a monitor to hand.' },
 ];
 ---
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Find your maximum heart rate and personalised training zones for warm-up, fat burn, aerobic, anaerobic and maximum-effort exercise."
+  intro="Find your target heart rate for aerobic exercise, and the beats-per-minute band for each of five exercise intensities."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-18' }}
+  reviewMetadata={{ reviewedDate: '2026-08-28' }}
 >
   <TargetHeartRateCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter your <strong>age</strong> to estimate your maximum heart rate and training zones.</li>
+      <li>Choose how to get your <strong>maximum heart rate</strong>: estimate it from your age, or enter what a test measured.</li>
       <li>Optionally add your <strong>resting heart rate</strong> to switch to the more personalised Karvonen method.</li>
-      <li>Press <strong>Calculate</strong> to see the beats-per-minute range for each of five training zones.</li>
+      <li>Press <strong>Calculate</strong> to see your aerobic target and the band for each of five intensities.</li>
     </ol>
+    <p>
+      <strong>+ Settings</strong> holds two choices most people never change: which of three
+      published equations estimates maximum heart rate from age, and which scale describes
+      intensity — heart-rate reserve, or how hard the effort feels on one of the two Borg scales.
+    </p>
+
+    <h2>Why the resting heart rate is optional but changes everything</h2>
+    <p>
+      Leave it out and each zone is a plain percentage of your maximum. Add it and the calculator
+      switches to the Karvonen method, where each zone is a percentage of your heart-rate
+      <em>reserve</em> — the gap between maximum and resting — added back onto your resting rate.
+      The two give genuinely different numbers: at 30 with a resting rate of 70, the aerobic band is
+      130 to 172 bpm on reserve and 95 to 162 bpm on maximum. The result panel names which one it
+      used, because a percentage means nothing until you know what it is a percentage of.
+    </p>
+
+    <h2>The three maximum-heart-rate equations</h2>
+    <p>
+      Age equations are averages, and they disagree — by a few beats in your thirties and by more
+      later on. The calculator offers three:
+    </p>
+    <ul>
+      <li><strong>Haskell &amp; Fox (1971):</strong> 220 − age. The familiar one, and the default.</li>
+      <li><strong>Tanaka, Monahan &amp; Seals (2001):</strong> 208 − 0.7 × age. Derived from a much larger meta-analysis, and generally a better fit for older adults.</li>
+      <li><strong>Nes, Janszky, Wisloff, Stoylen &amp; Karlsen (2013):</strong> 211 − 0.64 × age. From a large Norwegian population study.</li>
+    </ul>
+    <p>
+      If you have ever done a supervised maximal test, use that figure instead — a measurement beats
+      any estimate of it, and individual maximums vary from the age estimate by 10 to 20 bpm.
+    </p>
 
     <h2>How training by heart rate works</h2>
     <p>
@@ -36,7 +68,7 @@ const faqs = [
     </p>
 
     <h2>The formulas</h2>
-    <p>Maximum heart rate is estimated from your age:</p>
+    <p>Maximum heart rate is estimated from your age (with Haskell &amp; Fox, the default):</p>
     <p><strong>Max HR = 220 − age</strong></p>
     <p>
       With just an age, each zone is a straight percentage of that maximum. Add a resting heart rate

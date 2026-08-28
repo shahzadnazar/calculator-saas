@@ -563,6 +563,12 @@ const GAUGES = { male: gaugeFor('male'), female: gaugeFor('female') };
     );
     syncGauge();
 
+    // Reset restores Male silently, so re-derive the hip row and the gauge from it.
+    root.addEventListener('calculator:reset', () => {
+      syncHip();
+      syncGauge();
+    });
+
     // The "Other Units" converter, shared with the ideal-weight calculator.
     mountUnitConverterPanel(root);
 
