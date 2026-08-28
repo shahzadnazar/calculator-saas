@@ -306,7 +306,7 @@ test.describe('time: same-document instance isolation', () => {
     const raw = await (await page.request.get('http://localhost:4399/everyday/time-calculator')).text();
     const parts = await page.evaluate((html) => {
       const d = new DOMParser().parseFromString(html, 'text/html');
-      const root = d.querySelector('[data-timecalc]');
+      const root = d.querySelector('[data-timepage]');
       const links = [...d.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.getAttribute('href'));
       const script = [...d.querySelectorAll('script[type="module"][src]')]
         .map((s) => s.getAttribute('src'))
@@ -320,8 +320,8 @@ test.describe('time: same-document instance isolation', () => {
       `<script type="module" src="${parts.script}"></script></body></html>`;
     await page.route('**/__time-two-instance-fixture', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: doc }));
     await page.goto(FIXTURE, { waitUntil: 'networkidle' });
-    await expect(page.locator('#inst-a [data-timecalc]')).toHaveCount(1);
-    await expect(page.locator('#inst-b [data-timecalc]')).toHaveCount(1);
+    await expect(page.locator('#inst-a [data-timepage]')).toHaveCount(1);
+    await expect(page.locator('#inst-b [data-timepage]')).toHaveCount(1);
   }
 
   test('two instances have no duplicate ids and every reference resolves in its own instance', async ({ page }) => {
@@ -353,21 +353,231 @@ test.describe('time: same-document instance isolation', () => {
     const A = (sel: string) => page.locator(`#inst-a ${sel}`);
     const B = (sel: string) => page.locator(`#inst-b ${sel}`);
     const fillCalc = async (scope: (s: string) => ReturnType<Page['locator']>, aMin: string, bMin: string, op: string) => {
-      await scope('[name="a_minutes"]').fill(aMin);
-      await scope('[name="b_minutes"]').fill(bMin);
-      if (op === 'subtract') await scope('[name="tc_op"][value="subtract"]').check();
-      await scope('button[type="submit"]').click();
+      await scope('[data-timecalc] [name="a_minutes"]').fill(aMin);
+      await scope('[data-timecalc] [name="b_minutes"]').fill(bMin);
+      if (op === 'subtract') await scope('[data-timecalc] [name="tc_op"][value="subtract"]').check();
+      await scope('[data-timecalc] button[type="submit"]').click();
     };
+    const durationValue = (scope: (s: string) => ReturnType<Page['locator']>) =>
+      scope('[data-timecalc] [data-result-when~="valid"] [data-result-value]').first();
+
     await fillCalc(A, '2', '30', 'add'); // 2m + 30m = 32m
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('32m 0s');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
+    await expect(durationValue(A)).toHaveText('32m 0s');
+    await expect(B('[data-timecalc] [data-result-shell]')).toHaveAttribute('data-result-state', 'example');
 
     await fillCalc(B, '5', '3', 'subtract'); // 5m − 3m = 2m
-    await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('2m 0s');
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('32m 0s'); // A preserved
+    await expect(durationValue(B)).toHaveText('2m 0s');
+    await expect(durationValue(A)).toHaveText('32m 0s'); // A preserved
 
-    await A('[data-reset]').click();
-    await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
-    await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('2m 0s'); // B unaffected by A's reset
+    await A('[data-timecalc] [data-reset]').click();
+    await expect(A('[data-timecalc] [data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
+    await expect(durationValue(B)).toHaveText('2m 0s'); // B unaffected by A's reset
+  });
+});
+
+/* ---- 2. Add or Subtract Time from a Date --------------------------------- */
+
+test.describe('time: add or subtract time from a date', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  const root = (page: Page) => page.locator('[data-timedate]');
+  const value = (page: Page) => page.locator('#dt-result [data-result-value]').first();
+  const clock = (page: Page) => page.locator('[data-dt-time]');
+  const shell = (page: Page) => page.locator('#dt-result');
+
+  const shift = async (
+    page: Page,
+    date: string,
+    time: string,
+    op: 'add' | 'subtract',
+    amount: Record<string, string>,
+  ) => {
+    await root(page).locator('[name="dt_date"]').fill(date);
+    await root(page).locator('[name="dt_time"]').fill(time);
+    if (op === 'subtract') await root(page).locator('[name="dt_op"][value="subtract"]').check();
+    for (const [unit, v] of Object.entries(amount)) {
+      await root(page).locator(`[name="dt_${unit}"]`).fill(v);
+    }
+    await root(page).locator('button[type="submit"]').click();
+  };
+
+  test('is its own calculator, with its own button and result', async ({ page }) => {
+    await expect(root(page).locator('button[type="submit"]')).toHaveText('Calculate Date and Time');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  });
+
+  test('moves a date and time forward, reporting the days it crossed', async ({ page }) => {
+    // 2:30 PM + 1d 12h 45m lands at 3:15 AM, two days on.
+    await shift(page, '2026-08-28', '14:30:00', 'add', { days: '1', hours: '12', minutes: '45' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(value(page)).toHaveText('Sunday, August 30, 2026');
+    await expect(clock(page)).toHaveText('3:15:00 AM');
+    await expect(page.locator('[data-dt-days]')).toHaveText('2 days later.');
+  });
+
+  test('stays on the same day when it does not cross midnight', async ({ page }) => {
+    await shift(page, '2026-08-28', '09:00:00', 'add', { hours: '2', minutes: '30' });
+    await expect(value(page)).toHaveText('Friday, August 28, 2026');
+    await expect(clock(page)).toHaveText('11:30:00 AM');
+    await expect(page.locator('[data-dt-days]')).toHaveText('Same day.');
+  });
+
+  test('goes backwards across midnight without a negative time of day', async ({ page }) => {
+    await shift(page, '2026-08-28', '01:00:00', 'subtract', { hours: '2' });
+    await expect(value(page)).toHaveText('Thursday, August 27, 2026');
+    await expect(clock(page)).toHaveText('11:00:00 PM');
+    await expect(page.locator('[data-dt-days]')).toHaveText('1 day earlier.');
+  });
+
+  test('crosses a month and a leap day correctly', async ({ page }) => {
+    await shift(page, '2024-02-28', '23:00:00', 'add', { hours: '2' });
+    await expect(value(page)).toHaveText('Thursday, February 29, 2024');
+    await expect(clock(page)).toHaveText('1:00:00 AM');
+  });
+
+  test('asks for the date, the time and an amount', async ({ page }) => {
+    await root(page).locator('button[type="submit"]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(root(page).locator('[data-error-for="date"]')).toBeVisible();
+
+    await root(page).locator('[name="dt_date"]').fill('2026-08-28');
+    await root(page).locator('[name="dt_time"]').fill('12:00:00');
+    await root(page).locator('button[type="submit"]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(root(page).locator('[data-error-for="dt_amount"]')).toBeVisible();
+  });
+
+  test('rejects a negative amount', async ({ page }) => {
+    await root(page).locator('[name="dt_date"]').fill('2026-08-28');
+    await root(page).locator('[name="dt_time"]').fill('12:00:00');
+    await page.evaluate(() => {
+      const el = document.querySelector('[data-timedate] [name="dt_hours"]') as HTMLInputElement;
+      el.value = '-3';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await root(page).locator('button[type="submit"]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  });
+
+  test('reset clears it without touching the other calculators', async ({ page }) => {
+    await shift(page, '2026-08-28', '14:30:00', 'add', { hours: '1' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await root(page).locator('[data-reset]').click();
+    await expect(root(page).locator('[name="dt_date"]')).toHaveValue('');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#tc-result')).toHaveAttribute('data-result-state', 'example');
+    await expect(page.locator('#ex-result')).toHaveAttribute('data-result-state', 'example');
+  });
+
+  test('renders no NaN / Infinity / undefined', async ({ page }) => {
+    await shift(page, '2026-08-28', '14:30:00', 'add', { days: '3', hours: '7', minutes: '9', seconds: '11' });
+    const text = await page.locator('#dt-result [data-result-when~="valid"]').innerText();
+    expect(text).not.toMatch(/NaN|Infinity|undefined/);
+  });
+});
+
+/* ---- 3. Time expression --------------------------------------------------- */
+
+test.describe('time: the expression calculator', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  const root = (page: Page) => page.locator('[data-timeexpr]');
+  const shell = (page: Page) => page.locator('#ex-result');
+  const value = (page: Page) => page.locator('#ex-result [data-result-value]').first();
+
+  const evaluate = async (page: Page, expression: string) => {
+    await root(page).locator('[name="expression"]').fill(expression);
+    await root(page).locator('button[type="submit"]').click();
+  };
+
+  test('is its own calculator, with its own button and result', async ({ page }) => {
+    await expect(root(page).locator('button[type="submit"]')).toHaveText('Calculate Expression');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  });
+
+  test('evaluates the reference’s own example', async ({ page }) => {
+    await evaluate(page, '1d 2h 3m 4s + 4h 5s - 2030s');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(value(page)).toHaveText('1d 5h 29m 19s');
+    await expect(page.locator('[data-ex-total]')).toHaveText('106,159');
+    await expect(page.locator('[data-ex-clock]')).toHaveText('05:29:19');
+  });
+
+  test('handles single values, decimals and a negative total', async ({ page }) => {
+    await evaluate(page, '90m');
+    await expect(value(page)).toHaveText('1h 30m 0s');
+    await evaluate(page, '1.5h');
+    await expect(value(page)).toHaveText('1h 30m 0s');
+    await evaluate(page, '30m - 1h');
+    await expect(value(page)).toHaveText('−30m 0s');
+  });
+
+  test('names the mistake when a value has no unit', async ({ page }) => {
+    await evaluate(page, '90');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(root(page).locator('[data-error-for="expression"]')).toContainText('needs a unit');
+  });
+
+  test('rejects junk without ever evaluating it', async ({ page }) => {
+    for (const bad of ['1h + (2h)', '1h ** 2', 'abc', '1y', '1h +']) {
+      await evaluate(page, bad);
+      await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    }
+  });
+
+  test('reset clears it without touching the other calculators', async ({ page }) => {
+    await evaluate(page, '1h 30m');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await root(page).locator('[data-reset]').click();
+    await expect(root(page).locator('[name="expression"]')).toHaveValue('');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#tc-result')).toHaveAttribute('data-result-state', 'example');
+  });
+});
+
+/* ---- The three calculators together -------------------------------------- */
+
+test.describe('time: three independent calculators', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  test('all three are on the page, each with its own heading and result', async ({ page }) => {
+    await expect(page.locator('.tp-title')).toHaveText([
+      'Time Calculator',
+      'Add or Subtract Time from a Date',
+      'Time Expression Calculator',
+    ]);
+    await expect(page.locator('#tc-result')).toHaveAttribute('data-result-state', 'example');
+    await expect(page.locator('#dt-result')).toHaveAttribute('data-result-state', 'example');
+    await expect(page.locator('#ex-result')).toHaveAttribute('data-result-state', 'example');
+  });
+
+  test('using one never disturbs the other two', async ({ page }) => {
+    await page.locator('[data-timecalc] [name="a_hours"]').fill('2');
+    await page.locator('[data-timecalc] [name="b_minutes"]').fill('30');
+    await page.locator('[data-timecalc] button[type="submit"]').click();
+    await expect(page.locator('#tc-result')).toHaveAttribute('data-result-state', 'valid');
+    await expect(page.locator('#dt-result')).toHaveAttribute('data-result-state', 'example');
+    await expect(page.locator('#ex-result')).toHaveAttribute('data-result-state', 'example');
+
+    await page.locator('[data-timeexpr] [name="expression"]').fill('1h 30m');
+    await page.locator('[data-timeexpr] button[type="submit"]').click();
+    await expect(page.locator('#ex-result')).toHaveAttribute('data-result-state', 'valid');
+    await expect(page.locator('#tc-result')).toHaveAttribute('data-result-state', 'valid');
+    await expect(page.locator('#tc-result [data-result-value]').first()).toHaveText('2h 30m 0s');
+  });
+
+  test('mobile stacks all three without overflowing', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
   });
 });

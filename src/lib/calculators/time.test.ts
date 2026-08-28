@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { toSeconds, combineDurations, breakdownDuration, type Duration } from './time';
+import {
+  toSeconds,
+  combineDurations,
+  breakdownDuration,
+  clockToSeconds,
+  formatClock,
+  formatClock12,
+  shiftClock,
+  parseTimeExpression,
+  type Duration,
+} from './time';
 
 /**
  * Time arithmetic characterization (R17B3 Commit 1). Freezes the exact behaviour of the UNCHANGED
@@ -216,5 +226,138 @@ describe('time — add / subtract pipeline', () => {
   it('normalises oversized inputs through the pipeline (90m + 90m = 3h)', () => {
     const d = breakdownDuration(combineDurations(secs({ minutes: 90 }), 'add', secs({ minutes: 90 })));
     expect(d).toMatchObject({ hours: 3, minutes: 0, seconds: 0 });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Clock time                                                          */
+/* ------------------------------------------------------------------ */
+
+describe('clockToSeconds', () => {
+  it('converts a wall-clock time to seconds since midnight', () => {
+    expect(clockToSeconds(0, 0, 0)).toBe(0);
+    expect(clockToSeconds(14, 30, 0)).toBe(52200);
+    expect(clockToSeconds(23, 59, 59)).toBe(86399);
+  });
+  it('rejects anything that is not a real time of day', () => {
+    for (const bad of [[24, 0, 0], [-1, 0, 0], [0, 60, 0], [0, -1, 0], [0, 0, 60], [1.5, 0, 0]]) {
+      expect(Number.isNaN(clockToSeconds(bad[0], bad[1], bad[2]))).toBe(true);
+    }
+  });
+});
+
+describe('formatClock / formatClock12', () => {
+  it('pads to HH:MM:SS', () => {
+    expect(formatClock(0)).toBe('00:00:00');
+    expect(formatClock(52200)).toBe('14:30:00');
+    expect(formatClock(86399)).toBe('23:59:59');
+  });
+  it('reads a clock time back the way people say it', () => {
+    expect(formatClock12(0)).toBe('12:00:00 AM');
+    expect(formatClock12(43200)).toBe('12:00:00 PM');
+    expect(formatClock12(52200)).toBe('2:30:00 PM');
+    expect(formatClock12(86399)).toBe('11:59:59 PM');
+  });
+});
+
+describe('shiftClock', () => {
+  it('stays on the same day when it does not cross midnight', () => {
+    expect(shiftClock(52200, 3600)).toEqual({ dayOffset: 0, secondsOfDay: 55800 });
+  });
+  it('reports the days a forward shift crosses', () => {
+    expect(shiftClock(82800, 7200)).toEqual({ dayOffset: 1, secondsOfDay: 3600 }); // 23:00 + 2h = 01:00 next day
+    expect(shiftClock(82800, 3600)).toEqual({ dayOffset: 1, secondsOfDay: 0 }); // 23:00 + 1h = midnight
+    expect(shiftClock(0, 86400 * 3 + 60)).toEqual({ dayOffset: 3, secondsOfDay: 60 });
+  });
+  it('reports the days a backward shift crosses, never a negative time of day', () => {
+    expect(shiftClock(3600, -7200)).toEqual({ dayOffset: -1, secondsOfDay: 82800 }); // 01:00 − 2h
+    expect(shiftClock(0, -1)).toEqual({ dayOffset: -1, secondsOfDay: 86399 });
+    expect(shiftClock(0, 0)).toEqual({ dayOffset: 0, secondsOfDay: 0 });
+  });
+  it('always lands inside a single day', () => {
+    for (const start of [0, 1, 43200, 86399]) {
+      for (const off of [-500000, -86400, -1, 0, 1, 86400, 500000]) {
+        const r = shiftClock(start, off);
+        expect(r.secondsOfDay).toBeGreaterThanOrEqual(0);
+        expect(r.secondsOfDay).toBeLessThan(86400);
+        expect(start + off).toBe(r.dayOffset * 86400 + r.secondsOfDay);
+      }
+    }
+  });
+  it('refuses a non-finite input', () => {
+    expect(Number.isNaN(shiftClock(Number.NaN, 1).secondsOfDay)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Time expressions                                                    */
+/* ------------------------------------------------------------------ */
+
+describe('parseTimeExpression', () => {
+  const secs = (s: string) => {
+    const r = parseTimeExpression(s);
+    return r.ok ? r.seconds : `error:${r.reason}`;
+  };
+
+  it('evaluates the reference’s own example', () => {
+    // 1d 2h 3m 4s = 93784; + 4h 5s = 14405; − 2030s
+    expect(secs('1d 2h 3m 4s + 4h 5s - 2030s')).toBe(93784 + 14405 - 2030);
+  });
+
+  it('handles a single value', () => {
+    expect(secs('1d')).toBe(86400);
+    expect(secs('90m')).toBe(5400);
+    expect(secs('45s')).toBe(45);
+    expect(secs('2h')).toBe(7200);
+  });
+
+  it('sums the pairs inside one term', () => {
+    expect(secs('1h 30m')).toBe(5400);
+    expect(secs('1d2h')).toBe(93600); // spaces are optional
+  });
+
+  it('applies + and - between terms, left to right', () => {
+    expect(secs('1h + 30m')).toBe(5400);
+    expect(secs('1h - 30m')).toBe(1800);
+    expect(secs('1h - 30m + 15m')).toBe(2700);
+  });
+
+  it('allows a leading sign and a negative total', () => {
+    expect(secs('-1h')).toBe(-3600);
+    expect(secs('30m - 1h')).toBe(-1800);
+  });
+
+  it('accepts decimals and mixed case', () => {
+    expect(secs('1.5h')).toBe(5400);
+    expect(secs('0.5d')).toBe(43200);
+    expect(secs('.5h')).toBe(1800);
+    expect(secs('1D 2H')).toBe(93600);
+  });
+
+  it('ignores surrounding and internal whitespace', () => {
+    expect(secs('   1h   30m   +   1m  ')).toBe(5460);
+  });
+
+  it('asks for something when the box is empty', () => {
+    expect(secs('')).toBe('error:empty');
+    expect(secs('   ')).toBe('error:empty');
+  });
+
+  it('rejects a number with no unit — the one mistake people actually make', () => {
+    expect(secs('90')).toBe('error:unit');
+    expect(secs('1h + 30')).toBe('error:unit');
+  });
+
+  it('rejects junk, stray operators and unknown units', () => {
+    for (const bad of ['abc', '1y', '1h +', '+', '-', '1h ++ 2h', '1h * 2h', '1h/2', 'h', '1h 2']) {
+      const r = parseTimeExpression(bad);
+      expect(r.ok).toBe(false);
+    }
+  });
+
+  it('never evaluates the string as code', () => {
+    for (const bad of ['1h + (2h)', "1h';drop", '${1+1}h', '1h**2']) {
+      expect(parseTimeExpression(bad).ok).toBe(false);
+    }
   });
 });
