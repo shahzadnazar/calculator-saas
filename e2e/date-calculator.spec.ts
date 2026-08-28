@@ -94,7 +94,7 @@ test.describe('date: task-first', () => {
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
     await expect(diffValue(page)).toHaveText('20 years, 3 months, 5 days');
     await expect(totalDays(page)).toHaveText('7,402');
-    await expect(totalWeeks(page)).toHaveText('1,057');
+    await expect(totalWeeks(page)).toHaveText('1057 weeks and 3 days');
     await expect(diffInterp(page)).toContainText('after');
     await expect(live(page)).toHaveText('Date difference: 20 years, 3 months, 5 days.');
   });
@@ -117,7 +117,7 @@ test.describe('date: task-first', () => {
     await calcDiff(page, '2020-02-29', '2024-02-29');
     await expect(diffValue(page)).toHaveText('4 years, 0 months, 0 days');
     await expect(totalDays(page)).toHaveText('1,461');
-    await expect(totalWeeks(page)).toHaveText('208');
+    await expect(totalWeeks(page)).toHaveText('208 weeks and 5 days');
   });
 
   test('a reverse pair (start after end) is valid — absolute span with direction "before", never swapped', async ({ page }) => {
@@ -362,5 +362,239 @@ test.describe('date: same-document instance isolation', () => {
     await A('[data-reset]').click();
     await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
     await expect(B('[data-dc-panel="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days'); // B unaffected
+  });
+});
+
+/* ---- Include the end day ------------------------------------------------- */
+
+test.describe('date: including the end day', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  test('adds exactly one day, and says so', async ({ page }) => {
+    await calcDiff(page, '2026-01-01', '2026-01-03');
+    await expect(totalDays(page)).toHaveText('2');
+    await page.locator('[name="includeEnd"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(totalDays(page)).toHaveText('3');
+    await expect(diffInterp(page)).toContainText('end day included');
+  });
+
+  test('turns a same-day range into one day rather than zero', async ({ page }) => {
+    await calcDiff(page, '2026-06-15', '2026-06-15');
+    await expect(totalDays(page)).toHaveText('0');
+    await page.locator('[name="includeEnd"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(totalDays(page)).toHaveText('1');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  });
+
+  test('leaves the calendar breakdown alone — it measures the span, not the count', async ({ page }) => {
+    await calcDiff(page, '2026-01-01', '2026-03-01');
+    await page.locator('[name="includeEnd"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(diffValue(page)).toHaveText('0 years, 2 months, 0 days');
+    await expect(totalDays(page)).toHaveText('60');
+  });
+
+  test('is cleared by Reset', async ({ page }) => {
+    await calcDiff(page, '2026-01-01', '2026-01-03');
+    await page.locator('[name="includeEnd"]').check();
+    await page.click('[data-reset]');
+    await expect(page.locator('[name="includeEnd"]')).not.toBeChecked();
+  });
+});
+
+/* ---- Business days ------------------------------------------------------- */
+
+test.describe('date: business days', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  const businessDays = (page: Page) => page.locator('[data-dc-business-days]');
+
+  test('counts working days alongside the calendar days', async ({ page }) => {
+    // Monday 2026-08-24 to the following Monday.
+    await calcDiff(page, '2026-08-24', '2026-08-31');
+    await expect(totalDays(page)).toHaveText('7');
+    await expect(businessDays(page)).toHaveText('5');
+  });
+
+  test('makes the working-day count the dominant answer when asked, keeping the span below it', async ({ page }) => {
+    await calcDiff(page, '2026-08-24', '2026-08-31');
+    await page.locator('[name="businessOnly"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(diffValue(page)).toHaveText('5 business days');
+    await expect(page.locator('[data-dc-row="breakdown"]')).toBeVisible();
+    await expect(page.locator('[data-dc-breakdown]')).toHaveText('0 years, 0 months, 7 days');
+    await expect(live(page)).toHaveText('Business days: 5.');
+  });
+
+  test('the holiday option is inert until business days are on', async ({ page }) => {
+    await expect(page.locator('[name="excludeHolidays"]')).toBeDisabled();
+    await page.locator('[name="businessOnly"]').check();
+    await expect(page.locator('[name="excludeHolidays"]')).toBeEnabled();
+    await page.locator('[name="businessOnly"]').uncheck();
+    await expect(page.locator('[name="excludeHolidays"]')).toBeDisabled();
+    await expect(page.locator('[name="excludeHolidays"]')).not.toBeChecked();
+  });
+
+  test('drops an observed federal holiday from the count', async ({ page }) => {
+    // The week containing Independence Day 2026, observed Friday 2026-07-03.
+    await calcDiff(page, '2026-06-29', '2026-07-06');
+    await page.locator('[name="businessOnly"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(diffValue(page)).toHaveText('5 business days');
+    await page.locator('[name="excludeHolidays"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(diffValue(page)).toHaveText('4 business days');
+    await expect(diffInterp(page)).toContainText('excluding US federal holidays');
+  });
+
+  test('shifts a date by business days, never counting the start day', async ({ page }) => {
+    await modeSel(page).selectOption('add');
+    await page.locator('[name="businessOnly"]').check();
+    await page.locator('[name="start"]').fill('2026-08-28'); // a Friday
+    await page.locator('[name="days"]').fill('3');
+    await submitBtn(page).click();
+    await expect(addValue(page)).toHaveText('Wednesday, September 2, 2026');
+  });
+
+  test('steps the calendar boxes aside in business mode, and explains why', async ({ page }) => {
+    await modeSel(page).selectOption('add');
+    await expect(page.locator('[name="years"]')).toBeVisible();
+    await page.locator('[name="businessOnly"]').check();
+    await expect(page.locator('[name="years"]')).toBeHidden();
+    await expect(page.locator('[name="months"]')).toBeHidden();
+    await expect(page.locator('[name="weeks"]')).toBeHidden();
+    await expect(page.locator('[name="days"]')).toBeVisible();
+    await expect(page.locator('[data-dc-business-note]')).toBeVisible();
+    await page.locator('[name="businessOnly"]').uncheck();
+    await expect(page.locator('[name="years"]')).toBeVisible();
+  });
+});
+
+/* ---- Years, months, weeks and days --------------------------------------- */
+
+test.describe('date: add or subtract in four units', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await modeSel(page).selectOption('add');
+  });
+
+  const shift = async (page: Page, start: string, op: 'add' | 'sub', amount: Record<string, string>) => {
+    await page.locator('[name="start"]').fill(start);
+    await page.locator('[name="op"]').selectOption(op);
+    for (const [unit, value] of Object.entries(amount)) await page.locator(`[name="${unit}"]`).fill(value);
+    await submitBtn(page).click();
+  };
+
+  test('offers years, months, weeks and days', async ({ page }) => {
+    for (const unit of ['years', 'months', 'weeks', 'days']) {
+      await expect(page.locator(`[name="${unit}"]`)).toBeVisible();
+    }
+  });
+
+  test('adds each unit on its own', async ({ page }) => {
+    await shift(page, '2026-01-15', 'add', { years: '1' });
+    await expect(addValue(page)).toHaveText('Friday, January 15, 2027');
+    await page.locator('[name="years"]').fill('');
+    await page.locator('[name="months"]').fill('2');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(addValue(page)).toHaveText('Sunday, March 15, 2026');
+  });
+
+  test('combines them, and names only the units given', async ({ page }) => {
+    await shift(page, '2026-01-15', 'add', { years: '1', months: '2', weeks: '1', days: '3' });
+    await expect(addValue(page)).toHaveText('Thursday, March 25, 2027');
+    await expect(page.locator('[data-dc-add-amount]')).toHaveText('1 year, 2 months, 1 week and 3 days');
+    await expect(addInterp(page)).toContainText('Adding 1 year, 2 months, 1 week and 3 days to');
+  });
+
+  test('subtracts as well', async ({ page }) => {
+    await shift(page, '2026-01-15', 'sub', { years: '1', months: '2' });
+    await expect(addValue(page)).toHaveText('Friday, November 15, 2024');
+  });
+
+  test('clamps a month step to the end of the target month', async ({ page }) => {
+    await shift(page, '2026-01-31', 'add', { months: '1' });
+    await expect(addValue(page)).toHaveText('Saturday, February 28, 2026');
+    await page.locator('[name="start"]').fill('2024-01-31');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(addValue(page)).toHaveText('Thursday, February 29, 2024'); // leap year
+  });
+
+  test('applies the calendar steps before the fixed ones', async ({ page }) => {
+    // A month clamps to Feb 28 first, then the day is added: March 1, not March 2.
+    await shift(page, '2026-01-31', 'add', { months: '1', days: '1' });
+    await expect(addValue(page)).toHaveText('Sunday, March 1, 2026');
+  });
+
+  test('asks for an amount only when every box is blank', async ({ page }) => {
+    await page.locator('[name="start"]').fill('2026-01-15');
+    await submitBtn(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="amount"]')).toBeVisible();
+    // The first attempt was invalid, so live-after-first is not armed yet — the visitor
+    // presses Calculate again rather than the result appearing as they type.
+    await page.locator('[name="weeks"]').fill('2');
+    await submitBtn(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(addValue(page)).toHaveText('Thursday, January 29, 2026');
+  });
+
+  test('rejects a fractional or negative amount in any box', async ({ page }) => {
+    for (const unit of ['years', 'months', 'weeks', 'days']) {
+      await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+      await modeSel(page).selectOption('add');
+      await page.locator('[name="start"]').fill('2026-01-15');
+      await page.evaluate(
+        ([name]) => {
+          const el = document.querySelector(`[name="${name}"]`) as HTMLInputElement;
+          el.value = '1.5';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        },
+        [unit],
+      );
+      await submitBtn(page).click();
+      await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    }
+  });
+});
+
+/* ---- Alternative time units ---------------------------------------------- */
+
+test.describe('date: the same span in other units', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  const unit = (page: Page, key: string) =>
+    page.locator(`[data-dc-unit="${key}"] [data-dc-unit-value]`);
+
+  test('converts the counted span into every unit offered', async ({ page }) => {
+    await calcDiff(page, '2026-01-01', '2026-01-11'); // 10 days
+    await expect(unit(page, 'seconds')).toHaveText('864,000');
+    await expect(unit(page, 'minutes')).toHaveText('14,400');
+    await expect(unit(page, 'hours')).toHaveText('240');
+    await expect(unit(page, 'days')).toHaveText('10');
+    await expect(unit(page, 'weeks')).toHaveText('1 week and 3 days');
+    await expect(unit(page, 'year-pct')).toHaveText('2.74%');
+  });
+
+  test('follows the end-day setting, so the units match the count on show', async ({ page }) => {
+    await calcDiff(page, '2026-01-01', '2026-01-11');
+    await page.locator('[name="includeEnd"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(unit(page, 'days')).toHaveText('11');
+    await expect(unit(page, 'hours')).toHaveText('264');
+  });
+
+  test('renders no NaN or Infinity for a zero-length span', async ({ page }) => {
+    await calcDiff(page, '2026-01-01', '2026-01-01');
+    const text = await region(page, 'valid').innerText();
+    expect(text).not.toMatch(/NaN|Infinity|undefined/);
   });
 });

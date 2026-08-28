@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { diffDates, addDays, toISODateUTC } from './date-duration';
+import { diffDates, addDays, toISODateUTC, shiftDate } from './date-duration';
 
 /**
  * R18C2 Commit 1 — dedicated characterization of the Date calculator's source operations
@@ -160,5 +160,75 @@ describe('date-duration: toISODateUTC — format contract', () => {
 
   it('reads UTC components (a UTC-midnight date serializes to its civil date)', () => {
     expect(toISODateUTC(new Date('2026-08-09T00:00:00Z'))).toBe('2026-08-09');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* shiftDate — calendar years and months, then fixed weeks and days     */
+/* ------------------------------------------------------------------ */
+
+describe('shiftDate', () => {
+  const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const s = (iso: string, shift: Partial<Parameters<typeof shiftDate>[1]>, sign: 1 | -1 = 1) =>
+    toISODateUTC(shiftDate(d(iso), { years: 0, months: 0, weeks: 0, days: 0, ...shift }, sign));
+
+  it('adds each unit on its own', () => {
+    expect(s('2026-01-15', { years: 1 })).toBe('2027-01-15');
+    expect(s('2026-01-15', { months: 2 })).toBe('2026-03-15');
+    expect(s('2026-01-15', { weeks: 3 })).toBe('2026-02-05');
+    expect(s('2026-01-15', { days: 10 })).toBe('2026-01-25');
+  });
+
+  it('subtracts each unit on its own', () => {
+    expect(s('2026-01-15', { years: 1 }, -1)).toBe('2025-01-15');
+    expect(s('2026-01-15', { months: 2 }, -1)).toBe('2025-11-15');
+    expect(s('2026-01-15', { weeks: 3 }, -1)).toBe('2025-12-25');
+    expect(s('2026-01-15', { days: 10 }, -1)).toBe('2026-01-05');
+  });
+
+  it('combines them, applying the calendar steps before the fixed ones', () => {
+    // A month and a day after January 31 is March 1: the month step clamps to Feb 28 first.
+    expect(s('2026-01-31', { months: 1, days: 1 })).toBe('2026-03-01');
+    expect(s('2026-01-15', { years: 1, months: 2, weeks: 1, days: 3 })).toBe('2027-03-25');
+  });
+
+  it('clamps a month step to the end of the target month rather than rolling over', () => {
+    expect(s('2026-01-31', { months: 1 })).toBe('2026-02-28');
+    expect(s('2024-01-31', { months: 1 })).toBe('2024-02-29'); // leap year
+    expect(s('2026-03-31', { months: 1 })).toBe('2026-04-30');
+    expect(s('2026-08-31', { months: 6 })).toBe('2027-02-28');
+  });
+
+  it('clamps a year step off a leap day', () => {
+    expect(s('2024-02-29', { years: 1 })).toBe('2025-02-28');
+    expect(s('2024-02-29', { years: 4 })).toBe('2028-02-29');
+  });
+
+  it('carries months across year boundaries in both directions', () => {
+    expect(s('2026-11-15', { months: 3 })).toBe('2027-02-15');
+    expect(s('2026-02-15', { months: 3 }, -1)).toBe('2025-11-15');
+    expect(s('2026-06-15', { months: 30 })).toBe('2028-12-15');
+    expect(s('2026-06-15', { months: 30 }, -1)).toBe('2023-12-15');
+  });
+
+  it('treats a zero shift as a no-op', () => {
+    expect(s('2026-06-15', {})).toBe('2026-06-15');
+    expect(s('2026-06-15', {}, -1)).toBe('2026-06-15');
+  });
+
+  it('agrees with addDays when only days and weeks are given', () => {
+    for (const n of [0, 1, 13, 400, 10_000]) {
+      expect(s('2026-06-15', { days: n })).toBe(toISODateUTC(addDays(d('2026-06-15'), n)));
+      expect(s('2026-06-15', { days: n }, -1)).toBe(toISODateUTC(addDays(d('2026-06-15'), -n)));
+    }
+  });
+
+  it('handles a year below 100 without sliding into the 1900s', () => {
+    expect(s('0050-06-15', { years: 1 })).toBe('0051-06-15');
+  });
+
+  it('returns an invalid date for an invalid input rather than a plausible wrong one', () => {
+    expect(Number.isNaN(shiftDate(new Date(Number.NaN), { years: 1, months: 0, weeks: 0, days: 0 }, 1).getTime())).toBe(true);
+    expect(Number.isNaN(shiftDate(d('2026-01-01'), { years: Number.NaN, months: 0, weeks: 0, days: 0 }, 1).getTime())).toBe(true);
   });
 });
