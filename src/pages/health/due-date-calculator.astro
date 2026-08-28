@@ -8,18 +8,41 @@ const faqs = [
   { question: 'How do I calculate my due date manually?', answer: 'Take the first day of your last period, subtract three months, then add seven days (and a year). For an LMP of March 10, that is December 10 plus seven days — an estimated due date of about December 17 the following year. The calculator does this instantly from the date you enter.' },
   { question: 'How far along am I based on my due date?', answer: 'Your current gestational age is 40 weeks minus the time remaining until your due date. Enter your LMP above and the calculator shows exactly how many weeks and days along you are today, along with your trimester.' },
   { question: 'How accurate is the due date?', answer: 'It is an estimate. Only about 4% of babies are born on their exact due date; most arrive within two weeks either side. An ultrasound dating scan, especially in the first trimester, can refine the estimate.' },
-  { question: 'What if my cycle is irregular?', answer: 'Naegele\'s rule assumes a 28-day cycle. If your cycle is consistently longer or shorter, or you know your conception or IVF transfer date, your due date may shift by several days — your healthcare provider can adjust it accordingly.' },
+  { question: 'What if my cycle is irregular?', answer: 'Naegele\'s rule assumes a 28-day cycle. Give your average cycle length under Last Period and the calculator adjusts day for day: a 35-day cycle ovulates about a week later, so the due date moves a week later too. If your cycles vary a lot, a first-trimester ultrasound is a better basis, and the calculator accepts one directly.' },
+  { question: 'How is an IVF due date calculated?', answer: 'From the transfer date plus 280 days, less the two weeks before ovulation and less the embryo\'s age on transfer day. That makes a 5-day transfer due 261 days after the transfer and a 3-day transfer 263 days after it. It is the most precise of the four methods, because the embryo\'s age is known exactly rather than estimated.' },
+  { question: 'Can I calculate a due date from an ultrasound?', answer: 'Yes. Choose Ultrasound, enter the date of the scan and the gestational age it reported in weeks and days, and the calculator works your last menstrual period backwards from that and applies the same 280-day rule. Early scans are the most reliable basis there is, which is why providers use them to revise an LMP estimate.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate your baby's due date from the first day of your last period, and see how far along you are today." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate your baby's due date from your last period, a conception date, an ultrasound or an IVF transfer — and see how far along you are today." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-28' }}>
   <DueDateCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Find the <strong>first day of your last menstrual period</strong> (LMP).</li>
-      <li>Enter that date above.</li>
-      <li>The calculator shows your estimated <strong>due date</strong>, your estimated <strong>conception date</strong>, and how many <strong>weeks and days</strong> along you are today, with your current trimester.</li>
+      <li>Choose how you are dating the pregnancy: <strong>Last Period</strong>, <strong>Conception Date</strong>, <strong>Ultrasound</strong> or <strong>IVF Transfer Date</strong>. Only that method's fields appear.</li>
+      <li>Fill them in. Under Last Period you can also give your <strong>average cycle length</strong> if it is not the textbook 28 days.</li>
+      <li>Press <strong>Calculate Due Date</strong> to see your estimated due date, how far along you are today, and the whole timeline from your last period to full term.</li>
     </ol>
+
+    <h2>The four ways to date a pregnancy</h2>
+    <p>
+      All four land on the same rule — 280 days from the last menstrual period — but they differ in
+      how much guesswork stands between you and that date, so they are not equally certain.
+    </p>
+    <ul>
+      <li><strong>Last Period</strong> is the conventional route and the one prenatal care starts from, because the LMP is a date most people can name. It assumes ovulation around day 14, which is why a cycle that is not 28 days shifts the estimate.</li>
+      <li><strong>Conception Date</strong> counts 266 days forward instead of 280 — the same rule, started two weeks later. Useful if you know the date, which most people do not.</li>
+      <li><strong>Ultrasound</strong> is the most reliable early on, because the scan measures the pregnancy rather than inferring it from a cycle. Enter the scan date and the gestational age it reported, and the calculator works the LMP backwards from there.</li>
+      <li><strong>IVF Transfer Date</strong> is the most precise of the four. The embryo's age on transfer day is known exactly, so a 5-day transfer is due 261 days later and a 3-day transfer 263 — the older embryo is further along, so it arrives sooner.</li>
+    </ul>
+
+    <h2>Why cycle length matters</h2>
+    <p>
+      Naegele's rule assumes a 28-day cycle with ovulation on day 14. The stretch after ovulation is
+      fairly fixed at about 14 days; it is the stretch before it that varies. So a 35-day cycle
+      ovulates roughly a week later than a 28-day one, the pregnancy is a week younger than the
+      calendar suggests, and the due date moves a week later. Give your average cycle length and the
+      calculator makes that adjustment day for day.
+    </p>
 
     <h2>What Naegele's rule is</h2>
     <p>
@@ -74,9 +97,9 @@ const faqs = [
     </p>
     <p>
       To follow your pregnancy week by week, use the
-      <a href="/health/pregnancy-calculator">pregnancy calculator</a>. This is educational
-      information, not medical advice — your healthcare provider can confirm and adjust your due
-      date based on your history and scans.
+      <a href="/health/pregnancy-calculator">pregnancy calculator</a>. Your healthcare provider can
+      confirm and adjust your due date based on your history and scans — the note under the
+      calculator says the rest.
     </p>
   </Fragment>
 </CalculatorLayout>

@@ -70,7 +70,7 @@ test.describe('due date: task-first', () => {
     await expect(dominant(page)).toContainText(/\d{4}/); // a year
     await expect(along(page)).toHaveText(/^\d+w \d+d$/);
     await expect(trimester(page)).toHaveText(/^(1st|2nd|3rd)$/);
-    await expect(interp(page)).toContainText('estimated due date is');
+    await expect(interp(page)).toContainText(/^You are \d+ weeks and \d+ days along, in the (1st|2nd|3rd) trimester, with about \d+ days to go\.$/);
     await expect(live(page)).toContainText('Estimated due date:');
     expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
   });
@@ -226,5 +226,129 @@ test.describe('due date: generated embed', () => {
     await page.locator('[data-dd-submit]').click();
     await expect(page.locator('#dd-result')).toHaveAttribute('data-result-state', 'valid');
     await expect(page.locator('#dd-result [data-result-value]')).toContainText(/\d{4}/);
+  });
+});
+
+/* ---- The four dating methods --------------------------------------------- */
+
+test.describe('the four dating methods', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  const iso = (offsetDays: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  test('offers the reference’s four, defaulting to Last Period', async ({ page }) => {
+    const labels = await page.locator('.dd-radios label').allTextContents();
+    expect(labels.map((l) => l.trim())).toEqual([
+      'Last Period',
+      'Conception Date',
+      'Ultrasound',
+      'IVF Transfer Date',
+    ]);
+    await expect(page.locator('[name="method"][value="lmp"]')).toBeChecked();
+    await expect(page.locator('[name="lmp"]')).toBeVisible();
+    await expect(page.locator('[name="conception"]')).toBeHidden();
+  });
+
+  test('shows only the chosen method’s fields, and empties the ones it hides', async ({ page }) => {
+    await page.locator('[name="lmp"]').fill(iso(-70));
+    await page.locator('[name="method"][value="ultrasound"]').check();
+    await expect(page.locator('[name="lmp"]')).toBeHidden();
+    await expect(page.locator('[name="lmp"]')).toHaveValue('');
+    await expect(page.locator('[name="scanDate"]')).toBeVisible();
+    await expect(page.locator('[name="scanWeeks"]')).toBeVisible();
+  });
+
+  test('all four reach a due date, and the note says how certain each is', async ({ page }) => {
+    const note = page.locator('[data-dd-method-note]');
+    await expect(note).toContainText('Naegele');
+
+    await page.locator('[name="method"][value="conception"]').check();
+    await expect(note).toContainText('266 days');
+    await page.locator('[name="conception"]').fill(iso(-56));
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+
+    await page.locator('[name="method"][value="ultrasound"]').check();
+    await expect(note).toContainText('measures the pregnancy');
+    await page.locator('[name="scanDate"]').fill(iso(-7));
+    await page.locator('[name="scanWeeks"]').fill('9');
+    await page.locator('[name="scanDays"]').fill('0');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+
+    await page.locator('[name="method"][value="ivf"]').check();
+    await expect(note).toContainText('known exactly');
+    await page.locator('[name="transferDate"]').fill(iso(-40));
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  });
+
+  test('a 3-day transfer is due two days after a 5-day one', async ({ page }) => {
+    await page.locator('[name="method"][value="ivf"]').check();
+    await page.locator('[name="transferDate"]').fill(iso(-40));
+    await page.selectOption('[name="embryoAge"]', '5');
+    await submit(page).click();
+    const day5 = await page.locator('[data-dd-due]').textContent();
+    await page.selectOption('[name="embryoAge"]', '3');
+    await page.waitForTimeout(320);
+    const day3 = await page.locator('[data-dd-due]').textContent();
+    expect(day3).not.toBe(day5);
+    expect(Date.parse(day3!) - Date.parse(day5!)).toBe(2 * 86_400_000);
+  });
+
+  test('cycle length shifts the due date day for day', async ({ page }) => {
+    await page.locator('[name="lmp"]').fill(iso(-70));
+    await submit(page).click();
+    const at28 = await page.locator('[data-dd-due]').textContent();
+    await page.locator('[name="cycleDays"]').fill('35');
+    await page.waitForTimeout(320);
+    const at35 = await page.locator('[data-dd-due]').textContent();
+    expect(Date.parse(at35!) - Date.parse(at28!)).toBe(7 * 86_400_000);
+  });
+
+  test('validation asks only for the chosen method’s fields', async ({ page }) => {
+    await page.locator('[name="method"][value="ivf"]').check();
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="transferDate"]')).toBeVisible();
+    await expect(page.locator('[data-error-for="lmp"]')).toBeHidden();
+  });
+
+  test('the timeline lists the pregnancy from the last period to the due date', async ({ page }) => {
+    await page.locator('[name="lmp"]').fill(iso(-70));
+    await submit(page).click();
+    const rows = page.locator('#dd-result .dd-timeline tbody tr');
+    await expect(rows).toHaveCount(6);
+    await expect(rows.locator('th')).toHaveText([
+      'Last menstrual period',
+      'Estimated conception',
+      'Second trimester begins',
+      'Third trimester begins',
+      'Full term begins',
+      'Estimated due date',
+    ]);
+    // The dates run forwards, and the last one is the due date.
+    const dates = await page.locator('#dd-result [data-milestone-date]').allTextContents();
+    for (let i = 1; i < dates.length; i++) {
+      expect(Date.parse(dates[i])).toBeGreaterThan(Date.parse(dates[i - 1]));
+    }
+    await expect(page.locator('#dd-result [data-milestone="due"] [data-milestone-date]')).not.toHaveText('—');
+  });
+
+  test('Reset brings the Last Period fields back, not just the radio', async ({ page }) => {
+    await page.locator('[name="method"][value="ivf"]').check();
+    await page.locator('[name="transferDate"]').fill(iso(-40));
+    await submit(page).click();
+    await page.click('[data-reset]');
+    await expect(page.locator('[name="method"][value="lmp"]')).toBeChecked();
+    await expect(page.locator('[name="lmp"]')).toBeVisible();
+    await expect(page.locator('[name="transferDate"]')).toBeHidden();
+    await expect(page.locator('[name="transferDate"]')).toHaveValue('');
   });
 });

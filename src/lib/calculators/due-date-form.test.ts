@@ -1,211 +1,281 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateDueDate,
+  MSG,
+  DATING_METHODS,
+  EMBRYO_AGES,
+  CYCLE_MIN,
+  CYCLE_MAX,
+  REFERENCE_CYCLE_DAYS,
+  SCAN_WEEKS_MAX,
   isStrictCalendarDate,
+  cycleError,
+  scanAgeError,
+  validateDueDate,
   computeDueDate,
   completeDueDateValue,
+  resolveLmp,
   presentDueDate,
   describeDueDate,
   longDate,
-  todayISO,
+  shortDate,
   dueDateBinding,
-  type DueDateComputed,
+  dueDateExampleValues,
+  type DueDateValues,
 } from './due-date-form';
 
 /**
- * Due Date form-binding tests (R14B1 Commit 2). Exercise the VALIDATION /
- * PRESENTATION boundary only — the pure gestational engine underneath is
- * unchanged and separately frozen by due-date.test.ts. `today` is injected so
- * every case is deterministic (the binding's only clock read is isolated in
- * readValues via todayISO). Covers: required + future-LMP validation, the
- * local-today max boundary, ordinary vs past-due computation and presentation,
- * the complete-result guard (reconciliation + malformed rejection; NaN sentinel;
- * no isUsableResult), announcements, and readValues/resetValues.
+ * The binding's pure surface. The dating arithmetic lives in the reviewed pure
+ * `due-date.ts`; here we pin that each method validates and reads ONLY its own fields, the
+ * date precedence (required → real date → not future), and the presentation.
  */
 
-const TODAY = '2024-06-01';
-const v = (lmp: string, today = TODAY) => ({ lmp, today });
-const ok = (r: ReturnType<typeof validateDueDate>) => r.ok === true;
-const err = (r: ReturnType<typeof validateDueDate>) =>
-  (r as { fieldErrors: Record<string, string> }).fieldErrors.lmp;
-const rejects = (r: DueDateComputed) => Number.isNaN(completeDueDateValue(r));
+const TODAY = '2026-06-01';
+const base: DueDateValues = {
+  method: 'lmp',
+  lmp: '2026-01-01',
+  cycleDays: '',
+  conception: '',
+  scanDate: '',
+  scanWeeks: '',
+  scanDays: '',
+  transferDate: '',
+  embryoAge: '5',
+  today: TODAY,
+};
+const v = (over: Partial<DueDateValues> = {}): DueDateValues => ({ ...base, ...over });
+const iso = (d: Date) =>
+  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 
-/* ------------------------------------------------------------------ */
-/* Contract                                                            */
-/* ------------------------------------------------------------------ */
+describe('the four methods', () => {
+  it('are the reference’s four, in its order', () => {
+    expect(DATING_METHODS.map((m) => m.label)).toEqual([
+      'Last Period',
+      'Conception Date',
+      'Ultrasound',
+      'IVF Transfer Date',
+    ]);
+  });
 
-describe('due-date binding — contract', () => {
-  it('does NOT define isUsableResult (the guard lives in resultValue)', () => {
-    expect(dueDateBinding.isUsableResult).toBeUndefined();
-    expect(dueDateBinding.resultValue).toBe(completeDueDateValue);
+  it('Last Period: 280 days on', () => {
+    expect(iso(computeDueDate(v()).dueDate)).toBe('2026-10-08');
+  });
+
+  it('Conception Date: the same due date, entered two weeks later', () => {
+    const byConception = computeDueDate(v({ method: 'conception', lmp: '', conception: '2026-01-15' }));
+    expect(iso(byConception.dueDate)).toBe('2026-10-08');
+    expect(byConception.lmpISO).toBe('2026-01-01');
+  });
+
+  it('Ultrasound: works the LMP backwards from the age the scan reported', () => {
+    // 8 weeks 3 days is 59 days; 59 days before 1 March 2026 is 1 January 2026.
+    const r = computeDueDate(v({ method: 'ultrasound', lmp: '', scanDate: '2026-03-01', scanWeeks: '8', scanDays: '3' }));
+    expect(r.lmpISO).toBe('2026-01-01');
+    expect(iso(r.dueDate)).toBe('2026-10-08');
+  });
+
+  it('IVF: a 5-day transfer is due sooner than a 3-day one, by two days', () => {
+    const day5 = computeDueDate(v({ method: 'ivf', lmp: '', transferDate: '2026-01-20', embryoAge: '5' }));
+    const day3 = computeDueDate(v({ method: 'ivf', lmp: '', transferDate: '2026-01-20', embryoAge: '3' }));
+    expect(iso(day5.dueDate)).toBe('2026-10-08');
+    expect(Math.round((day3.dueDate.getTime() - day5.dueDate.getTime()) / 86_400_000)).toBe(2);
+  });
+
+  it('each method reads ONLY its own fields', () => {
+    // A stale date left under another method must never move the answer.
+    const clean = computeDueDate(v({ method: 'conception', lmp: '', conception: '2026-01-15' }));
+    const littered = computeDueDate(
+      v({ method: 'conception', lmp: '2020-01-01', conception: '2026-01-15', scanDate: '2021-01-01', transferDate: '2019-01-01' }),
+    );
+    expect(iso(littered.dueDate)).toBe(iso(clean.dueDate));
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Validation — required + not in the future                          */
-/* ------------------------------------------------------------------ */
+describe('cycle length', () => {
+  it('is optional and defaults to the textbook cycle', () => {
+    expect(cycleError('')).toBe(null);
+    expect(iso(computeDueDate(v({ cycleDays: '' })).dueDate)).toBe(
+      iso(computeDueDate(v({ cycleDays: String(REFERENCE_CYCLE_DAYS) })).dueDate),
+    );
+  });
 
-describe('due-date binding — validation (required → strict calendar → not future)', () => {
-  it('accepts ordinary + leap + leading-zero + today dates', () => {
-    for (const d of ['2024-01-01', '2024-02-29', '2024-06-01', TODAY]) {
-      expect(ok(validateDueDate(v(d)))).toBe(true);
-    }
+  it('shifts the due date day for day when the cycle is not 28', () => {
+    const base28 = computeDueDate(v()).dueDate;
+    const long = computeDueDate(v({ cycleDays: '35' })).dueDate;
+    expect(Math.round((long.getTime() - base28.getTime()) / 86_400_000)).toBe(7);
   });
-  it('rejects empty input with the required message', () => {
-    expect(err(validateDueDate(v('')))).toBe('Enter the first day of your last menstrual period.');
-    expect(err(validateDueDate(v('   ')))).toBe('Enter the first day of your last menstrual period.');
-  });
-  it('rejects impossible / malformed / non-canonical dates with the invalid-calendar message', () => {
-    for (const bad of ['not-a-date', '2023-02-29', '2023-02-30', '2026-04-31', '2026-00-10', '2026-13-01', '2026-05-00', '2026-1-2', '20240101']) {
-      expect(err(validateDueDate(v(bad)))).toBe('Enter a valid last menstrual period date.');
-    }
-  });
-  it('rejects a future LMP with the future message', () => {
-    expect(err(validateDueDate(v('2024-07-01')))).toBe('Enter a last menstrual period date that is not in the future.');
-    expect(err(validateDueDate(v('2024-06-02')))).toMatch(/not in the future/);
-  });
-  it('accepts a historical LMP (no lower bound)', () => {
-    expect(ok(validateDueDate(v('2000-01-01')))).toBe(true);
-  });
-  it('applies precedence: required → invalid-calendar → future', () => {
-    expect(err(validateDueDate(v('')))).toMatch(/first day/); // required wins over "also not a date"
-    expect(err(validateDueDate({ lmp: '2027-02-30', today: TODAY }))).toBe('Enter a valid last menstrual period date.'); // impossible wins over future-year
-    expect(err(validateDueDate(v('2024-07-01')))).toMatch(/not in the future/); // valid-but-future
+
+  it('refuses a cycle that is not one', () => {
+    expect(cycleError(String(CYCLE_MIN - 1))).toBe(MSG.cycleRange);
+    expect(cycleError(String(CYCLE_MAX + 1))).toBe(MSG.cycleRange);
+    expect(cycleError('28.5')).toBe(MSG.cycleRange);
+    expect(cycleError('abc')).toBe(MSG.cycleRange);
+    expect(cycleError('28')).toBe(null);
   });
 });
 
-describe('due-date binding — strict calendar round-trip (isStrictCalendarDate)', () => {
-  it('accepts canonical valid dates (incl. leap day)', () => {
-    for (const d of ['2024-01-01', '2024-02-29', '2000-12-31']) expect(isStrictCalendarDate(d)).toBe(true);
+describe('the scan’s gestational age', () => {
+  it('accepts weeks, days, or both', () => {
+    expect(scanAgeError('12', '3')).toBe(null);
+    expect(scanAgeError('12', '')).toBe(null);
+    expect(scanAgeError('', '3')).toBe(null);
   });
-  it('rejects rollover / malformed input (the frozen primitive still rolls over — see due-date.test.ts)', () => {
-    for (const bad of ['2023-02-30', '2023-02-29', '2026-04-31', '2026-13-01', '2026-1-2', '', 'x']) {
-      expect(isStrictCalendarDate(bad)).toBe(false);
+  it('needs at least something, and something greater than nothing', () => {
+    expect(scanAgeError('', '')).toBe(MSG.scanAgeRequired);
+    expect(scanAgeError('0', '0')).toBe(MSG.scanAgeRequired);
+  });
+  it('keeps days inside a week and weeks inside a pregnancy', () => {
+    expect(scanAgeError('12', '7')).toBe(MSG.scanDaysRange);
+    expect(scanAgeError(String(SCAN_WEEKS_MAX + 1), '0')).toBe(MSG.scanWeeksRange);
+    expect(scanAgeError('-1', '0')).toBe(MSG.scanWeeksRange);
+  });
+});
+
+describe('validation asks only what the chosen method needs', () => {
+  it('Last Period needs an LMP and nothing else', () => {
+    expect(validateDueDate(v())).toEqual({ ok: true });
+    const missing = validateDueDate(v({ lmp: '' }));
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) {
+      expect(missing.fieldErrors!.lmp).toBe(MSG.lmpRequired);
+      expect(missing.fieldErrors!.conception).toBeUndefined();
+    }
+  });
+
+  it('Conception needs a conception date, not an LMP', () => {
+    expect(validateDueDate(v({ method: 'conception', lmp: '', conception: '2026-01-15' }))).toEqual({ ok: true });
+    const r = validateDueDate(v({ method: 'conception', lmp: '', conception: '' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.fieldErrors!.conception).toBe(MSG.conceptionRequired);
+  });
+
+  it('Ultrasound needs both the date and the age it reported', () => {
+    expect(
+      validateDueDate(v({ method: 'ultrasound', lmp: '', scanDate: '2026-03-01', scanWeeks: '12', scanDays: '0' })),
+    ).toEqual({ ok: true });
+    const r = validateDueDate(v({ method: 'ultrasound', lmp: '', scanDate: '2026-03-01' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.fieldErrors!.scanAge).toBe(MSG.scanAgeRequired);
+  });
+
+  it('IVF needs a transfer date', () => {
+    expect(validateDueDate(v({ method: 'ivf', lmp: '', transferDate: '2026-01-20' }))).toEqual({ ok: true });
+    const r = validateDueDate(v({ method: 'ivf', lmp: '', transferDate: '' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.fieldErrors!.transferDate).toBe(MSG.transferRequired);
+  });
+
+  it('applies required → a real calendar date → not in the future, in that order', () => {
+    const invalid = validateDueDate(v({ lmp: '2026-02-30' }));
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.fieldErrors!.lmp).toBe(MSG.lmpInvalid);
+
+    const future = validateDueDate(v({ lmp: '2026-07-01' }));
+    expect(future.ok).toBe(false);
+    if (!future.ok) expect(future.fieldErrors!.lmp).toBe(MSG.lmpFuture);
+  });
+
+  it('rejects a rolled-over or non-canonical date rather than reinterpreting it', () => {
+    expect(isStrictCalendarDate('2026-02-30')).toBe(false);
+    expect(isStrictCalendarDate('2026-13-01')).toBe(false);
+    expect(isStrictCalendarDate('2026-1-2')).toBe(false);
+    expect(isStrictCalendarDate('2026-01-02')).toBe(true);
+  });
+
+  it('no method is ever in the future', () => {
+    for (const [method, field, value] of [
+      ['conception', 'conception', '2026-07-01'],
+      ['ultrasound', 'scanDate', '2026-07-01'],
+      ['ivf', 'transferDate', '2026-07-01'],
+    ] as const) {
+      const r = validateDueDate(v({ method, lmp: '', [field]: value, scanWeeks: '12' } as Partial<DueDateValues>));
+      expect(r.ok).toBe(false);
     }
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Computation                                                         */
-/* ------------------------------------------------------------------ */
+describe('completeDueDateValue — the whole timeline or nothing', () => {
+  it('is finite for a complete entry in every method', () => {
+    const complete = [
+      v(),
+      v({ method: 'conception', lmp: '', conception: '2026-01-15' }),
+      v({ method: 'ultrasound', lmp: '', scanDate: '2026-03-01', scanWeeks: '12', scanDays: '0' }),
+      v({ method: 'ivf', lmp: '', transferDate: '2026-01-20' }),
+    ];
+    for (const values of complete) {
+      expect(Number.isFinite(completeDueDateValue(computeDueDate(values)))).toBe(true);
+      expect(computeDueDate(values).milestones).toHaveLength(6);
+    }
+  });
 
-describe('due-date binding — computation', () => {
-  it('ordinary LMP → due date, conception, gestational age, not past-due', () => {
-    const r = computeDueDate(v('2024-01-01'));
-    expect(longDate(r.dueDate)).toBe('Monday, October 7, 2024');
-    expect(r.age.totalDays).toBe(152); // 2024-01-01 → 2024-06-01
-    expect(r.age.weeks).toBe(21);
-    expect(r.age.days).toBe(5);
-    expect(r.age.trimester).toBe(2);
-    expect(r.pastDue).toBe(false);
+  it('is NaN when the method cannot resolve an LMP', () => {
+    expect(Number.isNaN(completeDueDateValue(computeDueDate(v({ lmp: '' }))))).toBe(true);
+    expect(Number.isNaN(resolveLmp(v({ lmp: '' })).getTime())).toBe(true);
+    expect(
+      Number.isNaN(completeDueDateValue(computeDueDate(v({ method: 'ivf', lmp: '', transferDate: '' })))),
+    ).toBe(true);
   });
-  it('same-day LMP → 0w 0d, not past-due', () => {
-    const r = computeDueDate(v('2024-06-01'));
-    expect(r.age.totalDays).toBe(0);
-    expect(r.pastDue).toBe(false);
+});
+
+describe('presentation', () => {
+  it('reports how far along and which trimester while the pregnancy is ongoing', () => {
+    const r = computeDueDate(v({ lmp: '2026-01-01', today: '2026-03-01' })); // 59 days
+    const view = presentDueDate(r);
+    expect(view.along).toBe('8w 3d');
+    expect(view.trimester).toBe('1st');
+    expect(view.interpretation).toContain('8 weeks and 3 days');
   });
-  it('historical LMP whose due date has passed → pastDue', () => {
-    const r = computeDueDate(v('2023-01-01'));
-    expect(longDate(r.dueDate)).toBe('Sunday, October 8, 2023');
+
+  it('says plainly when the date has passed, without an unbounded progress figure', () => {
+    const r = computeDueDate(v({ lmp: '2025-01-01', today: '2026-06-01' }));
+    const view = presentDueDate(r);
     expect(r.pastDue).toBe(true);
+    expect(view.along).toBe('—');
+    expect(view.trimester).toBe('—');
+    expect(view.interpretation).toContain('has passed');
+  });
+
+  it('announces the due date only, never the timeline', () => {
+    const s = describeDueDate(computeDueDate(v()));
+    expect(s).toBe('Estimated due date: Thursday, October 8, 2026.');
+    expect(s).not.toMatch(/trimester|conception/i);
+  });
+
+  it('announces that a past due date has passed — the one fact the em dashes hide', () => {
+    const s = describeDueDate(computeDueDate(v({ lmp: '2025-01-01', today: '2026-06-01' })));
+    expect(s).toContain('This estimated date has passed');
+  });
+
+  it('formats dates stably in UTC, long and short', () => {
+    const d = new Date(Date.UTC(2026, 9, 8));
+    expect(longDate(d)).toBe('Thursday, October 8, 2026');
+    expect(shortDate(d)).toBe('Oct 8, 2026');
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Complete-result guard                                               */
-/* ------------------------------------------------------------------ */
-
-describe('due-date binding — complete-result guard', () => {
-  it('returns the finite due-date timestamp for a well-formed ongoing result', () => {
-    const r = computeDueDate(v('2024-01-01'));
-    expect(completeDueDateValue(r)).toBe(r.dueDate.getTime());
+describe('the labelled example', () => {
+  it('is always a live pregnancy, never one that has quietly gone past due', () => {
+    const ex = dueDateExampleValues();
+    expect(ex.method).toBe('lmp');
+    const r = computeDueDate(ex);
+    expect(r.pastDue).toBe(false);
+    expect(r.age.weeks).toBe(10);
     expect(Number.isFinite(completeDueDateValue(r))).toBe(true);
   });
-  it('returns finite for a well-formed past-due result', () => {
-    const r = computeDueDate(v('2023-01-01'));
-    expect(Number.isFinite(completeDueDateValue(r))).toBe(true);
-  });
-  it('rejects an unparseable LMP', () => {
-    const r = computeDueDate(v('2024-01-01'));
-    expect(rejects({ ...r, lmpISO: '' })).toBe(true);
-  });
-  it('rejects a due date that does not reconcile with LMP+280', () => {
-    const r = computeDueDate(v('2024-01-01'));
-    expect(rejects({ ...r, dueDate: new Date(Number.NaN) })).toBe(true);
-    expect(rejects({ ...r, dueDate: new Date(Date.UTC(2099, 0, 1)) })).toBe(true);
-  });
-  it('rejects a conception date that does not reconcile with LMP+14', () => {
-    const r = computeDueDate(v('2024-01-01'));
-    expect(rejects({ ...r, conceptionDate: new Date(Date.UTC(2099, 0, 1)) })).toBe(true);
-  });
-  it('rejects an ongoing result whose gestational block is out of range', () => {
-    const r = computeDueDate(v('2024-01-01'));
-    expect(rejects({ ...r, age: { ...r.age, weeks: -1 } })).toBe(true);
-    expect(rejects({ ...r, age: { ...r.age, days: 9 } })).toBe(true);
-    expect(rejects({ ...r, age: { ...r.age, trimester: 5 as 1 } })).toBe(true);
-    expect(rejects({ ...r, age: { ...r.age, progressPct: 150 } })).toBe(true);
-    expect(rejects({ ...r, age: { ...r.age, totalDays: 300 } })).toBe(true); // > 280 but flagged ongoing
-  });
-  it('rejects an ongoing result whose gestational block does not reconcile with the engine', () => {
-    const r = computeDueDate(v('2024-01-01'));
-    expect(rejects({ ...r, age: { ...r.age, weeks: 99 } })).toBe(true);
+  it('leaves every other method’s fields empty', () => {
+    const ex = dueDateExampleValues();
+    expect([ex.conception, ex.scanDate, ex.scanWeeks, ex.scanDays, ex.transferDate, ex.cycleDays]).toEqual([
+      '', '', '', '', '', '',
+    ]);
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Presentation + announcement                                         */
-/* ------------------------------------------------------------------ */
-
-describe('due-date binding — presentation', () => {
-  it('ongoing: due date + how-far-along + trimester + ordinary interpretation', () => {
-    const p = presentDueDate(computeDueDate(v('2024-01-01')));
-    expect(p.pastDue).toBe(false);
-    expect(p.dueDate).toBe('Monday, October 7, 2024');
-    expect(p.along).toBe('21w 5d');
-    expect(p.trimester).toBe('2nd');
-    expect(p.interpretation).toBe('Based on the entered last menstrual period, the estimated due date is Monday, October 7, 2024.');
+describe('the binding wires the pure parts together', () => {
+  it('gates the result on the complete-timeline guard', () => {
+    expect(dueDateBinding.resultValue).toBe(completeDueDateValue);
+    expect(dueDateBinding.validate).toBe(validateDueDate);
+    expect(dueDateBinding.compute).toBe(computeDueDate);
   });
-  it('past-due: due date kept, progress suppressed, neutral interpretation', () => {
-    const p = presentDueDate(computeDueDate(v('2023-01-01')));
-    expect(p.pastDue).toBe(true);
-    expect(p.dueDate).toBe('Sunday, October 8, 2023');
-    expect(p.along).toBe('—');
-    expect(p.trimester).toBe('—');
-    expect(p.interpretation).toBe('The estimated due date has passed. Check the entered date if this is unexpected.');
-  });
-});
-
-describe('due-date binding — announcement (dominant only)', () => {
-  it('ordinary announces the due date', () => {
-    expect(describeDueDate(computeDueDate(v('2024-01-01')))).toBe('Estimated due date: Monday, October 7, 2024.');
-  });
-  it('past-due announces the due date plus a passed note', () => {
-    expect(describeDueDate(computeDueDate(v('2023-01-01')))).toBe('Estimated due date: Sunday, October 8, 2023. This estimated date has passed.');
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* readValues / resetValues (mock root — no DOM in node vitest)         */
-/* ------------------------------------------------------------------ */
-
-describe('due-date binding — readValues / resetValues', () => {
-  const mockRoot = (lmp: string) => {
-    const input = { value: lmp };
-    return {
-      querySelector: (sel: string) => (sel === '[name="lmp"]' ? input : null),
-      __input: input,
-    } as unknown as HTMLElement & { __input: { value: string } };
-  };
-
-  it('reads the LMP and seeds today from the local calendar (ISO)', () => {
-    const read = dueDateBinding.readValues(mockRoot('2024-03-15'));
-    expect(read.lmp).toBe('2024-03-15');
-    expect(read.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(read.today).toBe(todayISO());
-  });
-  it('reset clears the LMP field', () => {
-    const root = mockRoot('2024-03-15');
-    dueDateBinding.resetValues(root, 'personal');
-    expect((root as unknown as { __input: { value: string } }).__input.value).toBe('');
+  it('offers both embryo ages', () => {
+    expect(EMBRYO_AGES.map((e) => e.label)).toEqual(['3-day embryo', '5-day embryo']);
   });
 });
