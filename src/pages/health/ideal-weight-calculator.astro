@@ -17,6 +17,11 @@ const faqs = [
       'Each formula starts from a base weight at 5 feet of height and adds a fixed amount per inch above that. The Devine formula, for example, is 50 kg + 2.3 kg per inch over 5 ft for men (45.5 kg for women), so a 5\'10" man works out to about 73 kg (161 lb).',
   },
   {
+    question: 'Can I use this for a child?',
+    answer:
+      'The calculator accepts ages 2 to 80, but the four formulas were all derived on adults, so below 18 it tells you they do not apply rather than printing a number. For children and teenagers, healthy weight is assessed from BMI-for-age percentiles — a child\'s body fat changes with age, and boys and girls differ as they mature — so use the BMI calculator instead.',
+  },
+  {
     question: 'Why do the formulas only use height and sex?',
     answer:
       'These classic formulas estimate a reference weight from height and sex alone. They do not account for body frame, muscle mass or age, which is why the healthy-BMI range is also shown for context.',
@@ -24,12 +29,12 @@ const faqs = [
   {
     question: 'How much should I weigh for my height?',
     answer:
-      'Rather than one number, aim for the range that corresponds to a healthy BMI of 18.5–24.9 for your height, which the calculator shows alongside the formula estimates. A wider frame or more muscle can place a healthy weight toward or above the top of that range.',
+      'Rather than one number, aim for the range that corresponds to a healthy BMI of 18.5 to 25 for your height, which the calculator shows as its own row alongside the formula estimates. A wider frame or more muscle can place a healthy weight toward or above the top of that range.',
   },
   {
     question: 'Is ideal weight the same as a healthy weight?',
     answer:
-      'Not exactly. "Ideal body weight" formulas were originally created for medication dosing and clinical use. A healthy weight is better described as a range — which is why we also show the weights corresponding to a BMI of 18.5–24.9.',
+      'Not exactly. "Ideal body weight" formulas were originally created for medication dosing and clinical use. A healthy weight is better described as a range — which is why we also show the weights corresponding to a BMI of 18.5 to 25.',
   },
 ];
 ---
@@ -37,19 +42,35 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Estimate your ideal body weight from height and sex using four established formulas (Robinson, Miller, Devine, Hamwi), plus the healthy weight range for your height."
+  intro="Estimate your ideal body weight from age, gender and height using four established formulas (Robinson, Miller, Devine, Hamwi), plus the healthy weight range for your height."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-18' }}
+  reviewMetadata={{ reviewedDate: '2026-08-28' }}
 >
   <IdealWeightCalculator />
 
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Select your <strong>sex</strong> and choose <strong>Metric</strong> or <strong>Imperial</strong> units.</li>
-      <li>Enter your <strong>height</strong>.</li>
-      <li>Press <strong>Calculate</strong> to see four ideal-weight estimates side by side, plus the healthy weight range for your height.</li>
+      <li>Choose <strong>US Units</strong> or <strong>Metric Units</strong>. Switching converts a height you have already typed rather than clearing it.</li>
+      <li>Enter your <strong>age</strong> and select your <strong>gender</strong>.</li>
+      <li>Enter your <strong>height</strong> — feet and inches in US units, centimetres in metric.</li>
+      <li>Press <strong>Calculate</strong> to see the four ideal-weight estimates side by side, plus the healthy weight range for your height.</li>
     </ol>
+    <p>
+      <strong>Other Units</strong> opens a small converter above the calculator. It is not a third
+      unit system: use it when your scales read in stones or your tape reads in metres, then type
+      the converted figure into the boxes. The calculator stays on whichever system you chose.
+    </p>
+
+    <h2>Why it asks your age</h2>
+    <p>
+      Age changes none of the four formulas — they use height and sex only. It decides whether they
+      apply at all. All four were derived on adults, so below 18 they are the wrong instrument, and
+      the calculator says so instead of printing a number. For children and teenagers, healthy
+      weight is judged from BMI-for-age percentiles, which account for the way body composition
+      changes as a child grows; the <a href="/health/bmi-calculator">BMI calculator</a> is the tool
+      for that.
+    </p>
 
     <h2>What "ideal body weight" means</h2>
     <p>
@@ -92,10 +113,10 @@ const faqs = [
 
     <h2>The healthy-BMI range for context</h2>
     <p>
-      Alongside the formulas, the calculator shows the weights that correspond to a healthy BMI of
-      18.5–24.9 for your height. For 5 ft 10 in that is roughly <strong>58.5 kg to 78.7 kg</strong>
-      (about 129–174 lb) — a wider span than the formulas, and a reminder that healthy weight is a
-      range, not a single point.
+      Alongside the formulas, the calculator shows the weights that correspond to a BMI of 18.5 to
+      25 at your height — the bottom and the top of the healthy band. For 5 ft 10 in that is
+      <strong>128.9 lb to 174.2 lb</strong> (about 58.5–79.0 kg): a wider span than the formulas
+      give, and a reminder that healthy weight is a range, not a single point.
     </p>
 
     <h2>Beyond height and sex</h2>

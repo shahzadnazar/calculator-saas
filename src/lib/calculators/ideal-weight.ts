@@ -1,10 +1,28 @@
 /**
  * Ideal body weight via four established formulas, plus a healthy-BMI range.
  * Pure and unit-tested. All formulas take height over 5 ft (60 in).
+ *
+ * Each formula sets a base weight for a 60-inch frame and adds a fixed amount per inch
+ * above it; they differ only in those two constants. None of them uses age — the age the
+ * calculator asks for decides whether the adult formulas APPLY at all, not what they say.
  */
 
 export type Sex = 'male' | 'female';
 export type UnitSystem = 'metric' | 'imperial';
+
+/**
+ * The four formulas were derived on adults, so the reference product's own note applies:
+ * below 18 they are the wrong instrument, and BMI-for-age percentiles are the right one.
+ */
+export const ADULT_MIN_AGE = 18;
+
+/** The age span the calculator accepts, matching the reference's "ages 2 - 80". */
+export const AGE_MIN = 2;
+export const AGE_MAX = 80;
+
+/** The healthy-BMI band the range row is drawn from. */
+export const HEALTHY_BMI_MIN = 18.5;
+export const HEALTHY_BMI_MAX = 25;
 
 export interface IdealWeightInput {
   sex: Sex;
@@ -20,7 +38,7 @@ export interface IdealWeightResult {
   miller: number;
   devine: number;
   hamwi: number;
-  /** Healthy weight range from BMI 18.5–24.9. */
+  /** Healthy weight range from BMI 18.5–25. */
   bmiMin: number;
   bmiMax: number;
 }
@@ -40,8 +58,8 @@ export function calculateIdealWeight(input: IdealWeightInput): IdealWeightResult
   const round = (v: number) => Math.round(v * 10) / 10;
 
   const meters = heightCm / 100;
-  const bmiMinKg = 18.5 * meters * meters;
-  const bmiMaxKg = 24.9 * meters * meters;
+  const bmiMinKg = HEALTHY_BMI_MIN * meters * meters;
+  const bmiMaxKg = HEALTHY_BMI_MAX * meters * meters;
 
   if (heightCm <= 0) {
     return { unit: input.system === 'imperial' ? 'lb' : 'kg', robinson: NaN, miller: NaN, devine: NaN, hamwi: NaN, bmiMin: NaN, bmiMax: NaN };

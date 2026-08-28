@@ -1,0 +1,122 @@
+---
+/**
+ * The "Other Units" converter panel.
+ *
+ * Sits ABOVE the calculator it serves, because its whole job is to give the visitor a
+ * number to type into the boxes below. Opening it never changes the calculator's own unit
+ * system — it is a helper, not a mode.
+ *
+ * Markup only. `mountUnitConverterPanel` (@lib/calculators/unit-converter-panel) owns the
+ * behaviour and finds every part through the `data-conv-*` hooks below. The toggle button
+ * lives in the host calculator's tab strip and carries `data-converter-toggle` plus
+ * `aria-controls` pointing at this panel's `id`.
+ */
+import { CONVERTER_CATEGORIES, converterCategoryLabel } from '@lib/calculators/unit-converter-panel';
+
+interface Props {
+  /** Panel id — the host's toggle points at this with aria-controls. */
+  id: string;
+}
+const { id } = Astro.props;
+---
+
+<section class="uconv" id={id} data-converter hidden aria-label="Unit converter">
+  <p class="uconv__lede">Use this converter to convert to the unit accepted by the calculator.</p>
+  <div class="uconv__cats" role="tablist" aria-label="Conversion category">
+    {CONVERTER_CATEGORIES.map((c, i) => (
+      <button type="button" class="uconv__cat" role="tab" data-conv-cat={c.key} aria-selected={i === 0 ? 'true' : 'false'}>
+        {converterCategoryLabel(c.key, c.label)}
+      </button>
+    ))}
+  </div>
+  <div class="uconv__grid">
+    <div class="uconv__side">
+      <label class="uconv__label" for={`${id}-from-value`}>From:</label>
+      <input class="field uconv__value" id={`${id}-from-value`} type="number" step="any" inputmode="decimal" autocomplete="off" data-conv-from-value />
+      <select class="field uconv__list" size="5" aria-label="Convert from unit" data-conv-from-unit></select>
+    </div>
+    <div class="uconv__side">
+      <label class="uconv__label" for={`${id}-to-value`}>To:</label>
+      <input class="field uconv__value" id={`${id}-to-value`} type="number" step="any" inputmode="decimal" autocomplete="off" data-conv-to-value />
+      <select class="field uconv__list" size="5" aria-label="Convert to unit" data-conv-to-unit></select>
+    </div>
+  </div>
+  <p class="uconv__out" data-conv-sentence aria-live="polite"></p>
+</section>
+
+<style>
+  .uconv {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    background: var(--subtle);
+  }
+  .uconv__lede {
+    margin: 0 0 0.7rem;
+    font-size: 0.84rem;
+    color: var(--fg);
+  }
+  .uconv__cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.8rem;
+  }
+  .uconv__cat {
+    min-height: 2.75rem;
+    padding: 0 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    background: var(--card);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .uconv__cat[aria-selected='true'] {
+    border-color: var(--color-brand-600);
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+  .uconv__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .uconv__side {
+    min-width: 0;
+  }
+  .uconv__label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--heading);
+    margin-bottom: 0.25rem;
+  }
+  .uconv__value {
+    width: 100%;
+    min-height: 2.75rem;
+    border-radius: 0.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .uconv__list {
+    width: 100%;
+    margin-top: 0.35rem;
+    border-radius: 0.5rem;
+    font-size: 0.84rem;
+    padding: 0.2rem;
+  }
+  .uconv__out {
+    margin: 0.7rem 0 0;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--heading);
+    min-height: 1.2rem;
+  }
+  @media (max-width: 30rem) {
+    .uconv__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

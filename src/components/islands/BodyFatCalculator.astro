@@ -8,16 +8,16 @@
  * visitor measured a body, not a number, and the tape does not change when the label above
  * the box does. Clearing their work to change units would be the rude answer.
  *
- * "Other Units" is not a third system. It opens a unit converter ABOVE the calculator, so
- * someone whose scales read in stones can turn that into a figure the boxes accept. The
- * converter reuses the site's own tested `CATEGORIES` / `convert` — no second table of
- * factors to drift out of step with the conversion calculator.
+ * "Other Units" is not a third system. It opens the shared `UnitConverterPanel` ABOVE the
+ * calculator, so someone whose scales read in stones can turn that into a figure the boxes
+ * accept. That panel reuses the site's own tested `CATEGORIES` / `convert`, so there is no
+ * second table of factors to drift out of step with the conversion calculator.
  *
  * The hip box exists only for women, because only the female formula uses it, and it is
  * emptied on the way out so invisible state can never reach a result.
  */
 import { UNIT_TABS, REPORT_ROWS, CATEGORY_BANDS } from '@lib/calculators/body-fat-form';
-import { CATEGORIES } from '@lib/calculators/conversion';
+import UnitConverterPanel from '@components/calc/UnitConverterPanel.astro';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -46,10 +46,6 @@ const UNIT_LABELS: Record<string, Record<string, [string, string | null]>> = {
   },
 };
 
-/** The converter panel's categories, in the reference's order, from our own engine. */
-const CONVERTER_ORDER = ['length', 'temperature', 'area', 'volume', 'mass'];
-const CONVERTER_CATEGORIES = CONVERTER_ORDER.map((k) => CATEGORIES.find((c) => c.key === k)!).filter(Boolean);
-
 const MEASUREMENTS: { name: string; part: string; label: string; id: string }[] = [
   { name: 'weight', part: 'weightLb', label: 'Weight', id: 'bf-weight' },
   { name: 'height', part: 'heightIn', label: 'Height', id: 'bf-height' },
@@ -75,31 +71,7 @@ const GAUGES = { male: gaugeFor('male'), female: gaugeFor('female') };
 ---
 
 <div class="bfwrap mx-auto w-full max-w-4xl" data-body-fat>
-  <!-- The converter, opened by the "Other Units" tab. Sits ABOVE the calculator, because
-       its whole job is to give you a number to type into the boxes below. -->
-  <section class="bf-conv" id="bf-converter" data-converter hidden aria-label="Unit converter">
-    <p class="bf-conv__lede">Use this converter to convert to the unit accepted by the calculator.</p>
-    <div class="bf-conv__cats" role="tablist" aria-label="Conversion category">
-      {CONVERTER_CATEGORIES.map((c, i) => (
-        <button type="button" class="bf-conv__cat" role="tab" data-conv-cat={c.key} aria-selected={i === 0 ? 'true' : 'false'}>
-          {c.key === 'mass' ? 'Weight' : c.label}
-        </button>
-      ))}
-    </div>
-    <div class="bf-conv__grid">
-      <div class="bf-conv__side">
-        <label class="bf-conv__label" for="bf-conv-from-value">From:</label>
-        <input class="field bf-conv__value" id="bf-conv-from-value" type="number" step="any" inputmode="decimal" autocomplete="off" data-conv-from-value />
-        <select class="field bf-conv__list" size="5" aria-label="Convert from unit" data-conv-from-unit></select>
-      </div>
-      <div class="bf-conv__side">
-        <label class="bf-conv__label" for="bf-conv-to-value">To:</label>
-        <input class="field bf-conv__value" id="bf-conv-to-value" type="number" step="any" inputmode="decimal" autocomplete="off" data-conv-to-value />
-        <select class="field bf-conv__list" size="5" aria-label="Convert to unit" data-conv-to-unit></select>
-      </div>
-    </div>
-    <p class="bf-conv__out" data-conv-sentence aria-live="polite"></p>
-  </section>
+  <UnitConverterPanel id="bf-converter" />
 
   <div class="bfcalc grid gap-6 md:grid-cols-2 md:items-start">
   <!-- Inputs -->
@@ -219,82 +191,6 @@ const GAUGES = { male: gaugeFor('male'), female: gaugeFor('female') };
 </div>
 
 <style>
-  /* Converter ------------------------------------------------------ */
-  .bf-conv {
-    margin-bottom: 1rem;
-    padding: 0.9rem 1rem 1rem;
-    border: 1px solid var(--line);
-    border-radius: 0.75rem;
-    background: var(--subtle);
-  }
-  .bf-conv__lede {
-    margin: 0 0 0.7rem;
-    font-size: 0.84rem;
-    color: var(--fg);
-  }
-  .bf-conv__cats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    margin-bottom: 0.8rem;
-  }
-  .bf-conv__cat {
-    min-height: 2.75rem;
-    padding: 0 0.8rem;
-    border: 1px solid var(--line);
-    border-radius: 0.5rem;
-    background: var(--card);
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--fg);
-    cursor: pointer;
-  }
-  .bf-conv__cat[aria-selected='true'] {
-    border-color: var(--color-brand-600);
-    background: var(--color-brand-600);
-    color: #fff;
-  }
-  .bf-conv__grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-  .bf-conv__side {
-    min-width: 0;
-  }
-  .bf-conv__label {
-    display: block;
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--heading);
-    margin-bottom: 0.25rem;
-  }
-  .bf-conv__value {
-    width: 100%;
-    min-height: 2.75rem;
-    border-radius: 0.5rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .bf-conv__list {
-    width: 100%;
-    margin-top: 0.35rem;
-    border-radius: 0.5rem;
-    font-size: 0.84rem;
-    padding: 0.2rem;
-  }
-  .bf-conv__out {
-    margin: 0.7rem 0 0;
-    font-size: 0.84rem;
-    font-weight: 600;
-    color: var(--heading);
-    min-height: 1.2rem;
-  }
-  @media (max-width: 30rem) {
-    .bf-conv__grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-
   .bf-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -576,7 +472,7 @@ const GAUGES = { male: gaugeFor('male'), female: gaugeFor('female') };
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { CATEGORIES, convert } from '@lib/calculators/conversion';
+  import { mountUnitConverterPanel } from '@lib/calculators/unit-converter-panel';
   import {
     bodyFatBinding,
     convertMeasurements,
@@ -667,95 +563,8 @@ const GAUGES = { male: gaugeFor('male'), female: gaugeFor('female') };
     );
     syncGauge();
 
-    /* ---------------------------------------------------------------
-     * The "Other Units" converter.
-     *
-     * It reuses the site's own CATEGORIES and convert(), so there is exactly one table of
-     * conversion factors on this site and this panel can never drift away from the
-     * conversion calculator.
-     * ------------------------------------------------------------- */
-    const panel = root.querySelector<HTMLElement>('[data-converter]');
-    const toggle = root.querySelector<HTMLButtonElement>('[data-converter-toggle]');
-    const fromValue = root.querySelector<HTMLInputElement>('[data-conv-from-value]');
-    const toValue = root.querySelector<HTMLInputElement>('[data-conv-to-value]');
-    const fromUnit = root.querySelector<HTMLSelectElement>('[data-conv-from-unit]');
-    const toUnit = root.querySelector<HTMLSelectElement>('[data-conv-to-unit]');
-    const sentence = root.querySelector<HTMLElement>('[data-conv-sentence]');
-
-    if (panel && toggle && fromValue && toValue && fromUnit && toUnit) {
-      let category = 'length';
-
-      const fillUnits = () => {
-        const cat = CATEGORIES.find((c) => c.key === category);
-        if (!cat) return;
-        for (const select of [fromUnit, toUnit]) {
-          select.replaceChildren();
-          for (const u of cat.units) {
-            const opt = document.createElement('option');
-            opt.value = u.key;
-            opt.textContent = u.label;
-            select.append(opt);
-          }
-        }
-        fromUnit.selectedIndex = 0;
-        toUnit.selectedIndex = Math.min(1, cat.units.length - 1);
-      };
-
-      const label = (select: HTMLSelectElement) => select.selectedOptions[0]?.textContent ?? '';
-
-      /** Convert in the direction the visitor last typed. */
-      const run = (direction: 'forward' | 'back') => {
-        const source = direction === 'forward' ? fromValue : toValue;
-        const target = direction === 'forward' ? toValue : fromValue;
-        const a = direction === 'forward' ? fromUnit : toUnit;
-        const b = direction === 'forward' ? toUnit : fromUnit;
-        const raw = source.value.trim();
-        if (raw === '') {
-          target.value = '';
-          if (sentence) sentence.textContent = '';
-          return;
-        }
-        const n = Number(raw);
-        if (!Number.isFinite(n)) {
-          target.value = '';
-          if (sentence) sentence.textContent = 'Enter a number to convert.';
-          return;
-        }
-        const out = convert(n, a.value, b.value, category);
-        if (!Number.isFinite(out)) {
-          target.value = '';
-          if (sentence) sentence.textContent = 'Those two units cannot be converted.';
-          return;
-        }
-        const rounded = Math.round(out * 1e6) / 1e6;
-        target.value = String(rounded);
-        if (sentence) sentence.textContent = `${n} ${label(a)} = ${rounded} ${label(b)}`;
-      };
-
-      toggle.addEventListener('click', () => {
-        const open = panel.hidden;
-        panel.hidden = !open;
-        toggle.setAttribute('aria-expanded', String(open));
-        if (open) fromValue.focus();
-      });
-
-      root.querySelectorAll<HTMLButtonElement>('[data-conv-cat]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          category = btn.dataset.convCat ?? 'length';
-          root.querySelectorAll<HTMLElement>('[data-conv-cat]').forEach((b) =>
-            b.setAttribute('aria-selected', String(b === btn)),
-          );
-          fillUnits();
-          run('forward');
-        });
-      });
-
-      fromValue.addEventListener('input', () => run('forward'));
-      toValue.addEventListener('input', () => run('back'));
-      fromUnit.addEventListener('change', () => run('forward'));
-      toUnit.addEventListener('change', () => run('forward'));
-      fillUnits();
-    }
+    // The "Other Units" converter, shared with the ideal-weight calculator.
+    mountUnitConverterPanel(root);
 
     // Blank the report whenever the shell leaves the valid state, so nothing stale lingers.
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
