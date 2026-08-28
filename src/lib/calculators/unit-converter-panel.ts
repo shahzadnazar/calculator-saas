@@ -1,5 +1,11 @@
 /**
- * The "Other Units" converter panel — shared behaviour.
+ * The "Other Units" converters — shared behaviour.
+ *
+ * Two shapes, because the reference product uses two. `mountUnitConverterPanel` drives the
+ * five-category panel (body fat, ideal weight); `mountFieldConverters` drives the small
+ * per-field converters some calculators use instead — one row per quantity the calculator
+ * asks for, each with its own From and To unit and its own answer line.
+ *
  *
  * Several reference calculators put a small unit converter above the tool rather than
  * inside it: a third tab that is not a third unit system, but a helper for someone whose
@@ -116,4 +122,84 @@ export function mountUnitConverterPanel(root: HTMLElement): void {
   fromUnit.addEventListener('change', () => run('forward'));
   toUnit.addEventListener('change', () => run('forward'));
   fillUnits();
+}
+
+/* ------------------------------------------------------------------ */
+/* The per-field converters ("Height Converter" / "Weight Converter")  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Wire the per-field converters inside `root`: the toggle that opens the panel, the close
+ * button, and one row per `[data-fieldconv]` — a value box, a From unit, a To unit, a
+ * convert button and the line that answers.
+ *
+ * Each row names its own conversion category through `data-fieldconv-category`, so a height
+ * row offers lengths and a weight row offers masses; both read the same shared CATEGORIES.
+ * Unlike the five-category panel this one answers only when ASKED — the reference's rows
+ * have a convert button and the answer stays put until you press it again.
+ *
+ * A no-op when the panel is absent.
+ */
+export function mountFieldConverters(root: HTMLElement): void {
+  const panel = root.querySelector<HTMLElement>('[data-converter]');
+  const toggle = root.querySelector<HTMLButtonElement>('[data-converter-toggle]');
+  if (!panel || !toggle) return;
+
+  const setOpen = (open: boolean) => {
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+  };
+
+  toggle.addEventListener('click', () => {
+    const open = panel.hidden;
+    setOpen(open);
+    if (open) panel.querySelector<HTMLInputElement>('[data-fieldconv-value]')?.focus();
+  });
+
+  root.querySelector<HTMLButtonElement>('[data-converter-close]')?.addEventListener('click', () => {
+    setOpen(false);
+    toggle.focus();
+  });
+
+  for (const rowEl of root.querySelectorAll<HTMLElement>('[data-fieldconv]')) {
+    const category = rowEl.dataset.fieldconvCategory ?? 'length';
+    const value = rowEl.querySelector<HTMLInputElement>('[data-fieldconv-value]');
+    const from = rowEl.querySelector<HTMLSelectElement>('[data-fieldconv-from]');
+    const to = rowEl.querySelector<HTMLSelectElement>('[data-fieldconv-to]');
+    const go = rowEl.querySelector<HTMLButtonElement>('[data-fieldconv-go]');
+    const out = rowEl.querySelector<HTMLElement>('[data-fieldconv-out]');
+    if (!value || !from || !to || !go || !out) continue;
+
+    const label = (select: HTMLSelectElement) => select.selectedOptions[0]?.textContent ?? '';
+
+    const run = () => {
+      const raw = value.value.trim();
+      if (raw === '') {
+        out.textContent = '';
+        return;
+      }
+      const n = Number(raw);
+      if (!Number.isFinite(n)) {
+        out.textContent = 'Enter a number to convert.';
+        return;
+      }
+      const converted = convert(n, from.value, to.value, category);
+      if (!Number.isFinite(converted)) {
+        out.textContent = 'Those two units cannot be converted.';
+        return;
+      }
+      out.textContent = `${n} ${label(from)} = ${Math.round(converted * 1e6) / 1e6} ${label(to)}`;
+    };
+
+    go.addEventListener('click', run);
+    // Enter inside the box is the same request as pressing the button, and must not
+    // submit the calculator's form.
+    value.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      run();
+    });
+    // A changed unit invalidates the answer on screen; blank it rather than leave a stale one.
+    for (const select of [from, to]) select.addEventListener('change', () => (out.textContent = ''));
+  }
 }
