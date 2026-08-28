@@ -90,7 +90,12 @@ const STRUCTURAL_DEFAULTS: Record<string, string> = {
   futureSavingsPct: 'retirement: the documented share-of-income-saved assumption',
   hoursPerWeek: 'salary: documented work-week assumption',
   daysPerWeek: 'salary: documented work-week assumption',
-  weeksPerYear: 'salary: documented work-week assumption',
+  // Salary's time-off assumptions, on the same footing as the work-week ones: the
+  // reference product's own 10 holidays and 15 vacation days, not the visitor's figures.
+  // Without them the adjusted column has nothing to say, and a blank is not a neutral
+  // state but an unanswerable one. The salary amount itself still loads empty.
+  holidaysPerYear: 'salary: the documented holidays-per-year assumption',
+  vacationDaysPerYear: 'salary: the documented vacation-days assumption',
   min: 'random number: generator range default',
   max: 'random number: generator range default',
   count: 'random number: generator count default',
