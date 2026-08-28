@@ -1,114 +1,82 @@
 /**
- * Tip form binding (R9B1 — standard-form wave, calculator #18; product family FINANCE-SIMPLE,
- * on the standard-form runtime UNCHANGED — no `isUsableResult`).
+ * Tip bindings — TWO independent calculators on one page, each its own `<form data-equation>`
+ * on the shared equation runtime, the way the percentage and inflation pages already work.
  *
- * Single mode, no structural selectors. Bill + tip percentage + number of people →
- * total-per-person (dominant) plus a tip / total-bill / tip-per-person breakdown. The pure
- * `calculateTip` is UNCHANGED and frozen by tip.test.ts; everything here is at the VALIDATION /
- * PRESENTATION boundary. Product decisions (R9B1):
- *   • Bill and tip percentage are required, finite and >= 0 (an explicit 0 is valid; empty and
- *     negative / non-finite are not). Number of people is required, finite, a WHOLE number >= 1 —
- *     a fractional / zero / negative entry is REJECTED at the interaction layer, never silently
- *     floored (the formula's own max(1, floor(...)) is a backstop, never the visitor's experience).
- *   • Total per person is the DOMINANT result; tip amount, total bill and tip-per-person are the
- *     subordinate breakdown. All four formula outputs are represented; all are finite and >= 0 for
- *     the validated domain, so the default finite gate suffices and `isUsableResult` is NOT used.
- *   • USD only — amounts are US dollars; the announcement is spoken in dollars/cents.
+ *   1. `quick`  — one price in, every customary percentage out as a table. Nobody arrives
+ *                 knowing exactly what rate they want; they want to see the options priced.
+ *   2. `shared` — price, tip percentage and number of people, split down to what each person
+ *                 actually hands over.
  *
- * The tip-percentage PRESET quick-set buttons are entirely ISLAND-owned markup: they write into
- * the tip-percentage field and dispatch its normal input event, so this binding never sees a
- * preset — it only ever reads the numeric tip field. No preset runtime / abstraction exists.
+ * Both run on `calculateTip` / `tipTable` (tip.ts). `calculateTip` is UNCHANGED and still
+ * frozen by tip.test.ts, because the tip reference table is built from it.
  */
-import { calculateTip } from './tip';
+import { CUSTOMARY_TIP_PCT, calculateTip, tipTable, type TipResult, type TipTableRow } from './tip';
 import { formatCurrency } from '@lib/format';
 import type {
-  FormCalculatorBinding,
-  FormRenderContext,
-  ResetMode,
+  EquationCalculatorBinding,
+  EquationRenderContext,
   ValidationResult,
-} from '@lib/result/form-runtime';
+} from '@lib/result/equation-runtime';
 
-export interface TipValues {
-  bill: string;
-  tipPct: string;
-  people: string;
-}
+export { CUSTOMARY_TIP_PCT, TIP_PERCENTAGES } from './tip';
 
-/** Structured result — carries the normalized whole people count so presentation can build the
- *  split interpretation without re-reading the DOM. Always finite and >= 0 for the validated domain. */
-export interface TipComputed {
-  tipAmount: number;
-  total: number;
-  perPersonTip: number;
-  perPersonTotal: number;
-  people: number;
-}
+export const MSG = {
+  priceRequired: 'Enter a price.',
+  priceInvalid: 'Enter a price of zero or more.',
+  tipRequired: 'Enter a tip percentage.',
+  tipInvalid: 'Enter a tip percentage of zero or more.',
+  peopleRequired: 'Enter the number of people.',
+  peopleInvalid: 'Enter a whole number of people, one or more.',
+} as const;
+
+/** Structural defaults: the customary rate, and a bill that splits one way. */
+export const DEFAULT_TIP_PCT = String(CUSTOMARY_TIP_PCT);
+export const DEFAULT_PEOPLE = '1';
 
 /* ------------------------------------------------------------------ */
-/* Parsing + validation (pure)                                         */
+/* Parsing — strict, never Number(v) || 0                              */
 /* ------------------------------------------------------------------ */
 
-type NumParse = 'empty' | 'invalid' | number;
+type Parsed = 'empty' | 'invalid' | number;
 
-/** Finite and >= 0. An explicit 0 is valid; empty and negative / non-finite are not. */
-function parseNonNegative(raw: string): NumParse {
-  const t = raw.trim();
+export function parseMoney(raw: string): Parsed {
+  const t = (raw ?? '').trim().replace(/[$,]/g, '');
   if (t === '') return 'empty';
   const n = Number(t);
   if (!Number.isFinite(n) || n < 0) return 'invalid';
   return n;
 }
 
-/** Finite WHOLE number, at least 1. A fractional / zero / negative entry is rejected, not floored. */
-function parseWholeAtLeastOne(raw: string): NumParse {
-  const t = raw.trim();
+export function parsePercent(raw: string): Parsed {
+  const t = (raw ?? '').trim().replace(/%/g, '');
   if (t === '') return 'empty';
   const n = Number(t);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return 'invalid';
+  if (!Number.isFinite(n) || n < 0) return 'invalid';
   return n;
 }
 
-/** Validate tip values. Bill (>= 0), tip percentage (>= 0) and people (whole >= 1) are all
- *  required. Distinguishes an empty field from an entered 0. */
-export function validateTipValues(values: TipValues): ValidationResult {
-  const fieldErrors: Record<string, string> = {};
-
-  const bill = parseNonNegative(values.bill);
-  if (bill === 'empty') fieldErrors.bill = 'Enter a bill amount.';
-  else if (bill === 'invalid') fieldErrors.bill = 'Enter a bill amount of zero or more.';
-
-  const tipPct = parseNonNegative(values.tipPct);
-  if (tipPct === 'empty') fieldErrors.tipPct = 'Enter a tip percentage.';
-  else if (tipPct === 'invalid') fieldErrors.tipPct = 'Enter a tip percentage of zero or more.';
-
-  const people = parseWholeAtLeastOne(values.people);
-  if (people === 'empty') fieldErrors.people = 'Enter the number of people.';
-  else if (people === 'invalid') fieldErrors.people = 'Enter a whole number of at least 1.';
-
-  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+export function parsePeople(raw: string): Parsed {
+  const t = (raw ?? '').trim();
+  if (t === '') return 'empty';
+  const n = Number(t);
+  if (!Number.isInteger(n) || n < 1) return 'invalid';
+  return n;
 }
 
-/* ------------------------------------------------------------------ */
-/* Computation (pure)                                                  */
-/* ------------------------------------------------------------------ */
+const readField = (root: HTMLElement, name: string): string =>
+  root.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value ?? '';
 
-export function computeTip(values: TipValues): TipComputed {
-  const people = Number(values.people);
-  const r = calculateTip({ bill: Number(values.bill), tipPct: Number(values.tipPct), people });
-  return {
-    tipAmount: r.tipAmount,
-    total: r.total,
-    perPersonTip: r.perPersonTip,
-    perPersonTotal: r.perPersonTotal,
-    people,
-  };
+function clearField(root: HTMLElement, name: string, to = ''): void {
+  const el = root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+  if (el) el.value = to;
 }
 
-/* ------------------------------------------------------------------ */
-/* Presentation (pure)                                                 */
-/* ------------------------------------------------------------------ */
+function setText(scope: HTMLElement, sel: string, text: string): void {
+  const el = scope.querySelector<HTMLElement>(sel);
+  if (el) el.textContent = text;
+}
 
-/** A USD amount in spoken form, e.g. "59 dollars", "29 dollars and 50 cents". */
+/** A USD amount spoken aloud, e.g. "63 dollars and 25 cents". */
 export function spokenUSD(value: number): string {
   const cents = Math.round(value * 100);
   const dollars = Math.floor(cents / 100);
@@ -117,100 +85,180 @@ export function spokenUSD(value: number): string {
   return rem === 0 ? d : `${d} and ${rem} cent${rem === 1 ? '' : 's'}`;
 }
 
-/** "1 person", "2 people". */
-export function peoplePhrase(people: number): string {
-  return `${people} ${people === 1 ? 'person' : 'people'}`;
-}
-
-/** The plain-language interpretation under the value. A zero bill is explained explicitly. */
-export function interpretTip(r: TipComputed): string {
-  if (r.total === 0) {
-    return `With a $0 bill, there is nothing to tip or split — the total is ${formatCurrency(0)}.`;
-  }
-  if (r.people === 1) {
-    return `The total including tip is ${formatCurrency(r.perPersonTotal)}.`;
-  }
-  return `Split between ${peoplePhrase(r.people)}, each person pays ${formatCurrency(r.perPersonTotal)}.`;
-}
-
-/** Concise announcement — the dominant result (total per person) only. */
-export function describeTipResult(result: TipComputed): string {
-  if (result.people === 1) {
-    return `The total per person is ${spokenUSD(result.perPersonTotal)}.`;
-  }
-  return `Each person pays ${spokenUSD(result.perPersonTotal)}.`;
+/** "15%" — whole where it is whole, a decimal only when one was entered. */
+export function formatTipPct(value: number): string {
+  return `${Number(value.toFixed(2))}%`;
 }
 
 /* ------------------------------------------------------------------ */
-/* The binding                                                         */
+/* 1. The tip table                                                    */
 /* ------------------------------------------------------------------ */
 
-const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+export interface QuickTipOperands {
+  price: string;
+}
 
-export const tipBinding: FormCalculatorBinding<TipValues, TipComputed> = {
-  readValues(root) {
-    return {
-      bill: input(root, 'bill')?.value ?? '',
-      tipPct: input(root, 'tipPct')?.value ?? '',
-      people: input(root, 'people')?.value ?? '',
-    };
+export interface QuickTipComputed {
+  price: number;
+  rows: TipTableRow[];
+  /** The row at the customary rate, which the panel leads with. */
+  customary: TipTableRow | null;
+}
+
+export function validateQuickTip(o: QuickTipOperands): ValidationResult {
+  const price = parseMoney(o.price);
+  if (price === 'empty') return { ok: false, fieldErrors: { price: MSG.priceRequired } };
+  if (price === 'invalid') return { ok: false, fieldErrors: { price: MSG.priceInvalid } };
+  return { ok: true };
+}
+
+export function computeQuickTip(o: QuickTipOperands): QuickTipComputed {
+  const parsed = parseMoney(o.price);
+  const price = typeof parsed === 'number' ? parsed : Number.NaN;
+  const rows = tipTable(price);
+  return { price, rows, customary: rows.find((r) => r.customary) ?? null };
+}
+
+export function describeQuickTip(r: QuickTipComputed): string {
+  if (!r.customary) return 'No result.';
+  return `At ${formatTipPct(r.customary.tipPct)}, the tip is ${spokenUSD(r.customary.tipAmount)} and the total ${spokenUSD(r.customary.total)}.`;
+}
+
+export function interpretQuickTip(r: QuickTipComputed): string {
+  if (!r.customary) return '';
+  return `On ${formatCurrency(r.price)}, the customary ${formatTipPct(r.customary.tipPct)} is ${formatCurrency(r.customary.tipAmount)}, making ${formatCurrency(r.customary.total)} in all. Every other rate is priced below.`;
+}
+
+export const quickTipBinding: EquationCalculatorBinding<QuickTipOperands, QuickTipComputed> = {
+  readOperands: (root) => ({ price: readField(root, 'price') }),
+  validate: validateQuickTip,
+  compute: computeQuickTip,
+  /** No table means nothing to show; the runtime's finite gate takes it from here. */
+  resultValue: (r) => (r.customary && r.rows.length ? r.customary.total : Number.NaN),
+  describeResult: describeQuickTip,
+  renderResult(result, ctx: EquationRenderContext) {
+    const scope = ctx.result;
+    if (!result.customary) return;
+    setText(scope, '[data-result-when~="valid"] [data-result-value]', formatCurrency(result.customary.total));
+    setText(scope, '[data-result-when~="valid"] [data-result-value-a11y]', describeQuickTip(result));
+    setText(scope, '[data-tip-interpretation]', interpretQuickTip(result));
+    for (const row of result.rows) {
+      setText(scope, `[data-tip-amount="${row.tipPct}"]`, formatCurrency(row.tipAmount));
+      setText(scope, `[data-tip-total="${row.tipPct}"]`, formatCurrency(row.total));
+    }
   },
+  resetOperands: (root) => clearField(root, 'price'),
+};
 
-  validate: validateTipValues,
+export const QUICK_TIP_EXAMPLE_VALUES: QuickTipOperands = { price: '55' };
 
-  compute: computeTip,
+/* ------------------------------------------------------------------ */
+/* 2. The shared bill                                                  */
+/* ------------------------------------------------------------------ */
 
-  /** Guarded magnitude — the dominant "total per person". Always finite (and >= 0) for the
-   *  validated domain (bill >= 0, tip >= 0, whole people >= 1), so the runtime's default finite
-   *  gate accepts it; no `isUsableResult`. */
-  resultValue(result) {
-    return result.perPersonTotal;
+export interface SharedTipOperands {
+  price: string;
+  tipPct: string;
+  people: string;
+}
+
+export interface SharedTipComputed extends TipResult {
+  price: number;
+  tipPct: number;
+  people: number;
+}
+
+export function validateSharedTip(o: SharedTipOperands): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+
+  const price = parseMoney(o.price);
+  if (price === 'empty') fieldErrors.price = MSG.priceRequired;
+  else if (price === 'invalid') fieldErrors.price = MSG.priceInvalid;
+
+  const tip = parsePercent(o.tipPct);
+  if (tip === 'empty') fieldErrors.tipPct = MSG.tipRequired;
+  else if (tip === 'invalid') fieldErrors.tipPct = MSG.tipInvalid;
+
+  const people = parsePeople(o.people);
+  if (people === 'empty') fieldErrors.people = MSG.peopleRequired;
+  else if (people === 'invalid') fieldErrors.people = MSG.peopleInvalid;
+
+  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+}
+
+export function computeSharedTip(o: SharedTipOperands): SharedTipComputed {
+  const price = parseMoney(o.price);
+  const tipPct = parsePercent(o.tipPct);
+  const people = parsePeople(o.people);
+  const bill = typeof price === 'number' ? price : Number.NaN;
+  const pct = typeof tipPct === 'number' ? tipPct : Number.NaN;
+  const n = typeof people === 'number' ? people : Number.NaN;
+  return { ...calculateTip({ bill, tipPct: pct, people: n }), price: bill, tipPct: pct, people: n };
+}
+
+/** Every figure on screen must be a real, non-negative number before any of them shows. */
+export function completeSharedTip(r: SharedTipComputed): number {
+  const all = [r.price, r.tipPct, r.people, r.tipAmount, r.total, r.perPersonTip, r.perPersonTotal];
+  if (!all.every((n) => Number.isFinite(n)) || all.some((n) => n < 0)) return Number.NaN;
+  if (!(r.people >= 1)) return Number.NaN;
+  return r.perPersonTotal;
+}
+
+/** The reference's two lines; per person once a bill is split. */
+export function sharedLabels(r: SharedTipComputed): { tip: string; total: string } {
+  return r.people > 1
+    ? { tip: 'Tip per Person', total: 'Total per Person' }
+    : { tip: 'Tip', total: 'Total Amount' };
+}
+
+export function describeSharedTip(r: SharedTipComputed): string {
+  const { total } = sharedLabels(r);
+  return `${total}: ${spokenUSD(r.perPersonTotal)}.`;
+}
+
+export function interpretSharedTip(r: SharedTipComputed): string {
+  const tip = `${formatTipPct(r.tipPct)} on ${formatCurrency(r.price)} is ${formatCurrency(r.tipAmount)}`;
+  if (r.people <= 1) return `${tip}, making ${formatCurrency(r.total)} to pay.`;
+  return `${tip}, making ${formatCurrency(r.total)}. Split ${r.people} ways, that is ${formatCurrency(r.perPersonTotal)} each, of which ${formatCurrency(r.perPersonTip)} is tip.`;
+}
+
+export const sharedTipBinding: EquationCalculatorBinding<SharedTipOperands, SharedTipComputed> = {
+  readOperands: (root) => ({
+    price: readField(root, 'price'),
+    tipPct: readField(root, 'tipPct'),
+    people: readField(root, 'people'),
+  }),
+  validate: validateSharedTip,
+  compute: computeSharedTip,
+  resultValue: completeSharedTip,
+  describeResult: describeSharedTip,
+  renderResult(result, ctx: EquationRenderContext) {
+    const scope = ctx.result;
+    const labels = sharedLabels(result);
+    setText(scope, '[data-result-when~="valid"] [data-result-summary-label]', labels.total);
+    setText(scope, '[data-result-when~="valid"] [data-result-value]', formatCurrency(result.perPersonTotal));
+    setText(scope, '[data-result-when~="valid"] [data-result-value-a11y]', describeSharedTip(result));
+    setText(scope, '[data-shared-interpretation]', interpretSharedTip(result));
+    setText(scope, '[data-shared-tip-label]', labels.tip);
+    setText(scope, '[data-shared-tip]', formatCurrency(result.perPersonTip));
+    setText(scope, '[data-shared-total-label]', labels.total);
+    setText(scope, '[data-shared-total]', formatCurrency(result.perPersonTotal));
+
+    // The whole-bill figures only mean something once there is more than one person.
+    const whole = scope.querySelector<HTMLElement>('[data-shared-whole]');
+    if (whole) whole.hidden = result.people <= 1;
+    setText(scope, '[data-shared-bill-tip]', formatCurrency(result.tipAmount));
+    setText(scope, '[data-shared-bill-total]', formatCurrency(result.total));
   },
-
-  // No isUsableResult — Tip has no impossible / non-finite outcome in the validated domain (R9A0 Decision A).
-
-  describeResult: describeTipResult,
-
-  renderResult(result, context: FormRenderContext) {
-    const scope = context.result;
-    const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
-    const setText = (sel: string, text: string) => {
-      const el = q(sel);
-      if (el) el.textContent = text;
-    };
-
-    const label = q('[data-result-when~="valid"] [data-result-summary-label]');
-    if (label) label.textContent = 'Total per person';
-    setText('[data-result-when~="valid"] [data-result-value]', formatCurrency(result.perPersonTotal));
-    setText('[data-result-when~="valid"] [data-result-value-a11y]', spokenUSD(result.perPersonTotal));
-    setText('[data-tp-interpretation]', interpretTip(result));
-    setText('[data-tp-tip]', formatCurrency(result.tipAmount));
-    setText('[data-tp-total]', formatCurrency(result.total));
-    setText('[data-tp-tipperson]', formatCurrency(result.perPersonTip));
-  },
-
-  /** Clear bill + tip percentage; restore people to the neutral default of 1. The island clears
-   *  the preset pressed-state on reset (preset markup is island-owned). */
-  resetValues(root, _mode: ResetMode) {
-    const bill = input(root, 'bill');
-    if (bill) bill.value = '';
-    const tip = input(root, 'tipPct');
-    if (tip) tip.value = '';
-    const people = input(root, 'people');
-    if (people) people.value = '1';
+  resetOperands(root) {
+    clearField(root, 'price');
+    clearField(root, 'tipPct', DEFAULT_TIP_PCT);
+    clearField(root, 'people', DEFAULT_PEOPLE);
   },
 };
 
-/* ------------------------------------------------------------------ */
-/* Worked example (labelled; the visitor's fields stay EMPTY)          */
-/* ------------------------------------------------------------------ */
-
-/**
- * Example inputs for the labelled worked result shown on first load.
- *
- * These are OURS, not the visitor's. The shared runtime computes them and calls
- * this binding's own `renderResult`, so the example reuses the calculator's real
- * result markup and can never drift from the engine. The visitor's fields are
- * never written to — they load and stay empty behind it.
- */
-export const TIP_EXAMPLE_VALUES: TipValues = { bill: '85.50', tipPct: '18', people: '4' };
+export const SHARED_TIP_EXAMPLE_VALUES: SharedTipOperands = {
+  price: '55',
+  tipPct: DEFAULT_TIP_PCT,
+  people: DEFAULT_PEOPLE,
+};

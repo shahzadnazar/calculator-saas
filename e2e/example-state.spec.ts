@@ -104,6 +104,10 @@ const STRUCTURAL_DEFAULTS: Record<string, string> = {
   value: 'conversion: the ratified converter-family neutral value 1',
   quantity: 'square footage: a single area by default',
   people: 'tip: a bill splits one way by default',
+  // The customary U.S. rate the product ships, on the same footing as splitting one way:
+  // it is the documented starting assumption, not the visitor's own figure, and a blank
+  // tip box is not a neutral state but an unanswered one. The price still loads empty.
+  tipPct: 'tip: the customary 15% is the documented default rate',
   // Auto loan's term became a free numeric field (54- and 66-month deals exist and a
   // closed select could not express them), so its 60-month default is now visible to
   // this check. It is the standard term the product ships with, not the visitor's own

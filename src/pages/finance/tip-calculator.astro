@@ -4,86 +4,105 @@ import TipCalculator from '@components/islands/TipCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'tip-calculator')!;
 const faqs = [
-  { question: 'How do I calculate a tip?', answer: 'Multiply the bill by the tip percentage as a decimal. For a $50 bill at 20%, that is 50 × 0.20 = $10, for a $60 total. A quick mental shortcut for 20% is to take 10% (move the decimal one place: $5) and double it.' },
-  { question: 'How much should I tip?', answer: 'In the United States, 15–20% of the pre-tax bill is standard for sit-down restaurant service, with 18–20% for good service. Tip 10% or less for minimal service, and more for exceptional service. Norms differ by country and service type.' },
-  { question: 'How much should I tip movers, a hairdresser or an Uber driver?', answer: 'Common US guidance: movers about $20–40 per person for a day\'s work (or 5–10% of the bill split among the crew), hairdressers and barbers 15–20%, massage therapists 15–20%, and rideshare or taxi drivers 10–20% with a small minimum. See the table below for more.' },
-  { question: 'Do I tip on the total with tax, or before tax?', answer: 'Etiquette says to tip on the pre-tax amount, though many people tip on the total for simplicity. Enter whichever figure you prefer as the bill.' },
-  { question: 'How do I split a bill with a tip?', answer: 'Enter the number of people and the calculator divides the total (bill plus tip) evenly, showing the amount and the tip each person owes. A $60 total split four ways is $15 each.' },
+  {
+    question: 'How much should I tip?',
+    answer:
+      'In the United States, 15% of the before-tax price is the customary baseline for table service, 18–20% is normal for good service, and 20%+ is generous. The table here prices every rate from 5% to 50% on your bill at once, so you can see what the difference actually costs rather than guessing.',
+  },
+  {
+    question: 'Do I tip on the price before or after tax?',
+    answer:
+      'Custom in the U.S. is to tip on the before-tax price. Tipping on the post-tax total is not wrong, it simply costs a little more — on a $55 meal with 8% tax, tipping 15% of the taxed total adds about 66 cents.',
+  },
+  {
+    question: 'How do I split a bill and its tip?',
+    answer:
+      'Work out the tip on the whole bill, add it, then divide by the number of people — which is what the Shared Bill calculator does. Dividing first and tipping separately gives the same answer, but rounding each share can leave the server short.',
+  },
+  {
+    question: 'What if a service charge or gratuity is already added?',
+    answer:
+      'Check the bill before tipping again. Many restaurants add a gratuity automatically for larger parties, often 18–20%. If one has been applied, an extra tip is entirely optional.',
+  },
+  {
+    question: 'Is tipping expected everywhere?',
+    answer:
+      'No, and it is worth checking before you travel. In much of East Asia, including Japan, tipping can be seen as insulting. In many European countries service is included and small change is enough. In the U.S., tipping is widely expected and is often factored into a server\'s pay.',
+  },
+  {
+    question: 'How do I calculate a tip in my head?',
+    answer:
+      'Move the decimal point one place left to get 10%, then adjust. On $55 that is $5.50, so 15% is $5.50 plus half again ($2.75) = $8.25, and 20% is simply double ($11.00). The table below does it exactly, but the shortcut is quick at the table.',
+  },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the tip and total on any bill and split it evenly between friends. Tap a preset percentage or enter your own." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-23' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="See a bill priced at every customary tip rate at once, or split one bill and its tip between any number of people." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-23' }}>
   <TipCalculator />
   <Fragment slot="content">
-    <h2>How to use this calculator</h2>
+    <h2>How to use these calculators</h2>
+    <p>There are two here, and they answer different questions.</p>
     <ol>
-      <li>Enter the <strong>bill</strong> amount.</li>
-      <li>Set a <strong>tip percentage</strong> — tap a preset or type your own.</li>
-      <li>Enter the <strong>number of people</strong> sharing the bill (a whole number, at least one).</li>
-      <li>Press <strong>Calculate</strong> to see the total per person, plus the tip, the grand total and the tip each person owes.</li>
+      <li><strong>Tip Calculator</strong> — enter the price and see every customary rate priced
+        at once, from 5% to 50%. Use it when you have not decided what to leave and want the
+        options side by side rather than one guess at a time.</li>
+      <li><strong>Shared Bill Tip Calculator</strong> — enter the price, the rate you have chosen
+        and the number of people, and it works out the tip and the total <em>per person</em>.</li>
     </ol>
-
-    <h2>How to calculate a tip</h2>
-    <p>
-      Multiply the bill by the tip rate: a <strong>$50</strong> bill at <strong>20%</strong> is
-      50 × 0.20 = <strong>$10</strong>, for a $60 total. The fastest mental trick for 20% is to
-      find 10% — just move the decimal one place, to $5 — and double it; for 15%, take that 10%
-      and add half of it again. The calculator does the exact arithmetic and the split in one step.
-    </p>
-
-    <h2>The math behind the split</h2>
-    <p>From the bill and the tip rate, the tool derives four figures:</p>
-    <ul>
-      <li><strong>Tip amount</strong> = bill × (tip % ÷ 100)</li>
-      <li><strong>Total</strong> = bill + tip</li>
-      <li><strong>Tip per person</strong> = tip ÷ number of people</li>
-      <li><strong>Total per person</strong> = total ÷ number of people</li>
-    </ul>
 
     <h2>A worked example</h2>
     <p>
-      A <strong>$50</strong> bill at <strong>20%</strong> adds a <strong>$10</strong> tip for a
-      <strong>$60</strong> total. Split four ways, that is <strong>$15 each</strong>, of which
-      <strong>$2.50</strong> is the tip. Change any input and the rest update together — raise the
-      tip to 25% and the total climbs to $62.50, or $15.63 a head.
+      On a <strong>$55</strong> bill, 15% is <strong>$8.25</strong> and the total is
+      <strong>$63.25</strong>. Move up to 20% and the tip is $11.00 for a $66.00 total — the
+      whole decision is $2.75. Split that $63.25 four ways and each person owes
+      <strong>$15.81</strong>, of which $2.06 is tip.
     </p>
 
-    <h2>How much to tip, by service</h2>
-    <table>
-      <thead>
-        <tr><th>Service</th><th>Typical US tip</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Restaurant (table service)</td><td>15–20% pre-tax</td></tr>
-        <tr><td>Food delivery</td><td>15–20% (min. $3–5)</td></tr>
-        <tr><td>Rideshare / taxi</td><td>10–20%</td></tr>
-        <tr><td>Hairdresser / barber</td><td>15–20%</td></tr>
-        <tr><td>Massage therapist</td><td>15–20%</td></tr>
-        <tr><td>Movers</td><td>$20–40 per mover / day</td></tr>
-        <tr><td>Bartender</td><td>$1–2 per drink</td></tr>
-        <tr><td>Hotel housekeeping</td><td>$2–5 per night</td></tr>
-      </tbody>
-    </table>
-
-    <h2>Pre-tax or post-tax?</h2>
+    <h2>How much to tip</h2>
     <p>
-      Etiquette says to tip on the <strong>pre-tax</strong> bill, since the tax is not part of the
-      service — though many people tip on the total for simplicity, and on a typical bill the
-      difference is small. Enter whichever figure you prefer as the bill amount; the calculator
-      tips on the number you give it.
+      In the United States, <strong>15%</strong> of the before-tax price is the customary
+      baseline for table service, 18–20% is normal for good service, and anything above that is
+      generous. Counter service, takeaway and self-serve are different: a tip there is welcome
+      but not expected. The percentages in the table are not evenly spaced on purpose — the
+      cluster from 12% to 20% is where nearly every real decision happens.
     </p>
 
-    <h2>Tipping around the world</h2>
+    <h2>Before tax or after?</h2>
     <p>
-      Customs vary widely by country — in much of Europe and Asia a service charge is often already
-      included and tipping is minimal or rounded up rather than a set percentage. When travelling,
-      check local norms so you neither under- nor over-tip. One limitation to note: this tool splits
-      the bill <em>evenly</em> across whole people, so it will not divide an uneven share or split by
-      individual orders.
+      Custom is to tip on the price <strong>before</strong> tax. Tipping on the taxed total is
+      not wrong, it just costs slightly more: on a $55 meal with 8% sales tax, 15% of the taxed
+      total is about 66 cents more than 15% of the meal. Use the before-tax figure here and the
+      arithmetic matches the convention.
+    </p>
+
+    <h2>Splitting the bill</h2>
+    <p>
+      Work out the tip on the whole bill, add it, then divide — which is the order the Shared
+      Bill calculator uses. Dividing first and having everyone tip their own share gives the same
+      total in theory, but in practice each person rounds down and the server ends up short.
     </p>
     <p>
-      To add or remove sales tax from a price, see the
-      <a href="/finance/sales-tax-calculator">sales tax calculator</a>. This is general information
-      to help you tip and split a bill, not etiquette or financial advice.
+      Watch for a gratuity that has already been added. Many restaurants apply one automatically
+      to larger parties, commonly 18–20%, in which case a further tip is entirely optional.
+    </p>
+
+    <h2>The mental shortcut</h2>
+    <p>
+      Move the decimal one place left for 10%, then adjust. On $55 that is $5.50, so 15% is
+      $5.50 + $2.75 = <strong>$8.25</strong> and 20% is just double, <strong>$11.00</strong>.
+      Worth knowing when the bill arrives and your phone is in your coat.
+    </p>
+
+    <h2>Tipping is not universal</h2>
+    <p>
+      Customs vary sharply. In much of East Asia — Japan especially — tipping can be read as
+      insulting. Across much of Europe service is included and rounding up is plenty. In the
+      United States it is widely expected, and is often built into what a server is actually
+      paid, which is why leaving nothing carries the weight it does. Worth a moment's research
+      before travelling.
+    </p>
+    <p>
+      To work out the tax portion of a bill, see the
+      <a href="/finance/sales-tax-calculator">sales tax calculator</a>.
     </p>
   </Fragment>
 </CalculatorLayout>

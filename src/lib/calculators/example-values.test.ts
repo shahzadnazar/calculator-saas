@@ -37,7 +37,6 @@ import { squareFootageBinding, SQUARE_FOOTAGE_EXAMPLE_VALUES } from './square-fo
 import { statisticsBinding, STATISTICS_EXAMPLE_VALUES } from './statistics-form';
 import { targetHeartRateBinding, TARGET_HEART_RATE_EXAMPLE_VALUES } from './target-heart-rate-form';
 import { timeBinding, TIME_EXAMPLE_VALUES } from './time-form';
-import { tipBinding, TIP_EXAMPLE_VALUES } from './tip-form';
 import { triangleBinding, TRIANGLE_EXAMPLE_VALUES } from './triangle-form';
 import { volumeBinding, VOLUME_EXAMPLE_VALUES } from './volume-form';
 
@@ -100,7 +99,6 @@ const FLEET: Array<[string, AnyBinding, unknown]> = [
   ['statistics', b(statisticsBinding), STATISTICS_EXAMPLE_VALUES],
   ['target-heart-rate', b(targetHeartRateBinding), TARGET_HEART_RATE_EXAMPLE_VALUES],
   ['time', b(timeBinding), TIME_EXAMPLE_VALUES],
-  ['tip', b(tipBinding), TIP_EXAMPLE_VALUES],
   ['triangle', b(triangleBinding), TRIANGLE_EXAMPLE_VALUES],
   ['volume', b(volumeBinding), VOLUME_EXAMPLE_VALUES],
   // Date-relative: computed against today, exactly as the island does at mount.
@@ -128,9 +126,9 @@ describe('fleet-wide example values', () => {
   });
 
   it('covers every calculator that opts into an example', () => {
-    // Every form-runtime calculator with an example. Equation-runtime pages — percentage
-    // and inflation — carry their own example tests beside their own bindings.
-    expect(FLEET).toHaveLength(43);
+    // Every form-runtime calculator with an example. Equation-runtime pages — percentage,
+    // inflation and tip — carry their own example tests beside their own bindings.
+    expect(FLEET).toHaveLength(42);
     expect(new Set(FLEET.map(([n]) => n)).size).toBe(FLEET.length); // no duplicates
   });
 });

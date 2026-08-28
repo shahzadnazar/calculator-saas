@@ -1,250 +1,271 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Tip calculator — R9B1 standard-form wave (calculator #18; product family FINANCE-SIMPLE,
- * runtime unchanged, no isUsableResult). Single mode with an accessible tip-percentage PRESET
- * group. Covers the task-first doctrine end-to-end plus the preset behaviour: accessible names,
- * aria-pressed state, field synchronisation, no-calc-before-first, recalc-after-first, single
- * pressed at a time, and focus retention on live preset updates. Task-first ORDER + first-viewport
- * are additionally asserted by e2e/task-first-layout.spec.ts.
+ * Tip — TWO independent calculators on one page: the tip table, and the shared bill.
+ *
+ * Both published reference cases are frozen here on a $55 bill: the ten-row table, and the
+ * shared bill at 15% split one way, which is $8.25 of tip and $63.25 in all.
  */
 const ROUTE = '/finance/tip-calculator';
 const DEBOUNCE = 300;
 
-const shell = (page: Page) => page.locator('#tp-result');
-const primary = (page: Page) => page.locator('#tp-result [data-result-value]');
-const summaryLabel = (page: Page) => page.locator('#tp-result [data-result-summary-label]');
-const interpretation = (page: Page) => page.locator('#tp-result [data-tp-interpretation]');
-const tipCell = (page: Page) => page.locator('#tp-result [data-tp-tip]');
-const totalCell = (page: Page) => page.locator('#tp-result [data-tp-total]');
-const tipPerson = (page: Page) => page.locator('#tp-result [data-tp-tipperson]');
-const liveRegion = (page: Page) => page.locator('#tp-live');
-const submit = (page: Page) => page.getByRole('button', { name: 'Calculate Tip' });
-const resetBtn = (page: Page) => page.getByRole('button', { name: 'Reset' });
-const preset = (page: Page, p: number) => page.locator(`[data-tp-preset="${p}"]`);
-const region = (page: Page, when: string) => page.locator(`#tp-result [data-result-when~="${when}"]`);
+type Kind = 'quick' | 'shared';
+const form = (page: Page, kind: Kind) => page.locator(`form[data-equation="${kind}"]`);
+const shell = (page: Page, kind: Kind) => form(page, kind).locator('[data-result-shell]');
+const primary = (page: Page, kind: Kind) =>
+  form(page, kind).locator('[data-result-when~="valid"] [data-result-value]').first();
+const summaryLabel = (page: Page, kind: Kind) =>
+  form(page, kind).locator('[data-result-when~="valid"] [data-result-summary-label]');
+const calcBtn = (page: Page, kind: Kind) => form(page, kind).getByRole('button', { name: 'Calculate' });
+const clearBtn = (page: Page, kind: Kind) => form(page, kind).getByRole('button', { name: 'Clear' });
 
-const calc = async (page: Page, bill = '50', tip = '20', people = '2') => {
-  await page.fill('[name="bill"]', bill);
-  await page.fill('[name="tipPct"]', tip);
-  await page.fill('[name="people"]', people);
-  await submit(page).click();
+/** The published tip table for $55. */
+const TABLE: [number, string, string][] = [
+  [5, '$2.75', '$57.75'],
+  [10, '$5.50', '$60.50'],
+  [12, '$6.60', '$61.60'],
+  [14, '$7.70', '$62.70'],
+  [15, '$8.25', '$63.25'],
+  [18, '$9.90', '$64.90'],
+  [20, '$11.00', '$66.00'],
+  [25, '$13.75', '$68.75'],
+  [30, '$16.50', '$71.50'],
+  [50, '$27.50', '$82.50'],
+];
+
+const calcQuick = async (page: Page, price = '55') => {
+  await form(page, 'quick').locator('[data-example-dismiss]').click();
+  await form(page, 'quick').locator('[name="price"]').fill(price);
+  await calcBtn(page, 'quick').click();
+};
+
+const calcShared = async (page: Page, price = '55', tip = '15', people = '1') => {
+  const f = form(page, 'shared');
+  await f.locator('[data-example-dismiss]').click();
+  await f.locator('[name="price"]').fill(price);
+  await f.locator('[name="tipPct"]').fill(tip);
+  await f.locator('[name="people"]').fill(people);
+  await calcBtn(page, 'shared').click();
 };
 
 test.beforeEach(async ({ page }) => {
-  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await page.goto(ROUTE);
 });
 
-/* ---- Initial state ------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Two calculators                                                     */
+/* ------------------------------------------------------------------ */
 
-test('loads empty: bill+rate blank, people=1, no preset pressed, result empty, Calculate visible', async ({ page }) => {
-  await expect(page.locator('[name="bill"]')).toHaveValue('');
-  await expect(page.locator('[name="tipPct"]')).toHaveValue('');
-  await expect(page.locator('[name="people"]')).toHaveValue('1');
-  await expect(submit(page)).toBeVisible();
-  await expect(resetBtn(page)).toBeVisible();
-  for (const p of [10, 15, 18, 20, 25]) await expect(preset(page, p)).toHaveAttribute('aria-pressed', 'false');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-  // The empty placeholder is replaced by the labelled example on load.
-  await expect(region(page, 'empty')).toBeHidden();
-  await expect(page.locator('[data-live-note]')).toBeHidden();
-  await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).not.toHaveText('—');
+test.describe('the two calculators', () => {
+  test('both are present and named as the reference names them', async ({ page }) => {
+    // Scoped to each form's own title: the page's H1 is "Tip Calculator" too, and the
+    // result panel carries headings of its own.
+    await expect(form(page, 'quick').locator('h2.tpeq-q')).toHaveText('Tip Calculator');
+    await expect(form(page, 'shared').locator('h2.tpeq-q')).toHaveText('Shared Bill Tip Calculator');
+    await expect(page.locator('form[data-equation]')).toHaveCount(2);
+  });
+
+  test('both open on a labelled example with the price blank', async ({ page }) => {
+    for (const kind of ['quick', 'shared'] as const) {
+      await expect(shell(page, kind)).toHaveAttribute('data-result-state', 'example');
+      await expect(form(page, kind).locator('[name="price"]')).toHaveValue('');
+    }
+  });
+
+  test('calculating one leaves the other untouched', async ({ page }) => {
+    await calcQuick(page);
+    await expect(shell(page, 'quick')).toHaveAttribute('data-result-state', 'valid');
+    await expect(shell(page, 'shared')).toHaveAttribute('data-result-state', 'example');
+  });
+
+  test('clearing one leaves the other standing', async ({ page }) => {
+    await calcQuick(page);
+    await calcShared(page);
+    await clearBtn(page, 'quick').click();
+    await expect(shell(page, 'quick')).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page, 'shared')).toHaveAttribute('data-result-state', 'valid');
+  });
 });
 
-test('does not calculate before the first submission — typing or clicking a preset', async ({ page }) => {
-  await page.fill('[name="bill"]', '50');
-  await page.fill('[name="tipPct"]', '20');
-  await preset(page, 18).click(); // sets the field but must not calculate
-  await expect(page.locator('[name="tipPct"]')).toHaveValue('18');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+/* ------------------------------------------------------------------ */
+/* The tip table                                                       */
+/* ------------------------------------------------------------------ */
+
+test.describe('the tip table', () => {
+  test('names its one field Price', async ({ page }) => {
+    await expect(form(page, 'quick').getByLabel('Price')).toBeVisible();
+  });
+
+  test('reproduces every row of the published table', async ({ page }) => {
+    await calcQuick(page);
+    await expect(shell(page, 'quick')).toHaveAttribute('data-result-state', 'valid');
+    for (const [pct, tip, total] of TABLE) {
+      await expect(form(page, 'quick').locator(`[data-tip-amount="${pct}"]`)).toHaveText(tip);
+      await expect(form(page, 'quick').locator(`[data-tip-total="${pct}"]`)).toHaveText(total);
+    }
+  });
+
+  test('heads the three columns the way the reference does', async ({ page }) => {
+    const heads = await form(page, 'quick').locator('table thead th').allTextContents();
+    expect(heads.map((h) => h.trim())).toEqual(['Tip %', 'Tip Amount', 'Total']);
+  });
+
+  test('leads with the customary rate and marks it in words, not colour alone', async ({ page }) => {
+    await calcQuick(page);
+    await expect(summaryLabel(page, 'quick')).toHaveText('Total at 15%');
+    await expect(primary(page, 'quick')).toHaveText('$63.25');
+    await expect(form(page, 'quick').locator('.tpeq-row--customary')).toContainText('typical');
+  });
+
+  test('updates live after the first calculation', async ({ page }) => {
+    await calcQuick(page);
+    await form(page, 'quick').locator('[name="price"]').fill('100');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(form(page, 'quick').locator('[data-tip-total="20"]')).toHaveText('$120.00');
+  });
+
+  test('a zero price is a real table of zeros', async ({ page }) => {
+    await calcQuick(page, '0');
+    await expect(shell(page, 'quick')).toHaveAttribute('data-result-state', 'valid');
+    await expect(form(page, 'quick').locator('[data-tip-amount="15"]')).toHaveText('$0.00');
+  });
+
+  test('refuses to calculate without a price', async ({ page }) => {
+    await form(page, 'quick').locator('[data-example-dismiss]').click();
+    await calcBtn(page, 'quick').click();
+    await expect(shell(page, 'quick')).toHaveAttribute('data-result-state', 'invalid');
+    await expect(form(page, 'quick').locator('[data-error-for="price"]')).toBeVisible();
+  });
 });
 
-/* ---- Valid results + hierarchy ------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* The shared bill                                                     */
+/* ------------------------------------------------------------------ */
 
-test('valid custom-rate result: total-per-person dominant, full breakdown, USD wording', async ({ page }) => {
-  await calc(page, '50', '20', '2');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(summaryLabel(page)).toHaveText('Total per person');
-  await expect(primary(page)).toHaveText('$30.00');
-  await expect(interpretation(page)).toHaveText('Split between 2 people, each person pays $30.00.');
-  await expect(tipCell(page)).toHaveText('$10.00');
-  await expect(totalCell(page)).toHaveText('$60.00');
-  await expect(tipPerson(page)).toHaveText('$5.00');
-  await expect(page.getByText('Bill amount in USD')).toBeVisible();
-  await expect(page.getByText('Amounts are in US dollars (USD).')).toBeVisible();
-  // Dominant value visually larger than breakdown rows.
-  const primarySize = await primary(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  const cellSize = await tipCell(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(primarySize).toBeGreaterThan(cellSize * 1.5);
+test.describe('the shared bill', () => {
+  test('names its three fields as the reference names them', async ({ page }) => {
+    const f = form(page, 'shared');
+    await expect(f.getByLabel('Price')).toBeVisible();
+    await expect(f.getByLabel('Tip %')).toBeVisible();
+    await expect(f.getByLabel('Number of People')).toBeVisible();
+  });
+
+  test('ships the documented defaults: 15% and one person', async ({ page }) => {
+    await expect(form(page, 'shared').locator('[name="tipPct"]')).toHaveValue('15');
+    await expect(form(page, 'shared').locator('[name="people"]')).toHaveValue('1');
+  });
+
+  test('lays the fields out two to a row', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    const f = form(page, 'shared');
+    const price = await f.locator('[name="price"]').boundingBox();
+    const tip = await f.locator('[name="tipPct"]').boundingBox();
+    expect(Math.abs(price!.y - tip!.y)).toBeLessThan(4);
+    expect(tip!.x).toBeGreaterThan(price!.x + price!.width - 1);
+  });
+
+  test('reproduces the published case', async ({ page }) => {
+    await calcShared(page);
+    await expect(shell(page, 'shared')).toHaveAttribute('data-result-state', 'valid');
+    await expect(form(page, 'shared').locator('[data-shared-tip]')).toHaveText('$8.25');
+    await expect(form(page, 'shared').locator('[data-shared-total]')).toHaveText('$63.25');
+    await expect(primary(page, 'shared')).toHaveText('$63.25');
+  });
+
+  test('labels the two lines Tip and Total Amount for one person', async ({ page }) => {
+    await calcShared(page);
+    await expect(form(page, 'shared').locator('[data-shared-tip-label]')).toHaveText('Tip');
+    await expect(form(page, 'shared').locator('[data-shared-total-label]')).toHaveText('Total Amount');
+    await expect(form(page, 'shared').locator('[data-shared-whole]')).toBeHidden();
+  });
+
+  test('splits between people and says so', async ({ page }) => {
+    await calcShared(page, '55', '15', '4');
+    await expect(form(page, 'shared').locator('[data-shared-tip-label]')).toHaveText('Tip per Person');
+    await expect(form(page, 'shared').locator('[data-shared-tip]')).toHaveText('$2.06');
+    await expect(form(page, 'shared').locator('[data-shared-total]')).toHaveText('$15.81');
+    // The whole-bill figures appear only once there is a split to explain.
+    await expect(form(page, 'shared').locator('[data-shared-whole]')).toBeVisible();
+    await expect(form(page, 'shared').locator('[data-shared-bill-total]')).toHaveText('$63.25');
+  });
+
+  test('a zero tip is a real answer', async ({ page }) => {
+    await calcShared(page, '55', '0', '1');
+    await expect(shell(page, 'shared')).toHaveAttribute('data-result-state', 'valid');
+    await expect(primary(page, 'shared')).toHaveText('$55.00');
+  });
+
+  test('rejects a fractional or empty party', async ({ page }) => {
+    await calcShared(page, '55', '15', '2.5');
+    await expect(shell(page, 'shared')).toHaveAttribute('data-result-state', 'invalid');
+    await expect(form(page, 'shared').locator('[data-error-for="people"]')).toBeVisible();
+  });
+
+  test('rejects a negative price', async ({ page }) => {
+    await calcShared(page, '-5', '15', '1');
+    await expect(shell(page, 'shared')).toHaveAttribute('data-result-state', 'invalid');
+  });
+
+  test('Clear empties the price and restores the defaults', async ({ page }) => {
+    await calcShared(page, '99', '20', '3');
+    await clearBtn(page, 'shared').click();
+    const f = form(page, 'shared');
+    await expect(f.locator('[name="price"]')).toHaveValue('');
+    await expect(f.locator('[name="tipPct"]')).toHaveValue('15');
+    await expect(f.locator('[name="people"]')).toHaveValue('1');
+    await expect(shell(page, 'shared')).toHaveAttribute('data-result-state', 'empty');
+  });
 });
 
-test('valid preset-rate result: clicking a preset supplies the tip rate', async ({ page }) => {
-  await page.fill('[name="bill"]', '50');
-  await preset(page, 20).click();
-  await page.fill('[name="people"]', '2');
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$30.00');
-  await expect(preset(page, 20)).toHaveAttribute('aria-pressed', 'true');
-});
+/* ------------------------------------------------------------------ */
+/* Doctrine                                                            */
+/* ------------------------------------------------------------------ */
 
-test('a single diner sees the whole total per person', async ({ page }) => {
-  await calc(page, '50', '18', '1');
-  await expect(primary(page)).toHaveText('$59.00');
-  await expect(interpretation(page)).toHaveText('The total including tip is $59.00.');
-});
+test.describe('doctrine', () => {
+  test('never renders NaN, Infinity or a raw error', async ({ page }) => {
+    await calcShared(page, '55', '15', '0');
+    const body = await page.locator('main').innerText();
+    expect(body).not.toMatch(/NaN|Infinity|undefined/);
+  });
 
-test('an entered bill of 0 is valid: all $0, explained', async ({ page }) => {
-  await calc(page, '0', '20', '2');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$0.00');
-  await expect(interpretation(page)).toContainText('$0 bill');
-});
+  test('announces each result politely', async ({ page }) => {
+    await expect(page.locator('#tps-live')).toHaveAttribute('aria-live', 'polite');
+    await calcShared(page);
+    await expect(page.locator('#tps-live')).toContainText('63');
+  });
 
-test('an entered tip of 0 is valid: no tip, bill split evenly', async ({ page }) => {
-  await calc(page, '50', '0', '2');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$25.00');
-  await expect(tipCell(page)).toHaveText('$0.00');
-});
+  test('is operable from the keyboard', async ({ page }) => {
+    await form(page, 'quick').locator('[data-example-dismiss]').click();
+    await form(page, 'quick').locator('[name="price"]').fill('55');
+    await form(page, 'quick').locator('[name="price"]').press('Enter');
+    await expect(primary(page, 'quick')).toHaveText('$63.25');
+  });
 
-/* ---- Preset control ----------------------------------------------------- */
+  test('every control clears 44px', async ({ page }) => {
+    const small = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('form[data-equation] button, form[data-equation] input')]
+          .filter((e) => (e as HTMLElement).offsetParent !== null)
+          .map((e) => e.closest('label') ?? e)
+          .filter((e) => e.getBoundingClientRect().height < 44).length,
+    );
+    expect(small).toBe(0);
+  });
 
-test('preset buttons expose accessible names and toggle a single pressed state', async ({ page }) => {
-  await expect(page.getByRole('button', { name: 'Set tip to 18 percent' })).toBeVisible();
-  await preset(page, 20).click();
-  await expect(page.locator('[name="tipPct"]')).toHaveValue('20');
-  await expect(preset(page, 20)).toHaveAttribute('aria-pressed', 'true');
-  // Only one pressed at a time.
-  await preset(page, 25).click();
-  await expect(preset(page, 25)).toHaveAttribute('aria-pressed', 'true');
-  await expect(preset(page, 20)).toHaveAttribute('aria-pressed', 'false');
-});
+  test('mobile does not overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await calcQuick(page);
+    const { doc, win } = await page.evaluate(() => ({
+      doc: document.documentElement.scrollWidth,
+      win: window.innerWidth,
+    }));
+    expect(doc).toBeLessThanOrEqual(win);
+  });
 
-test('typing a matching percentage presses the preset; a custom value clears all', async ({ page }) => {
-  await page.fill('[name="tipPct"]', '18');
-  await expect(preset(page, 18)).toHaveAttribute('aria-pressed', 'true');
-  await page.fill('[name="tipPct"]', '17');
-  for (const p of [10, 15, 18, 20, 25]) await expect(preset(page, p)).toHaveAttribute('aria-pressed', 'false');
-  // Entered 0 clears all positive presets too.
-  await page.fill('[name="tipPct"]', '0');
-  for (const p of [10, 15, 18, 20, 25]) await expect(preset(page, p)).toHaveAttribute('aria-pressed', 'false');
-});
-
-test('a preset click after the first calc recalculates and keeps focus on the preset', async ({ page }) => {
-  await calc(page, '50', '20', '2');
-  await expect(primary(page)).toHaveText('$30.00');
-  await preset(page, 25).click();
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(page.locator('[name="tipPct"]')).toHaveValue('25');
-  await expect(primary(page)).toHaveText('$31.25'); // (50 × 1.25) / 2
-  await expect(preset(page, 25)).toBeFocused();
-  await expect(preset(page, 25)).toHaveAttribute('aria-pressed', 'true');
-});
-
-/* ---- Validation --------------------------------------------------------- */
-
-test('an empty explicit submission focuses the bill field and associates the error', async ({ page }) => {
-  await page.fill('[name="people"]', ''); // clear the default so all are empty
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  const bill = page.locator('[name="bill"]');
-  await expect(bill).toBeFocused();
-  await expect(bill).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.locator('[data-error-for="bill"]')).toHaveText('Enter a bill amount.');
-});
-
-test('fractional, zero and negative people are rejected as whole-number errors', async ({ page }) => {
-  await calc(page, '50', '20', '2.5');
-  await expect(page.locator('[data-error-for="people"]')).toHaveText('Enter a whole number of at least 1.');
-  await calc(page, '50', '20', '0');
-  await expect(page.locator('[data-error-for="people"]')).toHaveText('Enter a whole number of at least 1.');
-});
-
-test('negative bill and negative tip are rejected', async ({ page }) => {
-  await calc(page, '-5', '20', '2');
-  await expect(page.locator('[data-error-for="bill"]')).toHaveText('Enter a bill amount of zero or more.');
-  await calc(page, '50', '-1', '2');
-  await expect(page.locator('[data-error-for="tipPct"]')).toHaveText('Enter a tip percentage of zero or more.');
-});
-
-/* ---- Announcement + Reset + integrity ----------------------------------- */
-
-test('announces the dominant result concisely, never the breakdown rows', async ({ page }) => {
-  await calc(page, '50', '20', '2');
-  await expect(liveRegion(page)).toHaveText('Each person pays 30 dollars.');
-  await expect(liveRegion(page)).not.toContainText(/Tip amount|Total bill/);
-});
-
-test('reset clears fields, restores people=1, clears preset selection, returns to empty', async ({ page }) => {
-  await calc(page, '50', '20', '2');
-  await preset(page, 20).click();
-  await expect(preset(page, 20)).toHaveAttribute('aria-pressed', 'true');
-  await resetBtn(page).click();
-  await expect(page.locator('[name="bill"]')).toHaveValue('');
-  await expect(page.locator('[name="tipPct"]')).toHaveValue('');
-  await expect(page.locator('[name="people"]')).toHaveValue('1');
-  await expect(preset(page, 20)).toHaveAttribute('aria-pressed', 'false');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(liveRegion(page)).toHaveText('');
-});
-
-test('keyboard submission works from a field', async ({ page }) => {
-  await page.fill('[name="bill"]', '50');
-  await page.fill('[name="tipPct"]', '20');
-  await page.locator('[name="people"]').fill('2');
-  await page.locator('[name="people"]').press('Enter');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$30.00');
-});
-
-test('renders no NaN / Infinity / undefined', async ({ page }) => {
-  await calc(page, '50', '20', '2');
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-});
-
-/* ---- Responsive / theme ------------------------------------------------- */
-
-test('desktop shows the dominant result within the first viewport at 1366×768', async ({ page }) => {
-  await page.setViewportSize({ width: 1366, height: 768 });
-  await calc(page, '50', '20', '2');
-  await expect(primary(page)).toBeInViewport();
-});
-
-test('mobile stacks inputs → result and does not overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  const formBox = (await page.locator('form[data-form]').boundingBox())!;
-  const resultTop = (await shell(page).boundingBox())!.y;
-  expect(resultTop).toBeGreaterThanOrEqual(formBox.y + formBox.height - 1);
-  await calc(page, '50', '20', '2');
-  await expect(primary(page)).toHaveText('$30.00');
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
-});
-
-test('renders in dark scheme', async ({ page }) => {
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await calc(page, '50', '20', '2');
-  await expect(primary(page)).toBeVisible();
-});
-
-/* ---- Embed + monetization ----------------------------------------------- */
-
-test('the embed route mounts the same interactive island, presets included', async ({ page }) => {
-  await page.goto('/embed/finance/tip-calculator', { waitUntil: 'domcontentloaded' });
-  await page.fill('[name="bill"]', '50');
-  await page.locator('[data-tp-preset="20"]').click();
-  await page.fill('[name="people"]', '2');
-  await page.getByRole('button', { name: 'Calculate Tip' }).click();
-  await expect(page.locator('#tp-result [data-result-value]')).toHaveText('$30.00');
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
-});
-
-test('the live page carries no monetization output', async ({ page }) => {
-  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-  expect(await page.content()).not.toContain('data-mon-');
+  test('the generated embed mounts both calculators', async ({ page }) => {
+    await page.goto('/embed/finance/tip-calculator');
+    await expect(page.locator('form[data-equation]')).toHaveCount(2);
+    await calcQuick(page);
+    await expect(page.locator('[data-tip-total="15"]')).toHaveText('$63.25');
+  });
 });

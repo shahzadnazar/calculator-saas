@@ -284,7 +284,7 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description:
       'Calculate the tip, total bill, and amount per person when splitting a bill.',
-    keywords: ['tip calculator', 'gratuity calculator', 'split the bill', 'how much to tip'],
+    keywords: ['tip calculator', 'gratuity calculator', 'split the bill', 'tip table', 'shared bill tip'],
     aliases: ['gratuity calculator'],
     phrases: ['tip split', 'split the bill', 'how much to tip', 'restaurant tip'],
   },

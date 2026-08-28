@@ -212,3 +212,69 @@ describe('calculateTip — precision vs. displayed USD rounding', () => {
     }
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* The tip table                                                       */
+/* ------------------------------------------------------------------ */
+
+import { CUSTOMARY_TIP_PCT, TIP_PERCENTAGES, tipTable } from './tip';
+
+/** Frozen against the published reference table for a $55 bill. */
+describe('the published tip table', () => {
+  const rows = tipTable(55);
+
+  it('offers the ten percentages the reference offers', () => {
+    expect(rows.map((r) => r.tipPct)).toEqual([5, 10, 12, 14, 15, 18, 20, 25, 30, 50]);
+    expect([...TIP_PERCENTAGES]).toEqual(rows.map((r) => r.tipPct));
+  });
+
+  it('reproduces every published tip amount and total', () => {
+    const published: [number, number, number][] = [
+      [5, 2.75, 57.75],
+      [10, 5.5, 60.5],
+      [12, 6.6, 61.6],
+      [14, 7.7, 62.7],
+      [15, 8.25, 63.25],
+      [18, 9.9, 64.9],
+      [20, 11, 66],
+      [25, 13.75, 68.75],
+      [30, 16.5, 71.5],
+      [50, 27.5, 82.5],
+    ];
+    for (const [pct, tip, total] of published) {
+      const row = rows.find((r) => r.tipPct === pct)!;
+      expect(Math.round(row.tipAmount * 100) / 100).toBe(tip);
+      expect(Math.round(row.total * 100) / 100).toBe(total);
+    }
+  });
+
+  it('marks 15% as the customary rate, and only that one', () => {
+    expect(CUSTOMARY_TIP_PCT).toBe(15);
+    expect(rows.filter((r) => r.customary).map((r) => r.tipPct)).toEqual([15]);
+  });
+
+  it('every row adds up', () => {
+    for (const r of rows) expect(Math.round((55 + r.tipAmount) * 100) / 100).toBe(Math.round(r.total * 100) / 100);
+  });
+
+  it('rises with the percentage', () => {
+    for (let i = 1; i < rows.length; i += 1) {
+      expect(rows[i].tipAmount).toBeGreaterThan(rows[i - 1].tipAmount);
+      expect(rows[i].total).toBeGreaterThan(rows[i - 1].total);
+    }
+  });
+});
+
+describe('tip table edges', () => {
+  it('a zero price tips nothing at every rate', () => {
+    const rows = tipTable(0);
+    expect(rows).toHaveLength(10);
+    for (const r of rows) expect(r.tipAmount).toBe(0);
+  });
+
+  it('returns no table at all rather than rows of NaN', () => {
+    expect(tipTable(Number.NaN)).toEqual([]);
+    expect(tipTable(Number.POSITIVE_INFINITY)).toEqual([]);
+    expect(tipTable(-1)).toEqual([]);
+  });
+});

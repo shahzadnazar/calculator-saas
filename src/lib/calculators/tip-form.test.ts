@@ -1,216 +1,254 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateTipValues,
-  computeTip,
-  describeTipResult,
-  interpretTip,
-  peoplePhrase,
+  CUSTOMARY_TIP_PCT,
+  DEFAULT_PEOPLE,
+  DEFAULT_TIP_PCT,
+  MSG,
+  QUICK_TIP_EXAMPLE_VALUES,
+  SHARED_TIP_EXAMPLE_VALUES,
+  TIP_PERCENTAGES,
+  completeSharedTip,
+  computeQuickTip,
+  computeSharedTip,
+  describeQuickTip,
+  describeSharedTip,
+  formatTipPct,
+  interpretQuickTip,
+  interpretSharedTip,
+  parseMoney,
+  parsePeople,
+  parsePercent,
+  quickTipBinding,
+  sharedLabels,
+  sharedTipBinding,
   spokenUSD,
-  tipBinding,
-  type TipValues,
+  validateQuickTip,
+  validateSharedTip,
+  type SharedTipOperands,
 } from './tip-form';
-import { calculateTip } from './tip';
 
-const vals = (over: Partial<TipValues> = {}): TipValues => ({
-  bill: '50',
-  tipPct: '20',
-  people: '2',
+/**
+ * The published reference cases, both on a $55 bill: the tip table, and the shared bill at
+ * 15% split one way, which comes to $8.25 of tip and $63.25 in all.
+ */
+const shared = (over: Partial<SharedTipOperands> = {}): SharedTipOperands => ({
+  price: '55',
+  tipPct: '15',
+  people: '1',
   ...over,
 });
+const errs = (r: ReturnType<typeof validateSharedTip>) =>
+  (r as { fieldErrors?: Record<string, string> }).fieldErrors ?? {};
+const money = (n: number) => Math.round(n * 100) / 100;
 
-const errs = (r: ReturnType<typeof validateTipValues>) => (r as { fieldErrors: Record<string, string> }).fieldErrors;
-
-/** Minimal DOM-free root stub so readValues / resetValues are unit-testable under node. */
-function stubRoot(v: Record<string, string>) {
-  const inputs: Record<string, { value: string }> = {};
-  for (const [k, val] of Object.entries(v)) inputs[k] = { value: val };
+/** Vitest runs without a DOM, so the root is a stub answering the bindings' selectors. */
+const stubRoot = (v: Record<string, string>) => {
+  const controls: Record<string, { value: string }> = {};
+  for (const [k, val] of Object.entries(v)) controls[k] = { value: val };
   return {
     querySelector(sel: string) {
-      const m = sel.match(/\[name="(.+?)"\]/);
-      return m ? (inputs[m[1]] ?? null) : null;
+      const m = sel.match(/\[name="(.+?)"\]$/);
+      return m ? (controls[m[1]] ?? null) : null;
     },
   } as unknown as HTMLElement;
-}
+};
 
 /* ------------------------------------------------------------------ */
-/* Validation                                                          */
+/* Parsing                                                             */
 /* ------------------------------------------------------------------ */
 
-describe('tip-form — validation', () => {
-  it('accepts a valid ordinary calculation', () => {
-    expect(validateTipValues(vals())).toEqual({ ok: true });
+describe('parsing', () => {
+  it('tells an empty field from a bad one', () => {
+    expect(parseMoney('')).toBe('empty');
+    expect(parseMoney('abc')).toBe('invalid');
+    expect(parseMoney('-1')).toBe('invalid');
+    expect(parseMoney('0')).toBe(0);
   });
 
-  it('all fields empty → three required errors', () => {
-    const e = errs(validateTipValues({ bill: '', tipPct: '', people: '' }));
-    expect(e.bill).toBe('Enter a bill amount.');
-    expect(e.tipPct).toBe('Enter a tip percentage.');
-    expect(e.people).toBe('Enter the number of people.');
+  it('never turns a bad entry into zero', () => {
+    expect(parseMoney('abc')).not.toBe(0);
+    expect(parsePercent('abc')).toBe('invalid');
   });
 
-  it('bill: required, 0 valid, negative and non-finite invalid', () => {
-    expect(errs(validateTipValues(vals({ bill: '' }))).bill).toBe('Enter a bill amount.');
-    expect(validateTipValues(vals({ bill: '0' }))).toEqual({ ok: true });
-    expect(errs(validateTipValues(vals({ bill: '-5' }))).bill).toBe('Enter a bill amount of zero or more.');
-    expect(errs(validateTipValues(vals({ bill: 'abc' }))).bill).toBe('Enter a bill amount of zero or more.');
+  it('accepts a typed dollar sign, comma or percent', () => {
+    expect(parseMoney('$1,234.50')).toBe(1234.5);
+    expect(parsePercent('15%')).toBe(15);
   });
 
-  it('tip percentage: required, 0 valid, negative and non-finite invalid, no maximum', () => {
-    expect(errs(validateTipValues(vals({ tipPct: '' }))).tipPct).toBe('Enter a tip percentage.');
-    expect(validateTipValues(vals({ tipPct: '0' }))).toEqual({ ok: true });
-    expect(validateTipValues(vals({ tipPct: '100' }))).toEqual({ ok: true }); // no arbitrary max
-    expect(errs(validateTipValues(vals({ tipPct: '-20' }))).tipPct).toBe('Enter a tip percentage of zero or more.');
-    expect(errs(validateTipValues(vals({ tipPct: 'Infinity' }))).tipPct).toBe('Enter a tip percentage of zero or more.');
-  });
-
-  it('people: required whole number >= 1 — 0 / fractional / negative / non-finite rejected', () => {
-    expect(errs(validateTipValues(vals({ people: '' }))).people).toBe('Enter the number of people.');
-    expect(validateTipValues(vals({ people: '1' }))).toEqual({ ok: true });
-    expect(errs(validateTipValues(vals({ people: '0' }))).people).toBe('Enter a whole number of at least 1.');
-    expect(errs(validateTipValues(vals({ people: '2.5' }))).people).toBe('Enter a whole number of at least 1.');
-    expect(errs(validateTipValues(vals({ people: '-3' }))).people).toBe('Enter a whole number of at least 1.');
-    expect(errs(validateTipValues(vals({ people: 'NaN' }))).people).toBe('Enter a whole number of at least 1.');
+  it('counts whole people, at least one', () => {
+    expect(parsePeople('4')).toBe(4);
+    expect(parsePeople('1.5')).toBe('invalid');
+    expect(parsePeople('0')).toBe('invalid');
+    expect(parsePeople('')).toBe('empty');
   });
 });
 
 /* ------------------------------------------------------------------ */
-/* Computation                                                         */
+/* The tip table                                                       */
 /* ------------------------------------------------------------------ */
 
-describe('tip-form — compute', () => {
-  it('valid ordinary calculation carries all four outputs + the normalized people count', () => {
-    expect(computeTip(vals())).toEqual({ tipAmount: 10, total: 60, perPersonTip: 5, perPersonTotal: 30, people: 2 });
-  });
+describe('the tip table', () => {
+  const r = computeQuickTip({ price: '55' });
 
-  it('a decimal bill keeps full precision', () => {
-    const r = computeTip(vals({ bill: '85.75', tipPct: '18', people: '3' }));
-    expect(r.tipAmount).toBeCloseTo(15.435, 10);
-    expect(r.perPersonTotal).toBeCloseTo(33.728333, 5);
-  });
-
-  it('a decimal tip percentage', () => {
-    expect(computeTip(vals({ bill: '100', tipPct: '15.5', people: '4' }))).toMatchObject({ tipAmount: 15.5, perPersonTotal: 28.875 });
-  });
-
-  it('people = 1 is the whole bill plus tip', () => {
-    expect(computeTip(vals({ bill: '50', tipPct: '18', people: '1' }))).toMatchObject({ total: 59, perPersonTotal: 59 });
-  });
-
-  it('preserves the pure formula output exactly (delegation, no re-implementation)', () => {
-    for (const c of [vals(), vals({ bill: '85.75', tipPct: '18', people: '3' }), vals({ bill: '250.5', tipPct: '22', people: '6' })]) {
-      const r = computeTip(c);
-      const pure = calculateTip({ bill: Number(c.bill), tipPct: Number(c.tipPct), people: Number(c.people) });
-      expect(r.tipAmount).toBe(pure.tipAmount);
-      expect(r.total).toBe(pure.total);
-      expect(r.perPersonTip).toBe(pure.perPersonTip);
-      expect(r.perPersonTotal).toBe(pure.perPersonTotal);
+  it('reproduces the published table', () => {
+    const published: [number, number, number][] = [
+      [5, 2.75, 57.75], [10, 5.5, 60.5], [12, 6.6, 61.6], [14, 7.7, 62.7], [15, 8.25, 63.25],
+      [18, 9.9, 64.9], [20, 11, 66], [25, 13.75, 68.75], [30, 16.5, 71.5], [50, 27.5, 82.5],
+    ];
+    expect(r.rows).toHaveLength(published.length);
+    for (const [pct, tip, total] of published) {
+      const row = r.rows.find((x) => x.tipPct === pct)!;
+      expect(money(row.tipAmount)).toBe(tip);
+      expect(money(row.total)).toBe(total);
     }
   });
 
-  it('bill = 0 → all outputs 0 (valid)', () => {
-    expect(computeTip(vals({ bill: '0' }))).toMatchObject({ tipAmount: 0, total: 0, perPersonTip: 0, perPersonTotal: 0 });
+  it('leads with the customary rate', () => {
+    expect(CUSTOMARY_TIP_PCT).toBe(15);
+    expect(r.customary!.tipPct).toBe(15);
+    expect(money(quickTipBinding.resultValue(r))).toBe(63.25);
   });
 
-  it('tip rate = 0 → no tip, total = bill split evenly (valid)', () => {
-    expect(computeTip(vals({ tipPct: '0' }))).toMatchObject({ tipAmount: 0, total: 50, perPersonTotal: 25 });
+  it('offers the ten percentages the reference offers', () => {
+    expect([...TIP_PERCENTAGES]).toEqual([5, 10, 12, 14, 15, 18, 20, 25, 30, 50]);
   });
 
-  it('reconciliation holds and outputs are finite, >= 0 across the validated domain', () => {
-    for (const c of [vals({ bill: '0', tipPct: '0', people: '1' }), vals(), vals({ bill: '250.5', tipPct: '22', people: '6' })]) {
-      const r = computeTip(c);
-      expect(r.total).toBeCloseTo(Number(c.bill) + r.tipAmount, 9);
-      expect(r.perPersonTotal).toBeCloseTo(r.total / r.people, 9);
-      expect(r.perPersonTip).toBeCloseTo(r.tipAmount / r.people, 9);
-      for (const v of [r.tipAmount, r.total, r.perPersonTip, r.perPersonTotal]) {
-        expect(Number.isFinite(v)).toBe(true);
-        expect(v).toBeGreaterThanOrEqual(0);
-      }
-    }
+  it('requires a price and refuses a bad one', () => {
+    expect(validateQuickTip({ price: '' })).toMatchObject({ fieldErrors: { price: MSG.priceRequired } });
+    expect(validateQuickTip({ price: '-5' })).toMatchObject({ fieldErrors: { price: MSG.priceInvalid } });
+    expect(validateQuickTip({ price: '55' })).toEqual({ ok: true });
+  });
+
+  it('a zero price is a real table of zeros', () => {
+    const zero = computeQuickTip({ price: '0' });
+    expect(zero.rows).toHaveLength(10);
+    expect(quickTipBinding.resultValue(zero)).toBe(0);
+  });
+
+  it('never produces a figure from an unusable price', () => {
+    expect(Number.isNaN(quickTipBinding.resultValue(computeQuickTip({ price: 'abc' })))).toBe(true);
+    expect(computeQuickTip({ price: 'abc' }).rows).toEqual([]);
+  });
+
+  it('says what it found', () => {
+    expect(describeQuickTip(r)).toBe('At 15%, the tip is 8 dollars and 25 cents and the total 63 dollars and 25 cents.');
+    expect(interpretQuickTip(r)).toBe(
+      'On $55.00, the customary 15% is $8.25, making $63.25 in all. Every other rate is priced below.',
+    );
+  });
+
+  it('the example is the reference case', () => {
+    expect(QUICK_TIP_EXAMPLE_VALUES).toEqual({ price: '55' });
+    expect(validateQuickTip(QUICK_TIP_EXAMPLE_VALUES)).toEqual({ ok: true });
+    expect(money(quickTipBinding.resultValue(computeQuickTip(QUICK_TIP_EXAMPLE_VALUES)))).toBe(63.25);
+  });
+
+  it('reads and resets its one field', () => {
+    const root = stubRoot({ price: '55' });
+    expect(quickTipBinding.readOperands(root)).toEqual({ price: '55' });
+    quickTipBinding.resetOperands(root);
+    expect(quickTipBinding.readOperands(root)).toEqual({ price: '' });
   });
 });
 
 /* ------------------------------------------------------------------ */
-/* Guarded magnitude (default finite gate; no isUsableResult)          */
+/* The shared bill                                                     */
 /* ------------------------------------------------------------------ */
 
-describe('tip-form — resultValue + gate', () => {
-  it('the guarded magnitude is the DOMINANT total per person', () => {
-    expect(tipBinding.resultValue({ tipAmount: 10, total: 60, perPersonTip: 5, perPersonTotal: 30, people: 2 })).toBe(30);
-    expect(tipBinding.resultValue({ tipAmount: 0, total: 0, perPersonTip: 0, perPersonTotal: 0, people: 2 })).toBe(0);
+describe('the shared bill', () => {
+  const one = computeSharedTip(shared());
+
+  it('reproduces the published case', () => {
+    expect(money(one.tipAmount)).toBe(8.25);
+    expect(money(one.total)).toBe(63.25);
+    expect(money(one.perPersonTip)).toBe(8.25);
+    expect(money(one.perPersonTotal)).toBe(63.25);
   });
 
-  it('does not implement isUsableResult (no non-finite outcome in the validated domain)', () => {
-    expect(tipBinding.isUsableResult).toBeUndefined();
+  it('splits between people', () => {
+    const four = computeSharedTip(shared({ people: '4' }));
+    expect(money(four.total)).toBe(63.25);
+    expect(money(four.perPersonTotal)).toBe(15.81);
+    expect(money(four.perPersonTip)).toBe(2.06);
+  });
+
+  it('the guarded value is what each person pays', () => {
+    expect(money(sharedTipBinding.resultValue(one))).toBe(63.25);
+    expect(money(sharedTipBinding.resultValue(computeSharedTip(shared({ people: '4' }))))).toBe(15.81);
+  });
+
+  it('names the two lines the reference names, per person once split', () => {
+    expect(sharedLabels(one)).toEqual({ tip: 'Tip', total: 'Total Amount' });
+    expect(sharedLabels(computeSharedTip(shared({ people: '3' })))).toEqual({
+      tip: 'Tip per Person',
+      total: 'Total per Person',
+    });
+  });
+
+  it('explains the split only when there is one', () => {
+    expect(interpretSharedTip(one)).toBe('15% on $55.00 is $8.25, making $63.25 to pay.');
+    expect(interpretSharedTip(computeSharedTip(shared({ people: '4' })))).toContain('Split 4 ways');
+  });
+
+  it('announces what each person pays', () => {
+    expect(describeSharedTip(one)).toBe('Total Amount: 63 dollars and 25 cents.');
+  });
+
+  it('requires every field', () => {
+    const e = errs(validateSharedTip({ price: '', tipPct: '', people: '' }));
+    expect(e).toEqual({
+      price: MSG.priceRequired,
+      tipPct: MSG.tipRequired,
+      people: MSG.peopleRequired,
+    });
+  });
+
+  it('rejects a negative price or rate, and a fractional party', () => {
+    expect(errs(validateSharedTip(shared({ price: '-1' }))).price).toBe(MSG.priceInvalid);
+    expect(errs(validateSharedTip(shared({ tipPct: '-1' }))).tipPct).toBe(MSG.tipInvalid);
+    expect(errs(validateSharedTip(shared({ people: '2.5' }))).people).toBe(MSG.peopleInvalid);
+    expect(errs(validateSharedTip(shared({ people: '0' }))).people).toBe(MSG.peopleInvalid);
+  });
+
+  it('a zero tip is a real answer', () => {
+    expect(validateSharedTip(shared({ tipPct: '0' }))).toEqual({ ok: true });
+    expect(money(computeSharedTip(shared({ tipPct: '0' })).total)).toBe(55);
+  });
+
+  it('never lets a broken figure reach the panel', () => {
+    expect(Number.isNaN(completeSharedTip(computeSharedTip(shared({ price: 'abc' }))))).toBe(true);
+    expect(Number.isNaN(completeSharedTip({ ...one, perPersonTip: Number.NaN }))).toBe(true);
+    expect(Number.isNaN(completeSharedTip({ ...one, people: 0 }))).toBe(true);
+  });
+
+  it('reads all three fields, and reset restores the documented defaults', () => {
+    const root = stubRoot({ price: '99', tipPct: '20', people: '4' });
+    expect(sharedTipBinding.readOperands(root)).toEqual({ price: '99', tipPct: '20', people: '4' });
+    sharedTipBinding.resetOperands(root);
+    expect(sharedTipBinding.readOperands(root)).toEqual({ price: '', tipPct: '15', people: '1' });
+  });
+
+  it('ships the documented defaults', () => {
+    expect(DEFAULT_TIP_PCT).toBe('15');
+    expect(DEFAULT_PEOPLE).toBe('1');
+    expect(SHARED_TIP_EXAMPLE_VALUES).toEqual({ price: '55', tipPct: '15', people: '1' });
+    expect(money(sharedTipBinding.resultValue(computeSharedTip(SHARED_TIP_EXAMPLE_VALUES)))).toBe(63.25);
   });
 });
 
 /* ------------------------------------------------------------------ */
-/* Presentation                                                        */
+/* Presentation helpers                                                */
 /* ------------------------------------------------------------------ */
 
-describe('tip-form — announcement + interpretation', () => {
-  it('announces the dominant total per person only, in USD (plural people)', () => {
-    expect(describeTipResult({ tipAmount: 10, total: 60, perPersonTip: 5, perPersonTotal: 29.5, people: 2 })).toBe(
-      'Each person pays 29 dollars and 50 cents.',
-    );
+describe('presentation helpers', () => {
+  it('prints a percentage without trailing zeros', () => {
+    expect(formatTipPct(15)).toBe('15%');
+    expect(formatTipPct(12.5)).toBe('12.5%');
   });
 
-  it('announces "the total per person" for a single diner', () => {
-    expect(describeTipResult({ tipAmount: 9, total: 59, perPersonTip: 9, perPersonTotal: 59, people: 1 })).toBe(
-      'The total per person is 59 dollars.',
-    );
-  });
-
-  it('single-person interpretation states the total including tip', () => {
-    expect(interpretTip({ tipAmount: 9, total: 59, perPersonTip: 9, perPersonTotal: 59, people: 1 })).toBe(
-      'The total including tip is $59.00.',
-    );
-  });
-
-  it('multi-person interpretation states the split and per-person amount', () => {
-    expect(interpretTip({ tipAmount: 10, total: 60, perPersonTip: 5, perPersonTotal: 29.5, people: 2 })).toBe(
-      'Split between 2 people, each person pays $29.50.',
-    );
-  });
-
-  it('zero-bill interpretation explains the $0 total (valid, not invalid)', () => {
-    const s = interpretTip({ tipAmount: 0, total: 0, perPersonTip: 0, perPersonTotal: 0, people: 3 });
-    expect(s).toContain('$0 bill');
-    expect(s).toContain('$0.00');
-  });
-
-  it('zero-tip result uses the normal split interpretation (total = bill / people)', () => {
-    expect(interpretTip({ tipAmount: 0, total: 50, perPersonTip: 0, perPersonTotal: 25, people: 2 })).toBe(
-      'Split between 2 people, each person pays $25.00.',
-    );
-  });
-
-  it('peoplePhrase is singular only for exactly one person', () => {
-    expect(peoplePhrase(1)).toBe('1 person');
-    expect(peoplePhrase(2)).toBe('2 people');
-  });
-
-  it('spokenUSD reads dollars and cents with correct singular/plural', () => {
-    expect(spokenUSD(59)).toBe('59 dollars');
-    expect(spokenUSD(29.5)).toBe('29 dollars and 50 cents');
-    expect(spokenUSD(1)).toBe('1 dollar');
-    expect(spokenUSD(0)).toBe('0 dollars');
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* readValues + resetValues (DOM-free stub)                            */
-/* ------------------------------------------------------------------ */
-
-describe('tip-form — readValues / resetValues', () => {
-  it('reads the three named fields', () => {
-    const root = stubRoot({ bill: '50', tipPct: '20', people: '2' });
-    expect(tipBinding.readValues(root)).toEqual({ bill: '50', tipPct: '20', people: '2' });
-  });
-
-  it('reset clears bill + tip percentage and RESTORES people to 1', () => {
-    const root = stubRoot({ bill: '50', tipPct: '20', people: '4' });
-    tipBinding.resetValues(root, 'personal');
-    expect(tipBinding.readValues(root)).toEqual({ bill: '', tipPct: '', people: '1' });
+  it('speaks an amount', () => {
+    expect(spokenUSD(63.25)).toBe('63 dollars and 25 cents');
+    expect(spokenUSD(55)).toBe('55 dollars');
+    expect(spokenUSD(1.01)).toBe('1 dollar and 1 cent');
   });
 });
