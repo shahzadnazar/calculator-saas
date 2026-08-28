@@ -565,10 +565,8 @@ export const dateBinding: FormCalculatorBinding<DateValues, DateComputed> = {
   },
 
   resetValues(root, _mode: ResetMode) {
-    // Restore the default mode + operation; clear every task field across BOTH modes so switching
-    // modes after a reset never restores stale values. The island re-syncs panel visibility.
-    const modeSel = control(root, 'mode');
-    if (modeSel) modeSel.value = DEFAULT_MODE;
+    // The mode is fixed per calculator now — each is its own tool with its own root — so reset
+    // must NOT touch it, or the "add or subtract" calculator would silently become the other one.
     const opSel = control(root, 'op');
     if (opSel) opSel.value = DEFAULT_OP;
     for (const name of ['from', 'to', 'start', 'years', 'months', 'weeks', 'days']) {

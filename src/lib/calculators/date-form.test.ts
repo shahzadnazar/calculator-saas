@@ -348,15 +348,24 @@ describe('date binding — DOM read / reset (mock root)', () => {
     expect(v.op).toBe('add');
   });
 
-  it('resetValues restores the default mode + op and clears every field across BOTH modes', () => {
+  it('resetValues clears every field and restores the default op', () => {
     const { root, store } = mockRoot({ mode: 'add', from: '2020-01-01', to: '2021-01-01', start: '2024-01-01', op: 'sub', days: '30' });
     dateBinding.resetValues(root, 'personal');
-    expect(store.mode.value).toBe('diff');
     expect(store.op.value).toBe('add');
     expect(store.from.value).toBe('');
     expect(store.to.value).toBe('');
     expect(store.start.value).toBe('');
     expect(store.days.value).toBe('');
+  });
+
+  it('resetValues NEVER touches the mode — each calculator is fixed to its own task', () => {
+    // The page carries two independent calculators, each with a fixed hidden mode. Restoring a
+    // "default" here would silently turn the add-or-subtract calculator into the other one.
+    for (const mode of ['diff', 'add'] as const) {
+      const { root, store } = mockRoot({ mode, start: '2024-01-01', days: '30' });
+      dateBinding.resetValues(root, 'personal');
+      expect(store.mode.value).toBe(mode);
+    }
   });
 });
 

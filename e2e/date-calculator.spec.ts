@@ -15,30 +15,35 @@ const EMBED = '/embed/everyday/date-calculator';
 const GUIDE = '/guides/calculating-days-between-dates';
 const DEBOUNCE = 300;
 
-const shell = (page: Page) => page.locator('#dc-result');
-const diffValue = (page: Page) => page.locator('#dc-result [data-dc-panel="diff"] [data-result-value]').first();
-const addValue = (page: Page) => page.locator('#dc-result [data-dc-panel="add"] [data-result-value]').first();
-const totalDays = (page: Page) => page.locator('[data-dc-total-days]');
-const totalWeeks = (page: Page) => page.locator('[data-dc-total-weeks]');
+/** The page carries TWO independent calculators; every locator is scoped to one of them. */
+const diffRoot = (page: Page) => page.locator('[data-dc-mode="diff"]');
+const addRoot = (page: Page) => page.locator('[data-dc-mode="add"]');
+
+const shell = (page: Page) => page.locator('#dcd-result');
+const addShell = (page: Page) => page.locator('#dca-result');
+const diffValue = (page: Page) => page.locator('#dcd-result [data-result-value]').first();
+const addValue = (page: Page) => page.locator('#dca-result [data-result-value]').first();
+const totalDays = (page: Page) => page.locator('#dcd-result [data-dc-total-days]');
+const totalWeeks = (page: Page) => page.locator('#dcd-result [data-dc-total-weeks]');
 const diffInterp = (page: Page) => page.locator('[data-dc-diff-interpretation]');
 const addInterp = (page: Page) => page.locator('[data-dc-add-interpretation]');
-const live = (page: Page) => page.locator('#dc-live');
-const modeSel = (page: Page) => page.locator('[name="mode"]');
-const submitBtn = (page: Page) => page.locator('[data-date] button[type="submit"]');
-const region = (page: Page, when: string) => page.locator(`#dc-result [data-result-when~="${when}"]`);
+const live = (page: Page) => page.locator('#dcd-live');
+const addLive = (page: Page) => page.locator('#dca-live');
+const submitBtn = (page: Page) => diffRoot(page).locator('button[type="submit"]');
+const addSubmit = (page: Page) => addRoot(page).locator('button[type="submit"]');
+const region = (page: Page, when: string) => page.locator(`#dcd-result [data-result-when~="${when}"]`);
+const addRegion = (page: Page, when: string) => page.locator(`#dca-result [data-result-when~="${when}"]`);
 
 const calcDiff = async (page: Page, from: string, to: string) => {
-  await modeSel(page).selectOption('diff');
-  await page.locator('[name="from"]').fill(from);
-  await page.locator('[name="to"]').fill(to);
+  await diffRoot(page).locator('[name="from"]').fill(from);
+  await diffRoot(page).locator('[name="to"]').fill(to);
   await submitBtn(page).click();
 };
 const calcAdd = async (page: Page, start: string, op: 'add' | 'sub', days: string) => {
-  await modeSel(page).selectOption('add');
-  await page.locator('[name="start"]').fill(start);
-  await page.locator('[name="op"]').selectOption(op);
-  await page.locator('[name="days"]').fill(days);
-  await submitBtn(page).click();
+  await addRoot(page).locator('[name="start"]').fill(start);
+  await addRoot(page).locator('[name="op"]').selectOption(op);
+  await addRoot(page).locator('[name="days"]').fill(days);
+  await addSubmit(page).click();
 };
 
 test.describe('date: task-first', () => {
@@ -53,14 +58,15 @@ test.describe('date: task-first', () => {
     const server = await page.evaluate((html) => {
       const d = new DOMParser().parseFromString(html, 'text/html');
       return {
-        state: d.querySelector('#dc-result')?.getAttribute('data-result-state') ?? null,
-        diff: d.querySelector('#dc-result [data-dc-panel="diff"] [data-result-value]')?.textContent?.trim() ?? null,
-        mode: d.querySelector<HTMLSelectElement>('[name="mode"]')?.value ?? null,
+        state: d.querySelector('#dcd-result')?.getAttribute('data-result-state') ?? null,
+        diff: d.querySelector('#dcd-result [data-result-value]')?.textContent?.trim() ?? null,
+        addState: d.querySelector('#dca-result')?.getAttribute('data-result-state') ?? null,
         from: d.querySelector<HTMLInputElement>('[name="from"]')?.getAttribute('value') ?? '',
       };
     }, raw);
     await page.goto(ROUTE, { waitUntil: 'networkidle' });
     expect(server.state).toBe('empty');
+    expect(server.addState).toBe('empty'); // both calculators render empty on the server
     expect(server.diff).toBe('—'); // no baked-in difference
     expect(server.from).toBe(''); // no baked example date
     // The example is rendered on hydration, never baked into the HTML — so the two DIFFER.
@@ -70,10 +76,13 @@ test.describe('date: task-first', () => {
 
   /* ---- initial state ---- */
 
-  test('loads empty — default mode difference, dates blank, no result/announcement', async ({ page }) => {
-    await expect(modeSel(page)).toHaveValue('diff');
-    await expect(page.locator('[name="from"]')).toHaveValue('');
-    await expect(page.locator('[name="to"]')).toHaveValue('');
+  test('loads empty — both calculators present, dates blank, no result/announcement', async ({ page }) => {
+    await expect(page.locator('.dp-title')).toHaveText([
+      'Days Between Two Dates',
+      'Add to or Subtract from a Date',
+    ]);
+    await expect(diffRoot(page).locator('[name="from"]')).toHaveValue('');
+    await expect(diffRoot(page).locator('[name="to"]')).toHaveValue('');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     // The example fills this calculator's OWN valid region, so it is visible on load.
     await expect(region(page, 'valid')).toBeVisible();
@@ -155,15 +164,15 @@ test.describe('date: task-first', () => {
 
   test('add mode: adding whole days yields the resulting date, with announcement', async ({ page }) => {
     await calcAdd(page, '2024-01-01', 'add', '90');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'valid');
     await expect(addValue(page)).toContainText('March 31, 2024');
     await expect(addInterp(page)).toContainText('Adding 90 days');
-    await expect(live(page)).toHaveText('Resulting date: March 31, 2024.');
+    await expect(addLive(page)).toHaveText('Resulting date: March 31, 2024.');
   });
 
   test('add mode: zero days is valid (the same date)', async ({ page }) => {
     await calcAdd(page, '2024-06-15', 'add', '0');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'valid');
     await expect(addValue(page)).toContainText('June 15, 2024');
   });
 
@@ -180,68 +189,73 @@ test.describe('date: task-first', () => {
 
   test('add mode: a fractional day count is rejected as invalid', async ({ page }) => {
     await calcAdd(page, '2024-01-01', 'add', '1.5');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'invalid');
   });
 
-  /* ---- structural: mode switching ---- */
+  /* ---- two independent calculators ---- */
 
-  test('switching mode before the first calculation is structural — swaps fields, never calculates', async ({ page }) => {
-    await expect(page.locator('[data-dc-group="diff"]')).toBeVisible();
-    await expect(page.locator('[data-dc-group="add"]')).toBeHidden();
-    await modeSel(page).selectOption('add');
-    await expect(page.locator('[data-dc-group="add"]')).toBeVisible();
-    await expect(page.locator('[data-dc-group="diff"]')).toBeHidden();
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty'); // no auto-calc on switch
-    await modeSel(page).selectOption('diff');
-    await expect(page.locator('[data-dc-group="diff"]')).toBeVisible();
+  test('the two calculators are shown together, each with its own primary action', async ({ page }) => {
+    await expect(diffRoot(page).locator('[name="from"]')).toBeVisible();
+    await expect(addRoot(page).locator('[name="start"]')).toBeVisible();
+    await expect(submitBtn(page)).toHaveText('Calculate Difference');
+    await expect(addSubmit(page)).toHaveText('Calculate Date');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
-  test('switching to an empty mode after a calculation shows no cross-mode stale result', async ({ page }) => {
+  test('calculating one leaves the other alone', async ({ page }) => {
     await calcDiff(page, '2020-01-01', '2021-01-01');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    // switch to the empty add mode → the difference result must not linger
-    await modeSel(page).selectOption('add');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(region(page, 'valid')).toBeHidden();
-    // switching back recomputes the preserved difference values
-    await modeSel(page).selectOption('diff');
-    await page.waitForTimeout(DEBOUNCE);
+    await expect(diffValue(page)).toHaveText('1 year, 0 months, 0 days');
+    // The second calculator was never touched, so it still shows its labelled example.
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'example');
+
+    await calcAdd(page, '2024-01-01', 'add', '30');
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'valid');
+    // ...and the first one still holds its own answer.
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
     await expect(diffValue(page)).toHaveText('1 year, 0 months, 0 days');
   });
 
-  test('the primary button label follows the active task', async ({ page }) => {
-    await expect(submitBtn(page)).toHaveText('Calculate Difference');
-    await modeSel(page).selectOption('add');
-    await expect(submitBtn(page)).toHaveText('Calculate Date');
-    await modeSel(page).selectOption('diff');
-    await expect(submitBtn(page)).toHaveText('Calculate Difference');
+  test('neither calculator can be switched into the other’s task', async ({ page }) => {
+    await expect(diffRoot(page).locator('[name="mode"]')).toHaveValue('diff');
+    await expect(addRoot(page).locator('[name="mode"]')).toHaveValue('add');
+    // Reset must not turn the second calculator into the first.
+    await calcAdd(page, '2024-01-01', 'add', '30');
+    await addRoot(page).locator('[data-reset]').click();
+    await expect(addRoot(page).locator('[name="mode"]')).toHaveValue('add');
+    await expect(addSubmit(page)).toHaveText('Calculate Date');
+    await expect(addRoot(page).locator('[name="start"]')).toBeVisible();
   });
 
   /* ---- reset ---- */
 
-  test('reset restores the default mode, clears every field, empties the result', async ({ page }) => {
+  test('reset clears only its own calculator’s fields and result', async ({ page }) => {
+    await calcDiff(page, '2020-01-01', '2021-01-01');
     await calcAdd(page, '2024-01-01', 'sub', '30');
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'valid');
+
+    await addRoot(page).locator('[data-reset]').click();
+    await expect(addRoot(page).locator('[name="start"]')).toHaveValue('');
+    await expect(addRoot(page).locator('[name="days"]')).toHaveValue('');
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(addLive(page)).toHaveText('');
+    // The other calculator kept its dates and its result.
+    await expect(diffRoot(page).locator('[name="from"]')).toHaveValue('2020-01-01');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await page.locator('[data-reset]').click();
-    await expect(modeSel(page)).toHaveValue('diff');
-    await expect(page.locator('[name="from"]')).toHaveValue('');
-    await expect(page.locator('[name="start"]')).toHaveValue('');
-    await expect(page.locator('[name="days"]')).toHaveValue('');
+
+    await diffRoot(page).locator('[data-reset]').click();
+    await expect(diffRoot(page).locator('[name="from"]')).toHaveValue('');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
     await expect(live(page)).toHaveText('');
-    await expect(page.locator('[data-dc-group="diff"]')).toBeVisible();
   });
 
   /* ---- keyboard / responsive / theme / embed / guide / monetization ---- */
 
   test('keyboard submission works from a field', async ({ page }) => {
-    await modeSel(page).selectOption('diff');
-    await page.locator('[name="from"]').fill('2020-01-01');
-    await page.locator('[name="to"]').fill('2020-12-31');
-    await page.locator('[name="to"]').press('Enter');
+    await diffRoot(page).locator('[name="from"]').fill('2020-01-01');
+    await diffRoot(page).locator('[name="to"]').fill('2020-12-31');
+    await diffRoot(page).locator('[name="to"]').press('Enter');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
   });
 
@@ -301,7 +315,7 @@ test.describe('date: same-document instance isolation', () => {
     const raw = await (await page.request.get('http://localhost:4399/everyday/date-calculator')).text();
     const parts = await page.evaluate((html) => {
       const d = new DOMParser().parseFromString(html, 'text/html');
-      const root = d.querySelector('[data-date]');
+      const root = d.querySelector('[data-datepage]');
       const links = [...d.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.getAttribute('href'));
       const script = [...d.querySelectorAll('script[type="module"][src]')]
         .map((s) => s.getAttribute('src'))
@@ -315,8 +329,8 @@ test.describe('date: same-document instance isolation', () => {
       `<script type="module" src="${parts.script}"></script></body></html>`;
     await page.route('**/__date-two-instance-fixture', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: doc }));
     await page.goto(FIXTURE, { waitUntil: 'networkidle' });
-    await expect(page.locator('#inst-a [data-date]')).toHaveCount(1);
-    await expect(page.locator('#inst-b [data-date]')).toHaveCount(1);
+    await expect(page.locator('#inst-a [data-datepage]')).toHaveCount(1);
+    await expect(page.locator('#inst-b [data-datepage]')).toHaveCount(1);
   }
 
   test('two instances have no duplicate ids and every reference resolves in its own instance', async ({ page }) => {
@@ -348,20 +362,23 @@ test.describe('date: same-document instance isolation', () => {
     const A = (sel: string) => page.locator(`#inst-a ${sel}`);
     const B = (sel: string) => page.locator(`#inst-b ${sel}`);
     const fill = async (scope: (s: string) => ReturnType<Page['locator']>) => {
-      await scope('[name="from"]').fill('2020-01-01');
-      await scope('[name="to"]').fill('2025-01-01');
-      await scope('button[type="submit"]').click();
+      await scope('[data-dc-mode="diff"] [name="from"]').fill('2020-01-01');
+      await scope('[data-dc-mode="diff"] [name="to"]').fill('2025-01-01');
+      await scope('[data-dc-mode="diff"] button[type="submit"]').click();
     };
     await fill(A);
-    await expect(A('[data-dc-panel="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
+    await expect(A('[data-dc-mode="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days');
+    await expect(B('[data-dc-mode="diff"] [data-result-shell]')).toHaveAttribute(
+      'data-result-state',
+      'example',
+    ); // B untouched
 
     await fill(B);
-    await expect(B('[data-dc-panel="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days');
+    await expect(B('[data-dc-mode="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days');
 
-    await A('[data-reset]').click();
-    await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
-    await expect(B('[data-dc-panel="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days'); // B unaffected
+    await A('[data-dc-mode="diff"] [data-reset]').click();
+    await expect(A('[data-dc-mode="diff"] [data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
+    await expect(B('[data-dc-mode="diff"] [data-result-value]').first()).toHaveText('5 years, 0 months, 0 days'); // B unaffected
   });
 });
 
@@ -424,7 +441,7 @@ test.describe('date: business days', () => {
 
   test('makes the working-day count the dominant answer when asked, keeping the span below it', async ({ page }) => {
     await calcDiff(page, '2026-08-24', '2026-08-31');
-    await page.locator('[name="businessOnly"]').check();
+    await diffRoot(page).locator('[name="businessOnly"]').check();
     await page.waitForTimeout(DEBOUNCE);
     await expect(diffValue(page)).toHaveText('5 business days');
     await expect(page.locator('[data-dc-row="breakdown"]')).toBeVisible();
@@ -432,47 +449,47 @@ test.describe('date: business days', () => {
     await expect(live(page)).toHaveText('Business days: 5.');
   });
 
-  test('the holiday option is inert until business days are on', async ({ page }) => {
-    await expect(page.locator('[name="excludeHolidays"]')).toBeDisabled();
-    await page.locator('[name="businessOnly"]').check();
-    await expect(page.locator('[name="excludeHolidays"]')).toBeEnabled();
-    await page.locator('[name="businessOnly"]').uncheck();
-    await expect(page.locator('[name="excludeHolidays"]')).toBeDisabled();
-    await expect(page.locator('[name="excludeHolidays"]')).not.toBeChecked();
+  test('the holiday option is inert until business days are on, in each calculator', async ({ page }) => {
+    for (const root of [diffRoot(page), addRoot(page)]) {
+      await expect(root.locator('[name="excludeHolidays"]')).toBeDisabled();
+      await root.locator('[name="businessOnly"]').check();
+      await expect(root.locator('[name="excludeHolidays"]')).toBeEnabled();
+      await root.locator('[name="businessOnly"]').uncheck();
+      await expect(root.locator('[name="excludeHolidays"]')).toBeDisabled();
+      await expect(root.locator('[name="excludeHolidays"]')).not.toBeChecked();
+    }
   });
 
   test('drops an observed federal holiday from the count', async ({ page }) => {
     // The week containing Independence Day 2026, observed Friday 2026-07-03.
     await calcDiff(page, '2026-06-29', '2026-07-06');
-    await page.locator('[name="businessOnly"]').check();
+    await diffRoot(page).locator('[name="businessOnly"]').check();
     await page.waitForTimeout(DEBOUNCE);
     await expect(diffValue(page)).toHaveText('5 business days');
-    await page.locator('[name="excludeHolidays"]').check();
+    await diffRoot(page).locator('[name="excludeHolidays"]').check();
     await page.waitForTimeout(DEBOUNCE);
     await expect(diffValue(page)).toHaveText('4 business days');
     await expect(diffInterp(page)).toContainText('excluding US federal holidays');
   });
 
   test('shifts a date by business days, never counting the start day', async ({ page }) => {
-    await modeSel(page).selectOption('add');
-    await page.locator('[name="businessOnly"]').check();
-    await page.locator('[name="start"]').fill('2026-08-28'); // a Friday
-    await page.locator('[name="days"]').fill('3');
-    await submitBtn(page).click();
+    await addRoot(page).locator('[name="businessOnly"]').check();
+    await addRoot(page).locator('[name="start"]').fill('2026-08-28'); // a Friday
+    await addRoot(page).locator('[name="days"]').fill('3');
+    await addSubmit(page).click();
     await expect(addValue(page)).toHaveText('Wednesday, September 2, 2026');
   });
 
   test('steps the calendar boxes aside in business mode, and explains why', async ({ page }) => {
-    await modeSel(page).selectOption('add');
-    await expect(page.locator('[name="years"]')).toBeVisible();
-    await page.locator('[name="businessOnly"]').check();
-    await expect(page.locator('[name="years"]')).toBeHidden();
-    await expect(page.locator('[name="months"]')).toBeHidden();
-    await expect(page.locator('[name="weeks"]')).toBeHidden();
-    await expect(page.locator('[name="days"]')).toBeVisible();
-    await expect(page.locator('[data-dc-business-note]')).toBeVisible();
-    await page.locator('[name="businessOnly"]').uncheck();
-    await expect(page.locator('[name="years"]')).toBeVisible();
+    await expect(addRoot(page).locator('[name="years"]')).toBeVisible();
+    await addRoot(page).locator('[name="businessOnly"]').check();
+    await expect(addRoot(page).locator('[name="years"]')).toBeHidden();
+    await expect(addRoot(page).locator('[name="months"]')).toBeHidden();
+    await expect(addRoot(page).locator('[name="weeks"]')).toBeHidden();
+    await expect(addRoot(page).locator('[name="days"]')).toBeVisible();
+    await expect(addRoot(page).locator('[data-dc-business-note]')).toBeVisible();
+    await addRoot(page).locator('[name="businessOnly"]').uncheck();
+    await expect(addRoot(page).locator('[name="years"]')).toBeVisible();
   });
 });
 
@@ -481,14 +498,15 @@ test.describe('date: business days', () => {
 test.describe('date: add or subtract in four units', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-    await modeSel(page).selectOption('add');
   });
 
   const shift = async (page: Page, start: string, op: 'add' | 'sub', amount: Record<string, string>) => {
-    await page.locator('[name="start"]').fill(start);
-    await page.locator('[name="op"]').selectOption(op);
-    for (const [unit, value] of Object.entries(amount)) await page.locator(`[name="${unit}"]`).fill(value);
-    await submitBtn(page).click();
+    await addRoot(page).locator('[name="start"]').fill(start);
+    await addRoot(page).locator('[name="op"]').selectOption(op);
+    for (const [unit, value] of Object.entries(amount)) {
+      await addRoot(page).locator(`[name="${unit}"]`).fill(value);
+    }
+    await addSubmit(page).click();
   };
 
   test('offers years, months, weeks and days', async ({ page }) => {
@@ -500,8 +518,8 @@ test.describe('date: add or subtract in four units', () => {
   test('adds each unit on its own', async ({ page }) => {
     await shift(page, '2026-01-15', 'add', { years: '1' });
     await expect(addValue(page)).toHaveText('Friday, January 15, 2027');
-    await page.locator('[name="years"]').fill('');
-    await page.locator('[name="months"]').fill('2');
+    await addRoot(page).locator('[name=\"years\"]').fill('');
+    await addRoot(page).locator('[name=\"months\"]').fill('2');
     await page.waitForTimeout(DEBOUNCE);
     await expect(addValue(page)).toHaveText('Sunday, March 15, 2026');
   });
@@ -521,7 +539,7 @@ test.describe('date: add or subtract in four units', () => {
   test('clamps a month step to the end of the target month', async ({ page }) => {
     await shift(page, '2026-01-31', 'add', { months: '1' });
     await expect(addValue(page)).toHaveText('Saturday, February 28, 2026');
-    await page.locator('[name="start"]').fill('2024-01-31');
+    await addRoot(page).locator('[name=\"start\"]').fill('2024-01-31');
     await page.waitForTimeout(DEBOUNCE);
     await expect(addValue(page)).toHaveText('Thursday, February 29, 2024'); // leap year
   });
@@ -533,33 +551,32 @@ test.describe('date: add or subtract in four units', () => {
   });
 
   test('asks for an amount only when every box is blank', async ({ page }) => {
-    await page.locator('[name="start"]').fill('2026-01-15');
-    await submitBtn(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await addRoot(page).locator('[name=\"start\"]').fill('2026-01-15');
+    await addSubmit(page).click();
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'invalid');
     await expect(page.locator('[data-error-for="amount"]')).toBeVisible();
     // The first attempt was invalid, so live-after-first is not armed yet — the visitor
     // presses Calculate again rather than the result appearing as they type.
-    await page.locator('[name="weeks"]').fill('2');
-    await submitBtn(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await addRoot(page).locator('[name=\"weeks\"]').fill('2');
+    await addSubmit(page).click();
+    await expect(addShell(page)).toHaveAttribute('data-result-state', 'valid');
     await expect(addValue(page)).toHaveText('Thursday, January 29, 2026');
   });
 
   test('rejects a fractional or negative amount in any box', async ({ page }) => {
     for (const unit of ['years', 'months', 'weeks', 'days']) {
       await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-      await modeSel(page).selectOption('add');
-      await page.locator('[name="start"]').fill('2026-01-15');
+      await addRoot(page).locator('[name=\"start\"]').fill('2026-01-15');
       await page.evaluate(
         ([name]) => {
-          const el = document.querySelector(`[name="${name}"]`) as HTMLInputElement;
+          const el = document.querySelector(`[data-dc-mode="add"] [name="${name}"]`) as HTMLInputElement;
           el.value = '1.5';
           el.dispatchEvent(new Event('input', { bubbles: true }));
         },
         [unit],
       );
-      await submitBtn(page).click();
-      await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+      await addSubmit(page).click();
+      await expect(addShell(page)).toHaveAttribute('data-result-state', 'invalid');
     }
   });
 });
