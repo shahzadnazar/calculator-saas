@@ -24,7 +24,12 @@ const faqs = [
   {
     question: 'Should I use body weight or lean mass?',
     answer:
-      'This calculator uses total body weight, which is the most common approach. People with very high body fat may prefer to base intake on lean or goal weight — treat the result as a practical estimate.',
+      'The grams-per-kilogram rows use total body weight, which is the most common approach. People with very high body fat may prefer to base intake on lean or goal weight — treat the result as a practical estimate. Choosing Katch-McArdle under Settings does bring lean mass into the calorie row, since that equation works from it.',
+  },
+  {
+    question: 'Why does a protein calculator ask for my height and activity?',
+    answer:
+      'Because protein is recommended on two bases, not one. Grams per kilogram of body weight needs only your weight. The Acceptable Macronutrient Distribution Range puts protein at 10 to 35 per cent of your total daily Calories, and working out those Calories needs your height, age, gender and activity level. The calculator shows both so you can see where they agree and where they part company.',
   },
   {
     question: 'What foods are high in protein?',
@@ -37,26 +42,52 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Estimate your recommended daily protein intake based on your body weight and activity or goal, with a comparison across common targets."
+  intro="Estimate the daily protein an adult needs, on two bases: grams per kilogram of body weight, and a share of the Calories you actually burn."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-18' }}
+  reviewMetadata={{ reviewedDate: '2026-08-28' }}
 >
   <ProteinCalculator />
 
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Choose <strong>Metric</strong> or <strong>Imperial</strong> units and enter your <strong>body weight</strong>.</li>
-      <li>Select the <strong>goal</strong> that matches your training and objective.</li>
-      <li>Press <strong>Calculate</strong> to see your daily protein target, with a comparison across all the goals.</li>
+      <li>Choose <strong>US Units</strong> or <strong>Metric Units</strong>. Switching converts figures you have already typed rather than clearing them.</li>
+      <li>Enter your <strong>age</strong> and select your <strong>gender</strong>.</li>
+      <li>Enter your <strong>height</strong> and <strong>weight</strong>.</li>
+      <li>Pick the <strong>activity</strong> level that best matches a typical week.</li>
+      <li>Press <strong>Calculate</strong> to see your recommended intake and the three other bases it can be read against.</li>
     </ol>
+    <p>
+      <strong>+ Settings</strong> holds two choices most people never change: which of the three
+      published BMR equations to use for the calorie figure, and a body fat percentage for the one
+      that needs it. <strong>Other Units</strong> opens a converter above the calculator for anyone
+      whose scales read in stones; it is not a third unit system, and the calculator stays on
+      whichever system you chose.
+    </p>
+
+    <h2>Why it asks for more than your weight</h2>
+    <p>
+      Protein guidance comes on two bases, and they answer slightly different questions. The first
+      is grams per kilogram of body weight, which is why weight alone gets you the recommended
+      dietary allowance. The second is a share of the energy you actually use — the Acceptable
+      Macronutrient Distribution Range puts protein at 10 to 35 per cent of total Calories — and
+      that needs to know how many Calories you burn, which in turn needs your height, your age and
+      how active you are.
+    </p>
+    <p>
+      The two rarely land on the same number, and the gap is informative rather than a
+      contradiction. A tall, very active person burns far more than their body weight alone
+      suggests, so the percentage basis runs higher; a shorter, sedentary person sees the reverse.
+      Read the recommended allowance as a floor and the ranges as the room above it.
+    </p>
 
     <h2>How protein needs scale</h2>
     <p>
       Protein requirements rise with body weight and with how hard you train. A sedentary adult
       needs only enough to maintain everyday tissue turnover; endurance athletes, people lifting to
-      build muscle, and dieters trying to hold on to muscle all need more. The calculator expresses
-      each goal as grams of protein per kilogram of body weight.
+      build muscle, and dieters trying to hold on to muscle all need more. That is the span from
+      0.8 to 1.8 grams per kilogram, with roughly 1.8 to 2 grams per kilogram generally suggested
+      for the highly active.
     </p>
 
     <h2>The formula</h2>
