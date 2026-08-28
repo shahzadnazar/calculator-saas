@@ -26,15 +26,38 @@ export const REFERENCE_CYCLE_DAYS = 28;
 
 const DAY_MS = 86_400_000;
 
-/** How the visitor is dating the pregnancy. */
-export type DatingMethod = 'lmp' | 'conception' | 'ultrasound' | 'ivf';
+/**
+ * How the visitor is dating the pregnancy.
+ *
+ * `due` is only offered where the due date is an INPUT rather than the answer: the pregnancy
+ * calculator, where someone already carrying a date from their provider wants the schedule
+ * that goes with it. The due-date calculator cannot offer it — it would be asking for its
+ * own output.
+ */
+export type DatingMethod = 'due' | 'lmp' | 'conception' | 'ultrasound' | 'ivf';
 
-export const DATING_METHODS: { value: DatingMethod; label: string }[] = [
-  { value: 'lmp', label: 'Last Period' },
-  { value: 'conception', label: 'Conception Date' },
-  { value: 'ultrasound', label: 'Ultrasound' },
-  { value: 'ivf', label: 'IVF Transfer Date' },
-];
+export const DATING_METHOD_LABELS: Record<DatingMethod, string> = {
+  due: 'Due Date',
+  lmp: 'Last Period',
+  conception: 'Conception Date',
+  ultrasound: 'Ultrasound',
+  ivf: 'IVF Transfer Date',
+};
+
+const methodList = (order: DatingMethod[]) =>
+  order.map((value) => ({ value, label: DATING_METHOD_LABELS[value] }));
+
+/** The due-date calculator's four, in the reference's order. */
+export const DATING_METHODS = methodList(['lmp', 'conception', 'ultrasound', 'ivf']);
+
+/** The pregnancy calculator's five, in the reference's order — the due date leads. */
+export const PREGNANCY_DATING_METHODS = methodList([
+  'due',
+  'lmp',
+  'ultrasound',
+  'conception',
+  'ivf',
+]);
 
 /** The two embryo ages a clinic transfers at, and the day count each implies. */
 export type EmbryoAge = 3 | 5;
@@ -61,6 +84,15 @@ export const CYCLE_MAX = 45;
 export function lmpFromCycle(lmp: Date, cycleDays: number): Date {
   const usable = Number.isFinite(cycleDays) && cycleDays > 0 ? cycleDays : REFERENCE_CYCLE_DAYS;
   return addDays(lmp, usable - REFERENCE_CYCLE_DAYS);
+}
+
+/**
+ * A due date already in hand runs the rule backwards: the LMP is 280 days before it. Used
+ * when someone has a date from their provider — often itself revised from a scan — and wants
+ * the schedule that belongs to it rather than a fresh estimate.
+ */
+export function lmpFromDueDate(dueDate: Date): Date {
+  return addDays(dueDate, -GESTATION_DAYS);
 }
 
 /** Conception is about two weeks after the LMP, so the LMP is two weeks before it. */

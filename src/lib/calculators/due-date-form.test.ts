@@ -32,6 +32,7 @@ import {
 const TODAY = '2026-06-01';
 const base: DueDateValues = {
   method: 'lmp',
+  dueDate: '',
   lmp: '2026-01-01',
   cycleDays: '',
   conception: '',

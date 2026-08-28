@@ -1,152 +1,127 @@
 /**
- * Pregnancy form binding (R14B2 — Gestational follow-on, 2 of 2).
+ * Pregnancy form binding — the reference's five dating methods, on the UNCHANGED
+ * standard-form runtime.
  *
- * The SECOND date-input migration, sharing the locked date-input policy proven by
- * the Due Date pilot but kept fully SELF-CONTAINED: it wraps the UNCHANGED
- * `pregnancyInfo` engine (frozen by pregnancy.test.ts) and the UNCHANGED shared
- * date primitives (`parseISODateUTC`, `toISODateUTC`, `addDays`) directly, and
- * imports NOTHING from due-date-form.ts — the two gestational islands stay
- * independent (no shared gestational binding, no shared date-input binding).
+ * The visitor says how they are dating the pregnancy and gets the schedule that follows from
+ * it. Five routes, because this calculator can accept the due date ITSELF: someone already
+ * carrying a date from their provider wants the weeks-and-days and the milestones that go
+ * with it, not a fresh estimate. The due-date calculator cannot offer that fifth route — it
+ * would be asking for its own answer — so the two share the four they have in common through
+ * `dating-method-form.ts` and diverge only on that one.
  *
- * Date semantics (identical policy to Due Date): the LMP is a civil calendar date
- * parsed strictly as YYYY-MM-DD → UTC midnight; all arithmetic is UTC
- * (DST-independent). The visitor's "today" is their LOCAL calendar Y/M/D pinned to
- * UTC midnight (`todayISO`), captured at readValues time and threaded through the
- * pure functions so validation / compute / guard are fully testable with an
- * injected date.
+ * Every route resolves to a last menstrual period, from which everything else follows. The
+ * arithmetic is the reviewed pure `due-date.ts`; the pregnancy view of it — current
+ * gestational age, trimester, progress, and the dated schedule with the visitor's own place
+ * in it — is the UNCHANGED `pregnancyInfo` engine plus `pregnancySchedule`.
  *
- * Product decisions (R14B2):
- *   • Task-first: the LMP starts EMPTY; the visitor presses "Calculate Pregnancy
+ * Date semantics: every date is a civil calendar date parsed strictly as YYYY-MM-DD → UTC
+ * midnight, so nothing moves by a day across a timezone or a daylight-saving boundary. The
+ * visitor's "today" is their LOCAL calendar Y/M/D pinned the same way, captured at
+ * readValues time and threaded through the pure functions so validation, compute and the
+ * completeness guard are all testable with an injected date.
+ *
+ * Product decisions:
+ *   • Task-first: every field starts EMPTY; the visitor presses "Calculate Pregnancy
  *     Progress" for the first result; live-after-first thereafter.
- *   • A future LMP is INVALID (the island also caps the picker at today; the
- *     binding enforces the same rule independently).
- *   • The DOMINANT result is the CURRENT gestational age while the pregnancy is
- *     ongoing (how far along — the calculator's whole purpose); once the estimated
- *     due date has PASSED it becomes the estimated due date with a neutral note and
- *     no unbounded current progress.
- *   • Two calculator-owned milestones — LMP+91 and LMP+189 — are labelled by when
- *     the next trimester BEGINS (they are exactly the first days of the 2nd and 3rd
- *     trimesters), not by "end of trimester".
- *   • The complete-result guard lives in the ordinary `resultValue`: it returns the
- *     finite due-date timestamp only when the WHOLE result reconciles with the
- *     unchanged engine (due = LMP+280, conception = LMP+14, milestones = LMP+91 /
- *     LMP+189, strictly increasing key dates, and — while ongoing — a finite,
- *     in-range gestational block that matches the engine), else a NaN sentinel.
- *     There is NO `isUsableResult`.
+ *   • The DOMINANT result is the CURRENT gestational age while the pregnancy is ongoing
+ *     (how far along — the calculator's whole purpose); once the estimated due date has
+ *     PASSED it becomes the estimated due date with a neutral note and no unbounded current
+ *     progress.
+ *   • The two trimester milestones — LMP+91 and LMP+189 — are labelled by the trimester they
+ *     BEGIN, because that is exactly what those days are.
+ *   • The complete-result guard lives in the ordinary `resultValue`: it returns the finite
+ *     due-date timestamp only when the WHOLE result reconciles with the unchanged engine,
+ *     else a NaN sentinel. There is NO `isUsableResult`.
  */
 import {
   dueDateFromLMP,
   conceptionFromLMP,
   gestationalAge,
+  milestones,
+  PREGNANCY_DATING_METHODS,
+  EMBRYO_AGES,
+  CYCLE_MIN,
+  CYCLE_MAX,
+  REFERENCE_CYCLE_DAYS,
   GESTATION_DAYS,
+  type DatingMethod,
 } from './due-date';
-import { pregnancyInfo, type PregnancyInfo } from './pregnancy';
+import {
+  MSG,
+  SCAN_WEEKS_MAX,
+  todayISO,
+  longDate,
+  shortDate,
+  isStrictCalendarDate,
+  validateDating,
+  resolveLmp,
+  readDatingValues,
+  resetDatingValues,
+  type DatingValues,
+} from './dating-method-form';
+import { pregnancyInfo, pregnancySchedule, type PregnancyInfo, type ScheduleRow } from './pregnancy';
 import { parseISODateUTC } from './age';
 import { toISODateUTC, addDays } from './date-duration';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
   ResetMode,
-  ValidationResult,
 } from '@lib/result/form-runtime';
 
-export interface PregnancyValues {
-  /** Raw LMP string from the date input. */
-  lmp: string;
-  /** Visitor's local calendar date pinned to UTC midnight, ISO (captured at read time). */
-  today: string;
-}
+export {
+  PREGNANCY_DATING_METHODS,
+  EMBRYO_AGES,
+  CYCLE_MIN,
+  CYCLE_MAX,
+  REFERENCE_CYCLE_DAYS,
+  SCAN_WEEKS_MAX,
+  MSG,
+  todayISO,
+  longDate,
+  shortDate,
+  isStrictCalendarDate,
+};
+export type { DatingMethod };
+
+/** The five methods this calculator offers, in the reference's order. */
+export const PREGNANCY_METHODS: DatingMethod[] = PREGNANCY_DATING_METHODS.map((m) => m.value);
+
+/** Every dating field; this calculator offers all five methods, so it reads them all. */
+export type PregnancyValues = DatingValues;
+
+/** Validation for the five methods this calculator offers. */
+export const validatePregnancy = validateDating;
 
 export interface PregnancyComputed {
+  method: DatingMethod;
+  /** The LMP every method resolves to. */
   lmpISO: string;
   today: string;
   info: PregnancyInfo;
+  schedule: ScheduleRow[];
   /** The estimated due date is before the visitor's local today. */
   pastDue: boolean;
 }
 
-/* ------------------------------------------------------------------ */
-/* Date helpers (self-contained — no import from due-date-form)        */
-/* ------------------------------------------------------------------ */
-
-/** The visitor's LOCAL calendar Y/M/D, pinned to UTC midnight, as ISO. */
-export function todayISO(): string {
-  const d = new Date();
-  return toISODateUTC(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())));
-}
-
-/** Long-form, UTC-stable date (e.g. "Monday, October 7, 2024"). */
-export function longDate(d: Date): string {
-  return d.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-/** Compact, UTC-stable date for the milestone timeline (e.g. "Oct 7, 2024"). */
-export function shortDate(d: Date): string {
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
 const ord = (n: 1 | 2 | 3): string => (n === 1 ? '1st' : n === 2 ? '2nd' : '3rd');
-
-const REQUIRED_MSG = 'Enter your last menstrual period date.';
-const INVALID_CALENDAR_MSG = 'Enter a valid last menstrual period date.';
-const FUTURE_MSG = 'Enter a last menstrual period date that is not in the future.';
-
-/* ------------------------------------------------------------------ */
-/* Validation (pure) — required → strict calendar date → not future    */
-/* ------------------------------------------------------------------ */
-
-/**
- * A structurally valid civil calendar date. The raw string must round-trip
- * EXACTLY through the UNCHANGED primitive — `toISODateUTC(parseISODateUTC(raw))
- * === raw` — which rejects the frozen roll-over of impossible components
- * (`2023-02-30` → `2023-03-02`, `2026-13-01` → `2027-01-01`) and non-canonical
- * formatting (`2026-1-2`) WITHOUT replacing the parser (same policy as Due Date;
- * the primitive stays exactly as characterized).
- */
-export function isStrictCalendarDate(raw: string): boolean {
-  const d = parseISODateUTC(raw);
-  return !!d && Number.isFinite(d.getTime()) && toISODateUTC(d) === raw;
-}
-
-/**
- * Validation precedence: (1) required, (2) a valid civil calendar date (strict
- * round-trip), (3) not in the future (relative to the visitor's local today).
- */
-export function validatePregnancy(v: PregnancyValues): ValidationResult {
-  const raw = v.lmp ?? '';
-  if (raw.trim() === '') return { ok: false, fieldErrors: { lmp: REQUIRED_MSG } };
-  if (!isStrictCalendarDate(raw)) return { ok: false, fieldErrors: { lmp: INVALID_CALENDAR_MSG } };
-  const lmp = parseISODateUTC(raw)!;
-  const today = parseISODateUTC(v.today);
-  if (today && lmp.getTime() > today.getTime()) {
-    return { ok: false, fieldErrors: { lmp: FUTURE_MSG } };
-  }
-  return { ok: true };
-}
 
 /* ------------------------------------------------------------------ */
 /* Computation (pure) — unchanged engine pass-through                  */
 /* ------------------------------------------------------------------ */
 
+const INVALID = new Date(Number.NaN);
+
 export function computePregnancy(v: PregnancyValues): PregnancyComputed {
-  const lmp = parseISODateUTC(v.lmp) ?? new Date(Number.NaN);
+  const lmp = resolveLmp(v);
+  const usable = Number.isFinite(lmp.getTime());
   const today = parseISODateUTC(v.today) ?? lmp;
-  const info = pregnancyInfo(lmp, today);
+  const info = pregnancyInfo(usable ? lmp : INVALID, today);
   return {
-    lmpISO: v.lmp,
+    method: v.method,
+    lmpISO: usable ? toISODateUTC(lmp) : '',
     today: v.today,
     info,
+    schedule: usable ? pregnancySchedule(lmp, today) : [],
     pastDue: info.dueDate.getTime() < today.getTime(),
   };
 }
@@ -212,6 +187,28 @@ export function completePregnancyValue(r: PregnancyComputed): number {
       return FAIL;
     }
   }
+  // The schedule is rendered as fact, so it is held to the same standard: it must carry
+  // every shared milestone, at the dates the engine says, in order — plus at most the one
+  // TODAY row this calculator inserts. A schedule that does not reconcile fails the whole
+  // result rather than printing a plausible-looking wrong date.
+  const expectedRows = milestones(lmp);
+  const scheduled = r.schedule ?? [];
+  const todayRows = scheduled.filter((row) => row.isToday);
+  if (todayRows.length > 1) return FAIL;
+  const fixed = scheduled.filter((row) => !row.isToday);
+  if (fixed.length !== expectedRows.length) return FAIL;
+  for (let i = 0; i < expectedRows.length; i += 1) {
+    const got = fixed[i];
+    const want = expectedRows[i];
+    if (!got || got.key !== want.key || got.label !== want.label) return FAIL;
+    if (!(got.date instanceof Date) || got.date.getTime() !== want.date.getTime()) return FAIL;
+    const age = gestationalAge(lmp, want.date);
+    if (got.weeks !== age.weeks || got.days !== age.days) return FAIL;
+  }
+  for (let i = 1; i < scheduled.length; i += 1) {
+    if (scheduled[i].date.getTime() < scheduled[i - 1].date.getTime()) return FAIL;
+  }
+
   // Past-due: date relationships validated above; the active gestational block is
   // intentionally not rendered, so it is not re-validated here.
   return due;
@@ -221,8 +218,18 @@ export function completePregnancyValue(r: PregnancyComputed): number {
 /* Presentation (pure)                                                 */
 /* ------------------------------------------------------------------ */
 
+export interface ScheduleView {
+  key: string;
+  label: string;
+  date: string;
+  age: string;
+  isToday: boolean;
+}
+
 export interface PregnancyPresentation {
   pastDue: boolean;
+  /** The dated schedule, with the visitor's own row marked. */
+  schedule: ScheduleView[];
   /** Dominant hero: the current gestational age (ongoing) or the due date (past-due). */
   headline: string;
   /** Label above the hero: "Pregnancy progress" (ongoing) or "Estimated due date" (past-due). */
@@ -244,6 +251,34 @@ export interface PregnancyPresentation {
   interpretation: string;
 }
 
+/** Weeks and days, the way prenatal care says it. */
+function ageLabel(weeks: number, days: number): string {
+  return days === 0 ? `${weeks}w` : `${weeks}w ${days}d`;
+}
+
+function scheduleView(r: PregnancyComputed): ScheduleView[] {
+  return (r.schedule ?? []).map((row) => ({
+    key: row.key,
+    label: row.label,
+    date: shortDate(row.date),
+    age: ageLabel(row.weeks, row.days),
+    isToday: row.isToday,
+  }));
+}
+
+/**
+ * The interpretation names the route the visitor actually took. Saying "based on the entered
+ * last menstrual period" to someone who typed a due date is simply wrong, and it is exactly
+ * the sentence that tells them whether the calculator understood them.
+ */
+const LEAD_IN: Record<DatingMethod, string> = {
+  due: 'From the due date you entered',
+  lmp: 'Based on the entered last menstrual period',
+  conception: 'Based on the conception date you entered',
+  ultrasound: 'Based on the ultrasound you entered',
+  ivf: 'Based on the IVF transfer date you entered',
+};
+
 export function presentPregnancy(r: PregnancyComputed): PregnancyPresentation {
   const info = r.info;
   const conception = shortDate(info.conceptionDate);
@@ -263,6 +298,7 @@ export function presentPregnancy(r: PregnancyComputed): PregnancyPresentation {
       dueSecondary: '—',
       remaining: '',
       progressPct: 0,
+      schedule: scheduleView(r),
       conception,
       secondTrimester,
       thirdTrimester,
@@ -275,6 +311,7 @@ export function presentPregnancy(r: PregnancyComputed): PregnancyPresentation {
   const weeksToGo = Math.ceil(a.daysRemaining / 7);
   return {
     pastDue: false,
+    schedule: scheduleView(r),
     headline: `${a.weeks} weeks, ${a.days} days`,
     headlineLabel: 'Pregnancy progress',
     trimester: ord(a.trimester),
@@ -285,7 +322,9 @@ export function presentPregnancy(r: PregnancyComputed): PregnancyPresentation {
     secondTrimester,
     thirdTrimester,
     dueDate: dueShort,
-    interpretation: `Based on the entered last menstrual period, you are ${a.weeks} weeks and ${a.days} days along — the ${ord(a.trimester)} trimester — with an estimated due date of ${dueLong}.`,
+    // The due date is the visitor's own input on that route, so it is confirmed rather than
+    // presented back to them as an estimate.
+    interpretation: `${LEAD_IN[r.method] ?? LEAD_IN.lmp}, you are ${a.weeks} weeks and ${a.days} days along — the ${ord(a.trimester)} trimester — with ${r.method === 'due' ? 'a' : 'an estimated'} due date of ${dueLong}.`,
   };
 }
 
@@ -308,7 +347,7 @@ const control = (root: HTMLElement, name: string) =>
 
 export const pregnancyBinding: FormCalculatorBinding<PregnancyValues, PregnancyComputed> = {
   readValues(root) {
-    return { lmp: control(root, 'lmp')?.value ?? '', today: todayISO() };
+    return readDatingValues(root, PREGNANCY_METHODS);
   },
 
   validate: validatePregnancy,
@@ -337,6 +376,41 @@ export const pregnancyBinding: FormCalculatorBinding<PregnancyValues, PregnancyC
     set('[data-pg-third]', p.thirdTrimester);
     set('[data-pg-due]', p.dueDate);
     set('[data-pg-interpretation]', p.interpretation);
+
+    // The schedule is a fixed set of milestone rows plus one optional TODAY row, so the
+    // markup carries every row and this only fills them — no row is created or destroyed at
+    // runtime, and the TODAY row moves down the list as the pregnancy progresses.
+    const todayRow = scope.querySelector<HTMLElement>('[data-pg-row="today"]');
+    for (const row of p.schedule) {
+      const el = scope.querySelector<HTMLElement>(`[data-pg-row="${row.key}"]`);
+      if (!el) continue;
+      const date = el.querySelector<HTMLElement>('[data-pg-row-date]');
+      const age = el.querySelector<HTMLElement>('[data-pg-row-age]');
+      if (date) date.textContent = row.date;
+      if (age) age.textContent = row.age;
+    }
+    if (todayRow) {
+      const shown = p.schedule.find((row) => row.isToday);
+      todayRow.hidden = !shown;
+      // Reposition the visitor's own row: it belongs after the last milestone they have
+      // already passed, which changes as the pregnancy progresses.
+      if (shown) {
+        const index = p.schedule.findIndex((row) => row.isToday);
+        const after = p.schedule[index - 1];
+        const anchor = after ? scope.querySelector<HTMLElement>(`[data-pg-row="${after.key}"]`) : null;
+        const parent = todayRow.parentElement;
+        if (parent) {
+          if (anchor && anchor.parentElement === parent) anchor.after(todayRow);
+          else parent.prepend(todayRow);
+        }
+      }
+    }
+    // The dominant slot carries two different shapes — "14 weeks, 2 days" while ongoing, a
+    // full weekday date once past due — and one type size cannot serve both. Say which is
+    // in there and let the stylesheet size it, exactly as the due-date calculator sizes the
+    // same string.
+    const headline = scope.querySelector<HTMLElement>('[data-pg-headline]');
+    if (headline) headline.dataset.kind = p.pastDue ? 'date' : 'progress';
     const bar = scope.querySelector<HTMLElement>('[data-pg-bar]');
     if (bar) bar.style.width = `${p.progressPct}%`;
     // The prominent secondary (current trimester + estimated due date) and the live
@@ -348,8 +422,7 @@ export const pregnancyBinding: FormCalculatorBinding<PregnancyValues, PregnancyC
   },
 
   resetValues(root, _mode: ResetMode) {
-    const el = control(root, 'lmp');
-    if (el) el.value = '';
+    resetDatingValues(root, 'due');
   },
 };
 
@@ -370,9 +443,23 @@ export const pregnancyBinding: FormCalculatorBinding<PregnancyValues, PregnancyC
  * result markup. The visitor's fields are never written to.
  */
 export function pregnancyExampleValues(): PregnancyValues {
-  const today = new Date();
-  const lmp = new Date(today);
-  lmp.setDate(lmp.getDate() - 140); // 20 weeks along
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { lmp: iso(lmp), today: iso(today) };
+  const today = todayISO();
+  const base = parseISODateUTC(today)!;
+  // Dated the way the form opens — from a due date — and placed 20 weeks along, so the
+  // example always shows a live pregnancy rather than one that quietly went past due as the
+  // months rolled by.
+  const due = addDays(base, GESTATION_DAYS - 140);
+  return {
+    method: 'due',
+    dueDate: toISODateUTC(due),
+    lmp: '',
+    cycleDays: '',
+    conception: '',
+    scanDate: '',
+    scanWeeks: '',
+    scanDays: '',
+    transferDate: '',
+    embryoAge: '5',
+    today,
+  };
 }
