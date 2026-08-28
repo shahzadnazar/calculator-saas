@@ -263,8 +263,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Sales Tax Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Add or remove sales tax from any amount.',
-    keywords: ['sales tax calculator', 'tax rate'],
+    description: 'Fill in any two of before-tax price, tax rate and after-tax price to get the third.',
+    keywords: ['sales tax calculator', 'reverse sales tax', 'price before tax', 'tax rate from receipt', 'after tax price'],
   },
   {
     slug: 'income-tax-calculator',

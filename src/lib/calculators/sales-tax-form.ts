@@ -1,22 +1,26 @@
 /**
- * Sales-tax form binding (R8A1 — standard-form wave, calculator #13; product family
- * MULTI-MODE, on the standard-form runtime UNCHANGED).
+ * Sales tax form binding — the reference's three-field solver on the UNCHANGED standard-form
+ * runtime.
  *
- * Sales Tax has two modes — add tax / remove tax — but they are a STRUCTURAL selector
- * (same two fields, same {net,tax,gross} shape; only the equation, the labels and the
- * dominant result change). The runtime already recomputes on a structural change
- * (like calorie's goal `<select>`); this binding owns the sales-tax specifics: reading
- * the mode, selecting the reviewed formula, validating amount + rate, and rendering a
- * MODE-SPECIFIC dominant result with USD figures and a concise announcement. The
- * island owns the visible mode control + the amount/action labels (see the island).
+ * Before-tax price, sales tax rate, after-tax price: fill in any two and the third follows.
+ * There is no mode selector, because the blank field IS the mode — which is the whole reason
+ * this shape is better than an add/remove toggle. A toggle can disagree with the fields; a
+ * blank cannot.
  *
- * The pure `addSalesTax` / `removeSalesTax` / `formatCurrency` are UNCHANGED and frozen
- * by the characterization suite (sales-tax.test.ts). Everything added here is at the
- * VALIDATION / PRESENTATION boundary: amount and rate must be finite and >= 0 (an
- * entered 0 is a VALID result; empty / negative / non-finite are rejected) — never
- * `Number(value) || 0`. USD is explicit throughout.
+ * The arithmetic lives in `solveSalesTax` (sales-tax.ts), which is built on the frozen
+ * `addSalesTax` / `removeSalesTax` primitives. Everything here is at the VALIDATION /
+ * PRESENTATION boundary.
+ *
+ * Product decisions:
+ *   • All three fields start EMPTY. Exactly two must be filled: none of the three is more
+ *     "the input" than the others, so there is nothing to default.
+ *   • Strict parsing, never `Number(v) || 0` — a field containing "abc" is an error, not a
+ *     zero, and a blank is a request to solve for that field rather than a zero.
+ *   • The dominant figure is whichever one was solved for, and the label says which.
+ *   • No isUsableResult: the complete-result guard is `resultValue`, which returns a
+ *     non-finite sentinel unless all three figures reconcile.
  */
-import { addSalesTax, removeSalesTax, type AddTaxResult } from './sales-tax';
+import { solveSalesTax, unknownOf, type SalesTaxSolution, type SalesTaxUnknown } from './sales-tax';
 import { formatCurrency } from '@lib/format';
 import type {
   FormCalculatorBinding,
@@ -25,89 +29,160 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-export type TaxMode = 'add' | 'remove';
-
 export interface SalesTaxValues {
-  mode: TaxMode;
-  amount: string;
+  beforeTax: string;
   rate: string;
+  afterTax: string;
 }
 
-export interface SalesTaxComputed extends AddTaxResult {
-  mode: TaxMode;
-  rate: number;
-}
+export interface SalesTaxComputed extends SalesTaxSolution {}
+
+export const FIELD_LABELS: Record<SalesTaxUnknown, string> = {
+  beforeTax: 'Before Tax Price',
+  ratePct: 'Sales Tax Rate',
+  afterTax: 'After Tax Price',
+};
+
+export const MSG = {
+  needTwo: 'Fill in any two of the three and leave the third blank.',
+  tooMany: 'Leave one of the three blank — that is the one this works out.',
+  price: 'Enter a price of zero or more.',
+  rate: 'Enter a rate greater than -100%.',
+  noRate: 'A rate needs a before-tax price greater than zero to be a percentage of.',
+} as const;
 
 /* ------------------------------------------------------------------ */
-/* Parsing + validation (pure)                                         */
+/* Parsing (pure) — strict, never Number(v) || 0                       */
 /* ------------------------------------------------------------------ */
 
-type NonNegParse = 'empty' | 'invalid' | number;
-/** Parse a finite, non-negative number; empty is distinct from invalid. An entered 0
- *  is valid (a $0 amount or a tax-free 0% rate). Never `Number(value) || 0`. */
-function parseNonNegative(raw: string): NonNegParse {
-  const t = raw.trim();
-  if (t === '') return 'empty';
+type Parsed = 'blank' | 'invalid' | number;
+
+/** A price: blank means "solve for this one", never zero. */
+export function parsePrice(raw: string): Parsed {
+  const t = (raw ?? '').trim().replace(/[$,]/g, '');
+  if (t === '') return 'blank';
   const n = Number(t);
   if (!Number.isFinite(n) || n < 0) return 'invalid';
   return n;
 }
 
-/**
- * Validate sales-tax values. Amount and rate are each required, finite and >= 0
- * (0 is valid; empty / negative / non-finite are field errors). No maximum rate is
- * imposed — the content spans 0% to over 10%.
- */
-export function validateSalesTaxValues(values: SalesTaxValues): ValidationResult {
+/** A rate: negative is a valid discount, but -100% and below collapse the arithmetic. */
+export function parseRate(raw: string): Parsed {
+  const t = (raw ?? '').trim().replace(/%/g, '');
+  if (t === '') return 'blank';
+  const n = Number(t);
+  if (!Number.isFinite(n) || n <= -100) return 'invalid';
+  return n;
+}
+
+const asNumber = (p: Parsed): number | null => (typeof p === 'number' ? p : null);
+
+/* ------------------------------------------------------------------ */
+/* Validation                                                          */
+/* ------------------------------------------------------------------ */
+
+export function validateSalesTaxValues(v: SalesTaxValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
+  const before = parsePrice(v.beforeTax);
+  const rate = parseRate(v.rate);
+  const after = parsePrice(v.afterTax);
 
-  const amount = parseNonNegative(values.amount);
-  if (amount === 'empty') fieldErrors.amount = 'Enter an amount.';
-  else if (amount === 'invalid') fieldErrors.amount = 'Enter an amount of zero or more.';
+  if (before === 'invalid') fieldErrors.beforeTax = MSG.price;
+  if (after === 'invalid') fieldErrors.afterTax = MSG.price;
+  if (rate === 'invalid') fieldErrors.rate = MSG.rate;
+  if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
 
-  const rate = parseNonNegative(values.rate);
-  if (rate === 'empty') fieldErrors.rate = 'Enter a sales-tax rate.';
-  else if (rate === 'invalid') fieldErrors.rate = 'Enter a sales-tax rate of zero or more.';
+  const blanks = [before, rate, after].filter((p) => p === 'blank').length;
+  if (blanks === 0) return { ok: false, fieldErrors, formError: MSG.tooMany };
+  if (blanks > 1) return { ok: false, fieldErrors, formError: MSG.needTwo };
 
-  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
-}
+  // Solving for a rate needs something to take a percentage of.
+  if (rate === 'blank' && typeof before === 'number' && before <= 0) {
+    return { ok: false, fieldErrors: { beforeTax: MSG.noRate } };
+  }
 
-/** A usable result: every figure finite and non-negative, ordered, and self-consistent
- *  (gross ≈ net + tax within a floating-point tolerance). */
-export function isUsableTax(r: AddTaxResult): boolean {
-  return (
-    [r.net, r.tax, r.gross].every((v) => Number.isFinite(v) && v >= 0) &&
-    r.gross >= r.net &&
-    Math.abs(r.gross - (r.net + r.tax)) < 1e-6
-  );
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
-/* Computation + description (pure)                                    */
+/* Computation                                                         */
 /* ------------------------------------------------------------------ */
 
-export function computeSalesTax(values: SalesTaxValues): SalesTaxComputed {
-  const amount = Number(values.amount);
-  const rate = Number(values.rate);
-  const base = values.mode === 'remove' ? removeSalesTax(amount, rate) : addSalesTax(amount, rate);
-  return { ...base, mode: values.mode, rate };
+export function computeSalesTax(v: SalesTaxValues): SalesTaxComputed {
+  return solveSalesTax({
+    beforeTax: asNumber(parsePrice(v.beforeTax)),
+    ratePct: asNumber(parseRate(v.rate)),
+    afterTax: asNumber(parsePrice(v.afterTax)),
+  });
 }
 
-/** A USD amount in spoken form, e.g. "107 dollars and 25 cents", "100 dollars". */
+/* ------------------------------------------------------------------ */
+/* Complete-result guard                                               */
+/* ------------------------------------------------------------------ */
+
+const FAIL = Number.NaN;
+
+/**
+ * The figure that was solved for — but only when all three reconcile. Every one of them goes
+ * on screen, so a plausible headline over an inconsistent trio is exactly what this stops.
+ */
+export function completeSalesTaxValue(r: SalesTaxComputed): number {
+  if (r.unsolvable) return FAIL;
+  const all = [r.beforeTax, r.ratePct, r.taxAmount, r.afterTax];
+  if (!all.every((n) => Number.isFinite(n))) return FAIL;
+  if (r.beforeTax < 0 || r.afterTax < 0) return FAIL;
+  if (Math.abs(r.beforeTax + r.taxAmount - r.afterTax) > 1e-6) return FAIL;
+  return r[r.solvedFor === 'ratePct' ? 'ratePct' : r.solvedFor];
+}
+
+/* ------------------------------------------------------------------ */
+/* Presentation                                                        */
+/* ------------------------------------------------------------------ */
+
+/** The reference quotes the rate to two decimals: "6.50%". */
+export function formatRate(value: number): string {
+  return Number.isFinite(value) ? `${value.toFixed(2)}%` : '—';
+}
+
+export function summaryLabel(r: SalesTaxComputed): string {
+  return FIELD_LABELS[r.solvedFor];
+}
+
+export function summaryValue(r: SalesTaxComputed): string {
+  return r.solvedFor === 'ratePct' ? formatRate(r.ratePct) : formatCurrency(r[r.solvedFor]);
+}
+
+/** "6.50% or $6.50" — the reference's own phrasing for the tax line. */
+export function taxLine(r: SalesTaxComputed): string {
+  return `${formatRate(r.ratePct)} or ${formatCurrency(r.taxAmount)}`;
+}
+
+/** A USD amount spoken aloud, e.g. "106 dollars and 50 cents". */
 export function spokenUSD(value: number): string {
   const cents = Math.round(value * 100);
   const dollars = Math.floor(cents / 100);
   const rem = cents % 100;
   const d = `${dollars} dollar${dollars === 1 ? '' : 's'}`;
-  if (rem === 0) return d;
-  return `${d} and ${rem} cent${rem === 1 ? '' : 's'}`;
+  return rem === 0 ? d : `${d} and ${rem} cent${rem === 1 ? '' : 's'}`;
 }
 
-/** Concise announcement — the dominant mode-owned result only. */
-export function describeSalesTaxResult(result: SalesTaxComputed): string {
-  return result.mode === 'remove'
-    ? `Amount before sales tax is ${spokenUSD(result.net)}.`
-    : `Total including sales tax is ${spokenUSD(result.gross)}.`;
+export function describeSalesTaxResult(r: SalesTaxComputed): string {
+  if (r.solvedFor === 'ratePct') return `The sales tax rate is ${formatRate(r.ratePct)}.`;
+  return `${FIELD_LABELS[r.solvedFor]}: ${spokenUSD(r[r.solvedFor])}.`;
+}
+
+export function interpretSalesTax(r: SalesTaxComputed): string {
+  const tax = formatCurrency(r.taxAmount);
+  const before = formatCurrency(r.beforeTax);
+  const after = formatCurrency(r.afterTax);
+  switch (r.solvedFor) {
+    case 'afterTax':
+      return `${formatRate(r.ratePct)} on ${before} adds ${tax}, so the price at the till is ${after}.`;
+    case 'beforeTax':
+      return `${after} includes ${tax} of tax at ${formatRate(r.ratePct)}, so the price before tax was ${before}.`;
+    case 'ratePct':
+      return `Going from ${before} to ${after} is ${tax} of tax, a rate of ${formatRate(r.ratePct)}.`;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -115,15 +190,13 @@ export function describeSalesTaxResult(result: SalesTaxComputed): string {
 /* ------------------------------------------------------------------ */
 
 const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
-const readMode = (root: HTMLElement): TaxMode =>
-  root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'remove' ? 'remove' : 'add';
 
 export const salesTaxBinding: FormCalculatorBinding<SalesTaxValues, SalesTaxComputed> = {
   readValues(root) {
     return {
-      mode: readMode(root),
-      amount: input(root, 'amount')?.value ?? '',
+      beforeTax: input(root, 'beforeTax')?.value ?? '',
       rate: input(root, 'rate')?.value ?? '',
+      afterTax: input(root, 'afterTax')?.value ?? '',
     };
   },
 
@@ -131,73 +204,32 @@ export const salesTaxBinding: FormCalculatorBinding<SalesTaxValues, SalesTaxComp
 
   compute: computeSalesTax,
 
-  /** Guarded primary magnitude — the dominant value (gross when adding, net when
-   *  removing); NaN when the result is unusable so the runtime never shows it. */
-  resultValue(result) {
-    if (!isUsableTax(result)) return NaN;
-    return result.mode === 'remove' ? result.net : result.gross;
-  },
+  resultValue: completeSalesTaxValue,
 
   describeResult: describeSalesTaxResult,
 
   renderResult(result, context: FormRenderContext) {
     const scope = context.result;
-    const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
-    const add = result.mode === 'add';
-
-    // Primary: the dominant mode-owned figure (label + value both change by mode).
-    const dominantLabel = add ? 'Total including sales tax' : 'Amount before sales tax';
-    const dominantValue = add ? result.gross : result.net;
-    const labelEl = q('[data-result-when~="valid"] [data-result-summary-label]');
-    if (labelEl) labelEl.textContent = dominantLabel;
-    const valueEl = q('[data-result-when~="valid"] [data-result-value]');
-    if (valueEl) valueEl.textContent = formatCurrency(dominantValue);
-    const a11yEl = q('[data-result-when~="valid"] [data-result-value-a11y]');
-    if (a11yEl) a11yEl.textContent = spokenUSD(dominantValue);
-
-    // Interpretation.
-    const interp = q('[data-tax-interpretation]');
-    if (interp) {
-      interp.textContent = add
-        ? `The total after adding ${String(result.rate)}% sales tax is ${formatCurrency(result.gross)}.`
-        : `The amount before tax in a total of ${formatCurrency(result.gross)} is ${formatCurrency(result.net)}.`;
-    }
-
-    // Secondary verification values (the other two of the three; all three stay visible).
-    const setSec = (n: 1 | 2, label: string, value: string) => {
-      const l = q(`[data-tax-sec${n}-label]`);
-      const v = q(`[data-tax-sec${n}]`);
-      if (l) l.textContent = label;
-      if (v) v.textContent = value;
+    const set = (sel: string, text: string) => {
+      const el = scope.querySelector<HTMLElement>(sel);
+      if (el) el.textContent = text;
     };
-    if (add) {
-      setSec(1, 'Sales tax', formatCurrency(result.tax));
-      setSec(2, 'Amount before tax', formatCurrency(result.net));
-    } else {
-      setSec(1, 'Included sales tax', formatCurrency(result.tax));
-      setSec(2, 'Total including tax', formatCurrency(result.gross));
-    }
+    set('[data-result-when~="valid"] [data-result-summary-label]', summaryLabel(result));
+    set('[data-result-when~="valid"] [data-result-value]', summaryValue(result));
+    set('[data-result-when~="valid"] [data-result-value-a11y]', describeSalesTaxResult(result));
+    set('[data-st-interpretation]', interpretSalesTax(result));
+    set('[data-st-before]', formatCurrency(result.beforeTax));
+    set('[data-st-tax]', taxLine(result));
+    set('[data-st-after]', formatCurrency(result.afterTax));
   },
 
   resetValues(root, _mode: ResetMode) {
-    // The island restores the Add-tax mode + its labels; the binding clears the values.
-    for (const name of ['amount', 'rate']) {
+    for (const name of ['beforeTax', 'rate', 'afterTax']) {
       const el = input(root, name);
       if (el) el.value = '';
     }
   },
 };
 
-/* ------------------------------------------------------------------ */
-/* Worked example (labelled; the visitor's fields stay EMPTY)          */
-/* ------------------------------------------------------------------ */
-
-/**
- * Example inputs for the labelled worked result shown on first load.
- *
- * These are OURS, not the visitor's. The shared runtime computes them and calls
- * this binding's own `renderResult`, so the example reuses the calculator's real
- * result markup and can never drift from the engine. The visitor's fields are
- * never written to — they load and stay empty behind it.
- */
-export const SALES_TAX_EXAMPLE_VALUES: SalesTaxValues = { mode: 'add', amount: '100', rate: '7.5' };
+/** The reference's own worked case, so the panel opens on a figure anyone can check. */
+export const SALES_TAX_EXAMPLE_VALUES: SalesTaxValues = { beforeTax: '100', rate: '6.5', afterTax: '' };

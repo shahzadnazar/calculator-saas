@@ -146,3 +146,127 @@ describe('sales-tax — rounding + reversibility + currency display', () => {
     expect(formatCurrency(Infinity)).toBe('—');
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* Solving for whichever of the three is missing                       */
+/* ------------------------------------------------------------------ */
+
+import { solveSalesTax, unknownOf, type SalesTaxSolveInput } from './sales-tax';
+
+/**
+ * Frozen against the published reference case: $100 before tax at 6.5% is $6.50 of tax and
+ * $106.50 after.
+ */
+const solve = (over: Partial<SalesTaxSolveInput> = {}) =>
+  solveSalesTax({ beforeTax: 100, ratePct: 6.5, afterTax: null, ...over });
+const money = (n: number) => Math.round(n * 100) / 100;
+
+describe('which field is missing decides what is solved', () => {
+  it('finds the one blank of the three', () => {
+    expect(unknownOf({ beforeTax: 100, ratePct: 6.5, afterTax: null })).toBe('afterTax');
+    expect(unknownOf({ beforeTax: null, ratePct: 6.5, afterTax: 106.5 })).toBe('beforeTax');
+    expect(unknownOf({ beforeTax: 100, ratePct: null, afterTax: 106.5 })).toBe('ratePct');
+  });
+
+  it('refuses to guess when it is not exactly one', () => {
+    expect(unknownOf({ beforeTax: 100, ratePct: 6.5, afterTax: 106.5 })).toBeNull();
+    expect(unknownOf({ beforeTax: null, ratePct: null, afterTax: 106.5 })).toBeNull();
+    expect(solveSalesTax({ beforeTax: 100, ratePct: 6.5, afterTax: 106.5 }).unsolvable).toBe(true);
+  });
+});
+
+describe('the published reference case', () => {
+  const r = solve();
+
+  it('computes the tax and the after-tax price', () => {
+    expect(money(r.beforeTax)).toBe(100);
+    expect(money(r.ratePct)).toBe(6.5);
+    expect(money(r.taxAmount)).toBe(6.5);
+    expect(money(r.afterTax)).toBe(106.5);
+    expect(r.solvedFor).toBe('afterTax');
+    expect(r.unsolvable).toBe(false);
+  });
+
+  it('the three figures always reconcile', () => {
+    expect(money(r.beforeTax + r.taxAmount)).toBe(money(r.afterTax));
+  });
+});
+
+describe('the three directions agree with one another', () => {
+  it('solving for the before-tax price returns the price it came from', () => {
+    const r = solveSalesTax({ beforeTax: null, ratePct: 6.5, afterTax: 106.5 });
+    expect(money(r.beforeTax)).toBe(100);
+    expect(money(r.taxAmount)).toBe(6.5);
+  });
+
+  it('solving for the rate returns the rate it came from', () => {
+    const r = solveSalesTax({ beforeTax: 100, ratePct: null, afterTax: 106.5 });
+    expect(money(r.ratePct)).toBe(6.5);
+    expect(money(r.taxAmount)).toBe(6.5);
+  });
+
+  it('round-trips through all three directions', () => {
+    const forward = solve();
+    const back = solveSalesTax({ beforeTax: null, ratePct: 6.5, afterTax: forward.afterTax });
+    const rate = solveSalesTax({ beforeTax: 100, ratePct: null, afterTax: forward.afterTax });
+    expect(money(back.beforeTax)).toBe(100);
+    expect(money(rate.ratePct)).toBe(6.5);
+  });
+
+  it('handles an awkward rate without drifting', () => {
+    const f = solveSalesTax({ beforeTax: 19.99, ratePct: 8.875, afterTax: null });
+    const b = solveSalesTax({ beforeTax: null, ratePct: 8.875, afterTax: f.afterTax });
+    expect(b.beforeTax).toBeCloseTo(19.99, 9);
+  });
+});
+
+describe('edges', () => {
+  it('a zero rate leaves the price alone', () => {
+    const r = solve({ ratePct: 0 });
+    expect(money(r.taxAmount)).toBe(0);
+    expect(money(r.afterTax)).toBe(100);
+  });
+
+  it('a zero price is a real answer', () => {
+    const r = solve({ beforeTax: 0 });
+    expect(r.unsolvable).toBe(false);
+    expect(r.afterTax).toBe(0);
+  });
+
+  it('a negative rate is a discount, not an error', () => {
+    const r = solve({ ratePct: -10 });
+    expect(money(r.afterTax)).toBe(90);
+    expect(money(r.taxAmount)).toBe(-10);
+  });
+
+  it('refuses a rate at or below the -100% cliff', () => {
+    expect(solve({ ratePct: -100 }).unsolvable).toBe(true);
+    expect(solveSalesTax({ beforeTax: null, ratePct: -100, afterTax: 100 }).unsolvable).toBe(true);
+  });
+
+  it('refuses a negative price', () => {
+    expect(solve({ beforeTax: -1 }).unsolvable).toBe(true);
+    expect(solveSalesTax({ beforeTax: null, ratePct: 5, afterTax: -1 }).unsolvable).toBe(true);
+  });
+
+  it('cannot find a rate against a before-tax price of nothing', () => {
+    // No percentage of zero is anything but zero, so the question has no answer.
+    expect(solveSalesTax({ beforeTax: 0, ratePct: null, afterTax: 10 }).unsolvable).toBe(true);
+  });
+
+  it('an after-tax price below the before-tax one is a negative rate, not an error', () => {
+    const r = solveSalesTax({ beforeTax: 100, ratePct: null, afterTax: 90 });
+    expect(r.unsolvable).toBe(false);
+    expect(money(r.ratePct)).toBe(-10);
+  });
+
+  it('refuses a non-finite entry', () => {
+    expect(solve({ beforeTax: Number.NaN }).unsolvable).toBe(true);
+    expect(solve({ ratePct: Number.POSITIVE_INFINITY }).unsolvable).toBe(true);
+  });
+
+  it('carries no figures to print when unsolvable', () => {
+    const r = solve({ ratePct: -100 });
+    for (const v of [r.beforeTax, r.ratePct, r.taxAmount, r.afterTax]) expect(Number.isNaN(v)).toBe(true);
+  });
+});
