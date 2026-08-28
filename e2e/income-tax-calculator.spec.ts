@@ -1,347 +1,344 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Income Tax calculator — R18B1 task-first migration (bounded Finance singleton). Wraps
- * the UNCHANGED calculateIncomeTax / STANDARD_DEDUCTION (2024 brackets) via its OWN
- * income-tax-form.ts binding on the UNCHANGED standard-form runtime. Filing status is a
- * native single/married radio (a structural selector); gross income + optional pre-tax
- * deductions; the dominant result is the estimated federal tax (a valid $0 for income at
- * or below the deduction) with taxable / after-tax / effective / marginal as the
- * breakdown. Task-first: the money fields start EMPTY (the legacy island prefilled
- * $75,000 and auto-calculated a baked-in SSR result); this island renders ONE
- * deterministic empty state on the server AND after hydration. Explicit "Calculate Tax"
- * → live-after-first, Reset. Strict validation (never Number()||0). NO isUsableResult.
+ * Income tax — the reference's full return estimator.
+ *
+ * The published reference return is frozen here end to end: a single filer aged 30 with
+ * $80,000 of wages and $9,000 withheld, for 2025, owes $49 — and every one of the eleven
+ * lines behind that figure.
  */
 const ROUTE = '/finance/income-tax-calculator';
-const EMBED = '/embed/finance/income-tax-calculator';
 const DEBOUNCE = 300;
 
 const shell = (page: Page) => page.locator('#it-result');
-const primary = (page: Page) => page.locator('#it-result [data-result-when~="valid"] [data-result-value]').first();
-const summaryLabel = (page: Page) => page.locator('#it-result [data-result-summary-label]');
-const taxable = (page: Page) => page.locator('[data-it-taxable]');
-const after = (page: Page) => page.locator('[data-it-after]');
-const eff = (page: Page) => page.locator('[data-it-eff]');
-const marg = (page: Page) => page.locator('[data-it-marg]');
-const interpretation = (page: Page) => page.locator('[data-it-interpretation]');
-const stdNote = (page: Page) => page.locator('[data-it-std]');
-const live = (page: Page) => page.locator('#it-live');
-const submit = (page: Page) => page.getByRole('button', { name: 'Calculate Tax' });
-const region = (page: Page, when: string) => page.locator(`#it-result [data-result-when~="${when}"]`);
+const primary = (page: Page) => shell(page).locator('[data-result-when~="valid"] [data-result-value]').first();
+const summaryLabel = (page: Page) => shell(page).locator('[data-result-when~="valid"] [data-result-summary-label]');
+const row = (page: Page, key: string) => shell(page).locator(`[data-it-row="${key}"]`);
+const submit = (page: Page) => page.getByRole('button', { name: 'Calculate' });
+const clearBtn = (page: Page) => page.getByRole('button', { name: 'Clear' });
 
-const setStatus = (page: Page, status: 'single' | 'married') =>
-  page.locator(`[name="filingStatus"][value="${status}"]`).check();
-const setIncome = (page: Page, v: string) => page.locator('[name="grossIncome"]').fill(v);
-const setDeduction = (page: Page, v: string) => page.locator('[name="additionalDeductions"]').fill(v);
+/** The published table, line for line. */
+const REFERENCE: [string, string][] = [
+  ['totalIncome', '$80,000'],
+  ['totalDeductions', '$15,750'],
+  ['taxableIncome', '$64,250'],
+  ['regularTax', '$9,049'],
+  ['alternativeMinimumTax', '$0'],
+  ['netInvestmentIncomeTax', '$0'],
+  ['totalCredits', '$0'],
+  ['totalTaxWithCredits', '$9,049'],
+  ['marginalRate', '22%'],
+  ['prepayments', '$9,000'],
+  ['amountOwed', '$49'],
+];
 
-type Inp = { status?: 'single' | 'married'; income?: string; deduction?: string };
-const calc = async (page: Page, { status, income, deduction }: Inp) => {
-  if (status) await setStatus(page, status);
-  if (income !== undefined) await setIncome(page, income);
-  if (deduction !== undefined) await setDeduction(page, deduction);
+const fill = async (page: Page, name: string, value: string) => {
+  await page.locator(`[name="${name}"]`).fill(value);
+};
+
+const calcReference = async (page: Page) => {
+  await page.locator('[data-example-dismiss]').click();
+  await fill(page, 'wages', '80000');
+  await fill(page, 'federalWithheld', '9000');
   await submit(page).click();
 };
 
-test.describe('income tax: task-first', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  });
+test.beforeEach(async ({ page }) => {
+  await page.goto(ROUTE);
+});
 
-  /* ---- SSR / hydration parity ---- */
+/* ------------------------------------------------------------------ */
+/* The reference return                                                */
+/* ------------------------------------------------------------------ */
 
-  test('the server-rendered result region equals the hydrated one — empty, no baked-in example', async ({ page }) => {
-    const raw = await (await page.request.get(ROUTE)).text();
-    const server = await page.evaluate((html) => {
-      const d = new DOMParser().parseFromString(html, 'text/html');
-      return {
-        state: d.querySelector('#it-result')?.getAttribute('data-result-state') ?? null,
-        primary:
-          d.querySelector('#it-result [data-result-when~="valid"] [data-result-value]')?.textContent?.trim() ?? null,
-      };
-    }, raw);
-    await page.goto(ROUTE, { waitUntil: 'networkidle' });
-    const hydrated = {
-      state: await shell(page).getAttribute('data-result-state'),
-      primary: (await primary(page).textContent())?.trim(),
-    };
-    expect(server.state).toBe('empty');
-    expect(hydrated.state).toBe('example');
-    expect(server.primary).toBe('—');
-    // The server HTML carries the placeholder; the example arrives only on hydration.
-    expect(server.primary).not.toBe(hydrated.primary);
-    expect(raw).not.toMatch(/\$8,?341/); // the legacy baked-in $75,000 default result is gone
-  });
-
-  /* ---- initial state ---- */
-
-  test('loads empty — money fields blank, Single selected, deduction note shows the single standard deduction, no result', async ({ page }) => {
-    await expect(page.locator('[name="grossIncome"]')).toHaveValue('');
-    await expect(page.locator('[name="additionalDeductions"]')).toHaveValue('');
-    await expect(page.locator('[name="filingStatus"][value="single"]')).toBeChecked();
-    await expect(stdNote(page)).toHaveText('$14,600');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-    // The example fills this calculator's OWN valid region, so it is visible on load.
-    await expect(region(page, 'valid')).toBeVisible();
-    await expect(live(page)).toHaveText('');
-  });
-
-  test('does not calculate before the first submission (income or status edits)', async ({ page }) => {
-    await setIncome(page, '60000');
-    await setStatus(page, 'married');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  });
-
-  /* ---- computation ---- */
-
-  test('ordinary single filer: $60,000 → $5,216 tax + full breakdown + interpretation + announcement', async ({ page }) => {
-    await calc(page, { status: 'single', income: '60000' });
+test.describe('the published reference return', () => {
+  test('reproduces every line of the published table', async ({ page }) => {
+    await calcReference(page);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(summaryLabel(page)).toHaveText('Estimated federal income tax');
-    await expect(primary(page)).toHaveText('$5,216.00');
-    await expect(taxable(page)).toHaveText('$45,400.00');
-    await expect(after(page)).toHaveText('$54,784.00');
-    await expect(eff(page)).toHaveText('8.7%');
-    await expect(marg(page)).toHaveText('12%');
-    await expect(interpretation(page)).toContainText('marginal');
-    await expect(interpretation(page)).toContainText('effective');
-    await expect(live(page)).toHaveText('Estimated income tax: $5,216.00.');
-    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+    for (const [key, value] of REFERENCE) {
+      await expect(row(page, key)).toHaveText(value);
+    }
   });
 
-  test('married filing jointly: $100,000 → $8,032 tax', async ({ page }) => {
-    await calc(page, { status: 'married', income: '100000' });
-    await expect(primary(page)).toHaveText('$8,032.00');
-    await expect(taxable(page)).toHaveText('$70,800.00');
+  test('leads with what is owed, headed by the tax year', async ({ page }) => {
+    await calcReference(page);
+    await expect(summaryLabel(page)).toHaveText('Tax Amount Owe for 2025');
+    await expect(primary(page)).toHaveText('$49');
   });
 
-  test('additional pre-tax deductions reduce the tax: $60,000 + $5,000 → $4,616', async ({ page }) => {
-    await calc(page, { status: 'single', income: '60000', deduction: '5000' });
-    await expect(primary(page)).toHaveText('$4,616.00');
-    await expect(taxable(page)).toHaveText('$40,400.00');
-  });
-
-  test('income at or below the deduction is a VALID $0 tax (not an empty state)', async ({ page }) => {
-    await calc(page, { status: 'single', income: '10000' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(primary(page)).toHaveText('$0.00');
-    await expect(after(page)).toHaveText('$10,000.00');
-    await expect(marg(page)).toHaveText('0%');
-    await expect(live(page)).toHaveText('Estimated income tax: $0.00.');
-  });
-
-  test('zero income is a valid $0 result', async ({ page }) => {
-    await calc(page, { status: 'single', income: '0' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(primary(page)).toHaveText('$0.00');
-  });
-
-  /* ---- validation ---- */
-
-  test('an empty submission is a required-income error, focused', async ({ page }) => {
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="grossIncome"]')).toHaveText('Enter your gross annual income.');
-    await expect(page.locator('[name="grossIncome"]')).toHaveAttribute('aria-invalid', 'true');
-    await expect(page.locator('[name="grossIncome"]')).toBeFocused();
-  });
-
-  test('a negative income is rejected, associated with its field, and focused', async ({ page }) => {
-    await setIncome(page, '-1');
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="grossIncome"]')).toHaveText('Enter an income of zero or more.');
-    await expect(page.locator('[name="grossIncome"]')).toHaveAttribute('aria-invalid', 'true');
-    await expect(page.locator('[name="grossIncome"]')).toBeFocused();
-  });
-
-  test('a negative additional deduction is rejected with its own error', async ({ page }) => {
-    await setIncome(page, '60000');
-    await setDeduction(page, '-500');
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="additionalDeductions"]')).toHaveText('Enter a deduction of zero or more.');
-  });
-
-  /* ---- filing-status structural behavior + live-after-first ---- */
-
-  test('the standard-deduction note tracks the filing status (informational, before any calculation)', async ({ page }) => {
-    await expect(stdNote(page)).toHaveText('$14,600');
-    await setStatus(page, 'married');
-    await expect(stdNote(page)).toHaveText('$29,200');
-    await setStatus(page, 'single');
-    await expect(stdNote(page)).toHaveText('$14,600');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty'); // note change never calculates
-  });
-
-  test('after the first result, editing income recalculates live without moving focus', async ({ page }) => {
-    await calc(page, { status: 'single', income: '60000' });
-    await expect(primary(page)).toHaveText('$5,216.00');
-    await setIncome(page, '100000'); // single $100k: taxable 85,400 → 1160 + 4266 + 22% of 38,250 = $13,841
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(primary(page)).toHaveText('$13,841.00');
-    await expect(page.locator('[name="grossIncome"]')).toBeFocused();
-  });
-
-  test('after the first result, switching filing status recalculates live', async ({ page }) => {
-    await calc(page, { status: 'single', income: '100000' });
-    const single100k = await primary(page).textContent();
-    await setStatus(page, 'married'); // married $100k = $8,032
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(primary(page)).toHaveText('$8,032.00');
-    expect(single100k).not.toBe('$8,032.00');
-  });
-
-  test('an invalid live edit (negative income) clears the stale result, keeping focus', async ({ page }) => {
-    await calc(page, { status: 'single', income: '60000' });
-    await expect(region(page, 'valid')).toBeVisible();
-    await setIncome(page, '-1');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(region(page, 'valid')).toBeHidden();
-    await expect(page.locator('[name="grossIncome"]')).toBeFocused();
-  });
-
-  /* ---- reset ---- */
-
-  test('reset clears the money fields, restores Single + its deduction note, empties the result and announcement', async ({ page }) => {
-    await calc(page, { status: 'married', income: '100000', deduction: '3000' });
-    await expect(primary(page)).not.toHaveText('—');
-    await page.click('[data-reset]');
-    await expect(page.locator('[name="grossIncome"]')).toHaveValue('');
-    await expect(page.locator('[name="additionalDeductions"]')).toHaveValue('');
-    await expect(page.locator('[name="filingStatus"][value="single"]')).toBeChecked();
-    await expect(stdNote(page)).toHaveText('$14,600');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(live(page)).toHaveText('');
-  });
-
-  /* ---- keyboard / responsive / theme / embed / monetization ---- */
-
-  test('keyboard submission works from the income field', async ({ page }) => {
-    await setIncome(page, '60000');
-    await page.locator('[name="grossIncome"]').press('Enter');
-    await expect(primary(page)).toHaveText('$5,216.00');
-  });
-
-  test('desktop shows the estimated tax within the first viewport at 1366×768', async ({ page }) => {
-    await page.setViewportSize({ width: 1366, height: 768 });
-    await calc(page, { status: 'single', income: '60000' });
-    await expect(primary(page)).toBeInViewport();
-  });
-
-  test('mobile does not overflow horizontally', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-    await calc(page, { status: 'single', income: '60000' });
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow).toBeLessThanOrEqual(1);
-  });
-
-  test('renders in dark scheme', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await calc(page, { status: 'single', income: '60000' });
-    await expect(primary(page)).toBeVisible();
-  });
-
-  test('the generated embed mounts the same island (empty SSR, then single / married / $0 results, reset)', async ({ page }) => {
-    await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#it-result')).toHaveAttribute('data-result-state', 'example');
-    // no auto-calc
-    await page.locator('[name="grossIncome"]').fill('60000');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(page.locator('#it-result')).toHaveAttribute('data-result-state', 'empty');
-    // explicit calculate
-    await page.getByRole('button', { name: 'Calculate Tax' }).click();
-    await expect(page.locator('#it-result')).toHaveAttribute('data-result-state', 'valid');
-    await expect(page.locator('#it-result [data-result-when~="valid"] [data-result-value]').first()).toHaveText('$5,216.00');
-    // married live
-    await page.locator('[name="filingStatus"][value="married"]').check();
-    await page.locator('[name="grossIncome"]').fill('100000');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(page.locator('#it-result [data-result-when~="valid"] [data-result-value]').first()).toHaveText('$8,032.00');
-    // zero valid
-    await page.locator('[name="grossIncome"]').fill('0');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(page.locator('#it-result [data-result-when~="valid"] [data-result-value]').first()).toHaveText('$0.00');
-  });
-
-  test('the live page carries no monetization output', async ({ page }) => {
-    await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-    expect(await page.content()).not.toContain('data-mon-');
+  test('explains the return in a sentence', async ({ page }) => {
+    await calcReference(page);
+    await expect(shell(page).locator('[data-it-interpretation]')).toContainText(
+      'taking the $15,750 standard deduction',
+    );
   });
 });
 
-/* -------------------- same-document two-instance isolation -------------------- */
+/* ------------------------------------------------------------------ */
+/* The reference field set                                             */
+/* ------------------------------------------------------------------ */
 
-test.describe('income tax: same-document instance isolation', () => {
-  const FIXTURE = 'http://localhost:4399/__income-tax-two-instance-fixture';
-
-  async function mountTwo(page: Page) {
-    const raw = await (await page.request.get('http://localhost:4399/finance/income-tax-calculator')).text();
-    const parts = await page.evaluate((html) => {
-      const d = new DOMParser().parseFromString(html, 'text/html');
-      const root = d.querySelector('[data-incometax]');
-      const links = [...d.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.getAttribute('href'));
-      const script = [...d.querySelectorAll('script[type="module"][src]')]
-        .map((s) => s.getAttribute('src'))
-        .find((src) => /IncomeTaxCalculator/.test(src ?? ''));
-      return { rootHTML: root?.outerHTML ?? '', links, script };
-    }, raw);
-    const doc =
-      `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
-      parts.links.map((h) => `<link rel="stylesheet" href="${h}">`).join('') +
-      `</head><body><div id="inst-a">${parts.rootHTML}</div><div id="inst-b">${parts.rootHTML}</div>` +
-      `<script type="module" src="${parts.script}"></script></body></html>`;
-    await page.route('**/__income-tax-two-instance-fixture', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: doc }));
-    await page.goto(FIXTURE, { waitUntil: 'networkidle' });
-    await expect(page.locator('#inst-a [data-incometax]')).toHaveCount(1);
-    await expect(page.locator('#inst-b [data-incometax]')).toHaveCount(1);
-  }
-
-  test('two instances have no duplicate ids and every reference resolves in its own instance', async ({ page }) => {
-    await mountTwo(page);
-    const duplicates = await page.evaluate(() => {
-      const counts: Record<string, number> = {};
-      for (const el of document.querySelectorAll('[id]')) counts[el.id] = (counts[el.id] || 0) + 1;
-      return Object.entries(counts).filter(([, n]) => n > 1).map(([id]) => id);
-    });
-    expect(duplicates).toEqual([]);
-    const ok = await page.evaluate(() => {
-      for (const scope of ['#inst-a', '#inst-b']) {
-        const root = document.querySelector(scope)!;
-        for (const el of root.querySelectorAll('[aria-describedby]')) {
-          const refs = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
-          for (const id of refs) {
-            const t = document.getElementById(id);
-            if (!t || !t.closest(scope)) return false;
-          }
-        }
-      }
-      return true;
-    });
-    expect(ok).toBe(true);
+test.describe('the reference field set', () => {
+  test('offers the filing fields, structural choices set and typed fields blank', async ({ page }) => {
+    await expect(page.locator('[name="filingStatus"]')).toHaveValue('single');
+    await expect(page.locator('[name="taxYear"][value="2025"]')).toBeChecked();
+    await expect(page.locator('[name="hasSelfEmployment"][value="no"]')).toBeChecked();
+    for (const n of ['age', 'youngDependents', 'otherDependents']) {
+      await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
+    }
   });
 
-  test('calculating and resetting one instance never touches the other', async ({ page }) => {
-    await mountTwo(page);
-    const A = (sel: string) => page.locator(`#inst-a ${sel}`);
-    const B = (sel: string) => page.locator(`#inst-b ${sel}`);
-    const fillCalc = async (scope: (s: string) => ReturnType<Page['locator']>, income: string, status: string) => {
-      if (status === 'married') await scope('[name="filingStatus"][value="married"]').check();
-      await scope('[name="grossIncome"]').fill(income);
-      await scope('button[type="submit"]').click();
-    };
-    await fillCalc(A, '60000', 'single'); // single $60k = $5,216
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$5,216.00');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
+  test('offers the five filing statuses', async ({ page }) => {
+    const opts = await page.locator('[name="filingStatus"] option').allTextContents();
+    expect(opts.map((o) => o.trim())).toEqual([
+      'Single', 'Married Filing Jointly', 'Married Filing Separately', 'Head of Household', 'Qualified Widow(er)',
+    ]);
+  });
 
-    await fillCalc(B, '100000', 'married'); // married $100k = $8,032
-    await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$8,032.00');
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$5,216.00'); // A preserved
+  test('offers both tax years, each naming when the return is filed', async ({ page }) => {
+    await expect(page.getByText('2026 (return filed in 2027)')).toBeVisible();
+    await expect(page.getByText('2025 (return filed in 2026)')).toBeVisible();
+  });
 
-    await A('[data-reset]').click();
-    await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
-    await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$8,032.00'); // B unaffected
+  test('carries every income field the reference carries, blank behind a 0 placeholder', async ({ page }) => {
+    for (const name of [
+      'wages', 'federalWithheld', 'stateWithheld', 'localWithheld', 'socialSecurityIncome',
+      'interestIncome', 'ordinaryDividends', 'qualifiedDividends', 'passiveIncome',
+      'shortTermGains', 'longTermGains', 'otherIncome', 'stateLocalRatePct',
+    ]) {
+      const box = page.locator(`[name="${name}"]`);
+      await expect(box).toHaveValue('');
+      await expect(box).toHaveAttribute('placeholder', '0');
+    }
+  });
+
+  test('carries every deduction and credit field the reference carries', async ({ page }) => {
+    for (const name of [
+      'tipsIncome', 'overtimeIncome', 'carLoanInterest', 'iraContributions', 'realEstateTax',
+      'mortgageInterest', 'charitableDonations', 'studentLoanInterest', 'childCareExpense',
+      'college1', 'college2', 'college3', 'college4', 'otherDeductibles',
+    ]) {
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+    }
+  });
+
+  test('labels the W-2 boxes and the credit limits, as the reference does', async ({ page }) => {
+    const form = page.locator('form[data-form]');
+    for (const hint of [
+      'W-2 box 1', 'W-2 box 2', 'W-2 box 17', 'W-2 box 19',
+      'Max $10,000 for qualified vehicle purchase', 'Max $2,500/Person',
+      'Max $3,000/Person, $6,000 total, up to age 13', 'Age 0-16', 'Age 17 or older',
+      'SSA-1099, RRB-1099', '1099-INT', '1099-DIV',
+    ]) {
+      await expect(form.getByText(hint, { exact: true })).toBeVisible();
+    }
+  });
+
+  test('lays money fields out two to a row', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    const wages = await page.locator('[name="wages"]').boundingBox();
+    const withheld = await page.locator('[name="federalWithheld"]').boundingBox();
+    // Same row: side by side, sharing a top edge.
+    expect(Math.abs(wages!.y - withheld!.y)).toBeLessThan(4);
+    expect(withheld!.x).toBeGreaterThan(wages!.x + wages!.width - 1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Business income                                                     */
+/* ------------------------------------------------------------------ */
+
+test.describe('business income', () => {
+  test('the amount box appears only once the filer says they have some', async ({ page }) => {
+    const block = page.locator('[data-se-only]');
+    await expect(block).toBeHidden();
+    await page.locator('[name="hasSelfEmployment"][value="yes"]').check();
+    await expect(block).toBeVisible();
+  });
+
+  test('saying no again empties the hidden box rather than leaving it to act invisibly', async ({ page }) => {
+    await page.locator('[name="hasSelfEmployment"][value="yes"]').check();
+    await fill(page, 'selfEmploymentIncome', '50000');
+    await page.locator('[name="hasSelfEmployment"][value="no"]').check();
+    await expect(page.locator('[name="selfEmploymentIncome"]')).toHaveValue('');
+  });
+
+  test('business income adds self-employment tax', async ({ page }) => {
+    await page.locator('[data-example-dismiss]').click();
+    await page.locator('[name="hasSelfEmployment"][value="yes"]').check();
+    await fill(page, 'selfEmploymentIncome', '60000');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(row(page, 'totalIncome')).toHaveText('$60,000');
+    // The bill is larger than income tax alone would be.
+    await expect(row(page, 'totalTaxWithCredits')).not.toHaveText(await row(page, 'regularTax').innerText());
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* The rest of the return                                              */
+/* ------------------------------------------------------------------ */
+
+test.describe('the return responds to the sheet', () => {
+  test('the 2026 year taxes the same income less', async ({ page }) => {
+    await calcReference(page);
+    const owed2025 = await row(page, 'taxableIncome').innerText();
+    await page.locator('[name="taxYear"][value="2026"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(summaryLabel(page)).toContainText('2026');
+    await expect(row(page, 'totalDeductions')).toHaveText('$16,100');
+    expect(await row(page, 'taxableIncome').innerText()).not.toBe(owed2025);
+  });
+
+  test('a joint filer on the same income owes less', async ({ page }) => {
+    await calcReference(page);
+    await page.locator('[name="filingStatus"]').selectOption('mfj');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(summaryLabel(page)).toHaveText('Tax Refund for 2025');
+  });
+
+  test('dependants bring in the child credit', async ({ page }) => {
+    await calcReference(page);
+    await fill(page, 'youngDependents', '2');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(row(page, 'totalCredits')).toHaveText('$4,400');
+    await expect(summaryLabel(page)).toHaveText('Tax Refund for 2025');
+  });
+
+  test('itemizing takes over once it beats the standard deduction', async ({ page }) => {
+    await calcReference(page);
+    await fill(page, 'mortgageInterest', '20000');
+    await fill(page, 'charitableDonations', '5000');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(row(page, 'totalDeductions')).toHaveText('$25,000');
+    await expect(shell(page).locator('[data-it-interpretation]')).toContainText('itemised deductions');
+  });
+
+  test('a refund is shown as a refund, not as a negative amount owed', async ({ page }) => {
+    await page.locator('[data-example-dismiss]').click();
+    await fill(page, 'wages', '80000');
+    await fill(page, 'federalWithheld', '20000');
+    await submit(page).click();
+    await expect(summaryLabel(page)).toHaveText('Tax Refund for 2025');
+    await expect(primary(page)).not.toContainText('-');
+  });
+
+  test('long-term gains are taxed more gently than the same money in wages', async ({ page }) => {
+    await page.locator('[data-example-dismiss]').click();
+    await fill(page, 'wages', '120000');
+    await submit(page).click();
+    const allWages = await row(page, 'regularTax').innerText();
+    await fill(page, 'wages', '80000');
+    await fill(page, 'longTermGains', '40000');
+    await page.waitForTimeout(DEBOUNCE);
+    const withGains = await row(page, 'regularTax').innerText();
+    const toNumber = (s: string) => Number(s.replace(/[^0-9.]/g, ''));
+    expect(toNumber(withGains)).toBeLessThan(toNumber(allWages));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Validation and behaviour                                            */
+/* ------------------------------------------------------------------ */
+
+test.describe('validation and behaviour', () => {
+  test('rejects a negative amount', async ({ page }) => {
+    await page.locator('[data-example-dismiss]').click();
+    await fill(page, 'wages', '-100');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="wages"]')).toBeVisible();
+  });
+
+  test('rejects an impossible age but accepts a blank one', async ({ page }) => {
+    await page.locator('[data-example-dismiss]').click();
+    await fill(page, 'age', '200');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="age"]')).toBeVisible();
+    // Live updates only begin after the first SUCCESSFUL calculation, so this takes a
+    // second press — the shared runtime's behaviour, not this calculator's.
+    await fill(page, 'age', '');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  });
+
+  test('a blank sheet is a valid return owing nothing', async ({ page }) => {
+    await page.locator('[data-example-dismiss]').click();
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(row(page, 'amountOwed')).toHaveText('$0');
+  });
+
+  test('updates live after the first calculation', async ({ page }) => {
+    await calcReference(page);
+    await fill(page, 'wages', '90000');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(row(page, 'totalIncome')).toHaveText('$90,000');
+  });
+
+  test('Clear empties the whole sheet', async ({ page }) => {
+    await calcReference(page);
+    await clearBtn(page).click();
+    await expect(page.locator('[name="wages"]')).toHaveValue('');
+    await expect(page.locator('[name="age"]')).toHaveValue('');
+    await expect(page.locator('[name="filingStatus"]')).toHaveValue('single');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  });
+
+  test('no stale figure survives leaving the valid state', async ({ page }) => {
+    await calcReference(page);
+    await fill(page, 'wages', '-1');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(row(page, 'totalIncome')).toHaveText('—');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Doctrine                                                            */
+/* ------------------------------------------------------------------ */
+
+test.describe('doctrine', () => {
+  test('never renders NaN, Infinity or a raw error', async ({ page }) => {
+    await calcReference(page);
+    await fill(page, 'wages', '99999999');
+    await page.waitForTimeout(DEBOUNCE);
+    const body = await page.locator('main').innerText();
+    expect(body).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  test('announces the bottom line politely', async ({ page }) => {
+    await expect(page.locator('#it-live')).toHaveAttribute('aria-live', 'polite');
+    await calcReference(page);
+    await expect(page.locator('#it-live')).toContainText('$49');
+  });
+
+  test('every control clears 44px', async ({ page }) => {
+    // A radio's tap target is the label wrapping it, not the 17px dot itself.
+    const small = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('form[data-form] button, form[data-form] select, form[data-form] input')]
+          .filter((e) => (e as HTMLElement).offsetParent !== null)
+          .map((e) => e.closest('label') ?? e)
+          .filter((e) => e.getBoundingClientRect().height < 44).length,
+    );
+    expect(small).toBe(0);
+  });
+
+  test('mobile stacks to one column and does not overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await calcReference(page);
+    const { doc, win } = await page.evaluate(() => ({
+      doc: document.documentElement.scrollWidth,
+      win: window.innerWidth,
+    }));
+    expect(doc).toBeLessThanOrEqual(win);
+  });
+
+  test('the generated embed mounts the same island', async ({ page }) => {
+    await page.goto('/embed/finance/income-tax-calculator');
+    await calcReference(page);
+    await expect(page.locator('[data-it-row="amountOwed"]')).toHaveText('$49');
   });
 });

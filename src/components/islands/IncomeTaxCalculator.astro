@@ -1,29 +1,22 @@
 ---
 /**
- * Income tax calculator island (R18B1 — task-first; bounded Finance singleton; product
- * family COMPLEX-FORM with a multi-mode FILING-STATUS selector, on the standard-form
- * runtime UNCHANGED).
+ * Income tax island — the reference's full return estimator on the UNCHANGED standard-form
+ * runtime.
  *
- * A single form on the UNCHANGED standard-form runtime + the Income Tax binding
- * (@lib/calculators/income-tax-form), which wraps the UNCHANGED calculateIncomeTax /
- * STANDARD_DEDUCTION (2024 brackets). Task-first, direct-intent: the gross income + the
- * optional pre-tax deductions start EMPTY (the legacy island prefilled $75,000 and
- * auto-calculated a baked-in SSR result); filing status defaults to Single; the result
- * is an EMPTY instruction on the server AND after hydration — no precomputed value, no
- * flash. The visitor presses "Calculate Tax" for the first result, then live-after-first.
- * The DOMINANT result is the estimated federal tax (a valid $0 for income at or below the
- * deduction). Compute, validation, state, announcement and focus are owned by the shared
- * runtime; the binding owns formula selection + the complete-result guard. NO
- * isUsableResult. No runtime change; NO generic tax / bracket / filing-status abstraction.
+ * Thirty-odd fields is a lot of form, so two things carry the density: money fields sit two
+ * to a row, and the result panel is sticky beside the form on a wide screen. That keeps the
+ * running total in view while the visitor works down the sheet, which is the whole point of
+ * the input-beside-result rule on a form this long — scrolling back up to see what changed
+ * is exactly the failure it exists to prevent.
  *
- * Filing status is a native radio group — a STRUCTURAL selector the runtime recomputes on.
- * The island OWNS one small piece of visible presentation: the standard-deduction note
- * updates with the selected status (informational only — it never calculates). Static ids
- * are namespaced per-instance WHEN more than one Income Tax calculator shares a document
- * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
+ * Money fields open at 0 rather than blank, as the reference does. A blank income box is not
+ * a neutral state on a tax return, it is an unanswered question, and there are far too many
+ * of them to make anyone clear each one by hand.
+ *
+ * All tax logic is `calculateTaxReturn` over @data/tax-tables, via the binding.
  */
-import { STANDARD_DEDUCTION } from '@lib/calculators/income-tax';
-import { formatCurrencyRounded } from '@lib/format';
+import { FILING_STATUS_LABELS, SUPPORTED_TAX_YEARS } from '@data/tax-tables';
+import { DEFAULT_VALUES, RESULT_ROWS } from '@lib/calculators/income-tax-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
@@ -33,205 +26,422 @@ import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
+
+interface Field {
+  name: string;
+  label: string;
+  hint?: string;
+  /** A percentage rather than an amount. */
+  percent?: boolean;
+  /** Spans both columns of the two-up grid. */
+  wide?: boolean;
+}
+
+const INCOME: Field[] = [
+  { name: 'wages', label: 'Wages, Tips, Other Compensation', hint: 'W-2 box 1' },
+  { name: 'federalWithheld', label: 'Federal Income Tax Withheld', hint: 'W-2 box 2' },
+  { name: 'stateWithheld', label: 'State Income Tax Withheld', hint: 'W-2 box 17' },
+  { name: 'localWithheld', label: 'Local Income Tax Withheld', hint: 'W-2 box 19' },
+];
+
+const MORE_INCOME: Field[] = [
+  { name: 'socialSecurityIncome', label: 'Social Security Income', hint: 'SSA-1099, RRB-1099' },
+  { name: 'interestIncome', label: 'Interest Income', hint: '1099-INT' },
+  { name: 'ordinaryDividends', label: 'Ordinary Dividends' },
+  { name: 'qualifiedDividends', label: 'Qualified Dividends', hint: '1099-DIV' },
+  { name: 'passiveIncome', label: 'Passive Incomes', hint: 'e.g. rentals and real estate, royalties' },
+  { name: 'shortTermGains', label: 'Short-term Capital Gains' },
+  { name: 'longTermGains', label: 'Long-term Capital Gains' },
+  { name: 'otherIncome', label: 'Other Income', hint: 'e.g. unemployment pay (1099-G), retirement pay (1099-R)' },
+  { name: 'stateLocalRatePct', label: 'State+Local Tax Rate', percent: true },
+];
+
+const DEDUCTIONS: Field[] = [
+  { name: 'tipsIncome', label: 'Tips Income' },
+  { name: 'overtimeIncome', label: 'Overtime Income' },
+  { name: 'carLoanInterest', label: 'Car Loan Interest', hint: 'Max $10,000 for qualified vehicle purchase' },
+  { name: 'iraContributions', label: 'IRA Contributions' },
+  { name: 'realEstateTax', label: 'Real Estate Tax' },
+  { name: 'mortgageInterest', label: 'Mortgage Interest' },
+  { name: 'charitableDonations', label: 'Charitable Donations' },
+  { name: 'studentLoanInterest', label: 'Student Loan Interest', hint: 'Max $2,500/Person' },
+  { name: 'childCareExpense', label: 'Child & Dependent Care Expense', hint: 'Max $3,000/Person, $6,000 total, up to age 13' },
+  { name: 'college1', label: 'College Education Expense', hint: 'Student 1' },
+  { name: 'college2', label: 'College Education Expense', hint: 'Student 2' },
+  { name: 'college3', label: 'College Education Expense', hint: 'Student 3' },
+  { name: 'college4', label: 'College Education Expense', hint: 'Student 4' },
+  { name: 'otherDeductibles', label: 'Other Deductibles' },
+];
+
+const id = (name: string) => `it-${name}`;
 ---
 
-<div class="incometax mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-incometax>
-  <!-- Inputs -->
-  <form class="card p-4" data-form novalidate aria-label="Income tax calculator">
-    <fieldset class="it-modes">
-      <legend class="field-label">Filing status</legend>
-      <div class="seg-group">
-        <label class="seg"><input type="radio" name="filingStatus" value="single" checked /><span>Single</span></label>
-        <label class="seg"><input type="radio" name="filingStatus" value="married" /><span>Married (joint)</span></label>
-      </div>
-    </fieldset>
+<div class="itcalc" data-income-tax>
+  <div class="it-grid">
+    <!-- Inputs -->
+    <form class="it-form" data-form novalidate aria-label="Income tax calculator">
+      <!-- Filing -->
+      <fieldset class="card it-card">
+        <legend class="it-legend">Filing</legend>
+        <div class="it-fields">
+          <div class="it-field" data-field="filingStatus">
+            <label class="field-label" for="it-filingStatus">File Status</label>
+            <select class="field it-input" id="it-filingStatus" name="filingStatus">
+              {FILING_STATUS_LABELS.map((s) => <option value={s.value} selected={s.value === DEFAULT_VALUES.filingStatus}>{s.label}</option>)}
+            </select>
+            <p class="it-error" data-error-for="filingStatus" hidden></p>
+          </div>
 
-    <div class="mt-5 grid grid-cols-2 gap-4">
-      <div data-field="grossIncome">
-        <label class="field-label" for="it-gross">Gross annual income</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="it-gross"
-            name="grossIncome"
-            type="number"
-            min="0"
-            step="1000"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 60000"
-            aria-describedby="it-gross-error"
-          />
+          <div class="it-field" data-field="age">
+            <label class="field-label" for="it-age">Age</label>
+            <input class="field it-input" id="it-age" name="age" type="number" min="0" max="120" step="1" inputmode="numeric" autocomplete="off" value="" placeholder="e.g. 30" aria-describedby="it-age-hint it-age-error" />
+            <p class="it-hint" id="it-age-hint">Only needed if 65 or over</p>
+            <p class="it-error" id="it-age-error" data-error-for="age" hidden></p>
+          </div>
+
+          <div class="it-field" data-field="youngDependents">
+            <label class="field-label" for="it-youngDependents">No. of Young Dependents</label>
+            <input class="field it-input" id="it-youngDependents" name="youngDependents" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" value="" placeholder="0" aria-describedby="it-youngDependents-hint it-youngDependents-error" />
+            <p class="it-hint" id="it-youngDependents-hint">Age 0-16</p>
+            <p class="it-error" id="it-youngDependents-error" data-error-for="youngDependents" hidden></p>
+          </div>
+
+          <div class="it-field" data-field="otherDependents">
+            <label class="field-label" for="it-otherDependents">No. of Other Dependents</label>
+            <input class="field it-input" id="it-otherDependents" name="otherDependents" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" value="" placeholder="0" aria-describedby="it-otherDependents-hint it-otherDependents-error" />
+            <p class="it-hint" id="it-otherDependents-hint">Age 17 or older</p>
+            <p class="it-error" id="it-otherDependents-error" data-error-for="otherDependents" hidden></p>
+          </div>
+
+          <fieldset class="it-field it-field--wide it-radios" data-field="taxYear">
+            <legend class="field-label">Tax Year</legend>
+            {SUPPORTED_TAX_YEARS.map((y) => (
+              <label class="it-radio">
+                <input type="radio" name="taxYear" value={y} checked={String(y) === DEFAULT_VALUES.taxYear} />
+                <span>{y} (return filed in {y + 1})</span>
+              </label>
+            ))}
+          </fieldset>
         </div>
-        <p class="it-field-error" id="it-gross-error" data-error-for="grossIncome" hidden></p>
-      </div>
+      </fieldset>
 
-      <div data-field="additionalDeductions">
-        <label class="field-label" for="it-ded">Pre-tax deductions (optional)</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="it-ded"
-            name="additionalDeductions"
-            type="number"
-            min="0"
-            step="500"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 0"
-            aria-describedby="it-ded-error"
-          />
+      <!-- Income -->
+      <fieldset class="card it-card">
+        <legend class="it-legend">Income</legend>
+        <div class="it-fields">
+          {INCOME.map((f) => (
+            <div class="it-field" data-field={f.name}>
+              <label class="field-label" for={id(f.name)}>{f.label}</label>
+              <div class="it-money">
+                <span class="it-affix">$</span>
+                <input class="field it-input it-input--money" id={id(f.name)} name={f.name} type="number" min="0" step="any" inputmode="decimal" autocomplete="off" value="" placeholder={f.percent ? "0" : "0"} aria-describedby={`${id(f.name)}-error`} />
+              </div>
+              {f.hint && <p class="it-hint">{f.hint}</p>}
+              <p class="it-error" id={`${id(f.name)}-error`} data-error-for={f.name} hidden></p>
+            </div>
+          ))}
+
+          <fieldset class="it-field it-field--wide it-radios" data-field="hasSelfEmployment">
+            <legend class="field-label">Has Business or Self Employment Income?</legend>
+            <label class="it-radio"><input type="radio" name="hasSelfEmployment" value="yes" /><span>yes</span></label>
+            <label class="it-radio"><input type="radio" name="hasSelfEmployment" value="no" checked /><span>no</span></label>
+          </fieldset>
+
+          <div class="it-field" data-field="selfEmploymentIncome" data-se-only hidden>
+            <label class="field-label" for="it-selfEmploymentIncome">Business or Self Employment Income</label>
+            <div class="it-money">
+              <span class="it-affix">$</span>
+              <input class="field it-input it-input--money" id="it-selfEmploymentIncome" name="selfEmploymentIncome" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" value="" placeholder="0" aria-describedby="it-selfEmploymentIncome-error" />
+            </div>
+            <p class="it-hint">Net profit after expenses</p>
+            <p class="it-error" id="it-selfEmploymentIncome-error" data-error-for="selfEmploymentIncome" hidden></p>
+          </div>
+
+          {MORE_INCOME.map((f) => (
+            <div class="it-field" data-field={f.name}>
+              <label class="field-label" for={id(f.name)}>{f.label}</label>
+              <div class="it-money">
+                {!f.percent && <span class="it-affix">$</span>}
+                <input class={`field it-input ${f.percent ? 'it-input--pct' : 'it-input--money'}`} id={id(f.name)} name={f.name} type="number" min="0" step="any" max={f.percent ? '100' : undefined} inputmode="decimal" autocomplete="off" value="" placeholder={f.percent ? "0" : "0"} aria-describedby={`${id(f.name)}-error`} />
+                {f.percent && <span class="it-affix it-affix--suffix">%</span>}
+              </div>
+              {f.hint && <p class="it-hint">{f.hint}</p>}
+              <p class="it-error" id={`${id(f.name)}-error`} data-error-for={f.name} hidden></p>
+            </div>
+          ))}
         </div>
-        <p class="it-hint">Standard deduction applied automatically (<span data-it-std>{formatCurrencyRounded(STANDARD_DEDUCTION.single)}</span>). Add 401(k), HSA or other pre-tax amounts here.</p>
-        <p class="it-field-error" id="it-ded-error" data-error-for="additionalDeductions" hidden></p>
-      </div>
+      </fieldset>
+
+      <!-- Deductions & Credits -->
+      <fieldset class="card it-card">
+        <legend class="it-legend">Deductions &amp; Credits</legend>
+        <div class="it-fields">
+          {DEDUCTIONS.map((f) => (
+            <div class="it-field" data-field={f.name}>
+              <label class="field-label" for={id(f.name)}>{f.label}</label>
+              <div class="it-money">
+                <span class="it-affix">$</span>
+                <input class="field it-input it-input--money" id={id(f.name)} name={f.name} type="number" min="0" step="any" inputmode="decimal" autocomplete="off" value="" placeholder={f.percent ? "0" : "0"} aria-describedby={`${id(f.name)}-error`} />
+              </div>
+              {f.hint && <p class="it-hint">{f.hint}</p>}
+              <p class="it-error" id={`${id(f.name)}-error`} data-error-for={f.name} hidden></p>
+            </div>
+          ))}
+        </div>
+
+        <div class="it-actions">
+          <button type="submit" class="btn btn-primary it-btn">Calculate</button>
+          <button type="button" class="btn btn-secondary it-btn" data-reset>Clear</button>
+          <span class="it-live-note" data-live-note hidden>Changes update automatically.</span>
+        </div>
+      </fieldset>
+    </form>
+
+    <!-- Result -->
+    <div class="it-resultcol">
+      <ResultShell id="it-result" state="example" density="standard" label="Income tax result" minHeight="22rem" placeholderAlignment="center">
+        <ExampleNotice caption="Sample: a single filer aged 30, $80,000 of wages with $9,000 withheld, for 2025." />
+        <EmptyResult message="Fill in your income and press Calculate to estimate the tax owed or refunded." />
+
+        <div data-result-when="valid">
+          <ResultSummary label="Tax Amount Owe">
+            <ResultValue value="—" size="text-4xl" />
+          </ResultSummary>
+          <ResultInterpretation>
+            <span data-it-interpretation></span>
+          </ResultInterpretation>
+
+          <ResultBreakdown title="The return, line by line">
+            <div class="it-table-wrap">
+              <table class="it-table">
+                <caption class="sr-only">Estimated federal return, line by line</caption>
+                <tbody>
+                  {RESULT_ROWS.map((row) => (
+                    <tr class={row.strong ? 'it-row--strong' : undefined}>
+                      <th scope="row">{row.label}</th>
+                      <td data-it-row={row.key}>—</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p class="it-note">
+              An estimate of federal tax only. It takes the mainstream path through each rule and
+              cannot know everything a real return turns on, so treat it as a guide rather than a
+              filing. State returns, the earned income credit and the refundable part of the child
+              credit are not modelled.
+            </p>
+          </ResultBreakdown>
+        </div>
+
+        <InvalidResult title="Check your entries" message="Every amount must be zero or more, and the age a real one." />
+        <ResultAnnouncement id="it-live" />
+      </ResultShell>
     </div>
-
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Tax</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
-    </div>
-    <p class="it-live-note" data-live-note hidden>Changes update automatically.</p>
-  </form>
-
-  <!-- Result -->
-  <ResultShell
-    id="it-result"
-    state="empty"
-    density="standard"
-    label="Income tax result"
-    minHeight="20rem"
-    placeholderAlignment="center"
-  >
-    <ExampleNotice />
-    <EmptyResult message="Enter your income, choose a filing status, then calculate your estimated tax." />
-
-    <div data-result-when="valid">
-      <ResultSummary label="Estimated federal income tax">
-        <ResultValue value="—" size="text-4xl" />
-      </ResultSummary>
-      <ResultInterpretation>
-        <span data-it-interpretation></span>
-      </ResultInterpretation>
-
-      <ResultBreakdown title="Breakdown">
-        <dl class="it-metrics">
-          <div><dt>Taxable income</dt><dd data-it-taxable>—</dd></div>
-          <div><dt>After-tax income</dt><dd data-it-after>—</dd></div>
-          <div><dt>Effective rate</dt><dd data-it-eff>—</dd></div>
-          <div><dt>Marginal (top) rate</dt><dd data-it-marg>—</dd></div>
-        </dl>
-        <p class="it-note">2024 federal brackets. Estimate only — excludes credits, state tax and payroll (FICA) taxes.</p>
-      </ResultBreakdown>
-    </div>
-
-    <InvalidResult
-      title="Check your entries"
-      message="Enter your gross annual income (zero or more) to estimate your tax."
-    />
-
-    <ResultAnnouncement id="it-live" />
-  </ResultShell>
+  </div>
 </div>
 
 <style>
-  .it-modes {
-    border: 0;
-    margin: 0;
-    padding: 0;
+  .it-grid {
+    display: grid;
+    gap: 1rem;
+    align-items: start;
+  }
+  @media (min-width: 64rem) {
+    .it-grid {
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    }
+    /* The running total stays in view while the visitor works down a long sheet. The
+       offset clears the site header, which is itself sticky at 65px. */
+    .it-resultcol {
+      position: sticky;
+      top: 4.75rem;
+      max-height: calc(100vh - 5.5rem);
+      overflow-y: auto;
+    }
+  }
+
+  .it-form {
+    display: grid;
+    gap: 0.75rem;
     min-width: 0;
   }
-  .seg-group {
-    display: inline-flex;
-    margin-top: 0.4rem;
+
+  .it-card {
+    padding: 0.9rem 1rem 1rem;
     border: 1px solid var(--line);
-    border-radius: 0.55rem;
-    padding: 0.125rem;
   }
-  .seg {
-    position: relative;
+  .it-legend {
+    padding: 0 0.4rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+
+  /* Two fields to a row — the density this form needs. */
+  .it-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem 0.9rem;
+  }
+  .it-field {
+    min-width: 0;
+  }
+  .it-field--wide {
+    grid-column: 1 / -1;
+  }
+  @media (max-width: 36rem) {
+    .it-fields {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .it-field .field-label {
+    display: block;
+    font-size: 0.82rem;
+    line-height: 1.3;
+  }
+
+  .it-money {
+    margin-top: 0.2rem;
+    display: flex;
+    align-items: stretch;
+  }
+  .it-affix {
     display: inline-flex;
-  }
-  .seg input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    cursor: pointer;
-  }
-  .seg span {
-    padding: 0.35rem 0.9rem;
-    border-radius: 0.45rem;
+    align-items: center;
+    padding: 0 0.5rem;
+    border: 1px solid var(--line);
+    border-right: 0;
+    border-radius: 0.5rem 0 0 0.5rem;
+    background: var(--surface-2, transparent);
     font-size: 0.85rem;
-    font-weight: 600;
     color: var(--muted);
   }
-  .seg:has(input:checked) span {
-    background: var(--color-brand-600);
-    color: #fff;
+  .it-affix--suffix {
+    border-right: 1px solid var(--line);
+    border-left: 0;
+    border-radius: 0 0.5rem 0.5rem 0;
   }
-  .seg:has(input:focus-visible) span {
-    outline: 2px solid var(--color-brand-600);
-    outline-offset: 2px;
+
+  .it-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .it-input--money {
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+  .it-input--pct {
+    border-radius: 0.5rem 0 0 0.5rem;
+  }
+  select.it-input,
+  .it-field > .it-input {
+    margin-top: 0.2rem;
   }
 
   .it-hint {
-    margin: 0.4rem 0 0;
-    font-size: 0.75rem;
+    margin: 0.2rem 0 0;
+    font-size: 0.74rem;
+    line-height: 1.35;
     color: var(--muted);
   }
-  .it-field-error {
-    margin-top: 0.3rem;
-    font-size: 0.8rem;
+  .it-error {
+    margin: 0.2rem 0 0;
+    font-size: 0.75rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .it-field-error {
+    :root:not([data-theme='light']) .it-error {
       color: #fca5a5;
     }
   }
-  :root[data-theme='dark'] .it-field-error {
+  :root[data-theme='dark'] .it-error {
     color: #fca5a5;
   }
 
+  .it-radios {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 1rem;
+    border: 0;
+    padding: 0;
+  }
+  .it-radios .field-label {
+    flex: 0 0 100%;
+  }
+  .it-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.75rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .it-radio input {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: var(--brand, #7c3aed);
+  }
+
+  .it-actions {
+    margin-top: 0.9rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+  .it-btn {
+    min-height: 2.75rem;
+  }
   .it-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: var(--muted);
   }
 
-  .it-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
+  .it-table-wrap {
+    overflow-x: auto;
   }
-  .it-metrics > div {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.3rem 0;
+  .it-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  .it-table th,
+  .it-table td {
+    padding: 0.35rem 0.4rem;
     border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
-  }
-  .it-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
-  .it-metrics dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    color: var(--heading);
-    font-weight: 700;
     white-space: nowrap;
   }
+  .it-table th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--fg);
+  }
+  .it-table td {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--heading);
+  }
+  .it-table .it-row--strong th,
+  .it-table .it-row--strong td {
+    font-weight: 800;
+    color: var(--heading);
+  }
+  .it-table tbody tr:last-child th,
+  .it-table tbody tr:last-child td {
+    border-bottom: 0;
+    font-size: 0.98rem;
+  }
+
   .it-note {
     margin: 0.7rem 0 0;
-    font-size: 0.8rem;
+    font-size: 0.76rem;
+    line-height: 1.5;
     color: var(--muted);
   }
 </style>
@@ -239,66 +449,40 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
   import { incomeTaxBinding, INCOME_TAX_EXAMPLE_VALUES } from '@lib/calculators/income-tax-form';
-  import { STANDARD_DEDUCTION } from '@lib/calculators/income-tax';
-  import { formatCurrencyRounded } from '@lib/format';
 
-  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
-
-  // When more than one Income Tax calculator shares a document (e.g. an embed gallery),
-  // the server-static ids (the two money fields + their error slots, the result shell,
-  // the live region) collide. Namespace THIS root's ids and repoint its in-root
-  // references so associations stay instance-local; a lone instance is left untouched.
-  // The runtime targets fields by [name] / [data-*], never these ids.
-  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
-    const remap = new Map<string, string>();
-    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
-      const next = `${el.id}-${suffix}`;
-      remap.set(el.id, next);
-      el.id = next;
-    });
-    const repoint = (attr: string) =>
-      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
-        const next = el
-          .getAttribute(attr)!
-          .split(/\s+/)
-          .map((token) => remap.get(token) ?? token)
-          .join(' ');
-        el.setAttribute(attr, next);
-      });
-    repoint('for');
-    repoint('aria-describedby');
-    repoint('aria-labelledby');
-    repoint('aria-controls');
-  }
-
-  document.querySelectorAll<HTMLElement>('[data-incometax]').forEach((root) => {
-    if (document.querySelectorAll('[data-incometax]').length > 1) uniquifyStaticIds(root, `it${++ns}`);
-
+  document.querySelectorAll<HTMLElement>('[data-income-tax]').forEach((root) => {
     mountFormCalculator(root, incomeTaxBinding, {
       recalculationMode: 'live-after-first',
       example: { values: INCOME_TAX_EXAMPLE_VALUES },
-      calculateButtonLabel: 'Calculate Tax',
+      calculateButtonLabel: 'Calculate',
     });
 
-    // The island owns one visible detail: the standard-deduction note tracks the selected
-    // filing status. This is purely informational (a source constant), never a calculation,
-    // so it updates on every status change — before and after the first calculation. The
-    // runtime independently recomputes on the same structural radio change once a first
-    // calculation has happened.
-    const stdEl = root.querySelector<HTMLElement>('[data-it-std]');
-    const readStatus = () =>
-      root.querySelector<HTMLInputElement>('[name="filingStatus"]:checked')?.value === 'married' ? 'married' : 'single';
-    const syncStd = () => {
-      if (stdEl) stdEl.textContent = formatCurrencyRounded(STANDARD_DEDUCTION[readStatus()]);
+    // The business-income box only exists once the visitor says they have any. Hidden means
+    // hidden: it is emptied on the way out so invisible state can never reach a result. Blank
+    // reads as zero, so emptying is both the safe answer and the one that leaves the sheet
+    // genuinely untouched by us.
+    const seBlock = root.querySelector<HTMLElement>('[data-se-only]');
+    const seInput = root.querySelector<HTMLInputElement>('[name="selfEmploymentIncome"]');
+    const syncSelfEmployment = () => {
+      const yes = root.querySelector<HTMLInputElement>('[name="hasSelfEmployment"]:checked')?.value === 'yes';
+      if (seBlock) seBlock.hidden = !yes;
+      if (!yes && seInput) seInput.value = '';
     };
-    root.querySelectorAll<HTMLInputElement>('[name="filingStatus"]').forEach((r) =>
-      r.addEventListener('change', syncStd),
-    );
-    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
-      const single = root.querySelector<HTMLInputElement>('[name="filingStatus"][value="single"]');
-      if (single) single.checked = true;
-      syncStd();
+    root.querySelectorAll<HTMLInputElement>('[name="hasSelfEmployment"]').forEach((radio) => {
+      radio.addEventListener('change', syncSelfEmployment);
     });
-    syncStd();
+    syncSelfEmployment();
+
+    // Blank every figure whenever the shell leaves the valid state, so nothing stale lingers
+    // behind the hidden valid region. Presentation only.
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    if (shell) {
+      new MutationObserver(() => {
+        if (shell.dataset.resultState === 'valid') return;
+        root.querySelectorAll<HTMLElement>('[data-it-row]').forEach((el) => {
+          el.textContent = '—';
+        });
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
+    }
   });
 </script>

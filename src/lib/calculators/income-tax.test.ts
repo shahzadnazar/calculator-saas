@@ -1,193 +1,355 @@
 import { describe, it, expect } from 'vitest';
-import { calculateIncomeTax, STANDARD_DEDUCTION, type FilingStatus } from './income-tax';
+import { TAX_YEARS } from '@data/tax-tables';
+import {
+  alternativeMinimumTax,
+  calculateTaxReturn,
+  dependentCareRate,
+  netInvestmentIncomeTax,
+  selfEmploymentTax,
+  taxFromBrackets,
+  taxWithPreferentialRates,
+  taxableSocialSecurity,
+  type TaxReturnInput,
+} from './income-tax';
 
 /**
- * Income-tax characterization (R18B1, Commit 1 — test-only). Freezes the EXACT
- * frozen public contract of `calculateIncomeTax` / `STANDARD_DEDUCTION` before the
- * task-first migration; no module change. Moved out of batch-b.test.ts (salary
- * stays there). Every expectation is DERIVED INDEPENDENTLY from the published 2024
- * brackets — never by echoing the function's own output.
- *
- * Contract recap (2024): taxable = max(0, gross − (standardDeduction + max(0, extra)));
- * progressive brackets are applied to TAXABLE income; the marginal rate is the top
- * bracket the taxable income reaches. A taxable amount sitting EXACTLY on a bracket
- * boundary keeps the LOWER bracket's rate (the accumulation loop breaks when
- * `taxable === lower`). afterTax = gross − tax; effectiveRate = tax/gross×100 (0 when
- * gross is 0); marginalRate = topRate×100. gross / extra deductions are clamped to
- * ≥ 0 by the source (`Math.max(0, … || 0)`), so the source is NOT finite-safe for a
- * genuinely non-finite gross — the visitor-facing binding is what rejects those.
+ * Frozen against the published reference return: a single filer aged 30 with $80,000 of
+ * wages and $9,000 withheld, for 2025, owes $49.
  */
+const REF: TaxReturnInput = {
+  year: 2025,
+  filingStatus: 'single',
+  age: 30,
+  youngDependents: 0,
+  otherDependents: 0,
+  wages: 80000,
+  federalWithheld: 9000,
+  stateWithheld: 0,
+  localWithheld: 0,
+  hasSelfEmployment: false,
+  selfEmploymentIncome: 0,
+  socialSecurityIncome: 0,
+  interestIncome: 0,
+  ordinaryDividends: 0,
+  qualifiedDividends: 0,
+  passiveIncome: 0,
+  shortTermGains: 0,
+  longTermGains: 0,
+  otherIncome: 0,
+  stateLocalRatePct: 0,
+  tipsIncome: 0,
+  overtimeIncome: 0,
+  carLoanInterest: 0,
+  iraContributions: 0,
+  realEstateTax: 0,
+  mortgageInterest: 0,
+  charitableDonations: 0,
+  studentLoanInterest: 0,
+  childCareExpense: 0,
+  collegeExpenses: [0, 0, 0, 0],
+  otherDeductibles: 0,
+};
+const ret = (over: Partial<TaxReturnInput> = {}) => calculateTaxReturn({ ...REF, ...over });
+const round = (n: number) => Math.round(n);
+const T25 = TAX_YEARS[2025];
 
-describe('income tax — standard deduction constants (2024)', () => {
-  it('freezes the exact per-status standard deduction', () => {
-    expect(STANDARD_DEDUCTION.single).toBe(14600);
-    expect(STANDARD_DEDUCTION.married).toBe(29200);
+describe('the published reference return', () => {
+  const r = ret();
+
+  it('prints every line of the published table', () => {
+    expect(round(r.totalIncome)).toBe(80000);
+    expect(round(r.totalDeductions)).toBe(15750);
+    expect(round(r.taxableIncome)).toBe(64250);
+    expect(round(r.regularTax)).toBe(9049);
+    expect(round(r.alternativeMinimumTax)).toBe(0);
+    expect(round(r.netInvestmentIncomeTax)).toBe(0);
+    expect(round(r.totalCredits)).toBe(0);
+    expect(round(r.totalTaxWithCredits)).toBe(9049);
+    expect(r.marginalRate).toBe(22);
+    expect(round(r.prepayments)).toBe(9000);
+    expect(round(r.amountOwed)).toBe(49);
+  });
+
+  it('takes the standard deduction when nothing is itemised', () => {
+    expect(r.usedItemized).toBe(false);
+    expect(r.standardDeduction).toBe(15750);
+  });
+
+  it('is reproducible by hand from the brackets on screen', () => {
+    // 10% of 11,925 + 12% to 48,475 + 22% of the rest.
+    const byHand = 11925 * 0.1 + (48475 - 11925) * 0.12 + (64250 - 48475) * 0.22;
+    expect(round(byHand)).toBe(9049);
   });
 });
 
-describe('income tax — pinned full results (2024)', () => {
-  it('single filer, $60,000 gross → $5,216 tax (10% of 11,600 + 12% of 33,800)', () => {
-    const r = calculateIncomeTax({ grossIncome: 60000, filingStatus: 'single' });
-    expect(r.taxableIncome).toBe(45400); // 60000 − 14600
-    expect(r.tax).toBeCloseTo(5216, 6); // 1160 + 4056
-    expect(r.afterTax).toBeCloseTo(54784, 6); // 60000 − 5216
-    expect(r.effectiveRate).toBeCloseTo(8.693333, 4); // 5216 / 60000 × 100
-    expect(r.marginalRate).toBe(12);
+describe('brackets', () => {
+  it('walks the ladder and reports the rate reached', () => {
+    const ladder = T25.brackets.single;
+    expect(round(taxFromBrackets(64250, ladder).tax)).toBe(9049);
+    expect(taxFromBrackets(64250, ladder).marginalRate).toBe(0.22);
+    expect(taxFromBrackets(0, ladder).tax).toBe(0);
+    expect(taxFromBrackets(10000, ladder).marginalRate).toBe(0.1);
   });
 
-  it('married filing jointly, $100,000 gross → $8,032 tax', () => {
-    const r = calculateIncomeTax({ grossIncome: 100000, filingStatus: 'married' });
-    expect(r.taxableIncome).toBe(70800); // 100000 − 29200
-    expect(r.tax).toBeCloseTo(8032, 6); // 10% of 23200 + 12% of 47600
-    expect(r.afterTax).toBeCloseTo(91968, 6);
-    expect(r.marginalRate).toBe(12);
+  it('a dollar into a bracket is taxed only on that dollar', () => {
+    const ladder = T25.brackets.single;
+    const at = taxFromBrackets(11925, ladder).tax;
+    const justOver = taxFromBrackets(11926, ladder).tax;
+    expect(round((justOver - at) * 100) / 100).toBe(0.12);
   });
 
-  it('single filer spanning four brackets, $200,000 gross → $37,538.50 tax', () => {
-    const r = calculateIncomeTax({ grossIncome: 200000, filingStatus: 'single' });
-    expect(r.taxableIncome).toBe(185400); // 200000 − 14600
-    // 1160 + 4266 + 11742.5 + 24% of (185400 − 100525 = 84875) = 20370
-    expect(r.tax).toBeCloseTo(37538.5, 6);
-    expect(r.marginalRate).toBe(24);
-    expect(r.effectiveRate).toBeCloseTo(18.76925, 4);
-  });
-
-  it('single filer in the top bracket, $2,000,000 gross → $692,785.75 tax at 37% marginal', () => {
-    const r = calculateIncomeTax({ grossIncome: 2000000, filingStatus: 'single' });
-    expect(r.taxableIncome).toBe(1985400);
-    // 1160 + 4266 + 11742.5 + 21942 + 16568 + 127968.75 + 37% of (1985400 − 609350)
-    expect(r.tax).toBeCloseTo(692785.75, 4);
-    expect(r.marginalRate).toBe(37);
-  });
-
-  it('a low income taxed entirely in the 10% bracket, $20,000 single → $540 tax', () => {
-    const r = calculateIncomeTax({ grossIncome: 20000, filingStatus: 'single' });
-    expect(r.taxableIncome).toBe(5400); // 20000 − 14600
-    expect(r.tax).toBeCloseTo(540, 6); // 10% of 5400
-    expect(r.marginalRate).toBe(10);
+  it('every year and status has a rising, seven-step ladder', () => {
+    for (const t of Object.values(TAX_YEARS)) {
+      for (const ladder of Object.values(t.brackets)) {
+        expect(ladder).toHaveLength(7);
+        for (let i = 1; i < ladder.length; i += 1) {
+          expect(ladder[i].upTo).toBeGreaterThan(ladder[i - 1].upTo);
+          expect(ladder[i].rate).toBeGreaterThan(ladder[i - 1].rate);
+        }
+      }
+    }
   });
 });
 
-describe('income tax — marginal rate at every 2024 bracket transition', () => {
-  // Bracket upper bounds (taxable-income space), per status, derived from the
-  // published 2024 tables — NOT read back from the module (BRACKETS is private).
-  const CASES = [
-    { status: 'single' as FilingStatus, deduction: 14600, boundaries: [11600, 47150, 100525, 191950, 243725, 609350] },
-    { status: 'married' as FilingStatus, deduction: 29200, boundaries: [23200, 94300, 201050, 383900, 487450, 731200] },
-  ];
-  const RATES = [10, 12, 22, 24, 32, 35, 37];
-
-  for (const { status, deduction, boundaries } of CASES) {
-    boundaries.forEach((b, i) => {
-      it(`${status}: taxable exactly ${b} stays at the ${RATES[i]}% bracket`, () => {
-        const r = calculateIncomeTax({ grossIncome: b + deduction, filingStatus: status });
-        expect(r.taxableIncome).toBe(b);
-        expect(r.marginalRate).toBe(RATES[i]);
-      });
-      it(`${status}: taxable ${b + 1} crosses into the ${RATES[i + 1]}% bracket`, () => {
-        const r = calculateIncomeTax({ grossIncome: b + 1 + deduction, filingStatus: status });
-        expect(r.taxableIncome).toBe(b + 1);
-        expect(r.marginalRate).toBe(RATES[i + 1]);
-      });
-    });
-
-    it(`${status}: income below the standard deduction → 0 taxable, 0% marginal, $0 tax`, () => {
-      const r = calculateIncomeTax({ grossIncome: deduction - 1000, filingStatus: status });
-      expect(r.taxableIncome).toBe(0);
-      expect(r.marginalRate).toBe(0);
-      expect(r.tax).toBe(0);
-    });
-
-    it(`${status}: a very-high income tops out at the 37% marginal bracket`, () => {
-      const r = calculateIncomeTax({ grossIncome: 5_000_000, filingStatus: status });
-      expect(r.marginalRate).toBe(37);
-    });
-  }
-});
-
-describe('income tax — deductions', () => {
-  it('applies the standard deduction only when no extra is supplied', () => {
-    const r = calculateIncomeTax({ grossIncome: 60000, filingStatus: 'single' });
-    expect(r.taxableIncome).toBe(45400);
+describe('the two tax years differ', () => {
+  it('2026 taxes the same income slightly less', () => {
+    const a = ret();
+    const b = ret({ year: 2026 });
+    expect(b.standardDeduction).toBe(16100);
+    expect(b.taxableIncome).toBeLessThan(a.taxableIncome);
+    expect(b.regularTax).toBeLessThan(a.regularTax);
   });
 
-  it('subtracts additional pre-tax deductions on top of the standard deduction', () => {
-    const r = calculateIncomeTax({ grossIncome: 60000, filingStatus: 'single', additionalDeductions: 5000 });
-    expect(r.taxableIncome).toBe(40400); // 60000 − (14600 + 5000)
-    expect(r.tax).toBeCloseTo(4616, 6); // 1160 + 12% of 28800
-  });
-
-  it('treats an explicit zero additional deduction as the standard-only case', () => {
-    const r = calculateIncomeTax({ grossIncome: 60000, filingStatus: 'single', additionalDeductions: 0 });
-    expect(r.taxableIncome).toBe(45400);
-  });
-
-  it('deductions reducing taxable income to exactly zero produce $0 tax', () => {
-    const r = calculateIncomeTax({ grossIncome: 14600, filingStatus: 'single' });
-    expect(r.taxableIncome).toBe(0);
-    expect(r.tax).toBe(0);
-    expect(r.marginalRate).toBe(0);
-    expect(r.afterTax).toBe(14600);
-    expect(r.effectiveRate).toBe(0); // gross > 0 but tax 0
-  });
-
-  it('deductions exceeding gross income floor taxable income at zero', () => {
-    const r = calculateIncomeTax({ grossIncome: 10000, filingStatus: 'single', additionalDeductions: 50000 });
-    expect(r.taxableIncome).toBe(0);
-    expect(r.tax).toBe(0);
+  it('refuses a year it has no table for', () => {
+    expect(ret({ year: 2019 }).unsolvable).toBe(true);
+    expect(Number.isNaN(ret({ year: 2019 }).totalTaxWithCredits)).toBe(true);
   });
 });
 
-describe('income tax — result contract at the edges', () => {
-  it('gross income of 0 → all-zero result with a 0 effective rate', () => {
-    const r = calculateIncomeTax({ grossIncome: 0, filingStatus: 'single' });
-    expect(r).toEqual({ taxableIncome: 0, tax: 0, afterTax: 0, effectiveRate: 0, marginalRate: 0 });
+describe('filing status', () => {
+  it('a joint filer on the same income pays less', () => {
+    expect(ret({ filingStatus: 'mfj' }).regularTax).toBeLessThan(ret().regularTax);
   });
 
-  it('income below the standard deduction → 0 tax but full after-tax income', () => {
-    const r = calculateIncomeTax({ grossIncome: 10000, filingStatus: 'single' });
-    expect(r.taxableIncome).toBe(0);
-    expect(r.tax).toBe(0);
-    expect(r.afterTax).toBe(10000);
-    expect(r.effectiveRate).toBe(0);
+  it('a qualifying surviving spouse files on the joint tables', () => {
+    expect(ret({ filingStatus: 'qss' }).regularTax).toBe(ret({ filingStatus: 'mfj' }).regularTax);
   });
 
-  it('is deterministic — identical inputs give a deeply-equal result', () => {
-    const input = { grossIncome: 83250, filingStatus: 'married' as FilingStatus, additionalDeductions: 6000 };
-    expect(calculateIncomeTax(input)).toEqual(calculateIncomeTax(input));
+  it('head of household sits between single and joint', () => {
+    const single = ret().regularTax;
+    const hoh = ret({ filingStatus: 'hoh' }).regularTax;
+    const mfj = ret({ filingStatus: 'mfj' }).regularTax;
+    expect(hoh).toBeLessThan(single);
+    expect(hoh).toBeGreaterThan(mfj);
   });
 });
 
-describe('income tax — pure-source behavior beyond the visitor domain', () => {
-  // Characterizes the frozen source's own tolerance; the binding validates more
-  // strictly (rejecting these before they ever reach the source).
-  it('clamps a negative gross income to 0', () => {
-    const r = calculateIncomeTax({ grossIncome: -5000, filingStatus: 'single' });
-    expect(r.taxableIncome).toBe(0);
+describe('preferential rates on gains and qualified dividends', () => {
+  it('long-term gains inside the 0% band are not taxed', () => {
+    const r = taxWithPreferentialRates(40000, 40000, T25, 'single');
     expect(r.tax).toBe(0);
   });
 
-  it('treats a NaN gross income as 0 (via `|| 0`)', () => {
-    const r = calculateIncomeTax({ grossIncome: Number.NaN, filingStatus: 'single' });
+  it('gains stack on top of ordinary income, not underneath it', () => {
+    // Ordinary income fills the 0% gains band, so the gains start at 15%.
+    const r = taxWithPreferentialRates(148350, 100000, T25, 'single');
+    const ordinaryOnly = taxFromBrackets(48350, T25.brackets.single).tax;
+    expect(round(r.tax)).toBe(round(ordinaryOnly + 100000 * 0.15));
+  });
+
+  it('reports the ordinary marginal rate, which is what a filer plans with', () => {
+    // $20,000 of the $64,250 is gains, so only $44,250 is ordinary — the 12% bracket.
+    expect(taxWithPreferentialRates(64250, 20000, T25, 'single').marginalRate).toBe(0.12);
+    // All ordinary, and the same income reaches 22%.
+    expect(taxWithPreferentialRates(64250, 0, T25, 'single').marginalRate).toBe(0.22);
+  });
+
+  it('a return with long-term gains pays less than the same money in wages', () => {
+    const wages = ret({ wages: 120000 });
+    const gains = ret({ wages: 80000, longTermGains: 40000 });
+    expect(gains.regularTax).toBeLessThan(wages.regularTax);
+  });
+
+  it('qualified dividends can never exceed ordinary dividends', () => {
+    const r = ret({ ordinaryDividends: 1000, qualifiedDividends: 5000 });
+    expect(r.preferentialIncome).toBeLessThanOrEqual(1000);
+  });
+});
+
+describe('social security', () => {
+  it('is untaxed when there is little other income', () => {
+    expect(taxableSocialSecurity(20000, 5000, T25, 'single')).toBe(0);
+  });
+
+  it('is at most 85% taxable however high the other income', () => {
+    expect(taxableSocialSecurity(30000, 500000, T25, 'single')).toBeCloseTo(25500, 6);
+  });
+
+  it('phases in through the two steps', () => {
+    const mid = taxableSocialSecurity(20000, 30000, T25, 'single');
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(20000 * 0.85);
+  });
+
+  it('a benefit of nothing is taxable on nothing', () => {
+    expect(taxableSocialSecurity(0, 100000, T25, 'single')).toBe(0);
+  });
+});
+
+describe('self employment', () => {
+  it('charges both halves of social security and Medicare', () => {
+    const tax = selfEmploymentTax(100000, T25);
+    const base = 100000 * 0.9235;
+    expect(round(tax)).toBe(round(base * 0.124 + base * 0.029));
+  });
+
+  it('stops charging social security above the wage base', () => {
+    const a = selfEmploymentTax(400000, T25);
+    const b = selfEmploymentTax(500000, T25);
+    // Only Medicare applies to the extra $100,000.
+    expect(round(b - a)).toBe(round(100000 * 0.9235 * 0.029));
+  });
+
+  it('is only charged when the filer says they have business income', () => {
+    expect(ret({ selfEmploymentIncome: 50000 }).selfEmploymentTax).toBe(0);
+    expect(ret({ hasSelfEmployment: true, selfEmploymentIncome: 50000 }).selfEmploymentTax).toBeGreaterThan(0);
+  });
+
+  it('deducts half of it above the line', () => {
+    const r = ret({ wages: 0, hasSelfEmployment: true, selfEmploymentIncome: 100000 });
+    expect(round(r.adjustments)).toBe(round(r.selfEmploymentTax / 2));
+  });
+});
+
+describe('deductions', () => {
+  it('itemises only when itemising beats the standard deduction', () => {
+    const small = ret({ charitableDonations: 1000 });
+    expect(small.usedItemized).toBe(false);
+    expect(small.totalDeductions).toBe(15750);
+
+    const big = ret({ mortgageInterest: 20000, charitableDonations: 5000 });
+    expect(big.usedItemized).toBe(true);
+    expect(round(big.totalDeductions)).toBe(25000);
+  });
+
+  it('caps state and local tax at the year allowance', () => {
+    const r = ret({ stateWithheld: 60000, mortgageInterest: 1 });
+    expect(r.itemizedDeduction).toBeLessThanOrEqual(T25.saltCap.cap + 1);
+  });
+
+  it('adds the extra standard deduction at 65', () => {
+    const younger = ret({ age: 64 });
+    const older = ret({ age: 65 });
+    expect(older.standardDeduction - younger.standardDeduction).toBe(T25.additionalOver65.single);
+  });
+
+  it('gives a senior the temporary extra deduction above the line', () => {
+    expect(ret({ age: 70 }).adjustments).toBeGreaterThan(ret({ age: 40 }).adjustments);
+  });
+
+  it('caps tips, overtime and car loan interest at their limits', () => {
+    const r = ret({ tipsIncome: 90000, overtimeIncome: 90000, carLoanInterest: 90000 });
+    // $80,000 of income is under the car-loan phaseout, so all three cap out in full.
+    expect(round(r.adjustments)).toBe(25000 + 12500 + 10000);
+  });
+
+  it('phases the car loan deduction out above its threshold', () => {
+    expect(ret({ wages: 250000, carLoanInterest: 10000 }).adjustments).toBe(0);
+  });
+
+  it('phases out student loan interest as income rises', () => {
+    expect(ret({ studentLoanInterest: 2500 }).adjustments).toBe(2500);
+    expect(ret({ wages: 200000, studentLoanInterest: 2500 }).adjustments).toBe(0);
+  });
+});
+
+describe('credits', () => {
+  it('gives the child credit for young dependents and the smaller one for others', () => {
+    expect(round(ret({ youngDependents: 2 }).totalCredits)).toBe(4400);
+    expect(round(ret({ otherDependents: 2 }).totalCredits)).toBe(1000);
+  });
+
+  it('phases the child credit out at high income', () => {
+    expect(round(ret({ wages: 500000, youngDependents: 2 }).totalCredits)).toBe(0);
+  });
+
+  it('never refunds more than the tax owed', () => {
+    const r = ret({ wages: 20000, youngDependents: 4 });
+    expect(r.totalCredits).toBeLessThanOrEqual(r.regularTax + r.alternativeMinimumTax);
+    expect(r.totalTaxWithCredits).toBeGreaterThanOrEqual(0);
+  });
+
+  it('credits child care only when there is a young dependent to care for', () => {
+    expect(ret({ childCareExpense: 3000 }).totalCredits).toBe(0);
+    expect(ret({ youngDependents: 1, childCareExpense: 3000 }).totalCredits).toBeGreaterThan(2200);
+  });
+
+  it('slides the dependent-care rate down as income rises', () => {
+    expect(dependentCareRate(10000, T25)).toBe(0.35);
+    expect(dependentCareRate(200000, T25)).toBe(0.2);
+    expect(dependentCareRate(25000, T25)).toBeGreaterThan(0.2);
+  });
+
+  it('gives an education credit per student, up to $2,500 each', () => {
+    const one = ret({ collegeExpenses: [4000, 0, 0, 0] });
+    expect(round(one.totalCredits)).toBe(2500);
+    const two = ret({ collegeExpenses: [4000, 4000, 0, 0] });
+    expect(round(two.totalCredits)).toBe(5000);
+  });
+});
+
+describe('the extra taxes', () => {
+  it('charges net investment income tax only above the threshold', () => {
+    expect(netInvestmentIncomeTax(50000, 150000, T25, 'single')).toBe(0);
+    expect(round(netInvestmentIncomeTax(50000, 300000, T25, 'single'))).toBe(round(50000 * 0.038));
+  });
+
+  it('charges it on the smaller of the investment income and the excess', () => {
+    expect(round(netInvestmentIncomeTax(50000, 210000, T25, 'single'))).toBe(round(10000 * 0.038));
+  });
+
+  it('leaves an ordinary return with no AMT', () => {
+    expect(alternativeMinimumTax(64250, 0, 9049, T25, 'single')).toBe(0);
+    expect(ret().alternativeMinimumTax).toBe(0);
+  });
+
+  it('reports AMT only as the excess over the regular tax', () => {
+    expect(alternativeMinimumTax(400000, 40000, 200000, T25, 'single')).toBe(0);
+  });
+});
+
+describe('refunds and edges', () => {
+  it('reports a refund as a negative amount owed', () => {
+    expect(ret({ federalWithheld: 15000 }).amountOwed).toBeLessThan(0);
+  });
+
+  it('a return with no income owes nothing and refunds what was withheld', () => {
+    const r = ret({ wages: 0, federalWithheld: 500 });
     expect(r.taxableIncome).toBe(0);
-    expect(r.tax).toBe(0);
+    expect(r.totalTaxWithCredits).toBe(0);
+    expect(round(r.amountOwed)).toBe(-500);
   });
 
-  it('clamps a negative additional deduction to 0 (no deduction added)', () => {
-    const r = calculateIncomeTax({ grossIncome: 60000, filingStatus: 'single', additionalDeductions: -5000 });
-    expect(r.taxableIncome).toBe(45400); // same as no extra deduction
-    expect(r.tax).toBeCloseTo(5216, 6);
+  it('never lets a negative entry create income or a deduction', () => {
+    const r = ret({ wages: -5000, charitableDonations: -1000 });
+    expect(r.totalIncome).toBe(0);
+    expect(r.totalDeductions).toBe(15750);
   });
 
-  it('is NOT finite-safe for an infinite gross income — tax → Infinity, afterTax/effective → NaN', () => {
-    const r = calculateIncomeTax({ grossIncome: Number.POSITIVE_INFINITY, filingStatus: 'single' });
-    expect(r.tax).toBe(Number.POSITIVE_INFINITY);
-    expect(Number.isNaN(r.afterTax)).toBe(true);
-    expect(Number.isNaN(r.effectiveRate)).toBe(true);
-    expect(r.marginalRate).toBe(37);
+  it('refuses a non-finite entry outright', () => {
+    expect(ret({ wages: Number.NaN }).unsolvable).toBe(true);
+    expect(ret({ collegeExpenses: [Number.POSITIVE_INFINITY, 0, 0, 0] }).unsolvable).toBe(true);
   });
 
-  it('throws for an unsupported filing status (no bracket table) — the binding must guard', () => {
-    expect(() => calculateIncomeTax({ grossIncome: 50000, filingStatus: 'head-of-household' as unknown as FilingStatus })).toThrow();
+  it('carries no figures to print when unsolvable', () => {
+    const r = ret({ wages: Number.NaN });
+    for (const v of [r.totalIncome, r.taxableIncome, r.regularTax, r.amountOwed]) {
+      expect(Number.isNaN(v)).toBe(true);
+    }
+  });
+
+  it('an effective rate is never more than the marginal one on a simple return', () => {
+    const r = ret();
+    expect(r.effectiveRate).toBeLessThan(r.marginalRate);
   });
 });
