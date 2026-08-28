@@ -15,7 +15,15 @@
  * break minutes, so the binding HONOURS them too — a fractional break yields fractional remaining
  * minutes (e.g. a 30.5-minute break off 09:00–17:00 → 7h 29.5m), shown without truncation.
  */
-import { parseTimeToMinutes, calculateHours, type HoursResult } from './hours';
+import {
+  parseTimeToMinutes,
+  calculateHours,
+  spanBetweenInstants,
+  type HoursResult,
+  type InstantSpan,
+} from './hours';
+import { parseISODateUTC } from './age';
+import { toISODateUTC } from './date-duration';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -152,11 +160,26 @@ export interface HoursPresentation {
   a11y: string;
   decimal: string;
   interpretation: string;
+  /** "The time between 8:30 AM and 5:30 PM is:" — the reference's lead-in. */
+  lead: string;
+  /** "9 hours" / "9 hours 30 minutes" — the reference's first figure. */
+  hoursLine: string;
+  /** "540 minutes" — the reference's second figure. */
+  minutesLine: string;
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0');
-const clock = (min: number): string => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+
+/** A wall-clock time the way it is read aloud: "8:30 AM", never "08:30". */
+export function clock12(min: number): string {
+  const h24 = Math.floor(min / 60);
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${pad(min % 60)} ${h24 < 12 ? 'AM' : 'PM'}`;
+}
 const hm = (h: number, m: number): string => `${h}h ${m}m`;
+/** Whole minutes get thousands separators; a decimal break can leave a fraction, so keep it. */
+const formatMinutes = (n: number): string =>
+  Number.isInteger(n) ? n.toLocaleString('en-US') : n.toLocaleString('en-US', { maximumFractionDigits: 4 });
 const spokenHm = (h: number, m: number): string => {
   if (h === 0 && m === 0) return '0 hours';
   const hp = `${h} hour${h === 1 ? '' : 's'}`;
@@ -168,7 +191,8 @@ const spokenHm = (h: number, m: number): string => {
 
 export function presentHours(c: HoursComputed): HoursPresentation {
   const { hours, minutes, totalMinutes, decimalHours } = c.result;
-  let interpretation = `${clock(c.startMin)} to ${clock(c.endMin)}${c.overnight ? ', crossing midnight' : ''}`;
+  // 12-hour throughout: the lead-in above it reads "8:30 AM", so this must not switch to 24-hour.
+  let interpretation = `${clock12(c.startMin)} to ${clock12(c.endMin)}${c.overnight ? ', crossing midnight' : ''}`;
   interpretation += c.breakMin > 0 ? `, minus a ${c.breakMin}-minute break` : '';
   interpretation += '.';
   if (totalMinutes === 0) {
@@ -182,6 +206,9 @@ export function presentHours(c: HoursComputed): HoursPresentation {
     a11y: spokenHm(hours, minutes),
     decimal: String(decimalHours),
     interpretation,
+    lead: `The time between ${clock12(c.startMin)} and ${clock12(c.endMin)} is:`,
+    hoursLine: spokenHm(hours, minutes),
+    minutesLine: `${formatMinutes(totalMinutes)} ${totalMinutes === 1 ? 'minute' : 'minutes'}`,
   };
 }
 
@@ -202,6 +229,9 @@ export function renderHoursResult(result: HoursComputed, context: FormRenderCont
   if (a11y) a11y.textContent = p.a11y;
   set('[data-hr-decimal]', p.decimal);
   set('[data-hr-interpretation]', p.interpretation);
+  set('[data-hr-lead]', p.lead);
+  set('[data-hr-hours-line]', p.hoursLine);
+  set('[data-hr-minutes-line]', p.minutesLine);
 }
 
 /* ------------------------------------------------------------------ */
@@ -240,3 +270,235 @@ export const hoursBinding: FormCalculatorBinding<HoursFormValues, HoursComputed>
  * never written to — they load and stay empty behind it.
  */
 export const HOURS_EXAMPLE_VALUES: HoursFormValues = { start: '09:00', end: '17:30', breakMin: '30' };
+
+/* ================================================================== */
+/* Hours Between Two Dates — a SECOND, independent calculator          */
+/* ================================================================== */
+
+/**
+ * The reference puts this on the same page as its own box, with its own Calculate button and its
+ * own result, because it answers a different question: the one above cannot span more than a day
+ * and has to GUESS that an earlier end time means "the next morning". Here the visitor says which
+ * day each time is on, so a span of three days is three days rather than a guess.
+ *
+ * It is a separate binding on the same island — never a mode of the first one.
+ */
+
+export interface HoursDatesValues {
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+}
+
+export interface HoursDatesComputed {
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+  startMinutes: number; // whole minutes since the epoch
+  endMinutes: number;
+  span: InstantSpan;
+}
+
+export const DATES_MSG = {
+  startDateRequired: 'Enter a start date.',
+  startDateInvalid: 'Enter a valid start date.',
+  startTimeRequired: 'Enter a start time.',
+  startTimeInvalid: 'Enter a valid start time.',
+  endDateRequired: 'Enter an end date.',
+  endDateInvalid: 'Enter a valid end date.',
+  endTimeRequired: 'Enter an end time.',
+  endTimeInvalid: 'Enter a valid end time.',
+} as const;
+
+const MS_PER_MIN = 60_000;
+
+function strictDate(raw: string): boolean {
+  const d = parseISODateUTC(raw);
+  return !!d && Number.isFinite(d.getTime()) && toISODateUTC(d) === raw;
+}
+
+/** Whole minutes since the epoch for a civil date plus a wall-clock time, or NaN. */
+export function instantMinutes(dateISO: string, timeHHMM: string): number {
+  const d = parseISODateUTC(dateISO);
+  const t = parseTimeToMinutes((timeHHMM ?? '').trim());
+  if (!d || !Number.isFinite(d.getTime()) || t === null) return Number.NaN;
+  return Math.round(d.getTime() / MS_PER_MIN) + t;
+}
+
+export function validateHoursDates(v: HoursDatesValues): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+  const check = (
+    value: string,
+    field: string,
+    required: string,
+    invalid: string,
+    ok: (raw: string) => boolean,
+  ) => {
+    const raw = (value ?? '').trim();
+    if (raw === '') fieldErrors[field] = required;
+    else if (!ok(raw)) fieldErrors[field] = invalid;
+  };
+  check(v.startDate, 'startDate', DATES_MSG.startDateRequired, DATES_MSG.startDateInvalid, strictDate);
+  check(v.startTime, 'startTime', DATES_MSG.startTimeRequired, DATES_MSG.startTimeInvalid, (r) => parseTimeToMinutes(r) !== null);
+  check(v.endDate, 'endDate', DATES_MSG.endDateRequired, DATES_MSG.endDateInvalid, strictDate);
+  check(v.endTime, 'endTime', DATES_MSG.endTimeRequired, DATES_MSG.endTimeInvalid, (r) => parseTimeToMinutes(r) !== null);
+  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+}
+
+export function computeHoursDates(v: HoursDatesValues): HoursDatesComputed {
+  const startMinutes = instantMinutes(v.startDate, v.startTime);
+  const endMinutes = instantMinutes(v.endDate, v.endTime);
+  return {
+    startDate: v.startDate,
+    startTime: v.startTime,
+    endDate: v.endDate,
+    endTime: v.endTime,
+    startMinutes,
+    endMinutes,
+    span: spanBetweenInstants(startMinutes, endMinutes),
+  };
+}
+
+/** The span in minutes, but only when every displayed figure reconciles with a recompute. */
+export function completeHoursDatesValue(c: HoursDatesComputed): number {
+  if (!strictDate(c.startDate) || !strictDate(c.endDate)) return Number.NaN;
+  if (parseTimeToMinutes((c.startTime ?? '').trim()) === null) return Number.NaN;
+  if (parseTimeToMinutes((c.endTime ?? '').trim()) === null) return Number.NaN;
+
+  const startMinutes = instantMinutes(c.startDate, c.startTime);
+  const endMinutes = instantMinutes(c.endDate, c.endTime);
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes)) return Number.NaN;
+  if (startMinutes !== c.startMinutes || endMinutes !== c.endMinutes) return Number.NaN;
+
+  const s = c.span;
+  const ints = [s.totalMinutes, s.hours, s.minutes, s.days, s.hoursOfDay];
+  if (!ints.every(Number.isInteger)) return Number.NaN;
+  if (ints.some((n) => n < 0)) return Number.NaN;
+  if (s.minutes >= 60 || s.hoursOfDay >= 24) return Number.NaN;
+  if (s.hours * 60 + s.minutes !== s.totalMinutes) return Number.NaN;
+  if (s.days * DAY + s.hoursOfDay * 60 + s.minutes !== s.totalMinutes) return Number.NaN;
+  if (s.direction !== 'after' && s.direction !== 'before' && s.direction !== 'same') return Number.NaN;
+  if (s.decimalHours !== Math.round((s.totalMinutes / 60) * 100) / 100) return Number.NaN;
+
+  const re = spanBetweenInstants(startMinutes, endMinutes);
+  if (
+    re.totalMinutes !== s.totalMinutes ||
+    re.hours !== s.hours ||
+    re.minutes !== s.minutes ||
+    re.days !== s.days ||
+    re.hoursOfDay !== s.hoursOfDay ||
+    re.direction !== s.direction ||
+    re.decimalHours !== s.decimalHours
+  ) {
+    return Number.NaN;
+  }
+  return s.totalMinutes;
+}
+
+/** "Aug. 29, 2026" — abbreviated with a point, except May, which is not an abbreviation. */
+export function shortDateLabel(dateISO: string): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  const month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+  const full = d.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  const day = d.getUTCDate();
+  return `${month}${month === full ? '' : '.'} ${day}, ${d.getUTCFullYear()}`;
+}
+
+export interface HoursDatesPresentation {
+  lead: string;
+  hoursLine: string;
+  minutesLine: string;
+  primary: string;
+  a11y: string;
+  daysLine: string;
+  decimal: string;
+  interpretation: string;
+}
+
+export function presentHoursDates(c: HoursDatesComputed): HoursDatesPresentation {
+  const s = c.span;
+  const startLabel = `${shortDateLabel(c.startDate)}, ${clock12(parseTimeToMinutes(c.startTime.trim()) ?? 0)}`;
+  const endLabel = `${shortDateLabel(c.endDate)}, ${clock12(parseTimeToMinutes(c.endTime.trim()) ?? 0)}`;
+  const dayWord = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
+  const hourWord = (n: number) => `${n} ${n === 1 ? 'hour' : 'hours'}`;
+  const minWord = (n: number) => `${n} ${n === 1 ? 'minute' : 'minutes'}`;
+
+  const daysLine =
+    s.days === 0
+      ? 'Less than a day'
+      : `${dayWord(s.days)}${s.hoursOfDay ? `, ${hourWord(s.hoursOfDay)}` : ''}${s.minutes ? `, ${minWord(s.minutes)}` : ''}`;
+
+  let interpretation: string;
+  if (s.direction === 'same') interpretation = 'The two instants are the same, so no time passes between them.';
+  else if (s.direction === 'before') {
+    interpretation = `The end is ${hourWord(s.hours)}${s.minutes ? ` and ${minWord(s.minutes)}` : ''} BEFORE the start; the span is shown as an absolute length.`;
+  } else {
+    interpretation = `${endLabel} is ${hourWord(s.hours)}${s.minutes ? ` and ${minWord(s.minutes)}` : ''} after ${startLabel}.`;
+  }
+
+  return {
+    lead: `The time between ${startLabel} and ${endLabel} is:`,
+    // The same phrasing rule as the calculator above it: a span under an hour reads "45 minutes",
+    // not "0 hours 45 minutes". Two calculators on one page must not word the same figure two ways.
+    hoursLine: spokenHm(s.hours, s.minutes),
+    minutesLine: `${s.totalMinutes.toLocaleString('en-US')} ${s.totalMinutes === 1 ? 'minute' : 'minutes'}`,
+    primary: `${s.hours}h ${s.minutes}m`,
+    a11y: spokenHm(s.hours, s.minutes),
+    daysLine,
+    decimal: String(s.decimalHours),
+    interpretation,
+  };
+}
+
+export function describeHoursDates(c: HoursDatesComputed): string {
+  const p = presentHoursDates(c);
+  return `Time between the two dates: ${p.a11y}.`;
+}
+
+export const hoursDatesBinding: FormCalculatorBinding<HoursDatesValues, HoursDatesComputed> = {
+  readValues(root) {
+    return {
+      startDate: field(root, 'startDate'),
+      startTime: field(root, 'startTime'),
+      endDate: field(root, 'endDate'),
+      endTime: field(root, 'endTime'),
+    };
+  },
+  validate: validateHoursDates,
+  compute: computeHoursDates,
+  resultValue: completeHoursDatesValue,
+  describeResult: describeHoursDates,
+  renderResult(result, context: FormRenderContext) {
+    const p = presentHoursDates(result);
+    const q = (sel: string) => context.result.querySelector<HTMLElement>(sel);
+    const set = (sel: string, value: string) => {
+      const el = q(sel);
+      if (el) el.textContent = value;
+    };
+    const primary = q('[data-result-when~="valid"] [data-result-value]');
+    if (primary) primary.textContent = p.hoursLine;
+    const a11y = q('[data-result-when~="valid"] [data-result-value-a11y]');
+    if (a11y) a11y.textContent = p.a11y;
+    set('[data-hd-lead]', p.lead);
+    set('[data-hd-hours-line]', p.hoursLine);
+    set('[data-hd-minutes-line]', p.minutesLine);
+    set('[data-hd-days]', p.daysLine);
+    set('[data-hd-decimal]', p.decimal);
+    set('[data-hd-interpretation]', p.interpretation);
+  },
+  resetValues(root, _mode: ResetMode) {
+    for (const name of ['startDate', 'startTime', 'endDate', 'endTime']) {
+      const el = root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+      if (el) el.value = '';
+    }
+  },
+};
+
+/** Example values for the labelled worked result — ours, never written into the visitor's fields. */
+export function hoursDatesExampleValues(): HoursDatesValues {
+  const now = new Date();
+  const today = toISODateUTC(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));
+  return { startDate: today, startTime: '08:30', endDate: today, endTime: '17:30' };
+}

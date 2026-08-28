@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateHours, parseTimeToMinutes } from './hours';
+import { calculateHours, parseTimeToMinutes, spanBetweenInstants } from './hours';
 
 /**
  * Dedicated Hours characterization (R17B2 Commit 1 — bounded Everyday singleton). FREEZES the exact
@@ -122,5 +122,70 @@ describe('calculateHours — elapsed minus break, overnight-aware, clamped ≥ 0
 
   it('is deterministic', () => {
     expect(calculateHours(480, 1010, 45)).toEqual(calculateHours(480, 1010, 45));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* spanBetweenInstants                                                 */
+/* ------------------------------------------------------------------ */
+
+describe('spanBetweenInstants', () => {
+  const H = 60;
+  const D = 24 * 60;
+
+  it('measures an ordinary same-day span', () => {
+    // 8:30 AM to 5:30 PM
+    const s = spanBetweenInstants(8 * H + 30, 17 * H + 30);
+    expect(s.totalMinutes).toBe(540);
+    expect(s.hours).toBe(9);
+    expect(s.minutes).toBe(0);
+    expect(s.decimalHours).toBe(9);
+    expect(s.direction).toBe('after');
+  });
+
+  it('keeps the leftover minutes', () => {
+    const s = spanBetweenInstants(0, 9 * H + 45);
+    expect(s.hours).toBe(9);
+    expect(s.minutes).toBe(45);
+    expect(s.totalMinutes).toBe(585);
+    expect(s.decimalHours).toBe(9.75);
+  });
+
+  it('spans days without capping at 24 hours', () => {
+    const s = spanBetweenInstants(0, 3 * D + 5 * H + 20);
+    expect(s.totalMinutes).toBe(4640);
+    expect(s.hours).toBe(77);
+    expect(s.minutes).toBe(20);
+    expect(s.days).toBe(3);
+    expect(s.hoursOfDay).toBe(5);
+  });
+
+  it('is order-independent, reporting the direction rather than swapping', () => {
+    const fwd = spanBetweenInstants(100, 600);
+    const back = spanBetweenInstants(600, 100);
+    expect(back.totalMinutes).toBe(fwd.totalMinutes);
+    expect(fwd.direction).toBe('after');
+    expect(back.direction).toBe('before');
+  });
+
+  it('treats two identical instants as a valid zero', () => {
+    const s = spanBetweenInstants(500, 500);
+    expect(s.totalMinutes).toBe(0);
+    expect(s.direction).toBe('same');
+    expect(s.hours).toBe(0);
+    expect(s.days).toBe(0);
+  });
+
+  it('never returns a negative component', () => {
+    for (const [a, b] of [[0, 1], [1, 0], [0, 0], [5 * D, 1], [1, 5 * D]]) {
+      const s = spanBetweenInstants(a, b);
+      for (const n of [s.totalMinutes, s.hours, s.minutes, s.days, s.hoursOfDay, s.decimalHours]) {
+        expect(n).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('refuses a non-finite input rather than inventing a span', () => {
+    expect(Number.isNaN(spanBetweenInstants(Number.NaN, 10).totalMinutes)).toBe(true);
   });
 });
