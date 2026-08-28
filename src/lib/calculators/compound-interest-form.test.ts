@@ -206,7 +206,7 @@ describe('the complete-result guard', () => {
     expect(
       completeCompoundValue(
         broken((c) => {
-          (c.ladder as { effectiveAnnualPct: number }[])[3].effectiveAnnualPct = Number.NaN;
+          (c.ladder[3] as { effectiveAnnualPct: number }).effectiveAnnualPct = Number.NaN;
         }),
       ),
     ).toBeNaN();
@@ -214,7 +214,7 @@ describe('the complete-result guard', () => {
     expect(
       completeCompoundValue(
         broken((c) => {
-          (c.ladder as { effectiveAnnualPct: number }[])[8].effectiveAnnualPct = 0;
+          (c.ladder[8] as { effectiveAnnualPct: number }).effectiveAnnualPct = 0;
         }),
       ),
     ).toBeNaN();

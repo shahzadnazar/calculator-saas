@@ -1,210 +1,480 @@
 ---
 /**
- * Inflation calculator island (R9C1 — standard-form wave, calculator #19; product family
- * FINANCE-SIMPLE, on the standard-form runtime UNCHANGED — no isUsableResult).
+ * Inflation island — THREE independent calculators on one page, mirroring the way the
+ * percentage island runs six independent equations: one `<form data-equation>` each, one
+ * equation-runtime instance each, one result panel each. Resetting or recalculating one
+ * leaves the other two exactly as they were.
  *
- * Task-first, direct-intent: a single mode. Amount + rate + years start EMPTY, the result is empty
- * (an instruction, not the legacy $1,000 / 3% / 20-year sample), and the visitor presses "Calculate
- * Inflation Impact" for the first result; live-after-first afterwards. Compute, validation, state,
- * the single announcement, focus and Reset are owned by the shared runtime (UNCHANGED) + the
- * inflation binding (@lib/calculators/inflation-form).
+ *   1. CPI data      — the real published index, either end a month or an annual average.
+ *                      This is the page's primary tool and the only one with a chart.
+ *   2. Forward flat  — an assumed rate carried forward.
+ *   3. Backward flat — the same rate read backwards.
  *
- * A NEGATIVE rate is valid deflation (the binding rejects only rate <= -100). The result is
- * mixed-unit: a dominant projected future cost ($), plus future buying power ($) and a SIGNED
- * cumulative price change (%) — labelled neutrally ("Cumulative price change", never "increase")
- * and NOT colour-coded, so a negative (deflation) value never reads as an error.
+ * The period selects are built here, at build time, from the dataset itself, so the year
+ * range and the last selectable month follow the data instead of being typed in. Amounts
+ * start empty and every panel starts empty: the visitor presses Calculate for a result,
+ * which is also how the reference behaves.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
-import ResultInterpretation from '@components/result/ResultInterpretation.astro';
-import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
-import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { CPI_FIRST_YEAR, CPI_LAST_YEAR, MONTH_NAMES, hasAnnualAverage, publishedMonths } from '@lib/calculators/cpi';
+import { CPI_DEFAULT_PERIODS } from '@lib/calculators/inflation-form';
+
+const years = Array.from({ length: CPI_LAST_YEAR - CPI_FIRST_YEAR + 1 }, (_, i) => CPI_FIRST_YEAR + i).reverse();
+
+/** Years whose annual average does not exist, so the option can be disabled up front. */
+const yearsWithoutAverage = years.filter((y) => !hasAnnualAverage(y));
+/** Months published in each partial year, so a month past the last release is disabled. */
+const partialYears = Object.fromEntries(
+  years.filter((y) => publishedMonths(y).length < 12).map((y) => [y, publishedMonths(y)]),
+);
+const d = CPI_DEFAULT_PERIODS;
 ---
 
-<div class="inflation mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-inflation>
-  <!-- Inputs -->
-  <form class="card p-4" data-form novalidate aria-label="Inflation calculator">
-    <div class="space-y-4">
-      <div data-field="amount">
-        <label class="field-label" for="if-amount">Current amount in USD</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="if-amount"
-            name="amount"
-            type="number"
-            min="0"
-            step="100"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 1000"
-            aria-describedby="if-amount-error"
-          />
-        </div>
-        <p class="if-field-error" id="if-amount-error" data-error-for="amount" hidden></p>
-      </div>
-
-      <div data-field="annualRatePct">
-        <label class="field-label" for="if-rate">Annual inflation or deflation rate</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="if-rate"
-            name="annualRatePct"
-            type="number"
-            step="0.1"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 3"
-            aria-describedby="if-rate-error if-rate-hint"
-          />
-          <span class="field-affix rounded-r-lg border-l-0">%</span>
-        </div>
-        <p class="if-hint" id="if-rate-hint">Use a negative percentage for deflation.</p>
-        <p class="if-field-error" id="if-rate-error" data-error-for="annualRatePct" hidden></p>
-      </div>
-
-      <div data-field="years">
-        <label class="field-label" for="if-years">Time</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="if-years"
-            name="years"
-            type="number"
-            min="0"
-            step="1"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 20"
-            aria-describedby="if-years-error"
-          />
-          <span class="field-affix rounded-r-lg border-l-0">years</span>
-        </div>
-        <p class="if-field-error" id="if-years-error" data-error-for="years" hidden></p>
-      </div>
+<div class="infl" data-inflation data-partial-years={JSON.stringify(partialYears)} data-no-average={JSON.stringify(yearsWithoutAverage)}>
+  <!-- 1 — Inflation Calculator with U.S. CPI Data -->
+  <form class="ifeq card" data-equation="cpi" novalidate aria-label="Inflation calculator with U.S. CPI data">
+    <h2 class="ifeq-q">Inflation Calculator with U.S. CPI Data</h2>
+    <p class="ifeq-lede">
+      Calculates the equivalent value of the U.S. dollar in any month from {CPI_FIRST_YEAR} to {CPI_LAST_YEAR}.
+      Calculations are based on the average Consumer Price Index (CPI-U) for all urban consumers.
+    </p>
+    <div class="ifeq-line">
+      <span class="ifeq-money">
+        <span class="ifeq-prefix">$</span>
+        <input id="cpi-amount" name="amount" class="field ifeq-field ifeq-field--money" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="100" aria-label="amount in dollars" aria-describedby="cpi-amount-error" />
+      </span>
+      <span>in</span>
+      <select id="cpi-from-month" name="fromMonth" class="field ifeq-select ifeq-select--month" aria-label="starting month" aria-describedby="cpi-fromMonth-error">
+        <option value="average" selected={d.fromMonth === 'average'}>Average</option>
+        {MONTH_NAMES.map((name, i) => <option value={i + 1} selected={d.fromMonth === String(i + 1)}>{name}</option>)}
+      </select>
+      <select id="cpi-from-year" name="fromYear" class="field ifeq-select ifeq-select--year" aria-label="starting year">
+        {years.map((y) => <option value={y} selected={d.fromYear === String(y)}>{y}</option>)}
+      </select>
+      <span class="ifeq-eq">= <strong>?</strong></span>
+      <span>in</span>
+      <select id="cpi-to-month" name="toMonth" class="field ifeq-select ifeq-select--month" aria-label="ending month" aria-describedby="cpi-toMonth-error">
+        <option value="average" selected={d.toMonth === 'average'}>Average</option>
+        {MONTH_NAMES.map((name, i) => <option value={i + 1} selected={d.toMonth === String(i + 1)}>{name}</option>)}
+      </select>
+      <select id="cpi-to-year" name="toYear" class="field ifeq-select ifeq-select--year" aria-label="ending year">
+        {years.map((y) => <option value={y} selected={d.toYear === String(y)}>{y}</option>)}
+      </select>
+    </div>
+    <p class="ifeq-error" id="cpi-amount-error" data-error-for="amount" hidden></p>
+    <p class="ifeq-error" id="cpi-fromMonth-error" data-error-for="fromMonth" hidden></p>
+    <p class="ifeq-error" id="cpi-toMonth-error" data-error-for="toMonth" hidden></p>
+    <div class="ifeq-actions">
+      <button type="submit" class="btn btn-primary ifeq-btn" aria-label="Calculate with CPI data">Calculate</button>
+      <button type="button" class="btn btn-secondary ifeq-btn" data-reset aria-label="Clear the CPI calculator">Clear</button>
+      <span class="ifeq-live-note" data-live-note hidden>Changes update automatically.</span>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Inflation Impact</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
-    </div>
-    <p class="if-live-note" data-live-note hidden>Changes update automatically.</p>
+    <ResultShell state="example" density="standard" minHeight="7rem" placeholderAlignment="center" boxed={false} label="CPI inflation result" class="ifeq-result">
+      <ExampleNotice caption={`Sample: $100 in ${d.fromYear} (Average) valued in ${MONTH_NAMES[Number(d.toMonth) - 1]} ${d.toYear}.`} />
+      <EmptyResult message="Enter an amount and choose two periods, then calculate." />
+      <div data-result-when="valid">
+        <ResultSummary label="Equivalent value">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+        <p class="ifeq-headline" data-cpi-headline></p>
+        <p class="ifeq-detail" data-cpi-rates></p>
+        <p class="ifeq-detail" data-cpi-indexes></p>
+        <figure class="if-chart" data-cpi-figure hidden>
+          <figcaption class="if-chart__title" data-cpi-chart-title></figcaption>
+          <div class="if-chart__canvas" data-cpi-chart></div>
+        </figure>
+      </div>
+      <InvalidResult title="Check your entries" message="Enter an amount and choose two periods the index covers." />
+      <ResultAnnouncement id="cpi-live" />
+    </ResultShell>
   </form>
 
-  <!-- Result -->
-  <ResultShell
-    id="if-result"
-    state="empty"
-    density="standard"
-    label="Inflation result"
-    minHeight="20rem"
-    placeholderAlignment="center"
-  >
-    <ExampleNotice />
-    <EmptyResult message="Enter an amount, annual inflation or deflation rate, and time period to estimate future cost and purchasing power." />
-
-    <div data-result-when="valid">
-      <ResultSummary label="Projected future cost">
-        <ResultValue value="—" size="text-4xl" />
-      </ResultSummary>
-      <ResultInterpretation>
-        <span data-if-interpretation></span>
-      </ResultInterpretation>
-
-      <ResultBreakdown title="Breakdown">
-        <dl class="if-metrics">
-          <div><dt>Future buying power</dt><dd data-if-power>—</dd></div>
-          <div><dt>Cumulative price change</dt><dd data-if-change>—</dd></div>
-        </dl>
-        <p class="if-note">A positive change is inflation; a negative change is deflation. Amounts are in US dollars (USD).</p>
-      </ResultBreakdown>
+  <!-- 2 — Forward Flat Rate Inflation Calculator -->
+  <form class="ifeq card" data-equation="forward" novalidate aria-label="Forward flat rate inflation calculator">
+    <h2 class="ifeq-q">Forward Flat Rate Inflation Calculator</h2>
+    <p class="ifeq-lede">Calculates an inflation based on a certain average inflation rate <strong>after some years</strong>.</p>
+    <div class="ifeq-line">
+      <span class="ifeq-money">
+        <span class="ifeq-prefix">$</span>
+        <input id="fwd-amount" name="amount" class="field ifeq-field ifeq-field--money" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="100" aria-label="amount in dollars" aria-describedby="fwd-amount-error" />
+      </span>
+      <span>with inflation rate</span>
+      <span class="ifeq-suffixed">
+        <input id="fwd-rate" name="annualRatePct" class="field ifeq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="3" aria-label="inflation rate percent" aria-describedby="fwd-rate-error" />
+        <span class="ifeq-suffix">%</span>
+      </span>
+      <span>after</span>
+      <span class="ifeq-suffixed">
+        <input id="fwd-years" name="years" class="field ifeq-field" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="10" aria-label="number of years" aria-describedby="fwd-years-error" />
+        <span class="ifeq-suffix">years</span>
+      </span>
+      <span class="ifeq-eq">= <strong>?</strong></span>
     </div>
+    <p class="ifeq-error" id="fwd-amount-error" data-error-for="amount" hidden></p>
+    <p class="ifeq-error" id="fwd-rate-error" data-error-for="annualRatePct" hidden></p>
+    <p class="ifeq-error" id="fwd-years-error" data-error-for="years" hidden></p>
+    <div class="ifeq-actions">
+      <button type="submit" class="btn btn-primary ifeq-btn" aria-label="Calculate forward flat rate">Calculate</button>
+      <button type="button" class="btn btn-secondary ifeq-btn" data-reset aria-label="Clear the forward flat rate calculator">Clear</button>
+      <span class="ifeq-live-note" data-live-note hidden>Changes update automatically.</span>
+    </div>
+    <ResultShell state="example" density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Forward flat rate result" class="ifeq-result">
+      <ExampleNotice caption="Sample: $100 at 3% a year after 10 years." />
+      <EmptyResult message="Enter an amount, a rate and a number of years, then calculate." />
+      <div data-result-when="valid">
+        <ResultSummary label="Equivalent value">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+        <p class="ifeq-detail" data-flat-sentence></p>
+      </div>
+      <InvalidResult message="Enter an amount, a rate above -100% and a number of years." />
+      <ResultAnnouncement id="fwd-live" />
+    </ResultShell>
+  </form>
 
-    <InvalidResult
-      title="Check your entries"
-      message="Enter an amount, an annual rate greater than -100%, and a time period in years to calculate."
-    />
-
-    <ResultAnnouncement id="if-live" />
-  </ResultShell>
+  <!-- 3 — Backward Flat Rate Inflation Calculator -->
+  <form class="ifeq card" data-equation="backward" novalidate aria-label="Backward flat rate inflation calculator">
+    <h2 class="ifeq-q">Backward Flat Rate Inflation Calculator</h2>
+    <p class="ifeq-lede">Calculates the equivalent purchasing power of an amount <strong>some years ago</strong> based on a certain average inflation rate.</p>
+    <div class="ifeq-line">
+      <span class="ifeq-money">
+        <span class="ifeq-prefix">$</span>
+        <input id="bwd-amount" name="amount" class="field ifeq-field ifeq-field--money" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="100" aria-label="amount in dollars" aria-describedby="bwd-amount-error" />
+      </span>
+      <span>with inflation rate</span>
+      <span class="ifeq-suffixed">
+        <input id="bwd-rate" name="annualRatePct" class="field ifeq-field" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="3" aria-label="inflation rate percent" aria-describedby="bwd-rate-error" />
+        <span class="ifeq-suffix">%</span>
+      </span>
+      <span class="ifeq-eq">= <strong>?</strong></span>
+      <span class="ifeq-suffixed">
+        <input id="bwd-years" name="years" class="field ifeq-field" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="10" aria-label="number of years" aria-describedby="bwd-years-error" />
+        <span class="ifeq-suffix">years</span>
+      </span>
+      <span>ago</span>
+    </div>
+    <p class="ifeq-error" id="bwd-amount-error" data-error-for="amount" hidden></p>
+    <p class="ifeq-error" id="bwd-rate-error" data-error-for="annualRatePct" hidden></p>
+    <p class="ifeq-error" id="bwd-years-error" data-error-for="years" hidden></p>
+    <div class="ifeq-actions">
+      <button type="submit" class="btn btn-primary ifeq-btn" aria-label="Calculate backward flat rate">Calculate</button>
+      <button type="button" class="btn btn-secondary ifeq-btn" data-reset aria-label="Clear the backward flat rate calculator">Clear</button>
+      <span class="ifeq-live-note" data-live-note hidden>Changes update automatically.</span>
+    </div>
+    <ResultShell state="example" density="compact" minHeight="5rem" placeholderAlignment="center" boxed={false} label="Backward flat rate result" class="ifeq-result">
+      <ExampleNotice caption="Sample: $100 at 3% a year, 10 years ago." />
+      <EmptyResult message="Enter an amount, a rate and a number of years, then calculate." />
+      <div data-result-when="valid">
+        <ResultSummary label="Equivalent value">
+          <ResultValue value="—" size="text-3xl" />
+        </ResultSummary>
+        <p class="ifeq-detail" data-flat-sentence></p>
+      </div>
+      <InvalidResult message="Enter an amount, a rate above -100% and a number of years." />
+      <ResultAnnouncement id="bwd-live" />
+    </ResultShell>
+  </form>
 </div>
 
 <style>
-  .if-field-error {
+  .infl {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .ifeq {
+    padding: 0.9rem 1rem 1rem;
+  }
+
+  .ifeq-q {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--heading);
+  }
+
+  .ifeq-lede {
+    margin: 0.2rem 0 0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  .ifeq-line {
+    margin-top: 0.7rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.5rem;
+    font-size: 0.92rem;
+    color: var(--fg);
+  }
+
+  .ifeq-money,
+  .ifeq-suffixed {
+    display: inline-flex;
+    align-items: stretch;
+    flex: 0 0 auto;
+  }
+
+  .ifeq-prefix,
+  .ifeq-suffix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.5rem;
+    border: 1px solid var(--line);
+    background: var(--surface-2, transparent);
+    font-size: 0.85rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .ifeq-prefix {
+    border-right: 0;
+    border-radius: 0.5rem 0 0 0.5rem;
+  }
+  .ifeq-suffix {
+    border-left: 0;
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+
+  .ifeq-field {
+    width: 5.5rem;
+    min-height: 2.75rem;
+    padding: 0.35rem 0.55rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .ifeq-money .ifeq-field {
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+  .ifeq-suffixed .ifeq-field {
+    border-radius: 0.5rem 0 0 0.5rem;
+  }
+  .ifeq-field--money {
+    width: 7rem;
+  }
+
+  /* `.field` is a full-width global control; inside a sentence these have to size to
+     their content or the line breaks into a stack. */
+  .ifeq-select {
+    width: auto;
+    min-height: 2.75rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.9rem;
+  }
+  .ifeq-select--month {
+    min-width: 7.5rem;
+  }
+  .ifeq-select--year {
+    min-width: 5.5rem;
+  }
+
+  .ifeq-eq {
+    font-weight: 600;
+    color: var(--heading);
+  }
+  .ifeq-eq strong {
+    color: var(--accent, var(--heading));
+  }
+
+  .ifeq-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .if-field-error {
+    :root:not([data-theme='light']) .ifeq-error {
       color: #fca5a5;
     }
   }
-  :root[data-theme='dark'] .if-field-error {
+  :root[data-theme='dark'] .ifeq-error {
     color: #fca5a5;
   }
 
-  .if-hint {
-    margin-top: 0.3rem;
+  .ifeq-actions {
+    margin-top: 0.7rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .ifeq-btn {
+    min-height: 2.75rem;
+  }
+  .ifeq-live-note {
     font-size: 0.78rem;
     color: var(--muted);
   }
 
-  .if-live-note {
+  .ifeq-result {
     margin-top: 0.75rem;
-    font-size: 0.8rem;
+  }
+
+  .ifeq-headline {
+    margin: 0.35rem 0 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .ifeq-detail {
+    margin: 0.3rem 0 0;
+    font-size: 0.86rem;
+    line-height: 1.5;
     color: var(--muted);
   }
 
-  .if-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
+  /* Chart -------------------------------------------------------------- */
+  .if-chart {
+    margin: 0.75rem 0 0;
   }
-  .if-metrics > div {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+  .if-chart__title {
+    margin: 0 0 0.3rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--heading);
   }
-  .if-metrics dt {
-    color: var(--fg);
+  .if-chart__canvas {
+    width: 100%;
+    /* The SVG scales to its box, so an unbounded one grows with the panel. Cap it at a
+       width that keeps the plot legible without pushing the rest of the page down. */
+    max-width: 34rem;
+  }
+  /* The SVG and its parts are built with DOM APIs, so they never carry Astro's
+     scoping attribute — these have to be :global to reach them. */
+  .if-chart__canvas :global(.if-chart__svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .if-chart__canvas :global(.if-chart__grid) {
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .if-chart__canvas :global(.if-chart__frame) {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .if-chart__canvas :global(.if-chart__tick),
+  .if-chart__canvas :global(.if-chart__axis-title) {
+    fill: var(--muted);
+    font-size: 10px;
+  }
+  .if-chart__canvas :global(.if-chart__axis-title) {
     font-weight: 600;
   }
-  .if-metrics dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    color: var(--heading);
-    font-weight: 700;
-    white-space: nowrap;
+  .if-chart__canvas :global(.if-chart__line) {
+    fill: none;
+    stroke: var(--brand, #7c3aed);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
   }
-  .if-note {
-    margin: 0.7rem 0 0;
-    font-size: 0.8rem;
-    line-height: 1.45;
-    color: var(--muted);
+
+  @media (max-width: 30rem) {
+    .ifeq-field {
+      width: 4.5rem;
+    }
+    .ifeq-field--money {
+      width: 5.5rem;
+    }
+    .ifeq-select {
+      font-size: 0.85rem;
+    }
   }
 </style>
 
 <script>
-  import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { inflationBinding, INFLATION_EXAMPLE_VALUES } from '@lib/calculators/inflation-form';
+  import {
+    mountEquationCalculator,
+    type EquationCalculatorBinding,
+  } from '@lib/result/equation-runtime';
+  import {
+    cpiBinding,
+    forwardInflationBinding,
+    backwardInflationBinding,
+    CPI_EXAMPLE_VALUES,
+    FLAT_EXAMPLE_VALUES,
+  } from '@lib/calculators/inflation-form';
 
-  document.querySelectorAll<HTMLElement>('[data-inflation]').forEach((root) => {
-    mountFormCalculator(root, inflationBinding, {
+  type EqKind = 'cpi' | 'forward' | 'backward';
+  // Each binding has its own operand type; the registry is deliberately
+  // operand-agnostic because every form is mounted against its own binding.
+  const BINDINGS: Record<EqKind, EquationCalculatorBinding<unknown, unknown>> = {
+    cpi: cpiBinding as EquationCalculatorBinding<unknown, unknown>,
+    forward: forwardInflationBinding as EquationCalculatorBinding<unknown, unknown>,
+    backward: backwardInflationBinding as EquationCalculatorBinding<unknown, unknown>,
+  };
+
+  // Each form gets its OWN example, so dismissing one leaves the other two standing.
+  const EXAMPLES: Record<EqKind, unknown> = {
+    cpi: CPI_EXAMPLE_VALUES,
+    forward: FLAT_EXAMPLE_VALUES,
+    backward: FLAT_EXAMPLE_VALUES,
+  };
+
+  document.querySelectorAll<HTMLFormElement>('form[data-equation]').forEach((form) => {
+    const kind = form.dataset.equation as EqKind;
+    const binding = BINDINGS[kind];
+    if (!binding) return;
+    mountEquationCalculator(form, binding, {
+      calculateButtonLabel: 'Calculate',
       recalculationMode: 'live-after-first',
-      example: { values: INFLATION_EXAMPLE_VALUES },
-      calculateButtonLabel: 'Calculate Inflation Impact',
+      example: { values: EXAMPLES[kind] },
     });
+  });
+
+  /**
+   * Keep the month list honest about what exists. A year still in progress has no
+   * annual average and no months past its last release; 2025 has no average either,
+   * because October was never collected. Disabling those options says so before the
+   * visitor picks one — validation still refuses them if it happens anyway.
+   */
+  document.querySelectorAll<HTMLElement>('[data-inflation]').forEach((root) => {
+    const partial: Record<string, number[]> = JSON.parse(root.dataset.partialYears || '{}');
+    const noAverage: number[] = JSON.parse(root.dataset.noAverage || '[]');
+
+    const sync = (monthSel: HTMLSelectElement, yearSel: HTMLSelectElement) => {
+      const year = Number(yearSel.value);
+      const allowed = partial[String(year)];
+      for (const opt of Array.from(monthSel.options)) {
+        opt.disabled =
+          opt.value === 'average'
+            ? noAverage.includes(year)
+            : Boolean(allowed) && !allowed.includes(Number(opt.value));
+      }
+      // Never leave the select resting on an option that no longer exists.
+      const current = monthSel.selectedOptions[0];
+      if (current?.disabled) {
+        const fallback = Array.from(monthSel.options).filter((o) => !o.disabled).pop();
+        if (fallback) {
+          monthSel.value = fallback.value;
+          monthSel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    };
+
+    for (const [m, y] of [
+      ['fromMonth', 'fromYear'],
+      ['toMonth', 'toYear'],
+    ]) {
+      const monthSel = root.querySelector<HTMLSelectElement>(`[name="${m}"]`);
+      const yearSel = root.querySelector<HTMLSelectElement>(`[name="${y}"]`);
+      if (!monthSel || !yearSel) continue;
+      sync(monthSel, yearSel);
+      yearSel.addEventListener('change', () => sync(monthSel, yearSel));
+    }
   });
 </script>

@@ -20,7 +20,6 @@ import { homeEquityBinding, HOME_EQUITY_EXAMPLE_VALUES } from './home-equity-loa
 import { hoursBinding, HOURS_EXAMPLE_VALUES } from './hours-form';
 import { idealWeightBinding, IDEAL_WEIGHT_EXAMPLE_VALUES } from './ideal-weight-form';
 import { incomeTaxBinding, INCOME_TAX_EXAMPLE_VALUES } from './income-tax-form';
-import { inflationBinding, INFLATION_EXAMPLE_VALUES } from './inflation-form';
 import { interestBinding, INTEREST_EXAMPLE_VALUES } from './interest-form';
 import { interestRateBinding, INTEREST_RATE_EXAMPLE_VALUES } from './interest-rate-form';
 import { investmentBinding, INVESTMENT_EXAMPLE_VALUES } from './investment-form';
@@ -84,7 +83,6 @@ const FLEET: Array<[string, AnyBinding, unknown]> = [
   ['hours', b(hoursBinding), HOURS_EXAMPLE_VALUES],
   ['ideal-weight', b(idealWeightBinding), IDEAL_WEIGHT_EXAMPLE_VALUES],
   ['income-tax', b(incomeTaxBinding), INCOME_TAX_EXAMPLE_VALUES],
-  ['inflation', b(inflationBinding), INFLATION_EXAMPLE_VALUES],
   ['interest', b(interestBinding), INTEREST_EXAMPLE_VALUES],
   ['interest-rate', b(interestRateBinding), INTEREST_RATE_EXAMPLE_VALUES],
   ['investment', b(investmentBinding), INVESTMENT_EXAMPLE_VALUES],
@@ -130,7 +128,9 @@ describe('fleet-wide example values', () => {
   });
 
   it('covers every calculator that opts into an example', () => {
-    expect(FLEET).toHaveLength(44);
+    // Every form-runtime calculator with an example. Equation-runtime pages — percentage
+    // and inflation — carry their own example tests beside their own bindings.
+    expect(FLEET).toHaveLength(43);
     expect(new Set(FLEET.map(([n]) => n)).size).toBe(FLEET.length); // no duplicates
   });
 });

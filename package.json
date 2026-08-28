@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "AllCalculators — free, fast, accurate online calculators for finance, health, math, and everyday life.",
+  "description": "AllCalculators \u2014 free, fast, accurate online calculators for finance, health, math, and everyday life.",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
@@ -18,6 +18,8 @@
     "assert:mon-off": "node scripts/assert-monetization-off.mjs",
     "report:embed-css": "node scripts/report-embed-css.mjs",
     "gen:embed-pages": "node scripts/gen-embed-pages.mjs",
+    "gen:cpi": "node scripts/gen-cpi.mjs",
+    "assert:cpi-current": "node scripts/gen-cpi.mjs --check",
     "assert:embed-pages-current": "node scripts/gen-embed-pages.mjs --check",
     "assert:embed-isolation": "node scripts/assert-embed-isolation.mjs"
   },
@@ -30,6 +32,7 @@
     "@astrojs/check": "^0.9.4",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.0.0",
+    "cpi-us": "^1.202512.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"

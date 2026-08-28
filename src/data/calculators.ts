@@ -217,8 +217,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Inflation Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Estimate how inflation or deflation changes future prices and purchasing power over time.',
-    keywords: ['inflation calculator', 'purchasing power'],
+    description: 'Convert an amount between any two months since 1913 with published U.S. CPI data, or project it at a flat rate.',
+    keywords: ['inflation calculator', 'purchasing power', 'cpi calculator', 'consumer price index', 'value of a dollar'],
   },
   {
     slug: 'payment-calculator',
