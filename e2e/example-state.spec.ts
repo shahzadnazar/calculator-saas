@@ -102,6 +102,10 @@ const STRUCTURAL_DEFAULTS: Record<string, string> = {
   at: 'age: the "age at" date defaults to today',
   today: 'date-based tools: the reference date defaults to today',
   value: 'conversion: the ratified converter-family neutral value 1',
+  // The Food Energy Converter that sits under the calorie calculator is a converter, so it
+  // takes the same ratified family behavior: a neutral 1 and an immediate answer, not an
+  // empty box. Every personal field on that page still loads empty.
+  feValue: 'food energy: the ratified converter-family neutral value 1',
   quantity: 'square footage: a single area by default',
   people: 'tip: a bill splits one way by default',
   // The customary U.S. rate the product ships, on the same footing as splitting one way:

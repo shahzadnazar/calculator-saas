@@ -1,6 +1,7 @@
 ---
 import CalculatorLayout from '@layouts/CalculatorLayout.astro';
 import CalorieCalculator from '@components/islands/CalorieCalculator.astro';
+import FoodEnergyConverter from '@components/islands/FoodEnergyConverter.astro';
 import { getCalculator } from '@data/calculators';
 
 const calc = getCalculator('health', 'calorie-calculator')!;
@@ -9,7 +10,12 @@ const faqs = [
   {
     question: 'How are my daily calorie needs calculated?',
     answer:
-      'The calculator estimates your Basal Metabolic Rate (BMR) with the Mifflin-St Jeor equation, then multiplies it by an activity factor to get your Total Daily Energy Expenditure (TDEE) — the calories needed to maintain your current weight.',
+      'The calculator estimates your Basal Metabolic Rate (BMR) with the Mifflin-St Jeor equation, then multiplies it by an activity factor to get your Total Daily Energy Expenditure (TDEE) — the calories needed to maintain your current weight. Under Settings you can switch the equation to the Revised Harris-Benedict or to Katch-McArdle, which works from lean body mass.',
+  },
+  {
+    question: 'What is zigzag calorie cycling?',
+    answer:
+      'Rather than eating the same amount every day, a zigzag week alternates higher and lower days around your maintenance figure while hitting the same weekly total. Some people find it easier to sustain, and it makes room for a bigger meal without abandoning the target. The two example weeks shown under your result both come to exactly seven days at your maintenance level.',
   },
   {
     question: 'What is the difference between BMR and TDEE?',
@@ -44,18 +50,28 @@ const faqs = [
   presentation="task-first"
   intro="Estimate how many calories you need each day to maintain, lose or gain weight, based on the Mifflin-St Jeor equation and your activity level."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-17' }}
+  reviewMetadata={{ reviewedDate: '2026-08-28' }}
 >
   <CalorieCalculator />
 
   <Fragment slot="content">
+    <FoodEnergyConverter />
+
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Choose your <strong>sex</strong> and <strong>units</strong>.</li>
-      <li>Enter your <strong>age</strong>, <strong>height</strong> and <strong>weight</strong>.</li>
-      <li>Pick the <strong>activity level</strong> that best matches a typical week.</li>
-      <li>Press <strong>Calculate</strong> to see your maintenance calories plus gradual loss and gain targets.</li>
+      <li>Choose <strong>US Units</strong> or <strong>Metric Units</strong>. Switching converts figures you have already typed rather than clearing them.</li>
+      <li>Enter your <strong>age</strong> and select your <strong>gender</strong>.</li>
+      <li>Enter your <strong>height</strong> and <strong>weight</strong>.</li>
+      <li>Pick the <strong>activity</strong> level that best matches a typical week.</li>
+      <li>Press <strong>Calculate</strong> to see your maintenance calories, three rates of loss, and — behind the disclosure — three rates of gain.</li>
     </ol>
+    <p>
+      <strong>+ Settings</strong> holds two choices most people never change: which of the three
+      published BMR equations to use, and a body fat percentage for the one that needs it.
+      <strong>Other Units</strong> opens a converter above the calculator for anyone whose scales
+      read in stones; it is not a third unit system, and the calculator stays on whichever system
+      you chose.
+    </p>
 
     <h2>How your daily needs are worked out</h2>
     <p>
