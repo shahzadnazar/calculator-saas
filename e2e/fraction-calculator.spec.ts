@@ -262,7 +262,10 @@ test('Clear empties the fields and returns the result to empty', async ({ page }
 test('a completed result is announced once, without formula internals', async ({ page }) => {
   await solve(page, 'fraction', { an: '2', ad: '7', bn: '3', bd: '8' }, 'add');
   await expect(live(page, 'fraction')).toHaveText('Fraction Calculator: 2/7 + 3/8 = 37/56');
-  await expect(page.locator('[aria-live]')).toHaveCount(6); // one per calculator, never more
+  // Scoped to the tool column, as triangle and statistics already do: the side
+  // rail's search combobox has its own status region, which is that widget's,
+  // not a calculator's.
+  await expect(page.locator('.tool-shell__core [aria-live]')).toHaveCount(6); // one per calculator, never more
 });
 
 /* ---- Workspace / responsive / theme ------------------------------------- */

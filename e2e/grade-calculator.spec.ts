@@ -275,7 +275,10 @@ test('mobile keeps the rows tappable and does not scroll the page sideways', asy
 });
 
 test('each calculator has exactly one live region', async ({ page }) => {
-  await expect(page.locator('[aria-live]')).toHaveCount(2);
+  // Scoped to the tool column, as triangle and statistics already do: the side
+  // rail's search combobox has its own status region, which is that widget's,
+  // not a calculator's.
+  await expect(page.locator('.tool-shell__core [aria-live]')).toHaveCount(2);
 });
 
 test('the live page carries no monetization output', async ({ page }) => {

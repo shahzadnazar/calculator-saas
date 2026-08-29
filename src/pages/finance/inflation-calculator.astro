@@ -13,7 +13,7 @@ const faqs = [
   { question: 'What inflation rate should I use for the flat-rate calculators?', answer: 'Long-run U.S. inflation has averaged around 2–3% a year, and the Federal Reserve targets about 2%. Individual years swing well above and below that. Treat any single rate as a scenario rather than a forecast, and try two or three to see how sensitive a long horizon is to the choice.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Convert an amount between any two months since 1913 using published U.S. CPI data, or project it forward and backward at a flat rate." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-23' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Convert an amount between any two months since 1913 using published U.S. CPI data, or project it forward and backward at a flat rate." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-23' }}>
   <InflationCalculator />
   <Fragment slot="content">
     <h2>How to use these calculators</h2>

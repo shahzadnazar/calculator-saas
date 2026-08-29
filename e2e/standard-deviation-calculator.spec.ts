@@ -210,7 +210,10 @@ test('announces the result once, naming which standard deviation it is', async (
   await expect(live(page)).toHaveText('Population standard deviation: 4.8989794855664.');
   await mode(page, 'sample').check();
   await expect(live(page)).toHaveText('Sample standard deviation: 5.2372293656638.');
-  await expect(page.locator('[aria-live]')).toHaveCount(1);
+  // Scoped to the tool column, as triangle and statistics already do: the side
+  // rail's search combobox has its own status region, which is that widget's,
+  // not a calculator's.
+  await expect(page.locator('.tool-shell__core [aria-live]')).toHaveCount(1);
 });
 
 /* ---- Workspace / responsive --------------------------------------------- */

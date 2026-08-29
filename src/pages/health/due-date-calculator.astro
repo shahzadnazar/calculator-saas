@@ -13,7 +13,7 @@ const faqs = [
   { question: 'Can I calculate a due date from an ultrasound?', answer: 'Yes. Choose Ultrasound, enter the date of the scan and the gestational age it reported in weeks and days, and the calculator works your last menstrual period backwards from that and applies the same 280-day rule. Early scans are the most reliable basis there is, which is why providers use them to revise an LMP estimate.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate your baby's due date from your last period, a conception date, an ultrasound or an IVF transfer — and see how far along you are today." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-28' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Estimate your baby's due date from your last period, a conception date, an ultrasound or an IVF transfer — and see how far along you are today." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-28' }}>
   <DueDateCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>

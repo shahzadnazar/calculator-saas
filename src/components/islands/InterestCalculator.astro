@@ -273,9 +273,12 @@ import { COMPOUND_FREQUENCIES } from '@lib/calculators/interest';
      affixes are set tighter than the fleet default because "months" is a wide word:
      at the standard padding it squeezed its own input down to 39px, too narrow to
      read a two-digit entry in. */
-  .int-term { display: flex; gap: 0.4rem; }
+  .int-term { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .int-term__part { flex: 1 1 0; min-width: 0; }
-  .int-term__part > input { min-width: 0; }
+  /* A floor, not just min-width:0: "months" is a wide affix, so in a narrower
+     column the box it sits beside was squeezed to 42px — too narrow to read an
+     entry in. Below ~26rem of field the pair wraps instead (see .int-term). */
+  .int-term__part > input { min-width: 3.25rem; }
   .int-term :global(.field-affix) { padding-inline: 0.35rem; font-size: 0.75rem; flex: none; }
 
   .int-error {

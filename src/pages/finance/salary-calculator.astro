@@ -13,7 +13,7 @@ const faqs = [
   { question: 'Is this gross or net pay?', answer: 'Gross — before income tax, payroll taxes, retirement contributions or benefits are deducted. To estimate what you actually keep, use the income tax calculator.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Enter your pay at any one frequency and see every other, both ignoring time off and with your holidays and vacation days accounted for." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-10' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Enter your pay at any one frequency and see every other, both ignoring time off and with your holidays and vacation days accounted for." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-10' }}>
   <SalaryCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>

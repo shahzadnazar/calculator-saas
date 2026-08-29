@@ -236,9 +236,12 @@ const FINAL_FIELDS = [
   /* Rows are built in JS, so their rules must be :global() beneath an element the template owns. */
   .grade-calc :global(.grade-row td) { padding: 0.08rem 0.3rem; vertical-align: top; }
   .grade-calc :global(.grade-row .field) { min-height: 2.75rem; max-width: 100%; }
-  .grade-calc :global(.grade-row__name) { width: 10rem; }
-  .grade-calc :global(.grade-row__score) { width: 5rem; font-variant-numeric: tabular-nums; }
-  .grade-calc :global(.grade-row__weight) { width: 5rem; font-variant-numeric: tabular-nums; }
+  /* The optional name is the column that gives way: with the "%" now inline the
+     four cells have to fit the card at a 900px tool width, and the remove
+     button is the one thing that must never be clipped. */
+  .grade-calc :global(.grade-row__name) { width: 8rem; }
+  .grade-calc :global(.grade-row__score) { width: 4.5rem; font-variant-numeric: tabular-nums; }
+  .grade-calc :global(.grade-row__weight) { width: 4.5rem; font-variant-numeric: tabular-nums; }
   .grade-calc :global(.grade-row__remove) {
     display: grid;
     place-items: center;
@@ -270,8 +273,23 @@ const FINAL_FIELDS = [
   :root[data-theme='dark'] .grade-field-error { color: #fca5a5; }
 
   /* A per-cent sign that sits with the field rather than becoming a fourth column. */
-  .grade-suffixed { display: flex; align-items: center; gap: 0.35rem; }
-  .grade-suffix { font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+  /* :global because the table rows are built in JS, and Astro's scoped styles
+     never reach elements the browser created. Without it the rule applied only
+     to the template-rendered fields, and each row's "%" fell to a line of its
+     own as soon as the column got narrower — five rows of that pushed
+     Calculate below the fold at 1366x768. */
+  .grade-calc :global(.grade-suffixed) {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+  }
+  .grade-calc :global(.grade-suffix) {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+    flex: none;
+  }
 
   .grade-add {
     margin-top: 0.25rem;

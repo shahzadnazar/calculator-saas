@@ -14,7 +14,7 @@ const faqs = [
   { question: 'What can I enter into the calculator?', answer: 'Any three of the six values — sides a, b and c, and angles A, B and C — as long as at least one is a side. That covers all the standard cases: three sides (SSS), two sides and the angle between them (SAS), two angles and a side (ASA or AAS), and two sides with a non-included angle (SSA). Angles can be degrees or radians, and in radians you can write pi/2 or pi/4.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Solve a triangle from any three values including at least one side — sides, angles, area, perimeter, heights, medians, inradius, circumradius and vertex coordinates." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Solve a triangle from any three values including at least one side — sides, angles, area, perimeter, heights, medians, inradius, circumradius and vertex coordinates." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <TriangleCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
