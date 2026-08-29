@@ -1,6 +1,6 @@
 ---
 import CalculatorLayout from '@layouts/CalculatorLayout.astro';
-import StatisticsCalculator from '@components/islands/StatisticsCalculator.astro';
+import StandardDeviationCalculator from '@components/islands/StandardDeviationCalculator.astro';
 import { getCalculator } from '@data/calculators';
 
 const calc = getCalculator('math', 'standard-deviation-calculator')!;
@@ -32,6 +32,21 @@ const faqs = [
       'Variance is the average of the squared differences from the mean — standard deviation before you take the square root. It is in squared units, which is why standard deviation (the square root) is usually easier to interpret.',
   },
   {
+    question: 'Should I choose Population or Sample?',
+    answer:
+      'Choose Population when your numbers are every member of the group you care about — every pupil in a class, every reading you took. Choose Sample when they are a subset standing in for a larger group you cannot measure. It is not a display setting: a population divides the squared deviations by N, a sample divides by n − 1, so the sample figure is always the larger of the two. When in doubt, most real data sets are samples.',
+  },
+  {
+    question: 'What is the margin of error, and why is it shown?',
+    answer:
+      'The mean you calculated is an estimate of the true mean, and the standard error of the mean (the standard deviation divided by the square root of the count) says how precise that estimate is. Multiplying it by the figure for a confidence level gives the margin of error: at 95% the true mean is expected to lie within about 1.960 standard errors of yours. The table shows every level, and the error bars draw them to scale.',
+  },
+  {
+    question: 'What does the frequency table show?',
+    answer:
+      'How many times each distinct value appears, and what share of the data set that is. It is the quickest way to spot a repeated reading, a typo you entered twice, or a data set that is far less varied than its standard deviation suggests.',
+  },
+  {
     question: 'What counts as a high or low standard deviation?',
     answer:
       'It is relative to the mean and the context. The same standard deviation can be large for small numbers and tiny for large ones, so analysts often compare the coefficient of variation (standard deviation ÷ mean) to judge spread across different data sets.',
@@ -42,58 +57,62 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Calculate the population and sample standard deviation, variance and mean of any data set — with the full working, plus the median, quartiles and five-number summary."
+  intro="Enter your numbers, say whether they are a population or a sample, and get the standard deviation with the full working, the margin of error at every confidence level, and a frequency table."
   faqs={faqs}
   reviewMetadata={{ reviewedDate: '2026-07-25' }}
 >
-  <StatisticsCalculator primary="sd" />
+  <StandardDeviationCalculator />
 
   <Fragment slot="content">
-    <h2>How to calculate standard deviation, step by step</h2>
-    <p>Standard deviation looks intimidating but it is five plain steps:</p>
+    <h2>How to use this calculator</h2>
     <ol>
-      <li>Find the <strong>mean</strong> (average) of your numbers.</li>
-      <li>Subtract the mean from each value to get its <strong>deviation</strong>.</li>
-      <li><strong>Square</strong> each deviation.</li>
-      <li>Add the squares and divide — by <strong>N</strong> for a population, or <strong>N−1</strong> for a sample — to get the <strong>variance</strong>.</li>
-      <li>Take the <strong>square root</strong> of the variance. That is the standard deviation.</li>
+      <li>Type or paste your numbers, separated by <strong>commas, spaces or line breaks</strong>.</li>
+      <li>Say whether they are a <strong>population</strong> (the whole group) or a <strong>sample</strong> (a subset of a larger one). This changes the divisor, and therefore the answer.</li>
+      <li>Press Calculate. After the first result the figures update as you edit, so fixing a typo does not mean starting again.</li>
     </ol>
-    <p>Paste your numbers into the calculator — separated by commas, spaces or line breaks — and it runs all five steps for both the population and sample cases at once.</p>
 
-    <h2>What standard deviation tells you</h2>
-    <p>
-      Standard deviation measures how far a set of numbers typically sits from its mean. A <strong>low</strong> value means the data clusters tightly around the average; a <strong>high</strong> value means it is spread out. Because it is the square root of the variance, it is expressed in the <em>same units as your data</em> — dollars, centimetres, seconds — which makes it far easier to interpret than the variance itself.
-    </p>
-
-    <h2>The formulas</h2>
-    <p>Both versions start from the same sum of squared deviations and differ only in the divisor:</p>
-    <p><strong>Population: σ = √( Σ(x − μ)<sup>2</sup> / N )</strong></p>
-    <p><strong>Sample: s = √( Σ(x − x̄)<sup>2</sup> / (N − 1) )</strong></p>
+    <h2>What you get back</h2>
     <ul>
-      <li><strong>x</strong> — each value in the data set</li>
-      <li><strong>μ</strong> / <strong>x̄</strong> — the mean (μ for a population, x̄ for a sample)</li>
-      <li><strong>N</strong> — the count of values</li>
-      <li><strong>Σ(x − mean)<sup>2</sup></strong> — the sum of every squared deviation; drop the square root and this over the divisor is the <strong>variance</strong></li>
+      <li><strong>The standard deviation</strong>, with the count, sum, mean and variance beneath it.</li>
+      <li><strong>The working</strong> — the formula, the squared deviations, the division and the square root, so you can check each step rather than trust the answer.</li>
+      <li><strong>The margin of error</strong> at eight confidence levels, with error bars drawn to scale.</li>
+      <li><strong>A frequency table</strong> showing how often each value appears.</li>
     </ul>
 
-    <h2>A worked example</h2>
-    <p>Take the data <strong>2, 4, 6, 8</strong>. The mean is (2 + 4 + 6 + 8) ÷ 4 = 5. The deviations are −3, −1, 1, 3, and their squares are 9, 1, 1, 9, which sum to 20. From there:</p>
-    <ul>
-      <li><strong>Population</strong>: variance = 20 ÷ 4 = 5, so σ = √5 ≈ <strong>2.236</strong>.</li>
-      <li><strong>Sample</strong>: variance = 20 ÷ 3 ≈ 6.667, so s = √6.667 ≈ <strong>2.582</strong>.</li>
-    </ul>
-    <p>The sample figure is a little larger because dividing by N−1 instead of N inflates it slightly to correct for sampling.</p>
-
-    <h2>Population (σ) vs. sample (s)</h2>
-    <p>Use the <strong>population</strong> standard deviation when your data is the whole group you care about. Use the <strong>sample</strong> standard deviation when your data is a sample used to estimate a larger population — the more common case in research. The only difference is dividing by N versus N−1 (Bessel's correction); the calculator shows both so you never have to choose blind.</p>
-
-    <h2>Is a standard deviation high or low?</h2>
+    <h2>Population or sample?</h2>
     <p>
-      There is no universal threshold — the same value can be large for small numbers and trivial for large ones. To compare spread across data sets on different scales, analysts use the <strong>coefficient of variation</strong>, the standard deviation divided by the mean. For the sample above that is 2.582 ÷ 5 ≈ 0.52, or about 52%, telling you the spread is roughly half the size of the average value.
+      A <strong>population</strong> is every member of the group you are describing; a <strong>sample</strong> is a subset standing in for a larger group you cannot measure. A sample tends to underestimate the true spread, because the values you happened to draw sit closer to their own mean than to the population's. Dividing by <em>n</em> − 1 instead of <em>n</em> — Bessel's correction — compensates, which is why the sample figure is always the larger of the two. Most real data sets are samples.
     </p>
 
-    <h2>Standard deviation in Excel or Sheets</h2>
-    <p>To reproduce these in a spreadsheet, point the functions at your data range: <strong>=STDEV.S(A1:A20)</strong> for a sample, <strong>=STDEV.P(A1:A20)</strong> for a population, with <strong>=VAR.S</strong>/<strong>=VAR.P</strong> for variance and <strong>=AVERAGE</strong> for the mean. The results here match those functions, so it doubles as a quick way to check a spreadsheet.</p>
-    <p>For the median, mode, quartiles and the rest of the descriptive picture, use the fuller <a href="/math/statistics-calculator">statistics calculator</a>.</p>
+    <h2>The method, step by step</h2>
+    <ol>
+      <li>Find the <strong>mean</strong>: add the values and divide by how many there are.</li>
+      <li>Subtract the mean from each value and <strong>square</strong> the result, so distances above and below the mean both count as spread.</li>
+      <li>Add those squares up — that is Σ(x<sub>i</sub> − μ)².</li>
+      <li>Divide by <strong>N</strong> for a population, or <strong>n − 1</strong> for a sample. That is the <strong>variance</strong>.</li>
+      <li>Take the <strong>square root</strong>, which brings the answer back into the units you started with. That is the standard deviation.</li>
+    </ol>
+
+    <h2>A worked example you can check</h2>
+    <p>
+      For <strong>10, 12, 23, 23, 16, 23, 21, 16</strong> as a population: the sum is 144 and the mean is 18. The squared deviations add to 192, so the variance is 192 ÷ 8 = 24 and the standard deviation is √24 = 4.8989794855664. Treat the same numbers as a sample and only the divisor changes — 192 ÷ 7 = 27.428571428571, giving 5.2372293656638.
+    </p>
+
+    <h2>Reading the margin of error</h2>
+    <p>
+      Your mean is an estimate of a true mean you cannot see. The <strong>standard error of the mean</strong> — the standard deviation divided by the square root of the count — measures how precise that estimate is; for the example above it is 1.7320508075689. Multiply it by the figure for a confidence level to get the margin of error: at 95% that is 1.960 standard errors, or 18 ±3.395. Higher confidence buys a wider interval, which is why the bars lengthen down the table.
+    </p>
+
+    <h2>Variance and standard deviation</h2>
+    <p>
+      Variance is the standard deviation before the square root, and lives in squared units — squared pounds, squared seconds — which is why it is hard to interpret directly. The square root brings it back to the units of the data, so a standard deviation of 4.9 marks is a distance you can picture on the same scale as the marks themselves.
+    </p>
+
+    <h2>Related tools</h2>
+    <p>
+      Want the median, quartiles and the rest of the descriptive summary too? The
+      <a href="/math/statistics-calculator">statistics calculator</a> returns the whole table, and
+      the <a href="/math/percent-calculator">percentage calculator</a> handles shares and changes.
+    </p>
   </Fragment>
 </CalculatorLayout>

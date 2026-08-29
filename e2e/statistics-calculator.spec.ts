@@ -1,10 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Descriptive-statistics — R13B1 task-first ATOMIC migration (Statistics +
- * Standard Deviation, 2 of 2). ONE shared island (StatisticsCalculator) serves
- * both routes via the `primary` prop; the two routes share the UNCHANGED
- * statistics.ts formula and the statistics-form binding. The complete-result
+ * Descriptive statistics — the comma-separated summary table and the accumulator keypad above it.
+ *
+ * The standard deviation route used to share this island through a `primary` prop. It no longer
+ * does: it asks whether the numbers are a population or a sample and answers with a derivation and
+ * two tables, which is a different calculator, and it has its own suite. The complete-result
  * guard lives in the binding's resultValue (a NaN sentinel — NO isUsableResult).
  * Task-first: the data-set textarea starts empty, the visitor presses the
  * route-specific Calculate button for the first result, live-after-first after.
@@ -24,7 +25,6 @@ type RouteCfg = {
 };
 const ROUTES: RouteCfg[] = [
   { route: '/math/statistics-calculator', embed: '/embed/math/statistics-calculator', primary: 'summary', label: 'Calculate Statistics', dominant: '5' },
-  { route: '/math/standard-deviation-calculator', embed: '/embed/math/standard-deviation-calculator', primary: 'sd', label: 'Calculate Standard Deviation', dominant: '2.1380899352994' },
 ];
 
 const shell = (page: Page) => page.locator('#stat-result');
@@ -295,7 +295,7 @@ for (const cfg of ROUTES) {
 
 /* ---- Route-specific hero + announcement --------------------------------- */
 
-test.describe('statistics: route-specific hero + announcement', () => {
+test.describe('statistics: hero + announcement', () => {
   test('summary route features the mean and announces count + mean', async ({ page }) => {
     await page.goto('/math/statistics-calculator', { waitUntil: 'domcontentloaded' });
     await input(page).fill(DATA);
@@ -303,48 +303,6 @@ test.describe('statistics: route-specific hero + announcement', () => {
     await expect(dominant(page)).toHaveText('5'); // mean is dominant
     await expect(live(page)).toHaveText('Statistics calculated for 8 values. The mean is 5.');
     await expect(interp(page)).toContainText('the mean is 5');
-  });
-
-  test('sd route features the sample SD and announces it', async ({ page }) => {
-    await page.goto('/math/standard-deviation-calculator', { waitUntil: 'domcontentloaded' });
-    await input(page).fill('2, 4, 6, 8');
-    await submit(page).click();
-    await expect(dominant(page)).toHaveText('2.5819888974716'); // sample SD is dominant
-    await expect(live(page)).toHaveText('The sample standard deviation is 2.582.');
-  });
-
-  test('sd route, one value: sample SD "Not available", population 0, clear announcement', async ({ page }) => {
-    await page.goto('/math/standard-deviation-calculator', { waitUntil: 'domcontentloaded' });
-    await input(page).fill('7');
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(dominant(page)).toHaveText('Not available'); // sample SD dominant, unavailable at n=1
-    await expect(live(page)).toHaveText(
-      'The population standard deviation is 0. Sample standard deviation is not available for one value.',
-    );
-  });
-});
-
-/* ---- Guide embed regression --------------------------------------------- */
-
-test.describe('guide: standard-deviation-explained embeds one task-first island', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/guides/standard-deviation-explained', { waitUntil: 'domcontentloaded' });
-  });
-
-  test('exactly one calculator instance, task-first, with the SD action label', async ({ page }) => {
-    await expect(page.locator('[data-stats]')).toHaveCount(1);
-    await expect(page.locator('#stat-result')).toHaveAttribute('data-result-state', 'example');
-    await expect(page.locator('[name="values"]')).toHaveValue('');
-    await expect(page.locator('[data-stat-submit]')).toHaveText('Calculate Standard Deviation');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1); // no duplicate H1 from the island
-  });
-
-  test('the embedded island calculates on explicit submit', async ({ page }) => {
-    await page.locator('[name="values"]').fill('2, 4, 6, 8');
-    await page.locator('[data-stat-submit]').click();
-    await expect(page.locator('#stat-result')).toHaveAttribute('data-result-state', 'valid');
-    await expect(page.locator('#stat-result [data-result-value]')).toHaveText('2.5819888974716');
   });
 });
 
@@ -495,6 +453,7 @@ test.describe('statistics keypad', () => {
   test('the standard deviation route has no keypad', async ({ page }) => {
     await page.goto('/math/standard-deviation-calculator', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-stats-keypad]')).toHaveCount(0);
+    await expect(page.locator('[data-stats]')).toHaveCount(0); // its own island now
   });
 
   test('mobile: keys stay tappable and nothing overflows', async ({ page }) => {

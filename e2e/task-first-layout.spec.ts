@@ -38,7 +38,7 @@ const PILOTS = [
   { route: '/math/area-calculator', structure: 'form (geometry shape-picker; conditional per-shape fields; interpretive unit)' },
   { route: '/math/volume-calculator', structure: 'form (geometry shape-picker; 3D conditional per-shape fields; interpretive cubic unit)' },
   { route: '/math/statistics-calculator', structure: 'form (descriptive statistics; multiline data-set textarea; strict token validation; full multi-stat grid)' },
-  { route: '/math/standard-deviation-calculator', structure: 'form (descriptive statistics; shared island via primary prop; sample/population SD hero)' },
+  { route: '/math/standard-deviation-calculator', structure: 'form (standard deviation; own island; population/sample divisor choice; headline σ + count/sum/mean/variance, the derivation, the margin-of-error table with error bars, and a frequency table; result directly under the box)' },
   { route: '/finance/amortization-calculator', structure: 'form (financial schedule; 360-row table; yearly/monthly view)' },
   { route: '/finance/auto-loan-calculator', structure: 'form (complex-form; term select + finance checkbox; negative equity)' },
   { route: '/finance/investment-calculator', structure: 'form (complex-form; collective funding; nominal projection; negative growth)' },

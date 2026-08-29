@@ -9,7 +9,7 @@ import { resolve } from 'node:path';
  * list from the generated page tree itself — the filesystem truth for "which embed
  * routes exist" — and prove every one serves a 200 static embed with the shared
  * shell, that an unknown slug 404s, and that the one props special case
- * (standard-deviation → StatisticsCalculator primary='sd') renders. Deep behavior is
+ * (standard-deviation → its own StandardDeviationCalculator island) renders. Deep behavior is
  * covered by each calculator's own spec; the embed renders the identical island.
  * (Registry↔manifest↔generated-page coverage is owned by embed-components.test.ts.)
  */
@@ -43,10 +43,10 @@ test('an unknown embed slug returns 404 (no static page exists)', async ({ page 
   expect(resp?.status()).toBe(404);
 });
 
-test('the standard-deviation embed renders the shared statistics island via the generated primary="sd" prop', async ({ page }) => {
+test('the standard-deviation embed renders its own island', async ({ page }) => {
   await page.goto('/embed/math/standard-deviation-calculator', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('main.embed-main h1')).toContainText('Standard Deviation');
-  // The statistics island mounted (a real interactive control is present).
+  await expect(page.locator('main.embed-main [data-sd]')).toHaveCount(1);
   await expect(page.locator('main.embed-main').locator('input, textarea, button').first()).toBeVisible();
 });
 
