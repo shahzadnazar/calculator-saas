@@ -63,6 +63,20 @@ export function formatDigits(value: number, digits: number): string {
  * briefly". A coefficient that terminates within four decimals does; a recurring third does not,
  * and printing 887.33333333333π would be noise dressed as precision.
  */
+/**
+ * Round half-up, correcting for the float error that would otherwise round the wrong way.
+ *
+ * 3 × 3.3 is 9.899999999999999 in binary floating point, so a GPA whose exact value is 3.6625
+ * arrives as 3.6624999999999996 and rounds DOWN to 3.662 — one digit different from every other
+ * tool, on the figure the visitor came for. The epsilon nudges a value that is a hair under its own
+ * midpoint back onto it, without moving a value that genuinely sits below.
+ */
+export function roundHalfUp(value: number, digits: number): number {
+  if (!Number.isFinite(value)) return Number.NaN;
+  const p = Math.pow(10, digits);
+  return Math.round(value * p * (1 + 1e-12)) / p;
+}
+
 export function isCleanCoefficient(coefficient: number): boolean {
   if (!Number.isFinite(coefficient) || coefficient === 0) return false;
   const scaled = coefficient * 1e4;

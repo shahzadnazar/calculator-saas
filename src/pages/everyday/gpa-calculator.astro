@@ -5,7 +5,9 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'gpa-calculator')!;
 const faqs = [
   { question: 'How is GPA calculated?', answer: 'Each letter grade is worth a number of grade points (A = 4.0, B = 3.0, and so on). Multiply each course\'s grade points by its credit hours, add those products up, and divide by the total credit hours. This calculator does it automatically as you add courses.' },
-  { question: 'What is the 4.0 grade scale?', answer: 'On the standard unweighted scale an A is 4.0, A− is 3.7, B+ is 3.3, B is 3.0, and it continues down in steps to F at 0.0. Some schools award 4.0 for both A and A+; a few use pluses and minuses differently, so check your institution\'s official scale.' },
+  { question: 'What is the 4.0 grade scale?', answer: 'A+ is 4.3, A is 4.0, A− is 3.7, B+ is 3.3, B is 3.0, and it continues down in steps to D− at 0.7 and F at 0.0. P (pass), NP (not pass), I (incomplete) and W (withdrawal) carry no grade points and are ignored rather than scored as zero. Some schools cap an A+ at 4.0 or run their pluses and minuses differently, so check your institution\'s official scale.' },
+  { question: 'How do P, NP, I and W affect my GPA?', answer: 'They do not. A pass, a not-pass, an incomplete and a withdrawal carry no grade points, so those courses are left out of both the total credits and the average entirely. That is different from an F, which is scored as 0 grade points and does pull the average down.' },
+  { question: 'What does the GPA Planning Calculator do?', answer: 'It works backwards from a target. Give it your current GPA and the credits it covers, the GPA you want, and how many credits you have left, and it returns the minimum average those remaining credits need to reach. If the target cannot be reached even with the highest grade on the scale, it says so rather than returning a number you could never hit.' },
   { question: 'What is a good GPA?', answer: 'On a 4.0 scale, 3.0 is generally considered good (roughly a B average), 3.5+ is strong, and 3.8+ is excellent. Many scholarships and graduate programs set 3.0 as a minimum, but "good" ultimately depends on your school, major and goals.' },
   { question: 'What is the difference between weighted and unweighted GPA?', answer: 'An unweighted GPA caps every course at 4.0. A weighted GPA gives harder classes a boost — typically +0.5 for honors and +1.0 for AP or IB — so a weighted GPA can exceed 4.0 (often up to 5.0). This tool uses the standard unweighted 4.0 scale.' },
   { question: 'How do credit hours affect my GPA?', answer: 'GPA is weighted by credits, so higher-credit courses count more. A top grade in a 4-credit course moves your GPA more than the same grade in a 1-credit course — and a poor grade in a heavy course hurts more.' },
@@ -16,7 +18,7 @@ const faqs = [
   calculator={calc}
   presentation="task-first"
   reviewMetadata={{ reviewedDate: '2026-08-03' }}
-  intro="Calculate your grade point average on the 4.0 scale — add each course's grade and credit hours, then calculate your credit-weighted GPA."
+  intro="Add each course's credits and grade for your GPA and a full grade-point report, then use the planning calculator below to work out the GPA your future courses need."
   faqs={faqs}
 >
   <GpaCalculator />
@@ -33,30 +35,58 @@ const faqs = [
       credit hours before the tool can return a GPA.
     </p>
 
-    <h2>The grade-point scale</h2>
-    <p>Behind the scenes each letter maps to a fixed number of grade points on the standard unweighted 4.0 scale:</p>
+    <h2>Letter grade and the numerical equivalents used for this calculator</h2>
+    <p>
+      Grade point average is the average of the grades you attained in each course, taking course
+      credit into account. Grading systems vary between countries and even between schools; this
+      calculator translates letter grades into the numerical values below.
+    </p>
     <table>
       <thead>
         <tr><th>Letter grade</th><th>Grade points</th></tr>
       </thead>
       <tbody>
-        <tr><td>A</td><td>4.0</td></tr>
+        <tr><td>A+</td><td>4.3</td></tr>
+        <tr><td>A</td><td>4</td></tr>
         <tr><td>A−</td><td>3.7</td></tr>
         <tr><td>B+</td><td>3.3</td></tr>
-        <tr><td>B</td><td>3.0</td></tr>
+        <tr><td>B</td><td>3</td></tr>
         <tr><td>B−</td><td>2.7</td></tr>
         <tr><td>C+</td><td>2.3</td></tr>
-        <tr><td>C</td><td>2.0</td></tr>
+        <tr><td>C</td><td>2</td></tr>
         <tr><td>C−</td><td>1.7</td></tr>
         <tr><td>D+</td><td>1.3</td></tr>
-        <tr><td>D</td><td>1.0</td></tr>
-        <tr><td>F</td><td>0.0</td></tr>
+        <tr><td>D</td><td>1</td></tr>
+        <tr><td>D−</td><td>0.7</td></tr>
+        <tr><td>F</td><td>0</td></tr>
+        <tr><td>P (pass), NP (not pass), I (incomplete), W (withdrawal)</td><td>ignored</td></tr>
       </tbody>
     </table>
     <p>
-      The scale tops out at <strong>4.0</strong> for an A. Some schools award a 4.0 for an A+
-      as well, or run their pluses and minuses a little differently, so check your
-      institution's official scale if it does not match this one.
+      Most schools, colleges and universities in the United States use a system based on the letters
+      above, though E is sometimes used instead of F. Systems do differ on what constitutes an A or
+      a B, and some do not include an A+ or a B−. Others weight harder courses more heavily, so
+      whatever grade is attained there has a larger effect on the overall GPA; this calculator
+      accounts for that through the number of credits attributed to a course, where credit is the
+      course's weighting.
+    </p>
+    <p>
+      The four ignored grades are ignored, not zeroed. A withdrawal contributes no credits and no
+      grade points, so it leaves your average exactly where it was — which is a different outcome
+      from an F, scored as 0 and averaged in like any other grade.
+    </p>
+
+    <h2>Planning ahead</h2>
+    <p>
+      The <strong>GPA Planning Calculator</strong> answers the other question: not what your GPA is,
+      but what it has to become. Give it your current GPA and the credits behind it, your target,
+      and the credits still to come, and it returns the minimum average those credits need.
+    </p>
+    <p>
+      For a current GPA of 3.663 over 8 credits, a target of 3 and 15 credits still to come, the
+      next 15 credits need to average <strong>2.646</strong> or higher. If a target cannot be reached
+      even by scoring the highest grade on the scale across every remaining credit, the calculator
+      says so instead of returning a number you could never hit.
     </p>
 
     <h2>The formula</h2>

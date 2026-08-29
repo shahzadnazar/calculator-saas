@@ -15,6 +15,7 @@
  * significant figures keep a small pour from collapsing to "0.09" when it is really 0.086.
  */
 import { convertLength, type LengthUnit } from './area-units';
+import { roundHalfUp } from './formula-steps';
 
 export type ConcreteShapeKey =
   | 'slab'
@@ -54,11 +55,7 @@ export const REFERENCE_PI = 3.14159;
  * before rounding restores the decimal intent without disturbing any figure that was not already
  * sitting exactly on a half.
  */
-export function roundHalfUp(value: number, digits: number): number {
-  if (!Number.isFinite(value)) return Number.NaN;
-  const p = Math.pow(10, digits);
-  return Math.round(value * p * (1 + 1e-12)) / p;
-}
+export { roundHalfUp };
 
 /**
  * A quantity as this calculator prints it: two decimals, or enough decimals to keep two
