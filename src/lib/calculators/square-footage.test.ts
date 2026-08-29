@@ -1,166 +1,195 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSquareFootage } from './square-footage';
-import { formatCurrency, formatNumber } from '@lib/format';
+import {
+  toFeet,
+  fromSqFt,
+  toRadians,
+  SQFT_PER,
+  LENGTH_UNITS,
+  AREA_UNITS,
+  ANGLE_UNITS,
+  areaRectangle,
+  areaRectangleBorder,
+  areaCircle,
+  areaRing,
+  areaTriangleEdges,
+  areaTriangleBaseHeight,
+  areaTrapezoid,
+  areaSector,
+  areaParallelogram,
+  formatExactArea,
+  type LengthUnit,
+} from './square-footage';
 
 /**
- * Square-footage formula characterization (R10B1 Commit 1) — consolidated out of the shared
- * gaps.test.ts into a dedicated file, ahead of the task-first migration.
+ * The nine areas and the conversions under them.
  *
- * Freezes the EXACT current behaviour of `calculateSquareFootage`:
- *   lengthFt = max(0, length||0) × TO_FEET[unit];  widthFt = max(0, width||0) × TO_FEET[unit]
- *   areaSqFt = lengthFt × widthFt;  qty = max(1, floor(quantity||1));  totalSqFt = areaSqFt × qty
- *   totalSqM = totalSqFt / 10.7639104;  totalSqYd = totalSqFt / 9;  cost = totalSqFt × max(0, price||0)
- *   TO_FEET = { ft:1, in:1/12, yd:3, m:3.280839895 }
- *
- * Three layers are kept separate and only the FIRST is frozen here:
- *   • frozen formula behaviour — this file (no production change in Commit 1),
- *   • binding validation — square-footage-form.ts (Commit 2) rejects zero / negative / non-finite
- *     dimensions, a fractional / <1 quantity and a negative price even though the pure formula
- *     clamps or floors them,
- *   • display formatting — presentation-only (`formatNumber` / `formatCurrency`).
- *
- * Characterization only: no production code changes, no output changes.
+ * The reference figures at the bottom are the load-bearing part of this file: each one is a value
+ * the reference prints for a stated input, so they pin down the two things a reimplementation is
+ * most likely to get wrong — that the border of a "Rectangle Border" lies INSIDE the given
+ * dimensions, and that the square-foot-per-square-metre factor is exact rather than the truncated
+ * 10.7639104 this calculator used to ship.
  */
-const TO_FEET = { ft: 1, in: 1 / 12, yd: 3, m: 3.280839895 } as const;
 
-describe('calculateSquareFootage — ordinary feet cases', () => {
-  it('representative length × width, quantity 1, no price', () => {
-    const r = calculateSquareFootage({ length: 10, width: 12, unit: 'ft' });
-    expect(r.areaSqFt).toBe(120);
-    expect(r.totalSqFt).toBe(120);
-    expect(r.totalSqM).toBeCloseTo(11.14836482, 6);
-    expect(r.totalSqYd).toBeCloseTo(13.33333333, 6);
-    expect(r.cost).toBe(0);
+describe('length conversion', () => {
+  it('derives every unit from the exactly-defined foot', () => {
+    expect(toFeet(1, 'ft')).toBe(1);
+    expect(toFeet(12, 'in')).toBeCloseTo(1, 12);
+    expect(toFeet(1, 'yd')).toBeCloseTo(3, 12);
+    expect(toFeet(1, 'm')).toBeCloseTo(1 / 0.3048, 12);
+    expect(toFeet(100, 'cm')).toBeCloseTo(1 / 0.3048, 12);
   });
 
-  it('multiple quantity multiplies the single-area total, and a price gives a cost', () => {
-    const r = calculateSquareFootage({ length: 10, width: 12, unit: 'ft', quantity: 2, pricePerSqFt: 5 });
-    expect(r.areaSqFt).toBe(120);
-    expect(r.totalSqFt).toBe(240);
-    expect(r.cost).toBe(1200);
+  it('is exact for a metre, not the rounded 3.28084', () => {
+    expect(toFeet(1, 'm')).toBe(1 / 0.3048);
   });
 
-  it('decimal dimensions and a decimal price keep full precision', () => {
-    const r = calculateSquareFootage({ length: 12.5, width: 10.25, unit: 'ft', pricePerSqFt: 3.75 });
-    expect(r.areaSqFt).toBe(128.125);
-    expect(r.totalSqFt).toBe(128.125);
-    expect(r.cost).toBe(480.46875);
-  });
-});
-
-describe('calculateSquareFootage — every input unit (TO_FEET constants)', () => {
-  it('exposes the exact conversion constants', () => {
-    expect(TO_FEET).toEqual({ ft: 1, in: 1 / 12, yd: 3, m: 3.280839895 });
-  });
-
-  it('a single unit square: 1×1 in each unit → that unit² in feet²', () => {
-    expect(calculateSquareFootage({ length: 1, width: 1, unit: 'ft' }).areaSqFt).toBe(1);
-    expect(calculateSquareFootage({ length: 1, width: 1, unit: 'in' }).areaSqFt).toBeCloseTo((1 / 12) ** 2, 12);
-    expect(calculateSquareFootage({ length: 1, width: 1, unit: 'yd' }).areaSqFt).toBe(9);
-    expect(calculateSquareFootage({ length: 1, width: 1, unit: 'm' }).areaSqFt).toBeCloseTo(3.280839895 ** 2, 9);
-  });
-
-  it('the SAME physical 120 sq ft rectangle expressed in each unit yields ~120 sq ft', () => {
-    expect(calculateSquareFootage({ length: 10, width: 12, unit: 'ft' }).totalSqFt).toBe(120);
-    expect(calculateSquareFootage({ length: 120, width: 144, unit: 'in' }).totalSqFt).toBeCloseTo(120, 6); // 10ft=120in, 12ft=144in
-    expect(calculateSquareFootage({ length: 10 / 3, width: 4, unit: 'yd' }).totalSqFt).toBeCloseTo(120, 6); // 10ft=3.33yd, 12ft=4yd
-    expect(calculateSquareFootage({ length: 3.048, width: 3.6576, unit: 'm' }).totalSqFt).toBeCloseTo(120, 6); // metres drift ~1e-9
-  });
-});
-
-describe('calculateSquareFootage — output relationships', () => {
-  it('totalSqM = totalSqFt/10.7639104, totalSqYd = totalSqFt/9, cost = totalSqFt×price, total = area×qty', () => {
-    for (const c of [
-      { length: 10, width: 12, unit: 'ft' as const, quantity: 1, pricePerSqFt: 0 },
-      { length: 8.5, width: 6.25, unit: 'ft' as const, quantity: 3, pricePerSqFt: 4.2 },
-      { length: 5, width: 4, unit: 'm' as const, quantity: 2, pricePerSqFt: 10 },
-    ]) {
-      const r = calculateSquareFootage(c);
-      expect(r.totalSqM).toBeCloseTo(r.totalSqFt / 10.7639104, 9);
-      expect(r.totalSqYd).toBeCloseTo(r.totalSqFt / 9, 9);
-      expect(r.cost).toBeCloseTo(r.totalSqFt * c.pricePerSqFt, 9);
-      expect(r.totalSqFt).toBeCloseTo(r.areaSqFt * Math.max(1, Math.floor(c.quantity)), 9);
+  it('round-trips every unit through feet', () => {
+    for (const u of LENGTH_UNITS) {
+      const ft = toFeet(7.5, u.value);
+      expect(Number.isFinite(ft)).toBe(true);
+      expect(ft).toBeGreaterThan(0);
     }
   });
-});
 
-describe('calculateSquareFootage — current quantity behaviour (frozen; the binding rejects fractional/<1)', () => {
-  it('quantity 1 and a whole quantity multiply the area', () => {
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', quantity: 1 }).totalSqFt).toBe(100);
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', quantity: 3 }).totalSqFt).toBe(300);
-  });
-
-  it('a fractional quantity FLOORS (2.9 → 2); 0 / negative / NaN collapse to 1', () => {
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', quantity: 2.9 }).totalSqFt).toBe(200); // floor 2
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', quantity: 0 }).totalSqFt).toBe(100); // → 1
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', quantity: -3 }).totalSqFt).toBe(100); // → 1
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', quantity: NaN }).totalSqFt).toBe(100); // → 1
-  });
-
-  it('Infinity quantity → Infinity total (max(1, floor(Infinity)) = Infinity)', () => {
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', quantity: Infinity }).totalSqFt).toBe(Infinity);
+  it('refuses a non-finite length', () => {
+    expect(toFeet(Number.NaN, 'ft')).toBeNaN();
+    expect(toFeet(Number.POSITIVE_INFINITY, 'm')).toBeNaN();
   });
 });
 
-describe('calculateSquareFootage — current price behaviour (frozen; the binding rejects negative/non-finite)', () => {
-  it('price 0 → $0 cost; a positive/decimal price scales the total', () => {
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', pricePerSqFt: 0 }).cost).toBe(0);
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', pricePerSqFt: 2.5 }).cost).toBe(250);
+describe('area conversion', () => {
+  it('uses the exact square-foot factors', () => {
+    expect(SQFT_PER.sqft).toBe(1);
+    expect(SQFT_PER.sqyd).toBeCloseTo(9, 12);
+    expect(SQFT_PER.acre).toBe(43_560);
+    // The truncated 10.7639104 this calculator used to ship is wrong in the 8th digit.
+    expect(SQFT_PER.sqm).toBe(1 / (0.3048 * 0.3048));
+    expect(SQFT_PER.sqm).not.toBe(10.7639104);
+    expect(SQFT_PER.sqm).toBeCloseTo(10.763910416709722, 12);
   });
 
-  it('a negative price is CLAMPED to 0; NaN price → 0', () => {
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', pricePerSqFt: -5 }).cost).toBe(0);
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', pricePerSqFt: NaN }).cost).toBe(0);
+  it('converts a square-foot figure into each unit', () => {
+    expect(fromSqFt(9, 'sqyd')).toBeCloseTo(1, 12);
+    expect(fromSqFt(43_560, 'acre')).toBe(1);
+    expect(fromSqFt(1, 'sqin')).toBeCloseTo(144, 10);
+    expect(fromSqFt(1, 'sqft')).toBe(1);
   });
 
-  it('Infinity price → Infinity cost (with a positive area)', () => {
-    expect(calculateSquareFootage({ length: 10, width: 10, unit: 'ft', pricePerSqFt: Infinity }).cost).toBe(Infinity);
-  });
-});
-
-describe('calculateSquareFootage — dimension edges (frozen; the binding rejects these)', () => {
-  it('zero or negative length/width → $0 area (clamped to 0)', () => {
-    expect(calculateSquareFootage({ length: 0, width: 12, unit: 'ft' }).totalSqFt).toBe(0);
-    expect(calculateSquareFootage({ length: 10, width: 0, unit: 'ft' }).totalSqFt).toBe(0);
-    expect(calculateSquareFootage({ length: -10, width: 12, unit: 'ft' }).areaSqFt).toBe(0);
+  it('refuses a non-finite area', () => {
+    expect(fromSqFt(Number.NaN, 'sqm')).toBeNaN();
   });
 
-  it('NaN dimensions collapse via `|| 0` to a zero area', () => {
-    expect(calculateSquareFootage({ length: NaN, width: 12, unit: 'ft' }).totalSqFt).toBe(0);
-  });
-
-  it('Infinity dimension → Infinity area; with price 0 the cost is the Infinity×0 = NaN edge', () => {
-    const r = calculateSquareFootage({ length: Infinity, width: 12, unit: 'ft', pricePerSqFt: 0 });
-    expect(r.totalSqFt).toBe(Infinity);
-    expect(Number.isNaN(r.cost)).toBe(true); // Infinity × 0
+  it('offers square feet first, since that is the answer on show', () => {
+    expect(AREA_UNITS[0].value).toBe('sqft');
+    expect(AREA_UNITS.map((u) => u.value)).toEqual(['sqft', 'sqin', 'sqyd', 'sqm', 'acre']);
   });
 });
 
-describe('calculateSquareFootage — precision vs. displayed rounding', () => {
-  it('retains full precision internally (incl. the metre-conversion drift)', () => {
-    expect(calculateSquareFootage({ length: 10, width: 12, unit: 'ft' }).totalSqM).toBe(11.148364817306543);
-    // The metre round-trip does not perfectly invert — a documented ~1e-9 artifact.
-    expect(calculateSquareFootage({ length: 3.048, width: 3.6576, unit: 'm' }).totalSqFt).toBe(119.99999999904001);
+describe('angle conversion', () => {
+  it('converts degrees and passes radians through', () => {
+    expect(toRadians(180, 'deg')).toBeCloseTo(Math.PI, 12);
+    expect(toRadians(90, 'deg')).toBeCloseTo(Math.PI / 2, 12);
+    expect(toRadians(1.5, 'rad')).toBe(1.5);
+    expect(ANGLE_UNITS.map((u) => u.value)).toEqual(['deg', 'rad']);
   });
 
-  it('area and currency rounding are presentation-only', () => {
-    const r = calculateSquareFootage({ length: 10.1, width: 10.1, unit: 'ft', pricePerSqFt: 3.33 });
-    expect(r.cost).toBe(339.69329999999997); // full precision
-    expect(formatCurrency(r.cost)).toBe('$339.69'); // display rounds to the cent
-    expect(formatNumber(r.totalSqM, 2)).toBe('9.48'); // display rounds the area (102.01 sq ft → 9.48 m²)
+  it('refuses a non-finite angle', () => {
+    expect(toRadians(Number.NaN, 'deg')).toBeNaN();
+  });
+});
+
+describe('the nine areas', () => {
+  it('rectangle', () => {
+    expect(areaRectangle(30, 20)).toBe(600);
   });
 
-  it('every finite, positive dimension with a whole quantity ≥1 and a finite price ≥0 yields finite, ≥0 outputs', () => {
-    for (const c of [
-      { length: 1, width: 1, unit: 'ft' as const, quantity: 1, pricePerSqFt: 0 },
-      { length: 10, width: 12, unit: 'yd' as const, quantity: 5, pricePerSqFt: 8 },
-      { length: 0.5, width: 0.25, unit: 'm' as const, quantity: 1, pricePerSqFt: 2.5 },
-    ]) {
-      const r = calculateSquareFootage(c);
-      for (const v of [r.areaSqFt, r.totalSqFt, r.totalSqM, r.totalSqYd, r.cost]) {
-        expect(Number.isFinite(v)).toBe(true);
-        expect(v).toBeGreaterThanOrEqual(0);
-      }
-    }
+  it('rectangle border lies INSIDE the given dimensions', () => {
+    // 30 × 20 with a 2-wide border: 600 − 26 × 16 = 184, NOT 816 − 600 = 216.
+    expect(areaRectangleBorder(30, 20, 2)).toBe(184);
+    expect(areaRectangleBorder(10, 10, 1)).toBe(100 - 64);
+  });
+
+  it('rectangle border cannot go negative when the border swallows the shape', () => {
+    expect(areaRectangleBorder(10, 10, 6)).toBe(100);
+    expect(areaRectangleBorder(10, 10, 5)).toBe(100);
+  });
+
+  it('circle', () => {
+    expect(areaCircle(30)).toBeCloseTo(Math.PI * 225, 10);
+    expect(areaCircle(2)).toBeCloseTo(Math.PI, 12);
+  });
+
+  it('ring', () => {
+    expect(areaRing(30, 2)).toBeCloseTo(Math.PI * (225 - 169), 10);
+  });
+
+  it('ring is the whole disc once the border reaches the centre', () => {
+    expect(areaRing(30, 15)).toBeCloseTo(Math.PI * 225, 10);
+    expect(areaRing(30, 40)).toBeCloseTo(Math.PI * 225, 10);
+  });
+
+  it('triangle from three edges, by Heron', () => {
+    expect(areaTriangleEdges(3, 4, 5)).toBeCloseTo(6, 12);
+    expect(areaTriangleEdges(30, 45, 50)).toBeCloseTo(666.5852814907, 8);
+  });
+
+  it('triangle from three edges refuses an impossible triangle', () => {
+    expect(areaTriangleEdges(1, 2, 10)).toBeNaN();
+    expect(areaTriangleEdges(1, 2, 3)).toBeNaN(); // degenerate: zero area
+  });
+
+  it('triangle from base and height', () => {
+    expect(areaTriangleBaseHeight(30, 20)).toBe(300);
+  });
+
+  it('trapezoid', () => {
+    expect(areaTrapezoid(30, 45, 20)).toBe(750);
+    // A trapezoid with equal bases is a parallelogram.
+    expect(areaTrapezoid(10, 10, 4)).toBe(areaParallelogram(10, 4));
+  });
+
+  it('sector', () => {
+    expect(areaSector(30, Math.PI / 2)).toBeCloseTo(Math.PI * 900 * 0.25, 10);
+    // A full turn is the whole circle.
+    expect(areaSector(5, 2 * Math.PI)).toBeCloseTo(Math.PI * 25, 12);
+  });
+
+  it('parallelogram', () => {
+    expect(areaParallelogram(30, 20)).toBe(600);
+    // Two congruent triangles.
+    expect(areaParallelogram(8, 3)).toBe(2 * areaTriangleBaseHeight(8, 3));
+  });
+});
+
+describe('formatExactArea', () => {
+  it('prints unrounded to ten places with trailing zeros stripped', () => {
+    expect(formatExactArea(600)).toBe('600');
+    expect(formatExactArea(1980.5595166746)).toBe('1980.5595166746');
+    expect(formatExactArea(0.5)).toBe('0.5');
+  });
+
+  it('never prints a non-finite figure', () => {
+    expect(formatExactArea(Number.NaN)).toBe('—');
+    expect(formatExactArea(Number.POSITIVE_INFINITY)).toBe('—');
+  });
+});
+
+describe('the reference figures', () => {
+  /** Every dimension in metres, as the reference had them, converted then measured. */
+  const m = (n: number) => toFeet(n, 'm' as LengthUnit);
+
+  const cases: [string, number, number][] = [
+    ['rectangle border 30 × 20, border 2', areaRectangleBorder(m(30), m(20), m(2)), 1980.5595166746],
+    ['circle, diameter 30', areaCircle(m(30)), 7608.5599250326],
+    ['ring, outer 30, border 2', areaRing(m(30), m(2)), 1893.6860257859],
+    ['triangle, edges 30 / 45 / 50', areaTriangleEdges(m(30), m(45), m(50)), 7175.0642550628],
+    ['triangle, base 30 height 20', areaTriangleBaseHeight(m(30), m(20)), 3229.1731250129],
+    ['trapezoid, bases 30 and 45, height 20', areaTrapezoid(m(30), m(45), m(20)), 8072.9328125323],
+    ['sector, radius 30, 90°', areaSector(m(30), toRadians(90, 'deg')), 7608.5599250326],
+    ['parallelogram, base 30 height 20', areaParallelogram(m(30), m(20)), 6458.3462500258],
+  ];
+
+  it.each(cases)('%s', (_name, actual, expected) => {
+    expect(formatExactArea(actual)).toBe(String(expected));
   });
 });
