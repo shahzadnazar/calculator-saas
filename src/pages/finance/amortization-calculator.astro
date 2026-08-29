@@ -14,7 +14,7 @@ const faqs = [
   { question: 'When is an extra payment counted?', answer: 'After that month\'s interest has already accrued. Interest is charged on the balance at the start of the month, so extra principal paid this month starts saving you interest from next month onward. The dates you give each extra payment are counted from the loan start date.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="See exactly how each payment on a loan splits between principal and interest, how the balance falls over the full term, and what extra payments would save you." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-27' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="See exactly how each payment on a loan splits between principal and interest, how the balance falls over the full term, and what extra payments would save you." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-27' }}>
   <AmortizationCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>

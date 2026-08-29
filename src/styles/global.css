@@ -272,6 +272,89 @@
   }
 
   /* ------------------------------------------------------------------------
+     Tool shell — the calculator + its optional side rail
+     ------------------------------------------------------------------------
+     NAMESPACE: `tool-`, not `calc-`. The `calc-` prefix already belongs to the
+     physical/scientific calculator in calc.css — `.calc-shell` is that
+     component's own root — so a `.calc-shell` here silently overrode its grid
+     and collapsed the display to 72px on every scientific route.
+     ------------------------------------------------------------------------
+     The rail is ADDITIVE: at our 1280px wrap (1232px of content) a 300px rail
+     plus the gap still leaves the tool ~900px, so every inputs|result split
+     survives. `container-type` means the rail folds to a row underneath based
+     on the space this shell actually has, not on the viewport — so a narrower
+     wrap or a future nested layout gets it right without new breakpoints.
+     ------------------------------------------------------------------------ */
+
+  .tool-shell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 2rem;
+    min-width: 0;
+    container-type: inline-size;
+  }
+
+  .tool-shell__core {
+    flex: 1 1 600px;
+    min-width: 0;
+  }
+
+  .tool-rail {
+    flex: 1 1 100%;
+    min-width: 0;
+    display: grid;
+    gap: 1.25rem;
+    align-content: start;
+  }
+
+  @container (min-width: 1040px) {
+    .tool-rail {
+      flex: 0 0 300px;
+      position: sticky;
+      top: 1rem;
+    }
+  }
+
+  /* The ad's place: held open, entirely unstyled. No border, no background, no
+     label — an empty reservation so switching a network on later cannot shift
+     anything that is already on the page.
+
+     Height is set by what has to stay above the fold, not by the tallest unit
+     that would fit: the rail has a job before any network is connected. 280px
+     leaves the search box plus 4 related calculators visible on landing at
+     1280x720 and 5 at 1366x768. It still holds a 300x250 medium rectangle —
+     the standard unit for a 300px rail — with room to spare; a 300x600 half
+     page would push the search and every link off the first screen. */
+  .tool-rail__slot {
+    min-height: 280px;
+  }
+
+  .tool-rail__heading {
+    margin: 0 0 0.35rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+
+  .tool-rail__links ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tool-rail__links li {
+    line-height: 1.7;
+  }
+
+  .tool-rail__links a {
+    color: var(--color-brand-600);
+  }
+
+  .tool-rail__links a:hover {
+    text-decoration: underline;
+  }
+
+  /* ------------------------------------------------------------------------
      Cards
      ------------------------------------------------------------------------ */
 

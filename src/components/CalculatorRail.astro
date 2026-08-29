@@ -1,0 +1,71 @@
+---
+/**
+ * CalculatorRail — the desktop side column beside a calculator.
+ *
+ * Three things, in this order:
+ *   1. An EMPTY reserved area for a future display ad. No border, no background,
+ *      no label — just the space, held open so enabling a network later cannot
+ *      shift the page. `MonetizationRegion` renders into it when (and only when)
+ *      `MONETIZATION_CONFIG` is deliberately enabled; with the shipped config
+ *      (all off) it renders nothing and the space stays blank.
+ *   2. The SAME search combobox the home page hero uses — one index, one ranking
+ *      engine, one set of behaviours, not a second implementation.
+ *   3. Plain text links to related calculators and reference tables.
+ *
+ * The rail is a SIBLING of the tool and comes AFTER it in DOM order, so screen
+ * readers and small screens reach the calculator first. Below ~1040px of
+ * container it stops being a column and becomes a row underneath.
+ */
+import CalculatorSearch from '@components/search/CalculatorSearch.astro';
+import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
+import { SEARCH_INDEX_URL } from '@lib/search';
+import { getRelatedCalculators, calculatorPath, type Calculator } from '@data/calculators';
+import { getReferencesForCalculator, referencePath } from '@data/reference';
+
+interface Props {
+  calculator: Calculator;
+  /** How many related calculators to list. */
+  limit?: number;
+}
+const { calculator, limit = 12 } = Astro.props;
+
+const related = getRelatedCalculators(calculator, limit);
+const references = getReferencesForCalculator(calculator.category, calculator.slug);
+---
+
+<aside class="tool-rail" aria-label="More from AllCalculators">
+  <div class="tool-rail__slot"><MonetizationRegion placement="calculator-sidebar" allowSidebar={true} pageSlug={calculator.slug} category={calculator.category} /></div>
+
+  <CalculatorSearch
+    id={`rail-search-${calculator.slug}`}
+    indexUrl={SEARCH_INDEX_URL}
+    loadStrategy="interaction"
+    placeholder="Search: mortgage, BMI, scientific, percentage…"
+  />
+
+  {
+    related.length > 0 && (
+      <nav class="tool-rail__links" aria-label="Related calculators">
+        <p class="tool-rail__heading">Related calculators</p>
+        <ul>
+          {related.map((c) => (
+            <li><a href={calculatorPath(c)}>{c.title}</a></li>
+          ))}
+        </ul>
+      </nav>
+    )
+  }
+
+  {
+    references.length > 0 && (
+      <nav class="tool-rail__links" aria-label="Reference tables">
+        <p class="tool-rail__heading">Reference tables</p>
+        <ul>
+          {references.map((r) => (
+            <li><a href={referencePath(r)}>{r.shortName}</a></li>
+          ))}
+        </ul>
+      </nav>
+    )
+  }
+</aside>
