@@ -1,180 +1,237 @@
 import { describe, it, expect } from 'vitest';
-import { randomIntegers, type RandomInt } from './random-number';
+import {
+  randomBelow,
+  randomInRange,
+  parseScaled,
+  formatScaled,
+  isDecimalText,
+  rangeSize,
+  generateRandom,
+  LIMITS,
+  type RandomBytes,
+} from './random-number';
 
-/**
- * Random-number characterization (R18B2, Commit 1 — test-only). Freezes the EXACT
- * frozen contract of `randomIntegers` before the generator-lane migration; no module
- * change. Consolidated out of `batch-d.test.ts` (now empty and removed). Randomness is
- * pinned with an INJECTED deterministic RNG — no crypto values are asserted.
- *
- * Contract recap: integers in an INCLUSIVE range; `lo = ceil(min(min,max))`,
- * `hi = floor(max(min,max))` (so min > max is auto-SWAPPED, and decimal bounds are
- * rounded inward); `rangeSize = hi − lo + 1`; `count = max(0, floor(count) || 0)`.
- * Empty when rangeSize ≤ 0 or count === 0. Non-unique: `lo + rng(rangeSize)`, count
- * items. Unique: a partial Fisher–Yates over [lo..hi] capped at `min(count, rangeSize)`,
- * so it never hangs. The RNG contract is `(maxExclusive) => [0, maxExclusive)`; the
- * source is NOT finite-safe for a genuinely non-finite bound (the visitor binding rejects
- * those before they reach the source).
- */
+/** A deterministic byte source: cycles a fixed sequence, so a draw is reproducible. */
+const bytesFrom = (sequence: number[]): RandomBytes => {
+  let i = 0;
+  return (count) => Uint8Array.from({ length: count }, () => sequence[i++ % sequence.length]);
+};
+const allZero: RandomBytes = (count) => new Uint8Array(count);
+const allMax: RandomBytes = (count) => Uint8Array.from({ length: count }, () => 255);
 
-const ZERO: RandomInt = () => 0; // always the lowest offset
-const TOP: RandomInt = (max) => max - 1; // always the highest offset
-/** 0,1,2,… mod maxExclusive — a deterministic VARYING sequence. */
-function counterRng(): RandomInt {
-  let k = 0;
-  return (max) => k++ % max;
-}
-
-describe('random integers — basic range (deterministic RNG)', () => {
-  it('is deterministic with an injected RNG (the moved batch-d cases)', () => {
-    expect(randomIntegers({ min: 1, max: 10, count: 3, unique: false }, ZERO)).toEqual([1, 1, 1]);
-    expect(randomIntegers({ min: 1, max: 10, count: 3, unique: true }, ZERO)).toEqual([1, 2, 3]);
+describe('randomBelow', () => {
+  it('returns 0 for a degenerate range rather than dividing by it', () => {
+    expect(randomBelow(0n)).toBe(0n);
+    expect(randomBelow(-5n)).toBe(0n);
+    expect(randomBelow(1n)).toBe(0n);
   });
 
-  it('an ordinary positive range stays within the inclusive bounds', () => {
-    const out = randomIntegers({ min: 5, max: 8, count: 20, unique: false });
-    expect(out.length).toBe(20);
-    expect(out.every((n) => n >= 5 && n <= 8)).toBe(true);
+  it('stays inside [0, max) for every draw', () => {
+    for (let i = 0; i < 200; i += 1) {
+      const value = randomBelow(97n);
+      expect(value).toBeGreaterThanOrEqual(0n);
+      expect(value).toBeLessThan(97n);
+    }
   });
 
-  it('a zero-inclusive range includes 0', () => {
-    expect(randomIntegers({ min: 0, max: 5, count: 2, unique: false }, ZERO)).toEqual([0, 0]);
+  it('reaches both ends of a small range', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 500; i += 1) seen.add(randomBelow(3n).toString());
+    expect(seen).toEqual(new Set(['0', '1', '2']));
   });
 
-  it('a negative-only range yields negative integers', () => {
-    expect(randomIntegers({ min: -10, max: -1, count: 2, unique: false }, ZERO)).toEqual([-10, -10]);
-    const out = randomIntegers({ min: -10, max: -1, count: 30, unique: false });
-    expect(out.every((n) => n >= -10 && n <= -1)).toBe(true);
+  it('is deterministic given a fixed byte source', () => {
+    expect(randomBelow(1000000n, bytesFrom([1, 2, 3]))).toBe(randomBelow(1000000n, bytesFrom([1, 2, 3])));
   });
 
-  it('a range crossing zero spans both signs', () => {
-    expect(randomIntegers({ min: -3, max: 3, count: 3, unique: true }, ZERO)).toEqual([-3, -2, -1]);
-    const out = randomIntegers({ min: -3, max: 3, count: 50, unique: false });
-    expect(out.every((n) => n >= -3 && n <= 3)).toBe(true);
+  /**
+   * The reason this rejects rather than taking a modulo: with an all-max byte source a modulo
+   * generator would return the biased tail value, and the rejection loop must not.
+   */
+  it('rejects the ragged tail instead of folding it back with a modulo', () => {
+    // 200 needs one byte; the largest exact multiple of 200 under 256 is 200, so 255 is rejected.
+    let call = 0;
+    const source: RandomBytes = (count) => {
+      call += 1;
+      return call === 1 ? Uint8Array.from({ length: count }, () => 255) : new Uint8Array(count);
+    };
+    expect(randomBelow(200n, source)).toBe(0n); // the retry, not 255 % 200 = 55
+    expect(call).toBe(2);
   });
 
-  it('min === max is a fixed value', () => {
-    expect(randomIntegers({ min: 5, max: 5, count: 3, unique: false }, ZERO)).toEqual([5, 5, 5]);
-    expect(randomIntegers({ min: 5, max: 5, count: 3, unique: true }, ZERO)).toEqual([5]); // capped at 1 distinct
-  });
-
-  it('min > max is auto-swapped (same as the ordered range)', () => {
-    expect(randomIntegers({ min: 10, max: 1, count: 3, unique: false }, ZERO)).toEqual([1, 1, 1]);
-    expect(randomIntegers({ min: 10, max: 1, count: 3, unique: true }, ZERO)).toEqual([1, 2, 3]);
-  });
-
-  it('the exact lower bound is reachable (rng → 0)', () => {
-    expect(randomIntegers({ min: 5, max: 8, count: 2, unique: false }, ZERO)).toEqual([5, 5]);
-  });
-
-  it('the exact upper bound is reachable (rng → rangeSize − 1)', () => {
-    expect(randomIntegers({ min: 5, max: 8, count: 2, unique: false }, TOP)).toEqual([8, 8]);
+  it('handles a range far past Number.MAX_SAFE_INTEGER', () => {
+    const huge = 10n ** 60n;
+    const value = randomBelow(huge);
+    expect(value).toBeGreaterThanOrEqual(0n);
+    expect(value).toBeLessThan(huge);
   });
 });
 
-describe('random integers — count', () => {
-  it('count 1 returns a single number', () => {
-    expect(randomIntegers({ min: 1, max: 10, count: 1, unique: false }, ZERO)).toEqual([1]);
+describe('randomInRange', () => {
+  it('is inclusive at both ends', () => {
+    expect(randomInRange(5n, 5n)).toBe(5n);
+    expect(randomInRange(10n, 20n, allZero)).toBe(10n);
   });
 
-  it('an ordinary count returns exactly that many', () => {
-    expect(randomIntegers({ min: 1, max: 100, count: 7, unique: false }).length).toBe(7);
+  it('does not care which way round the bounds are given', () => {
+    expect(randomInRange(20n, 10n, allZero)).toBe(10n);
   });
 
-  it('count 0 returns an empty array (any range)', () => {
-    expect(randomIntegers({ min: 1, max: 10, count: 0, unique: false })).toEqual([]);
-    expect(randomIntegers({ min: 1, max: 10, count: 0, unique: true })).toEqual([]);
+  it('handles negatives', () => {
+    const value = randomInRange(-10n, -5n);
+    expect(value).toBeGreaterThanOrEqual(-10n);
+    expect(value).toBeLessThanOrEqual(-5n);
   });
 
-  it('a negative count returns an empty array', () => {
-    expect(randomIntegers({ min: 1, max: 10, count: -3, unique: false })).toEqual([]);
-  });
-
-  it('a decimal count is floored', () => {
-    expect(randomIntegers({ min: 1, max: 10, count: 3.9, unique: false }, ZERO)).toEqual([1, 1, 1]);
-    expect(randomIntegers({ min: 1, max: 10, count: 3.2, unique: false }, ZERO)).toEqual([1, 1, 1]);
-  });
-
-  it('a large count is honoured (bounded safely)', () => {
-    expect(randomIntegers({ min: 1, max: 2, count: 1000, unique: false }).length).toBe(1000);
+  it('reaches the top of the range', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 400; i += 1) seen.add(randomInRange(1n, 4n).toString());
+    expect(seen).toEqual(new Set(['1', '2', '3', '4']));
   });
 });
 
-describe('random integers — unique = false', () => {
-  it('allows duplicates and returns exactly count values', () => {
-    const out = randomIntegers({ min: 1, max: 3, count: 5, unique: false }, ZERO);
-    expect(out).toEqual([1, 1, 1, 1, 1]); // duplicates allowed
-    expect(out.length).toBe(5);
+describe('decimal text and scaled integers', () => {
+  it('scales exactly, where floating point would not', () => {
+    expect(parseScaled('0.2', 50)).toBe(2n * 10n ** 49n);
+    expect(parseScaled('112.5', 1)).toBe(1125n);
+    expect(parseScaled('7', 3)).toBe(7000n);
+    expect(parseScaled('-1.25', 2)).toBe(-125n);
   });
 
-  it('follows the injected sequence deterministically', () => {
-    // counter: 0,1,2,0 over rangeSize 3 → lo + [0,1,2,0]
-    expect(randomIntegers({ min: 1, max: 3, count: 4, unique: false }, counterRng())).toEqual([1, 2, 3, 1]);
+  it('truncates past the precision rather than widening the bound', () => {
+    expect(parseScaled('1.999', 1)).toBe(19n); // never 20
   });
 
-  it('keeps every value within the inclusive range', () => {
-    const out = randomIntegers({ min: 20, max: 25, count: 60, unique: false });
-    expect(out.every((n) => n >= 20 && n <= 25)).toBe(true);
-  });
-});
-
-describe('random integers — unique = true', () => {
-  it('yields no duplicates when the count is below the range size', () => {
-    const out = randomIntegers({ min: 1, max: 10, count: 3, unique: true });
-    expect(out.length).toBe(3);
-    expect(new Set(out).size).toBe(3);
-    expect(out.every((n) => n >= 1 && n <= 10)).toBe(true);
+  it('refuses what is not a decimal', () => {
+    expect(parseScaled('', 2)).toBe(null);
+    expect(parseScaled('abc', 2)).toBe(null);
+    expect(parseScaled('1.2.3', 2)).toBe(null);
+    expect(parseScaled('1e3', 2)).toBe(null);
+    expect(isDecimalText('.5')).toBe(true);
+    expect(isDecimalText('5.')).toBe(true);
+    expect(isDecimalText('x')).toBe(false);
   });
 
-  it('returns the whole range when count equals the range size', () => {
-    const out = randomIntegers({ min: 1, max: 5, count: 5, unique: true });
-    expect(out.length).toBe(5);
-    expect([...out].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5]);
-  });
-
-  it('caps unique draws at the range size and yields distinct values (count > available)', () => {
-    const out = randomIntegers({ min: 1, max: 5, count: 100, unique: true });
-    expect(out.length).toBe(5); // exact cap = rangeSize
-    expect(new Set(out).size).toBe(5);
-  });
-
-  it('is deterministic under an injected RNG', () => {
-    expect(randomIntegers({ min: 1, max: 5, count: 4, unique: true }, ZERO)).toEqual([1, 2, 3, 4]);
+  it('round-trips through formatScaled, keeping every requested digit', () => {
+    expect(formatScaled(2n * 10n ** 49n, 50)).toBe('0.2' + '0'.repeat(49));
+    expect(formatScaled(1125n, 1)).toBe('112.5');
+    expect(formatScaled(-125n, 2)).toBe('-1.25');
+    expect(formatScaled(42n, 0)).toBe('42');
+    expect(formatScaled(5n, 3)).toBe('0.005');
   });
 });
 
-describe('random integers — source edge behavior (beyond the visitor domain)', () => {
-  // The binding validates these away; here we FREEZE what the pure source actually does.
-  it('rounds a decimal minimum inward (ceil)', () => {
-    expect(randomIntegers({ min: 1.5, max: 5, count: 2, unique: false }, ZERO)).toEqual([2, 2]); // lo = ceil(1.5) = 2
+describe('generateRandom', () => {
+  const base = { lower: '1', upper: '10', count: 1, precision: 0, allowDuplicates: true, sort: false };
+
+  it('draws the asked-for count, inside the inclusive range', () => {
+    const draw = generateRandom({ ...base, count: 50 });
+    expect(draw.values).toHaveLength(50);
+    for (const value of draw.scaled) {
+      expect(value).toBeGreaterThanOrEqual(1n);
+      expect(value).toBeLessThanOrEqual(10n);
+    }
   });
 
-  it('rounds a decimal maximum inward (floor)', () => {
-    const out = randomIntegers({ min: 1, max: 5.9, count: 30, unique: false }); // hi = floor(5.9) = 5
-    expect(out.every((n) => n >= 1 && n <= 5)).toBe(true);
+  it('returns nothing for a count of zero rather than one value', () => {
+    expect(generateRandom({ ...base, count: 0 }).values).toEqual([]);
   });
 
-  it('a fractional interval containing no integer is empty', () => {
-    expect(randomIntegers({ min: 1.2, max: 1.8, count: 5, unique: false })).toEqual([]); // lo=2, hi=1 → rangeSize 0
+  it('returns nothing for an unreadable bound', () => {
+    expect(generateRandom({ ...base, lower: 'x' }).values).toEqual([]);
   });
 
-  it('a NaN bound is NOT finite-safe — it yields NaN entries', () => {
-    const out = randomIntegers({ min: Number.NaN, max: 10, count: 3, unique: false }, ZERO);
-    expect(out.length).toBe(3);
-    expect(out.every((n) => Number.isNaN(n))).toBe(true);
+  it('draws distinct values when duplicates are not allowed', () => {
+    const draw = generateRandom({ ...base, lower: '1', upper: '49', count: 6, allowDuplicates: false });
+    expect(draw.values).toHaveLength(6);
+    expect(new Set(draw.values).size).toBe(6);
   });
 
-  it('a non-unique infinite bound does not throw (finite offsets via the RNG)', () => {
-    expect(randomIntegers({ min: 1, max: Number.POSITIVE_INFINITY, count: 3, unique: false }, ZERO)).toEqual([1, 1, 1]);
+  it('cannot draw more distinct values than the range holds, and stops rather than spinning', () => {
+    const draw = generateRandom({ ...base, lower: '1', upper: '5', count: 20, allowDuplicates: false });
+    expect(draw.values).toHaveLength(5);
+    expect(new Set(draw.values)).toEqual(new Set(['1', '2', '3', '4', '5']));
   });
 
-  it('a unique infinite bound throws (an unbounded pool)', () => {
-    expect(() => randomIntegers({ min: 1, max: Number.POSITIVE_INFINITY, count: 3, unique: true }, ZERO)).toThrow();
+  it('sorts numerically, not as text, when asked', () => {
+    const draw = generateRandom({ ...base, lower: '1', upper: '100', count: 40, sort: true });
+    for (let i = 1; i < draw.scaled.length; i += 1) {
+      expect(draw.scaled[i]).toBeGreaterThanOrEqual(draw.scaled[i - 1]);
+    }
   });
 
-  it('trusts the injected RNG contract [0, maxExclusive) — an out-of-contract RNG shifts values', () => {
-    // rng returning rangeSize (one past the end) → lo + rangeSize = hi + 1 (documents the contract).
-    const out = randomIntegers({ min: 1, max: 5, count: 2, unique: false }, (max) => max);
-    expect(out).toEqual([6, 6]); // 1 + 5
+  it('produces decimals with exactly the requested precision', () => {
+    const draw = generateRandom({ lower: '0.2', upper: '112.5', count: 3, precision: 50, allowDuplicates: true, sort: false });
+    for (const value of draw.values) {
+      expect(value.split('.')[1]).toHaveLength(50);
+      const asNumber = Number(value);
+      expect(asNumber).toBeGreaterThanOrEqual(0.2);
+      expect(asNumber).toBeLessThanOrEqual(112.5);
+    }
+  });
+
+  it('keeps a decimal draw exact past what a double could hold', () => {
+    const draw = generateRandom({ lower: '0', upper: '1', count: 1, precision: 200, allowDuplicates: true, sort: false });
+    expect(draw.values[0].split('.')[1]).toHaveLength(200);
+  });
+
+  it('handles integers of a few thousand digits', () => {
+    const lower = '1' + '0'.repeat(999);
+    const upper = '9'.repeat(1000);
+    const draw = generateRandom({ ...base, lower, upper, count: 1 });
+    expect(draw.values[0]).toMatch(/^\d+$/);
+    expect(draw.scaled[0]).toBeGreaterThanOrEqual(BigInt(lower));
+    expect(draw.scaled[0]).toBeLessThanOrEqual(BigInt(upper));
+  });
+
+  it('takes the bounds in either order', () => {
+    const draw = generateRandom({ ...base, lower: '10', upper: '1', count: 20 });
+    for (const value of draw.scaled) {
+      expect(value).toBeGreaterThanOrEqual(1n);
+      expect(value).toBeLessThanOrEqual(10n);
+    }
+  });
+
+  it('reaches both ends of a two-value range', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i += 1) {
+      seen.add(generateRandom({ ...base, lower: '0', upper: '1' }).values[0]);
+    }
+    expect(seen).toEqual(new Set(['0', '1']));
+  });
+
+  it('is deterministic given a fixed byte source', () => {
+    const request = { ...base, lower: '1', upper: '1000000', count: 5 };
+    expect(generateRandom(request, bytesFrom([7, 3, 9]))).toEqual(generateRandom(request, bytesFrom([7, 3, 9])));
+  });
+
+  it('returns the top of the range when every byte is at maximum', () => {
+    // 1..8 has size 8, which divides the byte space exactly, so no draw is rejected.
+    expect(generateRandom({ ...base, lower: '1', upper: '8' }, allMax).values[0]).toBe('8');
+  });
+});
+
+describe('rangeSize', () => {
+  const base = { lower: '1', upper: '10', count: 1, precision: 0, allowDuplicates: true, sort: false };
+
+  it('counts the values a range holds, inclusive', () => {
+    expect(rangeSize(base)).toBe(10n);
+    expect(rangeSize({ ...base, lower: '5', upper: '5' })).toBe(1n);
+  });
+
+  it('counts at the requested precision', () => {
+    expect(rangeSize({ ...base, lower: '0', upper: '1', precision: 2 })).toBe(101n);
+  });
+
+  it('has no answer for an unreadable bound', () => {
+    expect(rangeSize({ ...base, lower: 'x' })).toBe(null);
+  });
+});
+
+describe('limits', () => {
+  it('states what the page promises', () => {
+    expect(LIMITS.maxPrecision).toBe(999);
+    expect(LIMITS.maxCount).toBe(1000);
+    expect(LIMITS.maxDigits).toBe(5000);
   });
 });

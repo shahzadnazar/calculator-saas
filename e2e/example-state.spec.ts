@@ -96,9 +96,10 @@ const STRUCTURAL_DEFAULTS: Record<string, string> = {
   // state but an unanswerable one. The salary amount itself still loads empty.
   holidaysPerYear: 'salary: the documented holidays-per-year assumption',
   vacationDaysPerYear: 'salary: the documented vacation-days assumption',
-  min: 'random number: generator range default',
-  max: 'random number: generator range default',
-  count: 'random number: generator count default',
+  lower: 'random number: the generator range default',
+  upper: 'random number: the generator range default',
+  count: 'random number: the generator count default',
+  precision: 'random number: the generator precision default',
   at: 'age: the "age at" date defaults to today',
   today: 'date-based tools: the reference date defaults to today',
   value: 'conversion: the ratified converter-family neutral value 1',
