@@ -30,6 +30,7 @@
  *     result is well-formed, else a NaN sentinel. There is NO `isUsableResult`.
  */
 import { calculateStats, parseNumberList, type StatsResult } from './statistics';
+import { formatDigits } from './formula-steps';
 import { formatNumber } from '@lib/format';
 import type {
   FormCalculatorBinding,
@@ -41,9 +42,34 @@ import type {
 export type StatPrimary = 'summary' | 'sd';
 export const DEFAULT_PRIMARY: StatPrimary = 'summary';
 
-/** Field decimals for every displayed statistic. */
-const DECIMALS = 4;
+/**
+ * Significant figures for every displayed statistic.
+ *
+ * Four decimal places used to be enough for a mean, but not for the figures people actually check
+ * a statistics calculator against: the reference prints a standard deviation of 11.508149286484
+ * and a sample variance of 151.35714285714, and rounding those to four places makes our answer
+ * look like a different answer. Fourteen significant figures reproduces the reference exactly.
+ */
+const SIGNIFICANT = 14;
 const NA = 'Not available';
+/** The geometric mean has no meaning for a set containing zero or a negative number. */
+const NOT_DEFINED = 'Not defined for zero or negative values';
+
+/** A statistic at the reference's precision — trailing zeros dropped, never NaN on the page. */
+export const formatStat = (value: number): string => formatDigits(value, SIGNIFICANT);
+
+/**
+ * Decimals for a figure quoted inside a SENTENCE.
+ *
+ * The table is where a visitor checks a digit, so it carries all fourteen figures. A sentence is
+ * where they read the answer, and "the sample standard deviation is 2.5819888974716" is not a
+ * sentence anyone reads — it is a number with prose around it.
+ */
+const PROSE_DECIMALS = 4;
+const prose = (value: number): string => formatNumber(value, PROSE_DECIMALS);
+
+/** Beyond this many values the sorted list is summarised rather than printed in full. */
+const SORTED_LIMIT = 200;
 
 export interface StatValues {
   /** Route configuration — which result is featured. Never affects the maths. */
@@ -167,6 +193,12 @@ export function completeResultValue(r: StatComputed): number {
   if (!sameNumberList([...s.mode].sort((a, b) => a - b), [...expected.mode].sort((a, b) => a - b))) {
     return FAIL; // mode is exactly the verified max-frequency set
   }
+  if (s.modeFrequency !== expected.modeFrequency) return FAIL;
+  // The geometric mean is a real number for a positive set and deliberately NaN otherwise; either
+  // way it must be the one a fresh computation produces, never a stale or coerced figure.
+  const gmFinite = Number.isFinite(expected.geometricMean);
+  if (Number.isFinite(s.geometricMean) !== gmFinite) return FAIL;
+  if (gmFinite && !close(s.geometricMean, expected.geometricMean)) return FAIL;
 
   for (const k of ALWAYS_FINITE) {
     const v = s[k] as number;
@@ -195,20 +227,45 @@ export function completeResultValue(r: StatComputed): number {
 /* Presentation (pure)                                                 */
 /* ------------------------------------------------------------------ */
 
-/** Mode as a single value, a comma list, or an explicit "No mode". */
-export const modeText = (mode: number[]): string =>
-  mode.length ? mode.map((v) => formatNumber(v, DECIMALS)).join(', ') : 'No mode';
+/**
+ * The mode, said the way the reference says it: "23, appeared 3 times".
+ *
+ * The count is the part that carries the meaning — a mode of 23 in eight values is a different
+ * claim depending on whether it turned up twice or six times.
+ */
+export function modeText(mode: number[], frequency = 0): string {
+  if (!mode.length) return 'No mode';
+  const list = mode.map(formatStat).join(', ');
+  if (frequency <= 0) return list;
+  const times = `${frequency} ${frequency === 1 ? 'time' : 'times'}`;
+  return mode.length === 1 ? `${list}, appeared ${times}` : `${list}, each appeared ${times}`;
+}
+
+/** The sorted data, as the reference lists it beneath the table. Long sets are summarised. */
+export function sortedText(sorted: readonly number[]): string {
+  if (!sorted.length) return '';
+  if (sorted.length <= SORTED_LIMIT) return sorted.map(formatStat).join(', ');
+  const shown = sorted.slice(0, SORTED_LIMIT).map(formatStat).join(', ');
+  return `${shown}, … and ${sorted.length - SORTED_LIMIT} more`;
+}
 
 /** The `data-stat` cells the island fills, mapping DOM keys → formatted text.
  *  Sample dispersion and quartiles render "Not available" (never a bare dash or
  *  zero) when non-finite; population figures stay 0 at n = 1. */
 export function statCells(s: StatsResult): Array<{ key: string; text: string }> {
   const num = (v: number, optional = false): string =>
-    Number.isFinite(v) ? formatNumber(v, DECIMALS) : optional ? NA : '—';
+    Number.isFinite(v) ? formatStat(v) : optional ? NA : '—';
   return [
+    { key: 'count', text: String(s.count) },
+    { key: 'sum', text: num(s.sum) },
     { key: 'mean', text: num(s.mean) },
     { key: 'median', text: num(s.median) },
-    { key: 'mode', text: modeText(s.mode) },
+    { key: 'mode', text: modeText(s.mode, s.modeFrequency) },
+    // The hero prints the mode at display size, where ", appeared 3 times" is a sentence in a
+    // headline. The count belongs in the table row, which is where it is read.
+    { key: 'modeValue', text: modeText(s.mode) },
+    { key: 'gm', text: Number.isFinite(s.geometricMean) ? formatStat(s.geometricMean) : NOT_DEFINED },
+    { key: 'sorted', text: sortedText(s.sorted) },
     { key: 'sampleSD', text: num(s.sampleSD, true) },
     { key: 'popSD', text: num(s.populationSD) },
     { key: 'sampleVar', text: num(s.sampleVariance, true) },
@@ -219,8 +276,6 @@ export function statCells(s: StatsResult): Array<{ key: string; text: string }> 
     { key: 'q1', text: num(s.q1, true) },
     { key: 'q3', text: num(s.q3, true) },
     { key: 'max', text: num(s.max) },
-    { key: 'count', text: String(s.count) },
-    { key: 'sum', text: num(s.sum) },
   ];
 }
 
@@ -230,8 +285,8 @@ function pluralValues(n: number): string {
 
 function modePhrase(mode: number[]): string {
   if (!mode.length) return 'there is no mode';
-  if (mode.length === 1) return `the mode is ${formatNumber(mode[0], DECIMALS)}`;
-  return `the modes are ${mode.map((v) => formatNumber(v, DECIMALS)).join(', ')}`;
+  if (mode.length === 1) return `the mode is ${prose(mode[0])}`;
+  return `the modes are ${mode.map(prose).join(', ')}`;
 }
 
 /** The visible interpretation sentence, route-aware. */
@@ -239,11 +294,11 @@ export function interpretStats(r: StatComputed): string {
   const s = r.stats;
   if (r.primary === 'sd') {
     if (r.count < 2) {
-      return `Across ${pluralValues(r.count)}, the population standard deviation is ${formatNumber(s.populationSD, DECIMALS)}. Sample standard deviation needs at least two values.`;
+      return `Across ${pluralValues(r.count)}, the population standard deviation is ${prose(s.populationSD)}. Sample standard deviation needs at least two values.`;
     }
-    return `Across ${pluralValues(r.count)}, the sample standard deviation is ${formatNumber(s.sampleSD, DECIMALS)} and the population standard deviation is ${formatNumber(s.populationSD, DECIMALS)}.`;
+    return `Across ${pluralValues(r.count)}, the sample standard deviation is ${prose(s.sampleSD)} and the population standard deviation is ${prose(s.populationSD)}.`;
   }
-  return `Across ${pluralValues(r.count)}, the mean is ${formatNumber(s.mean, DECIMALS)}, the median is ${formatNumber(s.median, DECIMALS)} and ${modePhrase(s.mode)}.`;
+  return `Across ${pluralValues(r.count)}, the mean is ${prose(s.mean)}, the median is ${prose(s.median)} and ${modePhrase(s.mode)}.`;
 }
 
 /** The concise, route-specific accessible announcement (never the whole grid). */
@@ -253,9 +308,9 @@ export function describeStatsResult(r: StatComputed): string {
     if (r.count < 2) {
       return 'The population standard deviation is 0. Sample standard deviation is not available for one value.';
     }
-    return `The sample standard deviation is ${formatNumber(s.sampleSD, DECIMALS)}.`;
+    return `The sample standard deviation is ${prose(s.sampleSD)}.`;
   }
-  return `Statistics calculated for ${pluralValues(r.count)}. The mean is ${formatNumber(s.mean, DECIMALS)}.`;
+  return `Statistics calculated for ${pluralValues(r.count)}. The mean is ${prose(s.mean)}.`;
 }
 
 /* ------------------------------------------------------------------ */
