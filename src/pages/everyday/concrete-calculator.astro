@@ -4,37 +4,46 @@ import ConcreteCalculator from '@components/islands/ConcreteCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'concrete-calculator')!;
 const faqs = [
-  { question: 'How much concrete do I need?', answer: 'Multiply the length, width and depth of your slab to get the volume, then convert to cubic yards. In feet, the shortcut is length × width × thickness ÷ 27, because there are 27 cubic feet in a cubic yard. Enter your dimensions above and the calculator does it — including the number of pre-mix bags.' },
+  { question: 'How much concrete do I need?', answer: 'Pick the calculator that matches your pour — a slab, a round footing, a circular slab or tube, a curb and gutter run, or stairs — and enter its measurements. Each one returns the volume in cubic feet, cubic yards and cubic metres, the weight, and how many 60-lb and 80-lb bags that is.' },
   { question: 'How do I estimate concrete in cubic yards?', answer: 'Convert every measurement to feet first (a 4-inch slab is 4 ÷ 12 = 0.33 ft), multiply length × width × thickness for cubic feet, then divide by 27 for cubic yards. A 10 × 10 ft pad at 4 inches is 10 × 10 × 0.33 ÷ 27 ≈ 1.24 cubic yards.' },
-  { question: 'How many bags of concrete are in a cubic yard?', answer: 'Roughly 45 × 80-lb bags, 60 × 60-lb bags, or 90 × 40-lb bags make one cubic yard. Because that is a lot of mixing, anything beyond about a cubic yard is usually cheaper and easier as ready-mix delivery.' },
+  { question: 'How many bags of concrete are in a cubic yard?', answer: 'At the pre-mix density of 133 lbs per cubic foot, a cubic yard weighs about 3,591 lbs — roughly 45 × 80-lb bags or 60 × 60-lb bags. Because that is a lot of mixing, anything beyond about a cubic yard is usually cheaper and easier as ready-mix delivery.' },
   { question: 'How much does a cubic yard of concrete cost?', answer: 'This calculator estimates volume and bag counts, not cost. To budget, take the cubic yards it returns and multiply by your local price: ready-mix commonly runs in the region of $125–$175 per cubic yard delivered, though prices vary widely by supplier, mix and delivery conditions, and small loads carry a short-load fee. Bagged mix costs more per yard but suits jobs too small to order a truck.' },
   { question: 'How long does concrete take to dry and cure?', answer: 'You can usually walk on new concrete after 24–48 hours and drive on it after about 7 days, but it keeps hardening for weeks — reaching most of its rated strength at 28 days. Keeping it damp during that period (curing) makes the finished slab stronger.' },
-  { question: 'Why add a waste allowance?', answer: 'Some concrete is always lost to spillage, uneven subgrade and over-excavation. Adding about 5–10% extra ensures you do not run short mid-pour, which is far more costly than a little leftover.' },
+  { question: 'Should I order more than the estimate?', answer: 'Yes — about 5–10% more. Some concrete is always lost to spillage, uneven subgrade and over-excavation, and running short mid-pour is far more costly than a little leftover, because a cold joint where the first pour has set is a permanent weakness.' },
+  { question: 'What density does the estimate assume?', answer: 'Pre-mixed concrete at 2,130 kg/m³, or 133 lbs per cubic foot, which is the usual figure for a standard mix. Different types of concrete vary quite a bit — lightweight mixes are well below this and heavyweight aggregates well above — so treat the weight and bag counts as a close estimate rather than an exact figure.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate how much concrete a slab or footing needs — in cubic yards, cubic metres and pre-mix bags — with an optional waste allowance." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Estimate concrete for a slab, footing, column, circular slab, curb and gutter run or stairs — in cubic feet, yards and metres, with the weight and the number of pre-mix bags." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <ConcreteCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter the <strong>length</strong>, <strong>width</strong> and <strong>depth</strong> of your slab or footing.</li>
-      <li>Choose the <strong>unit</strong> — feet or metres. Switching it converts the three dimensions you have already typed rather than reinterpreting them.</li>
-      <li>Optionally add a <strong>waste allowance</strong> as a percentage (leave it blank for none).</li>
-      <li>Read the result in <strong>cubic yards</strong>, with cubic-metre and cubic-foot equivalents and the number of 40, 60 and 80-lb bags.</li>
+      <li>Find the <strong>pour</strong> that matches your job — each of the five above is its own calculator, so an answer stays on screen while you work out the next.</li>
+      <li>Enter each <strong>measurement</strong> and choose the unit beside it. Every measurement carries its own unit, so a slab measured in feet with a thickness in inches needs no converting by hand.</li>
+      <li>Set the <strong>quantity</strong> if you are pouring several identical footings or slabs.</li>
+      <li>Read the volume in <strong>cubic feet, cubic yards and cubic metres</strong>, then the weight and the number of 60-lb and 80-lb bags beneath it.</li>
     </ol>
     <p>
-      All three dimensions use the same unit, so a slab thickness quoted in inches has to be
-      converted first: divide inches by 12 to get feet, which makes a 4-inch pour 0.333 ft.
-      Switch the unit to metres if your measurements are metric.
+      Mixing units is fine and often quicker: a 16 ft by 10 ft pad at 4 inches thick can be entered
+      exactly that way. Each measurement is converted to feet before the volume is worked out.
     </p>
 
     <h2>How concrete estimating works</h2>
     <p>
-      Concrete is sold by volume, so every estimate comes down to turning a slab's dimensions
-      into cubic yards. Multiply length by width by depth for the volume in cubic feet, then
-      divide by 27 — there are 27 cubic feet in a cubic yard. The bag counts come from dividing
-      that volume by how much each pre-mix bag yields once mixed.
+      Concrete is sold by volume, so every estimate comes down to turning a shape's dimensions
+      into cubic yards. Work out the volume in cubic feet, then divide by 27 — there are 27 cubic
+      feet in a cubic yard. The weight follows from the density of the mix, and the bag counts
+      follow from the weight.
     </p>
+
+    <h2>The five pours</h2>
+    <ul>
+      <li><strong>Slabs, square footings or walls</strong> — length × width × thickness. The everyday rectangular pour.</li>
+      <li><strong>Hole, column or round footings</strong> — a cylinder: π × (diameter ÷ 2)² × depth.</li>
+      <li><strong>Circular slab or tube</strong> — a ring: the outer cylinder less its bore, π ÷ 4 × (d₁² − d₂²) × height.</li>
+      <li><strong>Curb and gutter barrier</strong> — the flat gutter flag plus the curb standing on it, multiplied along the run.</li>
+      <li><strong>Stairs</strong> — the platform slab plus a stack of treads. Each step up sits on the one below, so the concrete grows faster than the number of risers.</li>
+    </ul>
 
     <h2>The formula</h2>
     <p>For dimensions measured in feet:</p>
@@ -42,7 +51,8 @@ const faqs = [
     <ul>
       <li><strong>length × width × depth</strong> — the volume in cubic feet, with depth in feet (a 4-inch slab is 0.333 ft).</li>
       <li><strong>÷ 27</strong> — converts cubic feet to cubic yards, the unit ready-mix is ordered in.</li>
-      <li>A <strong>waste allowance</strong>, if entered, multiplies the volume by 1 + the percentage before the bag counts are worked out.</li>
+      <li><strong>Weight</strong> — the volume times the density of the mix, 133 lbs per cubic foot (2,130 kg/m³) for standard pre-mix.</li>
+      <li><strong>Bags</strong> — that weight divided by the weight of a bag, so a 60-lb bag goes further in count than an 80-lb one.</li>
     </ul>
     <p>
       Choose metres instead and the tool converts the dimensions to feet first, so the method
@@ -57,10 +67,10 @@ const faqs = [
       metres</strong>.
     </p>
     <p>
-      As bags, 48 cubic feet works out to <strong>80 × 80-lb bags</strong> (about 107 × 60-lb
-      or 160 × 40-lb) — a lot of hauling and mixing, which is exactly why a pour this size is
-      usually ordered as ready-mix. Add a 10% waste allowance and the order rises to roughly
-      <strong>1.96 cubic yards</strong>.
+      At the standard pre-mix density that is 48 × 133 = <strong>6,384 lbs</strong>, or about
+      <strong>80 × 80-lb bags</strong> and <strong>107 × 60-lb bags</strong> — a lot of hauling and
+      mixing, which is exactly why a pour this size is usually ordered as ready-mix. Order 10% more
+      than the estimate and it rises to roughly <strong>1.96 cubic yards</strong>.
     </p>
 
     <h2>Bags or ready-mix?</h2>
@@ -70,19 +80,19 @@ const faqs = [
         <tr><th>Bag size</th><th>Yield per bag</th><th>Bags per cubic yard</th></tr>
       </thead>
       <tbody>
-        <tr><td>40 lb</td><td>~0.30 cu ft</td><td>~90</td></tr>
         <tr><td>60 lb</td><td>~0.45 cu ft</td><td>~60</td></tr>
         <tr><td>80 lb</td><td>~0.60 cu ft</td><td>~45</td></tr>
       </tbody>
     </table>
     <p>For anything much over a cubic yard, ordering ready-mix by the yard is usually cheaper and far less work than mixing dozens of bags by hand.</p>
 
-    <h2>Why add a waste allowance</h2>
+    <h2>Order a little more than the estimate</h2>
     <p>
       Some concrete is always lost to spillage, an uneven subgrade and slight over-excavation,
       and running short mid-pour is far more costly than a little leftover. A margin of about
       <strong>5–10%</strong> covers it on a typical slab; add more for a rough or sloping site.
-      The bag counts above already include whatever percentage you enter.
+      The calculator reports exactly what the shape holds, so add that margin to the figure it
+      gives you rather than expecting it to be built in.
     </p>
 
     <h2>How long concrete takes to set and cure</h2>
