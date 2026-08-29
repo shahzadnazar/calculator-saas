@@ -387,6 +387,34 @@ const PLAN_FIELDS = [
   let uid = 0;
 
   /**
+   * Namespace this instance's server-STATIC ids and repoint their in-root references, but ONLY when
+   * more than one shares the document (an embed gallery, a guide with two copies). A lone instance
+   * keeps the ids the server wrote. Without this, two instances would collide on every id and a
+   * label would point at the other one's field.
+   */
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
+  }
+
+  /**
    * One course row, built with the DOM API — never markup from a string.
    *
    * Only the first row carries example placeholders. Five rows all reading "Math / 3" look like an
@@ -503,7 +531,9 @@ const PLAN_FIELDS = [
     seed(INITIAL_ROWS);
   }
 
-  document.querySelectorAll<HTMLElement>('[data-gpa]').forEach((root) => {
+  const gRoots = document.querySelectorAll<HTMLElement>('[data-gpa]');
+  gRoots.forEach((root, i) => {
+    if (gRoots.length > 1) uniquifyStaticIds(root, `g${i + 1}`);
     mountCourses(root);
     mountFormCalculator(root, gpaBinding, {
       recalculationMode: 'live-after-first',
@@ -512,7 +542,9 @@ const PLAN_FIELDS = [
     });
   });
 
-  document.querySelectorAll<HTMLElement>('[data-gpa-plan]').forEach((root) => {
+  const pRoots = document.querySelectorAll<HTMLElement>('[data-gpa-plan]');
+  pRoots.forEach((root, i) => {
+    if (pRoots.length > 1) uniquifyStaticIds(root, `p${i + 1}`);
     mountFormCalculator(root, gpaPlanBinding, {
       recalculationMode: 'live-after-first',
       example: { values: PLAN_EXAMPLE_VALUES },

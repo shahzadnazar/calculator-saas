@@ -1,121 +1,195 @@
 import { describe, it, expect } from 'vitest';
-import { weightedGrade, finalScoreNeeded } from './grade';
+import {
+  GRADE_BANDS,
+  bandForPercent,
+  bandForLetter,
+  nearestBand,
+  parseGradeValue,
+  weightedGrade,
+  finalScoreNeeded,
+  planRemaining,
+  formatAverageGrade,
+  formatGradePoints,
+  formatScore,
+} from './grade';
 
-/**
- * Dedicated Grade characterization (R16B2 Commit 1 — Academic family follow-on, 2 of
- * 2). FREEZES the current behaviour of `weightedGrade` and `finalScoreNeeded` ahead
- * of the task-first multi-mode migration; it does NOT change any module. The Grade
- * binding (grade-form.ts) layers per-mode validation and a complete-result guard ON
- * TOP of these unchanged functions — this file pins exactly what it wraps.
- *
- *   weightedGrade: w = max(0, weight||0); grade = Σ(score·w) / Σw  (NaN when Σw = 0)
- *                  → NORMALIZED by total weight; weights need not total 100.
- *   finalScoreNeeded: w = min(1, max(0, finalWeightPct/100));
- *                     w === 0 → NaN; else (target − (1−w)·current) / w
- *                  → ≤0 already met · 0–100 reachable · >100 unreachable (no flag; the
- *                     status is DERIVED from the number by the binding).
- *
- * The 2 Grade cases previously in batch-e.test.ts are consolidated here and expanded;
- * batch-e keeps its conversion coverage.
- */
+/** The reference's own worked example. */
+const ROWS = [
+  { name: 'Homework 1', grade: '90', weight: 5 },
+  { name: 'Project', grade: 'B', weight: 20 },
+  { name: 'Midterm exam', grade: '88', weight: 20 },
+];
 
-describe('weightedGrade — normalized weighted average', () => {
-  it('one row is that score (normalized by its own weight)', () => {
-    const r = weightedGrade([{ score: 90, weight: 25 }]);
-    expect(r.grade).toBeCloseTo(90, 10);
-    expect(r.totalWeight).toBe(25);
+describe('the letter-grade table', () => {
+  it('is the reference table, with grade points and percentage ranges', () => {
+    expect(GRADE_BANDS.map((b) => [b.letter, b.gpa, b.min, b.max])).toEqual([
+      ['A+', 4.3, 97, 100],
+      ['A', 4, 93, 96],
+      ['A-', 3.7, 90, 92],
+      ['B+', 3.3, 87, 89],
+      ['B', 3, 83, 86],
+      ['B-', 2.7, 80, 82],
+      ['C+', 2.3, 77, 79],
+      ['C', 2, 73, 76],
+      ['C-', 1.7, 70, 72],
+      ['D+', 1.3, 67, 69],
+      ['D', 1, 63, 66],
+      ['D-', 0.7, 60, 62],
+      ['F', 0, 0, 59],
+    ]);
   });
 
-  it('multiple rows weight by their share (moved from batch-e)', () => {
-    expect(weightedGrade([{ score: 90, weight: 50 }, { score: 80, weight: 50 }]).grade).toBeCloseTo(85, 10);
-    expect(weightedGrade([{ score: 100, weight: 20 }, { score: 60, weight: 80 }]).grade).toBeCloseTo(68, 10);
+  it('covers every percentage from 0 to 100 with no gap', () => {
+    for (let p = 0; p <= 100; p += 1) expect(bandForPercent(p)?.letter, String(p)).toBeTruthy();
   });
 
-  it("matches the page's 80/20 + 75/30 + 90/50 = 83.5 example", () => {
-    const r = weightedGrade([{ score: 80, weight: 20 }, { score: 75, weight: 30 }, { score: 90, weight: 50 }]);
-    expect(r.grade).toBeCloseTo(83.5, 10);
-    expect(r.totalWeight).toBe(100);
+  it('places a percentage in its band, at both edges', () => {
+    expect(bandForPercent(90)?.letter).toBe('A-');
+    expect(bandForPercent(92)?.letter).toBe('A-');
+    expect(bandForPercent(89)?.letter).toBe('B+');
+    expect(bandForPercent(59)?.letter).toBe('F');
+    expect(bandForPercent(0)?.letter).toBe('F');
+    expect(bandForPercent(100)?.letter).toBe('A+');
   });
 
-  it('normalizes regardless of whether weights total 100 (below and above)', () => {
-    expect(weightedGrade([{ score: 90, weight: 25 }, { score: 70, weight: 25 }]).grade).toBeCloseTo(80, 10); // Σw = 50
-    expect(weightedGrade([{ score: 90, weight: 60 }, { score: 80, weight: 60 }]).grade).toBeCloseTo(85, 10); // Σw = 120
+  it('treats extra credit as an A+, and a negative as no grade at all', () => {
+    expect(bandForPercent(105)?.letter).toBe('A+');
+    expect(bandForPercent(-1)).toBeUndefined();
   });
 
-  it('supports decimal scores and weights, and reconciles grade = Σ(score·w)/Σw', () => {
-    const items = [{ score: 88.5, weight: 33.3 }, { score: 91.2, weight: 66.7 }];
-    const expected = (88.5 * 33.3 + 91.2 * 66.7) / (33.3 + 66.7);
-    expect(weightedGrade(items).grade).toBeCloseTo(expected, 10);
+  it('reads a letter whatever the case, and with a unicode minus', () => {
+    expect(bandForLetter('b+')?.gpa).toBe(3.3);
+    expect(bandForLetter(' A- ')?.gpa).toBe(3.7);
+    expect(bandForLetter('A−')?.gpa).toBe(3.7); // U+2212
+    expect(bandForLetter('E')).toBeUndefined();
   });
 
-  it('a zero-weight row contributes nothing; a zero-SCORE row counts at its weight', () => {
-    expect(weightedGrade([{ score: 90, weight: 50 }, { score: 40, weight: 0 }]).grade).toBeCloseTo(90, 10);
-    expect(weightedGrade([{ score: 0, weight: 50 }, { score: 90, weight: 50 }]).grade).toBeCloseTo(45, 10);
-  });
-
-  it('an empty list and all-zero weights both return NaN with 0 total weight', () => {
-    expect(Number.isNaN(weightedGrade([]).grade)).toBe(true);
-    expect(weightedGrade([]).totalWeight).toBe(0);
-    expect(Number.isNaN(weightedGrade([{ score: 90, weight: 0 }]).grade)).toBe(true);
-  });
-
-  it('a negative weight clamps to 0 (max(0, weight||0)); a NaN weight clamps to 0', () => {
-    expect(weightedGrade([{ score: 90, weight: -50 }, { score: 80, weight: 50 }]).grade).toBeCloseTo(80, 10);
-    expect(Number.isNaN(weightedGrade([{ score: 90, weight: Number.NaN }]).grade)).toBe(true);
-  });
-
-  it('a NaN score contributes 0 quality (score||0)', () => {
-    const r = weightedGrade([{ score: Number.NaN, weight: 50 }]);
-    expect(r.grade).toBe(0);
-    expect(r.totalWeight).toBe(50);
-  });
-
-  it('is deterministic', () => {
-    const items = [{ score: 82, weight: 40 }, { score: 91, weight: 60 }];
-    expect(weightedGrade(items)).toEqual(weightedGrade(items));
+  it('picks the NEAREST letter to a grade-point value, not the one it has passed', () => {
+    expect(nearestBand(3.21)?.letter).toBe('B+'); // nearer 3.3 than 3.0
+    expect(nearestBand(3.05)?.letter).toBe('B');
+    expect(nearestBand(4.3)?.letter).toBe('A+');
+    expect(nearestBand(0)?.letter).toBe('F');
   });
 });
 
-describe('finalScoreNeeded — score required on the final', () => {
-  it('an ordinary reachable target (moved from batch-e)', () => {
-    expect(finalScoreNeeded(80, 40, 85)).toBeCloseTo(92.5, 10); // (85 − 0.6·80)/0.4
+describe('parsing a grade', () => {
+  it('accepts a percentage and a letter in the same column', () => {
+    expect(parseGradeValue('90')).toMatchObject({ kind: 'percent', gpa: 3.7, raw: '90' });
+    expect(parseGradeValue('B')).toMatchObject({ kind: 'letter', gpa: 3, raw: 'B' });
+    expect(parseGradeValue('88.5')).toMatchObject({ kind: 'percent', gpa: 3.3 });
   });
 
-  it('an unreachable target returns > 100 (moved from batch-e)', () => {
-    expect(finalScoreNeeded(85, 30, 90)).toBeCloseTo(101.6667, 3); // (90 − 0.7·85)/0.3
+  it('refuses what is not a grade', () => {
+    expect(parseGradeValue('')).toBe(null);
+    expect(parseGradeValue('Z')).toBe(null);
+    expect(parseGradeValue('-5')).toBe(null);
+    expect(parseGradeValue('90%')).toBe(null);
+  });
+});
+
+describe('the weighted average — the reference example', () => {
+  const r = weightedGrade(ROWS);
+
+  it('averages GRADE POINTS, not percentages', () => {
+    // 90 → A- → 3.7, B → 3.0, 88 → B+ → 3.3, weighted over 45 → 3.2111…
+    expect(r.averageGpa).toBeCloseTo(3.2111111111, 9);
+    expect(formatGradePoints(r.averageGpa)).toBe('3.21');
   });
 
-  it('an already-met target returns ≤ 0', () => {
-    expect(finalScoreNeeded(90, 20, 70)).toBeCloseTo(-10, 10); // (70 − 0.8·90)/0.2
+  it('reports the reference letter and total weight', () => {
+    expect(r.letter).toBe('B+');
+    expect(r.totalWeight).toBe(45);
+    expect(formatAverageGrade(r)).toBe('B+ (3.21)');
   });
 
-  it('the exact 0 boundary (target = current with no remaining lift needed)', () => {
-    expect(finalScoreNeeded(100, 20, 80)).toBeCloseTo(0, 10); // (80 − 0.8·100)/0.2
+  it('keeps each grade as it was typed, for the report', () => {
+    expect(r.rows.map((row) => row.value.raw)).toEqual(['90', 'B', '88']);
+  });
+});
+
+describe('the weighted average — edges', () => {
+  it('skips a row with an unreadable grade rather than scoring it zero', () => {
+    const r = weightedGrade([...ROWS, { name: 'Bad', grade: 'Z', weight: 55 }]);
+    expect(r.totalWeight).toBe(45);
+    expect(r.rows).toHaveLength(3);
   });
 
-  it('the exact 100 boundary (a perfect final exactly reaches the target)', () => {
-    expect(finalScoreNeeded(80, 50, 90)).toBeCloseTo(100, 10); // (90 − 0.5·80)/0.5
+  it('has no average when nothing counted', () => {
+    expect(weightedGrade([]).averageGpa).toBeNaN();
+    expect(weightedGrade([{ name: '', grade: 'B', weight: 0 }]).averageGpa).toBeNaN();
+    expect(formatAverageGrade(weightedGrade([]))).toBe('—');
   });
 
-  it('a zero final-exam weight returns NaN (no final to solve for)', () => {
-    expect(Number.isNaN(finalScoreNeeded(80, 0, 90))).toBe(true);
+  it('gives an all-F course a real 0, not an absent result', () => {
+    const r = weightedGrade([{ name: 'One', grade: 'F', weight: 100 }]);
+    expect(r.averageGpa).toBe(0);
+    expect(r.letter).toBe('F');
   });
 
-  it('a final weight over 100 clamps to 100% (w = 1 → needed = target)', () => {
-    expect(finalScoreNeeded(80, 150, 90)).toBeCloseTo(90, 10);
+  it('weights by weight, not by row count', () => {
+    const r = weightedGrade([
+      { name: 'Tiny', grade: 'A+', weight: 1 },
+      { name: 'Huge', grade: 'F', weight: 99 },
+    ]);
+    expect(r.averageGpa).toBeCloseTo(0.043, 10);
+    expect(r.letter).toBe('F');
+  });
+});
+
+describe('what the final has to be — the reference example', () => {
+  it('reproduces "80.5" for 88 now, 85 wanted, a final worth 40%', () => {
+    const r = finalScoreNeeded(88, 40, 85);
+    expect(r.needed).toBeCloseTo(80.5, 10);
+    expect(r.alreadyMet).toBe(false);
   });
 
-  it('a negative final weight clamps to 0 → NaN', () => {
-    expect(Number.isNaN(finalScoreNeeded(80, -30, 90))).toBe(true);
+  it('knows when the target is already secured', () => {
+    const r = finalScoreNeeded(90, 20, 50);
+    expect(r.alreadyMet).toBe(true);
+    expect(r.needed).toBeLessThanOrEqual(0);
   });
 
-  it('malformed / non-finite inputs propagate to NaN', () => {
-    expect(Number.isNaN(finalScoreNeeded(Number.NaN, 30, 90))).toBe(true);
-    expect(Number.isNaN(finalScoreNeeded(80, 30, Number.NaN))).toBe(true);
-    expect(Number.isNaN(finalScoreNeeded(80, Number.NaN, 90))).toBe(true); // NaN/100 → NaN → w 0 → NaN
+  it('returns a number above 100 rather than an error, because that is the useful answer', () => {
+    expect(finalScoreNeeded(60, 10, 90).needed).toBeCloseTo(360, 10);
   });
 
-  it('is deterministic', () => {
-    expect(finalScoreNeeded(78, 35, 88)).toBe(finalScoreNeeded(78, 35, 88));
+  it('has no answer for a final worth nothing, or more than everything', () => {
+    expect(finalScoreNeeded(88, 0, 85).needed).toBeNaN();
+    expect(finalScoreNeeded(88, 140, 85).needed).toBeNaN();
+  });
+
+  it('needs exactly the target when the final is the whole course', () => {
+    expect(finalScoreNeeded(50, 100, 85).needed).toBeCloseTo(85, 10);
+  });
+});
+
+describe('planning the remaining work', () => {
+  it('asks the same question against the work already entered', () => {
+    // 3.2111… over 45%, aiming for 3.7 with 55% left.
+    const required = planRemaining(3.2111111111111112, 45, 3.7, 55);
+    expect(required).toBeCloseTo(4.09999999, 6);
+  });
+
+  it('has no answer without remaining weight', () => {
+    expect(planRemaining(3, 45, 3.7, 0)).toBeNaN();
+    expect(planRemaining(Number.NaN, 45, 3.7, 55)).toBeNaN();
+  });
+});
+
+describe('formatting', () => {
+  it('prints grade points to two decimals, trailing zeros dropped', () => {
+    expect(formatGradePoints(3.2111111)).toBe('3.21');
+    expect(formatGradePoints(3)).toBe('3');
+    expect(formatGradePoints(4.3)).toBe('4.3');
+  });
+
+  it('strips floating-point noise from a weight or a score', () => {
+    expect(formatScore(45.000000000000004)).toBe('45');
+    expect(formatScore(80.5)).toBe('80.5');
+  });
+
+  it('never prints a non-finite figure', () => {
+    expect(formatGradePoints(Number.NaN)).toBe('—');
+    expect(formatScore(Number.POSITIVE_INFINITY)).toBe('—');
   });
 });
