@@ -16,7 +16,7 @@ const faqs = [
   { question: 'How precise are the results?', answer: 'Every figure is shown to fourteen significant figures, with trailing zeros dropped — enough to check our answer against any other statistics tool digit for digit. The one-line summary below the table rounds to four decimals, because that is a sentence to read rather than a number to verify.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Paste a list of numbers and get every descriptive statistic at once — count, sum, mean, median, mode, largest, smallest, range, geometric mean, and the standard deviation and variance for both a population and a sample." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Enter your numbers on the keypad or paste a list below, and read every descriptive statistic at once." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <StatisticsCalculator primary="summary" />
   <Fragment slot="content">
     <h2>Everything the calculator gives you</h2>
