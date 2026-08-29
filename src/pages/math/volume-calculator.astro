@@ -4,38 +4,43 @@ import VolumeCalculator from '@components/islands/VolumeCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('math', 'volume-calculator')!;
 const faqs = [
-  { question: 'How do I calculate volume?', answer: 'Pick the 3D shape and enter its dimensions. A box is length × width × height; a sphere is 4⁄3 × π × radius³; a cylinder is π × radius² × height. The calculator uses the correct formula for each shape.' },
+  { question: 'How do I calculate volume?', answer: 'Use the calculator for your shape and enter its dimensions. A rectangular tank is length × width × height; a sphere is 4⁄3 × π × radius³; a cylinder is π × radius² × height. Each one shows the formula, the formula with your numbers in it, and the answer.' },
   { question: 'How do I find the volume of a cylinder?', answer: 'Volume = π × radius² × height. A cylinder with radius 2 and height 5 has a volume of π × 4 × 5 ≈ 62.83 cubic units. It is simply the circular base area (π × r²) multiplied by the height.' },
   { question: 'How do I find the volume of a sphere?', answer: 'Volume = 4⁄3 × π × radius³. A sphere of radius 3 has a volume of 4⁄3 × π × 27 ≈ 113.10 cubic units. Only the radius matters — a sphere has no other dimension.' },
   { question: 'How do I find the volume of a cone?', answer: 'Volume = ⅓ × π × radius² × height — exactly one third of a cylinder with the same base and height. A cone with radius 3 and height 6 holds ⅓ × π × 9 × 6 ≈ 56.55 cubic units.' },
-  { question: 'How do I find the volume of a rectangular prism?', answer: 'A rectangular prism (a box) is length × width × height. A box 2 × 3 × 4 has a volume of 24 cubic units. Use the "box" shape above and enter the three dimensions.' },
-  { question: 'What units is the volume in?', answer: 'Enter all dimensions in the same unit; the volume is in that unit cubed (e.g. cubic metres or cubic feet). Choose a unit label to match your measurements.' },
+  { question: 'How do I find the volume of a rectangular prism?', answer: 'A rectangular prism (a box) is length × width × height. A box 2 × 3 × 4 has a volume of 24 cubic units. Use the Rectangular Tank calculator above and enter the three dimensions.' },
+  { question: 'What units is the volume in?', answer: 'Every measurement has its own unit, so you can mix metres and centimetres freely. Each is converted into the unit of the first field, and the volume is reported in that unit cubed — enter a radius in metres first and the answer is in cubic metres.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid or capsule — select the shape and enter its dimensions." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the volume of a sphere, cone, cube, cylinder, rectangular tank, capsule, spherical cap, conical frustum, ellipsoid, square pyramid or tube — each its own calculator, showing the working." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <VolumeCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Select a <strong>3D shape</strong> — cube, box, sphere, cylinder, cone, pyramid or capsule.</li>
-      <li>Enter the dimensions it asks for, all in the <strong>same unit</strong>.</li>
-      <li>Read the volume, which comes out in that unit <strong>cubed</strong> (cubic metres, cubic feet, and so on).</li>
+      <li>Find the <strong>shape</strong> that matches your solid — each one above is its own calculator, so an answer stays on screen while you work out the next.</li>
+      <li>Enter each <strong>measurement</strong> and choose the unit beside it. Every measurement carries its own unit.</li>
+      <li>Press that shape's <strong>Calculate</strong> button.</li>
+      <li>Read the volume, reported in the unit of the first field <strong>cubed</strong> (cubic metres, cubic feet, and so on), with the formula and the substituted numbers shown above it.</li>
     </ol>
 
     <h2>Volume formulas for every shape</h2>
-    <p>Volume is always in cubic units. Each shape has its own formula — these are the seven the calculator solves:</p>
+    <p>Volume is always in cubic units. Each shape has its own formula — these are the eleven the calculator solves, in the order they appear above:</p>
     <table>
       <thead>
         <tr><th>Shape</th><th>Formula</th><th>Example</th></tr>
       </thead>
       <tbody>
-        <tr><td>Cube</td><td>side<sup>3</sup></td><td>3<sup>3</sup> = 27</td></tr>
-        <tr><td>Box (rectangular prism)</td><td>length × width × height</td><td>2 × 3 × 4 = 24</td></tr>
-        <tr><td>Sphere</td><td>4⁄3 × π × radius<sup>3</sup></td><td>4⁄3 × π × 3<sup>3</sup> ≈ 113.10</td></tr>
-        <tr><td>Cylinder</td><td>π × radius<sup>2</sup> × height</td><td>π × 2<sup>2</sup> × 5 ≈ 62.83</td></tr>
-        <tr><td>Cone</td><td>⅓ × π × radius<sup>2</sup> × height</td><td>⅓ × π × 3<sup>2</sup> × 6 ≈ 56.55</td></tr>
-        <tr><td>Pyramid</td><td>⅓ × base length × base width × height</td><td>⅓ × 4 × 4 × 9 = 48</td></tr>
-        <tr><td>Capsule</td><td>π × r<sup>2</sup> × (4⁄3 × r + height)</td><td>π × 2<sup>2</sup> × (4⁄3 × 2 + 5) ≈ 96.34</td></tr>
+        <tr><td>Sphere</td><td>4⁄3 × π × r<sup>3</sup></td><td>4⁄3 × π × 3<sup>3</sup> ≈ 113.10</td></tr>
+        <tr><td>Cone</td><td>⅓ × π × r<sup>2</sup> × h</td><td>⅓ × π × 3<sup>2</sup> × 6 ≈ 56.55</td></tr>
+        <tr><td>Cube</td><td>a<sup>3</sup></td><td>3<sup>3</sup> = 27</td></tr>
+        <tr><td>Cylinder</td><td>π × r<sup>2</sup> × h</td><td>π × 2<sup>2</sup> × 5 ≈ 62.83</td></tr>
+        <tr><td>Rectangular tank</td><td>l × w × h</td><td>2 × 3 × 4 = 24</td></tr>
+        <tr><td>Capsule</td><td>4⁄3 × π × r<sup>3</sup> + π × r<sup>2</sup> × h</td><td>r 2, h 5 ≈ 96.34</td></tr>
+        <tr><td>Spherical cap</td><td>⅓ × π × h<sup>2</sup> × (3R − h)</td><td>R 9, h 4 ≈ 385.37</td></tr>
+        <tr><td>Conical frustum</td><td>⅓ × π × h × (r<sup>2</sup> + rR + R<sup>2</sup>)</td><td>r 2, R 4, h 5 ≈ 146.61</td></tr>
+        <tr><td>Ellipsoid</td><td>4⁄3 × π × a × b × c</td><td>4⁄3 × π × 4 × 6 × 5 ≈ 502.65</td></tr>
+        <tr><td>Square pyramid</td><td>⅓ × a<sup>2</sup> × h</td><td>⅓ × 3<sup>2</sup> × 5 = 15</td></tr>
+        <tr><td>Tube</td><td>π × (d<sub>1</sub><sup>2</sup> − d<sub>2</sub><sup>2</sup>) ÷ 4 × l</td><td>d 4 and 1, l 6 ≈ 70.69</td></tr>
       </tbody>
     </table>
 
@@ -46,17 +51,27 @@ const faqs = [
 
     <h2>The one-third pattern</h2>
     <p>
-      Two of these formulas share a neat relationship. A <strong>cone</strong> holds exactly one third of the cylinder that would enclose it, and a <strong>pyramid</strong> holds one third of its enclosing box — both have the same base and height as the fuller shape. That is why the cone and pyramid formulas are just the cylinder and box formulas with a ⅓ in front.
+      Two of these formulas share a neat relationship. A <strong>cone</strong> holds exactly one third of the cylinder that would enclose it, and a <strong>square pyramid</strong> holds one third of its enclosing box — both have the same base and height as the fuller shape. That is why the cone and pyramid formulas are just the cylinder and tank formulas with a ⅓ in front.
     </p>
 
     <h2>How the capsule is built</h2>
     <p>
-      A capsule is a cylinder with a hemisphere capped on each end — a pill shape. Its volume is the cylinder plus a full sphere (the two hemispheres together), which is why the formula reads π × r<sup>2</sup> × (4⁄3 × r + height). Here the <strong>height</strong> is only the straight cylindrical section, not the rounded caps. With a radius of 2 and a cylinder height of 5, that is π × 4 × (4⁄3 × 2 + 5) = π × 4 × 7.667 ≈ <strong>96.34 cubic units</strong>.
+      A capsule is a cylinder with a hemisphere capped on each end — a pill shape. Its volume is the cylinder plus a full sphere (the two hemispheres together), which is why the formula reads 4⁄3 × π × r<sup>3</sup> + π × r<sup>2</sup> × h. Here the <strong>height</strong> is only the straight cylindrical section, not the rounded caps. With a radius of 2 and a cylinder height of 5, that is 4⁄3 × π × 8 + π × 4 × 5 ≈ <strong>96.34 cubic units</strong>.
+    </p>
+
+    <h2>The spherical cap needs only two of its three values</h2>
+    <p>
+      A spherical cap is a slice off the top of a ball, and its base radius, the ball's radius and
+      the cap's height are not independent — give any two and the third follows. Enter a base radius
+      and a ball radius, though, and there are <strong>two</strong> answers: a chord cuts a ball
+      twice, so the same base circle bounds a shallow cap and a deep one. The calculator solves
+      h = R ± √(R² − r²) and works both through, which is why that one shows two volumes where every
+      other shape shows one.
     </p>
 
     <h2>Keep your units consistent</h2>
     <p>
-      Because volume multiplies three lengths, the units cube: metres give cubic metres, feet give cubic feet. Convert every dimension to one unit before you calculate. If you need capacity rather than raw volume, remember the standard conversions — one cubic metre is 1,000 litres, and one cubic foot is about 7.48 US gallons.
+      Because volume multiplies three lengths, the units cube: metres give cubic metres, feet give cubic feet. Every measurement must reach the formula in the same unit, so each one is converted into the unit of the <em>first</em> field for you — enter a radius in metres first and the answer is in cubic metres, whatever the later fields were measured in. If you need capacity rather than raw volume, remember the standard conversions — one cubic metre is 1,000 litres, and one cubic foot is about 7.48 US gallons.
     </p>
 
     <h2>Everyday uses</h2>

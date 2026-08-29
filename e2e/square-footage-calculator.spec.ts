@@ -20,8 +20,8 @@ type Shape = { key: string; title: string; dims: string[]; sample: string[]; are
 const SHAPES: Shape[] = [
   { key: 'rectangle', title: 'Rectangle', dims: ['d1', 'd2'], sample: ['30', '20'], area: '600' },
   { key: 'rectangle-border', title: 'Rectangle Border', dims: ['d1', 'd2', 'd3'], sample: ['30', '20', '2'], area: '184' },
-  { key: 'circle', title: 'Circle', dims: ['d1'], sample: ['2'], area: '3.1415926536' },
-  { key: 'ring', title: 'Ring', dims: ['d1', 'd2'], sample: ['30', '2'], area: '175.929188601' },
+  { key: 'circle', title: 'Circle', dims: ['d1'], sample: ['2'], area: '3.1415926535898' },
+  { key: 'ring', title: 'Ring', dims: ['d1', 'd2'], sample: ['30', '2'], area: '175.92918860103' },
   { key: 'triangle-edges', title: 'Triangle with Edge Lengths', dims: ['d1', 'd2', 'd3'], sample: ['3', '4', '5'], area: '6' },
   { key: 'triangle-base', title: 'Triangle with Base & Height', dims: ['d1', 'd2'], sample: ['30', '20'], area: '300' },
   { key: 'trapezoid', title: 'Trapezoid', dims: ['d1', 'd2', 'd3'], sample: ['30', '45', '20'], area: '750' },
@@ -164,7 +164,9 @@ test.describe('units, quantity and price', () => {
     const other = (u: string) => box(page, s.key).locator(`[data-sf-other="${u}"] [data-sf-other-value]`);
     await expect(other('sqyd')).toHaveText('100');
     await expect(other('sqin')).toHaveText('129600');
-    await expect(other('acre')).toHaveText('0.020661157');
+    // Fourteen significant figures, so a small number keeps its precision rather than
+    // stopping at ten decimals: 900 sq ft really is 0.020661157024793 acres.
+    await expect(other('acre')).toHaveText('0.020661157024793');
     await expect(other('sqm')).toHaveText('83.612736');
   });
 });
@@ -243,7 +245,7 @@ test.describe('the nine stay independent', () => {
     }
 
     await calc(page, SHAPES[2], ['2']);
-    await expect(value(page, 'circle')).toHaveText('3.1415926536');
+    await expect(value(page, 'circle')).toHaveText('3.1415926535898');
     // The first answer is still on screen.
     await expect(value(page, 'rectangle')).toHaveText('600');
   });
@@ -253,7 +255,7 @@ test.describe('the nine stay independent', () => {
     await calc(page, SHAPES[2], ['2']);
     await clear(page, 'rectangle').click();
     await expect(field(page, 'rectangle', 'd1')).toHaveValue('');
-    await expect(value(page, 'circle')).toHaveText('3.1415926536');
+    await expect(value(page, 'circle')).toHaveText('3.1415926535898');
   });
 });
 

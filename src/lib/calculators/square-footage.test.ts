@@ -162,10 +162,20 @@ describe('the nine areas', () => {
 });
 
 describe('formatExactArea', () => {
-  it('prints unrounded to ten places with trailing zeros stripped', () => {
+  it('prints fourteen significant figures with trailing zeros stripped', () => {
     expect(formatExactArea(600)).toBe('600');
     expect(formatExactArea(1980.5595166746)).toBe('1980.5595166746');
     expect(formatExactArea(0.5)).toBe('0.5');
+  });
+
+  it('shares one rounding rule with the area and volume calculators', () => {
+    // Ten decimal places and fourteen significant figures agree on every reference figure this
+    // calculator was built against, because each has a four-digit whole part. They part company
+    // on a small number, where significant figures keep the precision that matters.
+    expect(formatExactArea(900 / 43_560)).toBe('0.020661157024793');
+    expect(formatExactArea(900 / 43_560)).not.toBe('0.020661157');
+    // And on a long one, where they keep a different number of digits.
+    expect(formatExactArea(Math.sqrt(444335.9375))).toBe('666.58528149067');
   });
 
   it('never prints a non-finite figure', () => {

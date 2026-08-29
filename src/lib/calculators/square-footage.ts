@@ -70,11 +70,10 @@ export const areaParallelogram = (base: number, height: number): number => base 
 /* ------------------------------------------------------------------ */
 
 /**
- * The reference prints an area unrounded to ten decimal places, trailing zeros stripped —
- * "1980.5595166746 Square Feet". Matching that exactly is what makes the two calculators
- * comparable figure for figure.
+ * The reference prints an area at fourteen significant figures, trailing zeros stripped —
+ * "1980.5595166746 Square Feet". Every reference figure this calculator was built against has a
+ * four-digit whole part, where ten decimal places and fourteen significant figures agree; the area
+ * calculator's triangle is what tells them apart, and it prints 666.58528149067 rather than
+ * 666.5852814907. The rule is shared from `formula-steps.ts` so all three calculators round alike.
  */
-export function formatExactArea(value: number): string {
-  if (!Number.isFinite(value)) return '—';
-  return String(Number(value.toFixed(10)));
-}
+export { formatSignificant as formatExactArea } from './formula-steps';
