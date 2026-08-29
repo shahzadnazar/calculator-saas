@@ -38,9 +38,20 @@ export interface FormulaStep {
  * 666.5852814907 where the reference prints 666.58528149067.
  */
 export function formatSignificant(value: number): string {
+  return formatDigits(value, 14);
+}
+
+/**
+ * The same rule at a chosen number of significant figures.
+ *
+ * Area and volume print fourteen; the triangle solver prints five, because a solved triangle is a
+ * page of twenty derived figures and fourteen digits on each would bury the answer rather than
+ * sharpen it. Both are the reference's own choices, verified against its printed output.
+ */
+export function formatDigits(value: number, digits: number): string {
   if (!Number.isFinite(value)) return '—';
   if (value === 0) return '0';
-  return String(Number(value.toPrecision(14)));
+  return String(Number(value.toPrecision(digits)));
 }
 
 /**

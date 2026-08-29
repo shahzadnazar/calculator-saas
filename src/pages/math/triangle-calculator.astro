@@ -5,26 +5,53 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('math', 'triangle-calculator')!;
 const faqs = [
   { question: 'How do you find the angles of a triangle from its sides?', answer: 'Use the law of cosines. For each angle, the cosine equals (sum of the squares of the two adjacent sides minus the square of the opposite side) divided by twice the product of the adjacent sides. This calculator does it for all three angles.' },
-  { question: 'How is the area calculated?', answer: 'From three sides, the calculator uses Heron\'s formula: with s as half the perimeter, area = √(s(s−a)(s−b)(s−c)).' },
-  { question: 'What makes three lengths a valid triangle?', answer: 'The triangle inequality: each side must be shorter than the sum of the other two. If not, no triangle can be formed and the calculator flags it.' },
+  { question: 'How is the area calculated?', answer: 'The calculator first solves the triangle so it knows all three sides, then uses Heron\'s formula: with s as half the perimeter, area = √(s(s−a)(s−b)(s−c)).' },
+  { question: 'What makes three lengths a valid triangle?', answer: 'The triangle inequality: each side must be shorter than the sum of the other two. If not, no triangle can be formed and the calculator flags it. Angles must also total less than 180° between any two of them, and you must give at least one side — three angles fix the shape but not the size.' },
   { question: 'How do I know if a triangle is right-angled?', answer: 'Check whether the squares of the two shorter sides add up to the square of the longest side (the Pythagorean theorem). A 3-4-5 triangle is right-angled because 3² + 4² = 9 + 16 = 25 = 5². The calculator classifies each triangle as right, acute or obtuse for you.' },
-  { question: 'How do I find the area of a triangle?', answer: 'The area is ½ × base × height when you know the base and its perpendicular height. This calculator instead takes the three side lengths and uses Heron\'s formula, so it returns the area without you needing to measure a height — it does not take a base-and-height input.' },
+  { question: 'How do I find the area of a triangle?', answer: 'The area is ½ × base × height when you know the base and its perpendicular height. This calculator works from any three of the six values — sides a, b, c and angles A, B, C — so it can reach the area from three sides, from two sides and an angle, or from one side and two angles.' },
   { question: 'What are the different types of triangles?', answer: 'By sides: equilateral (all three equal), isosceles (two equal) or scalene (all different). By angles: right (one 90° angle), acute (all angles under 90°) or obtuse (one angle over 90°). The calculator labels both for any triangle you enter.' },
+  { question: 'Can two different triangles have the same measurements?', answer: 'Yes. If you give two sides and an angle that is NOT between them, there can be two answers — the side opposite the angle can swing to meet the base in two places, giving a shallow triangle and a deep one. This is called the ambiguous case, and the calculator shows both triangles rather than picking one.' },
+  { question: 'What can I enter into the calculator?', answer: 'Any three of the six values — sides a, b and c, and angles A, B and C — as long as at least one is a side. That covers all the standard cases: three sides (SSS), two sides and the angle between them (SAS), two angles and a side (ASA or AAS), and two sides with a non-included angle (SSA). Angles can be degrees or radians, and in radians you can write pi/2 or pi/4.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate a triangle's area, perimeter, angles and classification from its three side lengths." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" intro="Solve a triangle from any three values including at least one side — sides, angles, area, perimeter, heights, medians, inradius, circumradius and vertex coordinates." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <TriangleCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter the three <strong>side lengths</strong> — a, b and c — in any consistent unit.</li>
-      <li>Calculate to see the <strong>area</strong>, <strong>perimeter</strong>, all three <strong>angles</strong>, and the triangle's classification.</li>
-      <li>If the three lengths cannot form a triangle, the calculator flags it rather than returning a nonsense result.</li>
+      <li>Fill in any <strong>three</strong> of the six fields — sides a, b, c and angles A, B, C — including <strong>at least one side</strong>. The fields sit on the diagram, so each one is beside the part it measures.</li>
+      <li>Choose <strong>degrees or radians</strong> for the angles. In radians you can type <code>pi/2</code> or <code>pi/4</code> as well as a decimal.</li>
+      <li>Calculate to see every remaining side and angle, plus the area, perimeter, heights, medians, inradius, circumradius and vertex coordinates, with the triangle drawn to scale.</li>
+      <li>If your values cannot form a triangle, the calculator says so rather than returning a nonsense result.</li>
     </ol>
+
+    <h2>The five cases, and why one of them has two answers</h2>
+    <p>
+      Which three values you give decides how the triangle is solved. Four of the five cases have
+      exactly one answer:
+    </p>
+    <ul>
+      <li><strong>SSS</strong> — three sides. Each angle follows from the law of cosines.</li>
+      <li><strong>SAS</strong> — two sides and the angle <em>between</em> them. The third side follows from the law of cosines.</li>
+      <li><strong>ASA</strong> — two angles and the side between them. The third angle is 180° minus the other two, then the law of sines gives the sides.</li>
+      <li><strong>AAS</strong> — two angles and a side that is not between them. Same route as ASA.</li>
+    </ul>
+    <p>
+      The fifth is different. <strong>SSA</strong> — two sides and an angle that is <em>not</em> between
+      them — can describe <strong>two</strong> triangles: the side opposite the given angle can swing
+      down to meet the base in two places, giving one shallow triangle and one deep one. This is the
+      <em>ambiguous case</em>, and it is a fact about the geometry rather than a fault in the
+      arithmetic. Where it happens, the calculator shows both triangles instead of quietly choosing
+      one. It can also describe no triangle at all, when that side is too short to reach.
+    </p>
 
     <h2>What the calculator works out</h2>
     <p>
-      From three sides alone (the "side-side-side" case) a triangle is fully determined, so there is exactly one answer. The tool finds each <strong>angle</strong> with the law of cosines, the <strong>area</strong> with Heron's formula, the <strong>perimeter</strong> by adding the sides, and then labels the triangle by both its sides and its angles. No height measurement is needed.
+      Once the triangle is solved, everything else follows: the <strong>area</strong> by Heron's
+      formula, the <strong>perimeter</strong> by adding the sides, the <strong>height</strong> to each
+      side, the <strong>median</strong> to each side, the <strong>inradius</strong> and
+      <strong>circumradius</strong>, and the coordinates of the vertices, centroid, incentre and
+      circumcentre — with vertex A at the origin and B along the x-axis.
     </p>
 
     <h2>The formulas</h2>
@@ -35,12 +62,19 @@ const faqs = [
     <ul>
       <li><strong>a, b, c</strong> — the three side lengths</li>
       <li><strong>A</strong> — the angle opposite side a (each angle is found the same way, then the third is 180° minus the other two)</li>
+      <li><strong>Law of sines</strong> — a ÷ sin A = b ÷ sin B = c ÷ sin C, which is what solves the cases that start from an angle</li>
       <li><strong>s</strong> — the semi-perimeter, (a + b + c) ÷ 2</li>
     </ul>
 
-    <h2>When three lengths form a valid triangle</h2>
+    <h2>When three values form a valid triangle</h2>
     <p>
-      Not every trio of lengths closes into a triangle. The <strong>triangle inequality</strong> requires each side to be shorter than the sum of the other two — otherwise the two shorter sides cannot reach across the longest one. Sides of 2, 3 and 10 fail this test, and the calculator reports that no triangle exists rather than inventing angles.
+      Not every trio closes into a triangle. The <strong>triangle inequality</strong> requires each
+      side to be shorter than the sum of the other two — otherwise the two shorter sides cannot reach
+      across the longest one. Sides of 2, 3 and 10 fail this test. Angles must leave room for a
+      third, so any two of them must total less than 180°. And at least one value must be a side:
+      three angles fix a triangle's <em>shape</em> but say nothing about its size, so there would be
+      infinitely many answers. In each case the calculator says what is wrong rather than inventing
+      a number.
     </p>
 
     <h2>A worked example: the 3-4-5 triangle</h2>
