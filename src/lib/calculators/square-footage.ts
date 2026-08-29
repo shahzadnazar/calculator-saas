@@ -7,81 +7,24 @@
  * function each, none of them reaching for a unit or a form — is what lets nine calculators
  * share one binding instead of being written nine times.
  *
- * The foot is defined as exactly 0.3048 m, so every conversion here derives from that one
- * number rather than from a rounded factor. A truncated 10.7639104 is out by a part in ten
- * million, which is invisible on a room and wrong on an acreage.
+ * The units themselves live in `area-units.ts`, shared with the area calculator, and are
+ * re-exported here so this module stays the one import a square-footage consumer needs.
  */
-
-export type LengthUnit = 'in' | 'ft' | 'yd' | 'cm' | 'm';
-
-/** Metres per unit, from the exact definition of the foot. */
-const METRES_PER: Record<LengthUnit, number> = {
-  in: 0.0254,
-  ft: 0.3048,
-  yd: 0.9144,
-  cm: 0.01,
-  m: 1,
-};
-
-export const LENGTH_UNITS: { value: LengthUnit; label: string }[] = [
-  { value: 'ft', label: 'feet' },
-  { value: 'in', label: 'inches' },
-  { value: 'yd', label: 'yards' },
-  { value: 'cm', label: 'centimeters' },
-  { value: 'm', label: 'meters' },
-];
-
-/** Feet per unit. */
-export function toFeet(value: number, unit: LengthUnit): number {
-  const m = METRES_PER[unit];
-  if (!Number.isFinite(value) || m === undefined) return Number.NaN;
-  return (value * m) / METRES_PER.ft;
-}
-
-export type AreaUnit = 'sqin' | 'sqft' | 'sqyd' | 'sqm' | 'acre';
-
-/** Square feet per square unit — every one exact, from the same 0.3048. */
-export const SQFT_PER: Record<AreaUnit, number> = {
-  sqin: (0.0254 * 0.0254) / (0.3048 * 0.3048),
-  sqft: 1,
-  sqyd: (0.9144 * 0.9144) / (0.3048 * 0.3048),
-  sqm: 1 / (0.3048 * 0.3048),
-  acre: 43_560,
-};
-
-export const AREA_UNITS: {
-  value: AreaUnit;
-  /** How the unit reads in the price select: "per square feet". */
-  label: string;
-  /** How ONE of it reads: "$3.50 per square foot". */
-  singular: string;
-  /** The row heading in the other-units table. */
-  plural: string;
-}[] = [
-  { value: 'sqft', label: 'square feet', singular: 'square foot', plural: 'Square Feet' },
-  { value: 'sqin', label: 'square inches', singular: 'square inch', plural: 'Square Inches' },
-  { value: 'sqyd', label: 'square yards', singular: 'square yard', plural: 'Square Yards' },
-  { value: 'sqm', label: 'square meters', singular: 'square meter', plural: 'Square Meters' },
-  { value: 'acre', label: 'acres', singular: 'acre', plural: 'Acres' },
-];
-
-/** A square-foot figure expressed in another area unit. */
-export function fromSqFt(areaSqFt: number, unit: AreaUnit): number {
-  const f = SQFT_PER[unit];
-  if (!Number.isFinite(areaSqFt) || f === undefined) return Number.NaN;
-  return areaSqFt / f;
-}
-
-export type AngleUnit = 'deg' | 'rad';
-export const ANGLE_UNITS: { value: AngleUnit; label: string }[] = [
-  { value: 'deg', label: 'degree °' },
-  { value: 'rad', label: 'radian' },
-];
-
-export function toRadians(value: number, unit: AngleUnit): number {
-  if (!Number.isFinite(value)) return Number.NaN;
-  return unit === 'rad' ? value : (value * Math.PI) / 180;
-}
+export {
+  LENGTH_UNITS,
+  METRES_PER,
+  SQFT_PER,
+  AREA_UNITS,
+  ANGLE_UNITS,
+  toFeet,
+  fromSqFt,
+  toRadians,
+  isLengthUnit,
+  convertLength,
+  type LengthUnit,
+  type AreaUnit,
+  type AngleUnit,
+} from './area-units';
 
 /* ------------------------------------------------------------------ */
 /* The nine areas — every dimension already in feet                    */

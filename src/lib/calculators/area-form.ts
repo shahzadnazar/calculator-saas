@@ -1,30 +1,47 @@
 /**
- * Area form binding (R12B1 Commit 2 — task-first migration, geometry shape-picker family; the pilot).
+ * Area form layer — ONE binding, seven shapes.
  *
- * Wraps the UNCHANGED `calculateArea` / `AREA_SHAPES`, frozen by area.test.ts. Everything here is at the
- * VALIDATION / PRESENTATION boundary; the shape identifiers, per-shape formulas, the
- * `Math.max(0, d[k]||0)` normalization and the number return shape are untouched.
+ * The reference puts seven separate calculators on the page: Rectangle, Triangle, Trapezoid,
+ * Circle, Sector, Ellipse and Parallelogram. Each has its own fields, its own Calculate and its own
+ * result, and none of them touches another.
  *
- * Product decisions (R12B1):
- *   • Task-first: every dimension starts EMPTY, the result is empty, and the visitor presses "Calculate
- *     Area" for the first result (live-after-first thereafter). No calculation on load.
- *   • The SHAPE is a structural `<select>` (default rectangle) — plain form state the runtime recomputes
- *     on, NOT a new runtime mode. Each shape owns ONLY the dimensions its source formula needs; fields
- *     are named SHAPE-SCOPED (`<shape>.<key>`) so all seven groups coexist in the DOM (a visitor's values
- *     survive switching away and back) while the island shows/enables only the active group. The binding
- *     reads and validates ONLY the active shape's fields.
- *   • Every active dimension is required, finite and strictly > 0 (empty / 0 / negative / non-finite are
- *     rejected) — strict parsing, never Number(v)||0. No Area shape has a cross-field geometric
- *     relationship, so there is no form-level domain error (unlike Triangle's SSS inequality).
- *   • The UNIT is an INTERPRETIVE `<select>` (default m): it labels the unit the dimensions are entered
- *     in and the squared result unit; it NEVER converts entered numbers. It does not change the computed
- *     area (a label only).
- *   • The complete-result guard lives in the ordinary `resultValue` (a finite, positive area that
- *     reconciles with `calculateArea` for the selected shape + dims, else a NaN sentinel the runtime's
- *     default finite gate rejects). There is NO `isUsableResult`.
+ * As with square footage, they do NOT need seven bindings: a shape is a list of fields plus one
+ * area formula, so `AreaShapeSpec` holds that and `makeAreaBinding` turns a spec into a binding.
+ *
+ * The one rule worth stating plainly: every measurement carries its own unit, but a shape has only
+ * one answer, so each dimension is converted into the FIRST field's unit before the formula runs
+ * and the answer is reported in that unit squared. When every unit matches — the ordinary case, and
+ * every case the reference shows — this is exactly what the reference prints. When they differ, the
+ * answer stays in the unit of the first thing the visitor measured, which is the only choice that
+ * needs no explaining.
+ *
+ * Every displayed figure is reconciled against a recompute by the complete-result guard in
+ * `resultValue`. There is no `isUsableResult`.
  */
-import { calculateArea, AREA_SHAPES, type AreaShapeKey } from './area';
-import { formatNumber } from '@lib/format';
+import {
+  areaRectangle,
+  areaTriangle,
+  areaTrapezoid,
+  areaCircle,
+  areaSector,
+  areaEllipse,
+  areaParallelogram,
+  areaSteps,
+  formatArea,
+  squaredLabel,
+  type AreaShapeKey,
+  type AreaStep,
+} from './area';
+import {
+  convertLength,
+  toRadians,
+  squaredUnitToSqFt,
+  fromSqFt,
+  isLengthUnit,
+  AREA_UNITS,
+  type LengthUnit,
+  type AngleUnit,
+} from './area-units';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -32,197 +49,368 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-export const AREA_UNITS = ['cm', 'm', 'in', 'ft', 'yd'] as const;
-export type AreaUnit = (typeof AREA_UNITS)[number];
-export const DEFAULT_SHAPE: AreaShapeKey = 'rectangle';
-export const DEFAULT_UNIT: AreaUnit = 'm';
+export const DEFAULT_UNIT: LengthUnit = 'm';
 
-const SHAPE_MAP = new Map(AREA_SHAPES.map((s) => [s.key, s]));
-/** Spoken unit words for the accessible announcement ("… square metres"). */
-const UNIT_WORD: Record<string, string> = { cm: 'centimetres', m: 'metres', in: 'inches', ft: 'feet', yd: 'yards' };
+export interface AreaField {
+  /** Field name, unique within its own form only. */
+  name: string;
+  label: string;
+  kind: 'length' | 'angle';
+}
 
-/** Shape-scoped DOM field name for a dimension, e.g. `rectangle.length`, `ellipse.a`. */
-export const fieldName = (shape: string, key: string): string => `${shape}.${key}`;
+export interface AreaShapeSpec {
+  key: AreaShapeKey;
+  title: string;
+  /** One short line under the heading saying what the shape is. */
+  lede: string;
+  fields: AreaField[];
+  /** Area in the first length field's unit, squared. An angle arrives in DEGREES. */
+  area(values: number[]): number;
+  /** A cross-field impossibility the individual fields cannot catch. */
+  check?(values: number[]): string | null;
+  /** An extra note the reference shows beside this shape. */
+  note?: { text: string; href: string; linkText: string };
+}
+
+export const MSG = {
+  required: 'Enter a value.',
+  invalid: 'Enter a number greater than zero.',
+  triangleImpossible:
+    'Those three edges cannot make a triangle — each one must be shorter than the other two together.',
+  angleRange: 'Enter an angle greater than 0 and no more than a full turn.',
+} as const;
+
+const len = (name: string, label: string): AreaField => ({ name, label, kind: 'length' });
+
+/* ------------------------------------------------------------------ */
+/* The seven specs                                                     */
+/* ------------------------------------------------------------------ */
+
+export const AREA_SHAPES: AreaShapeSpec[] = [
+  {
+    key: 'rectangle',
+    title: 'Rectangle',
+    lede: 'Four right angles — a room, a plot, a sheet.',
+    fields: [len('d1', 'Length (l)'), len('d2', 'Width (w)')],
+    area: ([l, w]) => areaRectangle(l, w),
+  },
+  {
+    key: 'triangle',
+    title: 'Triangle',
+    lede: 'Three sides measured, no angles needed.',
+    fields: [len('d1', 'Edge 1 (a)'), len('d2', 'Edge 2 (b)'), len('d3', 'Edge 3 (c)')],
+    area: ([a, b, c]) => areaTriangle(a, b, c),
+    check: ([a, b, c]) => (a + b <= c || a + c <= b || b + c <= a ? MSG.triangleImpossible : null),
+    note: {
+      text: 'to determine all three edges of the triangle given other parameters.',
+      href: '/math/triangle-calculator',
+      linkText: 'Use the Triangle Calculator',
+    },
+  },
+  {
+    key: 'trapezoid',
+    title: 'Trapezoid',
+    lede: 'Two parallel sides and the distance between them.',
+    fields: [len('d1', 'Base 1 (b₁)'), len('d2', 'Base 2 (b₂)'), len('d3', 'Height (h)')],
+    area: ([b1, b2, h]) => areaTrapezoid(b1, b2, h),
+  },
+  {
+    key: 'circle',
+    title: 'Circle',
+    lede: 'Measured from the centre out — the radius, not the diameter.',
+    fields: [len('d1', 'Radius (r)')],
+    area: ([r]) => areaCircle(r),
+  },
+  {
+    key: 'sector',
+    title: 'Sector',
+    lede: 'A wedge of a circle, cut by an angle at the centre.',
+    fields: [len('d1', 'Radius (r)'), { name: 'd2', label: 'Angle (A)', kind: 'angle' }],
+    area: ([r, deg]) => areaSector(r, deg),
+    check: ([, deg]) => (deg <= 0 || deg > 360 ? MSG.angleRange : null),
+  },
+  {
+    key: 'ellipse',
+    title: 'Ellipse',
+    lede: 'A stretched circle — half its width and half its height.',
+    fields: [len('d1', 'Semi-major Axes (a)'), len('d2', 'Semi-minor Axes (b)')],
+    area: ([a, b]) => areaEllipse(a, b),
+  },
+  {
+    key: 'parallelogram',
+    title: 'Parallelogram',
+    lede: 'A slanted rectangle — base times perpendicular height.',
+    fields: [len('d1', 'Base (b)'), len('d2', 'Height (h)')],
+    area: ([b, h]) => areaParallelogram(b, h),
+  },
+];
+
+export const areaShapeByKey = (key: AreaShapeKey): AreaShapeSpec =>
+  AREA_SHAPES.find((s) => s.key === key)!;
+
+/* ------------------------------------------------------------------ */
+/* Values + computation                                                */
+/* ------------------------------------------------------------------ */
 
 export interface AreaValues {
-  shape: string;
-  unit: string;
-  /** The ACTIVE shape's raw dimension strings, keyed by the shape's dimension keys. */
+  /** Raw dimension entries, keyed by field name. */
   dims: Record<string, string>;
+  /** The unit chosen beside each dimension. */
+  units: Record<string, string>;
 }
 
 export interface AreaComputed {
-  shape: AreaShapeKey;
-  shapeLabel: string;
-  unit: string;
+  key: AreaShapeKey;
+  values: AreaValues;
+  /** The unit the answer is in — the first length field's. */
+  unit: LengthUnit;
+  /** Dimensions converted into `unit` (an angle into DEGREES). */
+  converted: number[];
+  /** The area, in `unit` squared. */
   area: number;
-  /** The parsed active dimensions used to compute the area (for the guard's shape-identity check). */
-  dims: Record<string, number>;
 }
 
-/* ------------------------------------------------------------------ */
-/* Parsing + validation (pure) — strict, never Number(v) || 0          */
-/* ------------------------------------------------------------------ */
-
-type NumParse = 'empty' | 'invalid' | number;
-
-/** A geometric dimension: required, finite and strictly greater than zero. */
-function parsePositive(raw: string): NumParse {
-  const t = (raw ?? '').trim();
-  if (t === '') return 'empty';
-  const n = Number(t);
+/** A strictly positive finite decimal; empty and junk are told apart. */
+function parsePositive(raw: string): number | 'empty' | 'invalid' {
+  const s = (raw ?? '').trim();
+  if (s === '') return 'empty';
+  if (!/^\d+\.?\d*$|^\.\d+$/.test(s)) return 'invalid';
+  const n = Number(s);
   if (!Number.isFinite(n) || n <= 0) return 'invalid';
   return n;
 }
 
-const shapeDef = (shape: string) => SHAPE_MAP.get(shape as AreaShapeKey);
+const asLengthUnit = (raw: string): LengthUnit => (isLengthUnit(raw) ? raw : DEFAULT_UNIT);
 
-/**
- * Validate the ACTIVE shape's dimensions only. Each active dimension must be a finite number > 0; the
- * message uses the shape's own visible label. Inactive shapes' fields are never read or blamed. Errors
- * are keyed by the SHAPE-SCOPED field name so the runtime binds them to the right control.
- */
-export function validateAreaValues(values: AreaValues): ValidationResult {
-  const def = shapeDef(values.shape);
-  if (!def) return { ok: false, fieldErrors: { shape: 'Choose a shape.' } }; // defensive; the select is closed
+/** The unit the answer is reported in: whatever the first length field was measured in. */
+export function resultUnit(spec: AreaShapeSpec, v: AreaValues): LengthUnit {
+  const first = spec.fields.find((f) => f.kind === 'length');
+  return asLengthUnit(first ? (v.units[first.name] ?? '') : '');
+}
 
-  const fieldErrors: Record<string, string> = {};
-  for (const inp of def.inputs) {
-    const parsed = parsePositive(values.dims[inp.key] ?? '');
-    if (parsed === 'empty' || parsed === 'invalid') {
-      fieldErrors[fieldName(def.key, inp.key)] = `Enter a ${inp.label.toLowerCase()} greater than zero.`;
+/** Every dimension in the answer's unit; an angle in degrees. NaN where an entry is unusable. */
+export function convertDims(spec: AreaShapeSpec, v: AreaValues): number[] {
+  const target = resultUnit(spec, v);
+  return spec.fields.map((f) => {
+    const parsed = parsePositive(v.dims[f.name] ?? '');
+    if (typeof parsed !== 'number') return Number.NaN;
+    if (f.kind === 'angle') {
+      const unit = (v.units[f.name] as AngleUnit) ?? 'deg';
+      // The formula is stated in degrees, so a radian entry is brought to degrees, not the reverse.
+      return unit === 'rad' ? (parsed * 180) / Math.PI : parsed;
     }
-  }
-  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+    return convertLength(parsed, asLengthUnit(v.units[f.name] ?? ''), target);
+  });
 }
 
-/* ------------------------------------------------------------------ */
-/* Computation (pure) — unchanged pass-through to calculateArea         */
-/* ------------------------------------------------------------------ */
+export function validateArea(spec: AreaShapeSpec, v: AreaValues): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+  for (const f of spec.fields) {
+    const parsed = parsePositive(v.dims[f.name] ?? '');
+    if (parsed === 'empty') fieldErrors[f.name] = MSG.required;
+    else if (parsed === 'invalid') fieldErrors[f.name] = MSG.invalid;
+  }
+  if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
 
-export function computeArea(values: AreaValues): AreaComputed {
-  const def = shapeDef(values.shape) ?? SHAPE_MAP.get(DEFAULT_SHAPE)!;
-  const dims: Record<string, number> = {};
-  for (const inp of def.inputs) dims[inp.key] = Number(values.dims[inp.key]);
-  return {
-    shape: def.key,
-    shapeLabel: def.label,
-    unit: values.unit,
-    area: calculateArea(def.key, dims),
-    dims,
-  };
+  // Only once every field is individually sound can a cross-field impossibility be judged.
+  const cross = spec.check?.(convertDims(spec, v));
+  if (cross) return { ok: false, formError: cross };
+  return { ok: true };
 }
 
-/* ------------------------------------------------------------------ */
-/* Complete-result guard (pure) — the resultValue sentinel             */
-/* ------------------------------------------------------------------ */
+export function computeArea(spec: AreaShapeSpec, v: AreaValues): AreaComputed {
+  const converted = convertDims(spec, v);
+  const area = converted.every(Number.isFinite) ? spec.area(converted) : Number.NaN;
+  return { key: spec.key, values: v, unit: resultUnit(spec, v), converted, area };
+}
 
-const FAIL = Number.NaN; // non-finite sentinel → the runtime's default finite gate rejects the result
+/** The area, but only when everything on show reconciles with a recompute. */
+export function completeAreaValue(spec: AreaShapeSpec, r: AreaComputed): number {
+  if (r.key !== spec.key) return Number.NaN;
+  if (!r.converted.every((n) => Number.isFinite(n) && n > 0)) return Number.NaN;
+  if (!Number.isFinite(r.area) || r.area <= 0) return Number.NaN;
+  if (spec.check?.(r.converted)) return Number.NaN;
+  if (resultUnit(spec, r.values) !== r.unit) return Number.NaN;
 
-/**
- * The dominant area — but ONLY when the whole result is well-formed: a known shape, every active
- * dimension finite and > 0, a finite positive area, and the area reconciling with `calculateArea` for the
- * selected shape + dims (shape identity; also rejects the +Infinity-dimension → Infinity-area path and
- * the unknown-shape NaN). Any failure returns the NaN sentinel — NO `isUsableResult`.
- */
-export function completeResultValue(r: AreaComputed): number {
-  const def = SHAPE_MAP.get(r.shape);
-  if (!def) return FAIL;
-  if (!Number.isFinite(r.area) || r.area <= 0) return FAIL;
-
-  for (const inp of def.inputs) {
-    const v = r.dims[inp.key];
-    if (!Number.isFinite(v) || v <= 0) return FAIL;
+  const reConverted = convertDims(spec, r.values);
+  if (reConverted.length !== r.converted.length) return Number.NaN;
+  for (let i = 0; i < reConverted.length; i += 1) {
+    if (reConverted[i] !== r.converted[i]) return Number.NaN;
   }
-
-  const expected = calculateArea(def.key, r.dims);
-  if (!Number.isFinite(expected)) return FAIL;
-  if (Math.abs(r.area - expected) > Math.max(1e-9, Math.abs(expected) * 1e-9)) return FAIL;
-
+  if (spec.area(reConverted) !== r.area) return Number.NaN;
   return r.area;
 }
 
 /* ------------------------------------------------------------------ */
-/* Presentation (pure)                                                 */
+/* Presentation                                                        */
 /* ------------------------------------------------------------------ */
 
-/** Unit squared for the visible result label, e.g. "m²". */
-export const unitSquared = (unit: string): string => `${unit}²`;
-
-/** Concise announcement — the dominant area only, spoken with the unit word. */
-export function describeAreaResult(r: AreaComputed): string {
-  return `The calculated area is ${formatNumber(r.area, 3)} square ${UNIT_WORD[r.unit] ?? r.unit}.`;
+export interface OtherUnitRow {
+  key: string;
+  label: string;
+  value: string;
 }
 
-/** The visible interpretation sentence (§11), naming the shape and the squared unit. */
-export function interpretArea(r: AreaComputed): string {
-  return `The area of the selected ${r.shapeLabel.toLowerCase()} is ${formatNumber(r.area, 3)} ${unitSquared(r.unit)}.`;
+export interface AreaPresentation {
+  /** The worked formula, with the entered numbers substituted. */
+  steps: AreaStep[];
+  /** "1884.9555921539". */
+  answer: string;
+  /** "meters²". */
+  answerUnit: string;
+  a11y: string;
+  /** True when the units entered were not all the same, so the answer's unit needs saying. */
+  mixedUnits: boolean;
+  others: OtherUnitRow[];
+}
+
+export function presentArea(spec: AreaShapeSpec, r: AreaComputed): AreaPresentation {
+  const unitLabel = squaredLabel(r.unit);
+  const lengthUnits = spec.fields
+    .filter((f) => f.kind === 'length')
+    .map((f) => r.values.units[f.name]);
+  const sqft = squaredUnitToSqFt(r.area, r.unit);
+  return {
+    steps: areaSteps(spec.key, r.converted, r.unit, r.area),
+    answer: formatArea(r.area),
+    answerUnit: unitLabel,
+    a11y: `${formatArea(r.area)} square ${unitLabel.replace('²', '')}`,
+    mixedUnits: new Set(lengthUnits).size > 1,
+    others: AREA_UNITS.map((u) => ({
+      key: u.value,
+      label: u.plural,
+      value: formatArea(fromSqFt(sqft, u.value)),
+    })),
+  };
+}
+
+export function describeArea(spec: AreaShapeSpec, r: AreaComputed): string {
+  return `${spec.title} area: ${formatArea(r.area)} square ${squaredLabel(r.unit).replace('²', '')}.`;
 }
 
 /* ------------------------------------------------------------------ */
 /* The binding                                                         */
 /* ------------------------------------------------------------------ */
 
-const control = (root: HTMLElement, name: string) =>
-  root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
+const value = (root: HTMLElement, name: string): string =>
+  root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`)?.value ?? '';
 
-export const areaBinding: FormCalculatorBinding<AreaValues, AreaComputed> = {
-  readValues(root) {
-    const shape = control(root, 'shape')?.value ?? DEFAULT_SHAPE;
-    const unit = control(root, 'unit')?.value ?? DEFAULT_UNIT;
-    const def = shapeDef(shape) ?? SHAPE_MAP.get(DEFAULT_SHAPE)!;
-    const dims: Record<string, string> = {};
-    for (const inp of def.inputs) dims[inp.key] = control(root, fieldName(shape, inp.key))?.value ?? '';
-    return { shape, unit, dims };
-  },
+export function readAreaValues(root: HTMLElement, spec: AreaShapeSpec): AreaValues {
+  const dims: Record<string, string> = {};
+  const units: Record<string, string> = {};
+  for (const f of spec.fields) {
+    dims[f.name] = value(root, f.name);
+    units[f.name] = value(root, `${f.name}Unit`) || (f.kind === 'angle' ? 'deg' : DEFAULT_UNIT);
+  }
+  return { dims, units };
+}
 
-  validate: validateAreaValues,
+/** One binding per shape, built from its spec — never seven hand-written bindings. */
+export function makeAreaBinding(spec: AreaShapeSpec): FormCalculatorBinding<AreaValues, AreaComputed> {
+  return {
+    readValues: (root) => readAreaValues(root, spec),
+    validate: (v) => validateArea(spec, v),
+    compute: (v) => computeArea(spec, v),
+    resultValue: (r) => completeAreaValue(spec, r),
+    describeResult: (r) => describeArea(spec, r),
+    renderResult(result, context: FormRenderContext) {
+      const p = presentArea(spec, result);
+      const set = (sel: string, text: string) => {
+        const el = context.result.querySelector<HTMLElement>(sel);
+        if (el) el.textContent = text;
+      };
 
-  compute: computeArea,
+      // The working is rebuilt each time: its LENGTH varies by shape and by whether a π multiple
+      // is worth showing, so a fixed set of slots would either truncate it or leave gaps.
+      const work = context.result.querySelector<HTMLElement>('[data-ar-steps]');
+      if (work) {
+        work.textContent = '';
+        for (const step of p.steps) {
+          const row = document.createElement('div');
+          row.className = 'ar-step';
+          if (step.final) row.classList.add('ar-step--final');
 
-  /** The dominant area when the ENTIRE result is well-formed, else a NaN sentinel — no isUsableResult. */
-  resultValue: completeResultValue,
+          const label = document.createElement('span');
+          label.className = 'ar-step__label';
+          label.textContent = step.label ?? '';
+          row.appendChild(label);
 
-  describeResult: describeAreaResult,
+          // Spaces around the equals sign are real characters, not just a grid gap, so the
+          // working copies and pastes as "Area = l × w" and reads aloud that way too.
+          const eq = document.createElement('span');
+          eq.className = 'ar-step__eq';
+          eq.textContent = ' = ';
+          row.appendChild(eq);
 
-  renderResult(result, context: FormRenderContext) {
-    const scope = context.result;
-    const setText = (sel: string, text: string) => {
-      const el = scope.querySelector<HTMLElement>(sel);
-      if (el) el.textContent = text;
-    };
-    setText('[data-result-when~="valid"] [data-result-value]', formatNumber(result.area, 3));
-    setText('[data-result-when~="valid"] [data-result-value-a11y]', `${formatNumber(result.area, 3)} square ${UNIT_WORD[result.unit] ?? result.unit}`);
-    setText('[data-ar-unit-sq]', unitSquared(result.unit));
-    setText('[data-ar-interpretation]', interpretArea(result));
-  },
+          const expr = document.createElement('span');
+          expr.className = 'ar-step__expr';
 
-  resetValues(root, _mode: ResetMode) {
-    const shapeSel = control(root, 'shape');
-    if (shapeSel) shapeSel.value = DEFAULT_SHAPE;
-    const unitSel = control(root, 'unit');
-    if (unitSel) unitSel.value = DEFAULT_UNIT;
-    // Clear every dimension field across ALL shapes (not just the active one), so switching shapes after
-    // a reset never restores stale values.
-    for (const s of AREA_SHAPES) {
-      for (const inp of s.inputs) {
-        const el = control(root, fieldName(s.key, inp.key));
-        if (el) el.value = '';
+          // The figure gets its own element so the result-value contract reads the number alone,
+          // with the unit as a sibling rather than swept into it.
+          const figure = document.createElement('span');
+          figure.textContent = step.expression;
+          // The last line IS the answer, so it is what the fleet's result-value contract points at.
+          if (step.final) figure.setAttribute('data-result-value', '');
+          expr.appendChild(figure);
+
+          if (step.unit) {
+            const unit = document.createElement('span');
+            unit.className = 'ar-step__unit';
+            unit.textContent = ` ${step.unit}`;
+            expr.appendChild(unit);
+          }
+          row.appendChild(expr);
+          work.appendChild(row);
+        }
       }
-    }
-  },
-};
 
-/* ------------------------------------------------------------------ */
-/* Worked example (labelled; the visitor's fields stay EMPTY)          */
-/* ------------------------------------------------------------------ */
+      set('[data-result-when~="valid"] [data-result-value-a11y]', p.a11y);
+
+      const mixed = context.result.querySelector<HTMLElement>('[data-ar-mixed]');
+      if (mixed) mixed.hidden = !p.mixedUnits;
+
+      for (const row of p.others) {
+        set(`[data-ar-other="${row.key}"] [data-ar-other-value]`, row.value);
+      }
+    },
+    resetValues(root, _mode: ResetMode) {
+      for (const f of spec.fields) {
+        const el = root.querySelector<HTMLInputElement>(`[name="${f.name}"]`);
+        if (el) el.value = '';
+        const unit = root.querySelector<HTMLSelectElement>(`[name="${f.name}Unit"]`);
+        if (unit) unit.value = f.kind === 'angle' ? 'deg' : DEFAULT_UNIT;
+      }
+    },
+  };
+}
 
 /**
- * Example inputs for the labelled worked result shown on first load.
+ * Example values for the labelled worked result each shape shows on load.
  *
- * These are OURS, not the visitor's. The shared runtime computes them and calls
- * this binding's own `renderResult`, so the example reuses the calculator's real
- * result markup and can never drift from the engine. The visitor's fields are
- * never written to — they load and stay empty behind it.
+ * These are OURS, not the visitor's: the runtime computes them and calls the binding's own
+ * renderResult, so the example reuses the real result markup and can never drift from the engine.
+ * The visitor's own fields load and stay empty behind it.
  */
-export const AREA_EXAMPLE_VALUES: AreaValues = { shape: 'rectangle', unit: 'm', dims: { length: '12', width: '10' } };
+export function areaExampleValues(spec: AreaShapeSpec): AreaValues {
+  const byKey: Partial<Record<AreaShapeKey, number[]>> = {
+    rectangle: [30, 20],
+    triangle: [30, 45, 50],
+    trapezoid: [30, 45, 20],
+    circle: [30],
+    sector: [30, 90],
+    ellipse: [30, 20],
+    parallelogram: [30, 20],
+  };
+  const numbers = byKey[spec.key] ?? spec.fields.map(() => 10);
+  const dims: Record<string, string> = {};
+  const units: Record<string, string> = {};
+  spec.fields.forEach((f, i) => {
+    dims[f.name] = String(numbers[i]);
+    units[f.name] = f.kind === 'angle' ? 'deg' : DEFAULT_UNIT;
+  });
+  return { dims, units };
+}
+
+/** The first shape's example, for the fleet-wide labelled-example check. */
+export const AREA_EXAMPLE_VALUES = areaExampleValues(AREA_SHAPES[0]);
+export const areaBinding = makeAreaBinding(AREA_SHAPES[0]);
