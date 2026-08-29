@@ -185,9 +185,9 @@ dynamic `IslandBySlug` route imported all islands into a runtime map, so Astro e
 
 `embed-components.json` carries **component identity only** (`slug → {componentPath, props?}`);
 the registry alone owns category/route, so there is no projection to drift.
-Special cases: scientific → `ScientificCalculatorEmbed`; statistics + standard-deviation
-→ `StatisticsCalculator` (the latter with `props: { primary: 'sd' }`); password-generator
-→ `PasswordGeneratorCalculator`.
+Special cases: scientific → `ScientificCalculatorEmbed`; password-generator →
+`PasswordGeneratorCalculator`. No embed carries `props` any more — standard-deviation now
+has its own island rather than a configured `StatisticsCalculator`.
 
 **Forbidden in a generated embed page:** a component map, `import.meta.glob`, a runtime
 dynamic import, a `<script>` loader, or ≠ 1 island import. Gated by

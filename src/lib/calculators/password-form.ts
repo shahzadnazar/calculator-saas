@@ -1,173 +1,167 @@
 /**
- * Password generator binding (R4) — binds the reviewed secure generator to the
- * shared generator runtime. The pure parts (validation, strength, safe
- * description) are unit tested; the DOM parts (readSettings/renderOutput/
- * resetSettings) are exercised end-to-end.
+ * Password form layer — settings in, a password and its strength out.
  *
- * Security: generation delegates to the existing `generatePassword`
- * (`crypto.getRandomValues`, one char per selected class, Fisher–Yates shuffle).
- * The password is placed only in the output control's value; `describeOutput`
- * returns a CONTENT-FREE message so the runtime never announces it.
+ * Wraps the pure generator and layers the visitor-facing contract: reading the length, the four
+ * character classes and the three exclusions, rejecting a setting that leaves nothing to draw from,
+ * and presenting the strength and entropy of the pool that was ACTUALLY used.
+ *
+ * Runs on the UNCHANGED generator runtime: an explicit Generate, and a settings change that marks
+ * the shown password STALE — kept visible, Copy disabled — rather than silently regenerating. The
+ * password is never announced, stored, logged or transmitted.
  */
 import {
   generatePassword,
   estimateEntropyBits,
   strengthLabel,
+  strengthPercent,
+  buildPool,
+  activeSets,
+  CLASS_ORDER,
+  MIN_LENGTH,
+  MAX_LENGTH,
   type PasswordOptions,
+  type RandomInt,
+  type Strength,
 } from './password-generator';
-import type {
-  GeneratorBinding,
-  GeneratorRenderContext,
-  ValidationResult,
-} from '@lib/result/generator-runtime';
+import type { GeneratorBinding, GeneratorRenderContext } from '@lib/result/generator-runtime';
+import type { ValidationResult } from '@lib/result/form-runtime';
 
-export const MIN_LENGTH = 4;
-export const MAX_LENGTH = 64;
-export const DEFAULT_LENGTH = 16;
+export const MSG = {
+  lengthRange: `Choose a length between ${MIN_LENGTH} and ${MAX_LENGTH}.`,
+  noCharsets: 'Select at least one character type.',
+  everythingExcluded: 'Those exclusions leave no characters to choose from. Allow a type back in.',
+  tooLongForNoRepeats: (pool: number) =>
+    `With no repeated characters the longest possible password is ${pool}. Shorten it, or allow repeats.`,
+} as const;
 
-export type PasswordSettings = PasswordOptions;
+export interface PasswordSettings extends PasswordOptions {}
 
 export interface PasswordOutput {
   password: string;
   bits: number;
-  strength: string;
-  length: number;
-  types: string[];
+  strength: Strength;
+  percent: number;
+  poolSize: number;
 }
 
-const CLASS_LABELS: Array<[keyof PasswordOptions, string]> = [
-  ['upper', 'uppercase'],
-  ['lower', 'lowercase'],
-  ['digits', 'numbers'],
-  ['symbols', 'symbols'],
-];
+const checked = (root: HTMLElement, name: string): boolean =>
+  root.querySelector<HTMLInputElement>(`[name="${name}"]`)?.checked ?? false;
 
-export function selectedClassCount(s: PasswordSettings): number {
-  return CLASS_LABELS.reduce((n, [key]) => n + (s[key] ? 1 : 0), 0);
+export function readSettings(root: HTMLElement): PasswordSettings {
+  const raw = root.querySelector<HTMLInputElement>('[name="length"]')?.value ?? '';
+  return {
+    length: Number(raw.trim()),
+    lower: checked(root, 'lower'),
+    upper: checked(root, 'upper'),
+    digits: checked(root, 'digits'),
+    symbols: checked(root, 'symbols'),
+    excludeAmbiguous: checked(root, 'excludeAmbiguous'),
+    excludeBrackets: checked(root, 'excludeBrackets'),
+    noRepeats: checked(root, 'noRepeats'),
+  };
 }
-export function selectedTypeLabels(s: PasswordSettings): string[] {
-  return CLASS_LABELS.filter(([key]) => s[key]).map(([, label]) => label);
-}
 
-/* ------------------------------------------------------------------ */
-/* Validation (pure)                                                   */
-/* ------------------------------------------------------------------ */
-
-/**
- * Validate before generation: at least one character type; a present, finite,
- * integer length within [MIN_LENGTH, MAX_LENGTH]; and a length long enough to
- * include every selected type (never silently violate the selection).
- */
-export function validatePasswordSettings(s: PasswordSettings): ValidationResult {
-  const fieldErrors: Record<string, string> = {};
-  const classes = selectedClassCount(s);
-
-  if (classes === 0) fieldErrors.charsets = 'Select at least one character type.';
-
-  if (!Number.isFinite(s.length) || !Number.isInteger(s.length) || s.length < MIN_LENGTH || s.length > MAX_LENGTH) {
-    fieldErrors.length = 'Enter a valid password length.';
-  } else if (classes > 0 && s.length < classes) {
-    fieldErrors.length = `Increase the length to at least ${classes} to include every selected character type.`;
+export function validateSettings(settings: PasswordSettings): ValidationResult {
+  const { length } = settings;
+  if (!Number.isFinite(length) || !Number.isInteger(length) || length < MIN_LENGTH || length > MAX_LENGTH) {
+    return { ok: false, fieldErrors: { length: MSG.lengthRange } };
   }
-
-  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+  if (!CLASS_ORDER.some((name) => settings[name])) {
+    return { ok: false, fieldErrors: { charsets: MSG.noCharsets } };
+  }
+  // Every class the visitor picked was emptied by the exclusions — a real state, and not their fault.
+  if (activeSets(settings).length === 0) {
+    return { ok: false, fieldErrors: { charsets: MSG.everythingExcluded } };
+  }
+  const pool = new Set(buildPool(settings)).size;
+  if (settings.noRepeats && length > pool) {
+    return { ok: false, fieldErrors: { length: MSG.tooLongForNoRepeats(pool) } };
+  }
+  return { ok: true };
 }
 
-/* ------------------------------------------------------------------ */
-/* Description (pure, content-free)                                    */
-/* ------------------------------------------------------------------ */
-
-/** Deliberately content-free: the generated password is NEVER announced. */
-export function describePasswordOutput(_output: PasswordOutput): string {
-  return 'Password generated.';
+export function generate(settings: PasswordSettings, rng?: RandomInt): PasswordOutput {
+  const bits = estimateEntropyBits(settings);
+  return {
+    password: generatePassword(settings, rng),
+    bits,
+    strength: strengthLabel(bits),
+    percent: strengthPercent(bits),
+    poolSize: new Set(buildPool(settings)).size,
+  };
 }
 
-export function passwordMeta(output: PasswordOutput): string {
-  return `${output.length} characters · ${output.types.join(', ')} · about ${output.bits} bits of entropy`;
-}
-
-/* ------------------------------------------------------------------ */
-/* DOM helpers                                                          */
-/* ------------------------------------------------------------------ */
-
-const formOf = (root: HTMLElement) => root.querySelector<HTMLFormElement>('[data-form]');
-const control = (root: HTMLElement, name: string) =>
-  formOf(root)?.elements.namedItem(name) as HTMLInputElement | null;
-
-/* ------------------------------------------------------------------ */
-/* Binding                                                             */
-/* ------------------------------------------------------------------ */
-
-export const passwordBinding: GeneratorBinding<PasswordSettings, PasswordOutput> = {
-  readSettings(root) {
-    return {
-      length: Number(control(root, 'length')?.value),
-      upper: control(root, 'upper')?.checked ?? false,
-      lower: control(root, 'lower')?.checked ?? false,
-      digits: control(root, 'digits')?.checked ?? false,
-      symbols: control(root, 'symbols')?.checked ?? false,
-    };
-  },
-
-  validateSettings: validatePasswordSettings,
-
-  generate(settings) {
-    const password = generatePassword(settings);
-    const bits = estimateEntropyBits(settings);
-    return {
-      password,
-      bits,
-      strength: strengthLabel(bits),
-      length: settings.length,
-      types: selectedTypeLabels(settings),
-    };
-  },
-
-  renderOutput(output, ctx: GeneratorRenderContext) {
-    const q = <T extends HTMLElement>(sel: string) => ctx.result.querySelector<T>(sel);
-    const out = q<HTMLInputElement>('[data-generator-output]');
-    if (out) out.value = output.password; // the ONLY place the password lands
-    const strengthEl = q('[data-strength]');
-    if (strengthEl) strengthEl.textContent = output.strength;
-    const meta = q('[data-output-meta]');
-    if (meta) meta.textContent = passwordMeta(output);
-    const meter = q<HTMLElement>('[data-strength-meter]');
-    if (meter) {
-      meter.style.width = `${Math.min(100, Math.round((output.bits / 128) * 100))}%`;
-      meter.dataset.level = output.strength.toLowerCase().replace(/\s+/g, '-');
-    }
-  },
-
-  describeOutput: describePasswordOutput,
-
-  resetSettings(root) {
-    const len = control(root, 'length');
-    if (len) len.value = String(DEFAULT_LENGTH);
-    for (const [key] of CLASS_LABELS) {
-      const c = control(root, key);
-      if (c) c.checked = true;
-    }
-    const disp = root.querySelector<HTMLElement>('[data-length-display]');
-    if (disp) disp.textContent = String(DEFAULT_LENGTH);
-  },
-};
-
-/* ------------------------------------------------------------------ */
-/* Worked example (labelled; the visitor's controls keep their defaults)*/
-/* ------------------------------------------------------------------ */
+/** Entropy as the reference prints it: one decimal place, then "bits". */
+export const formatBits = (bits: number): string => `${(Math.round(bits * 10) / 10).toFixed(1)} bits`;
 
 /**
- * Example settings for the labelled sample output shown on first load.
+ * What the live region says.
  *
- * The sample password is generated fresh in the browser from these settings and
- * is illustrative only — like every generator output it is never announced,
- * stored, logged or transmitted, and it does not count as the visitor's first
- * generation (Copy stays disabled until they generate their own).
+ * Never the password. A generated secret read aloud by a screen reader, in a room or on a call, is
+ * exactly the leak the tool exists to avoid.
  */
-export const PASSWORD_EXAMPLE_SETTINGS: PasswordSettings = {
-  length: 16,
-  upper: true,
+export function describeOutput(output: PasswordOutput): string {
+  return output.password ? 'Password generated.' : '';
+}
+
+export function renderOutput(output: PasswordOutput, context: GeneratorRenderContext): void {
+  const scope = context.result;
+  const field = scope.querySelector<HTMLInputElement>('[data-generator-output]');
+  if (field) field.value = output.password;
+
+  const set = (selector: string, text: string) => {
+    const node = scope.querySelector<HTMLElement>(selector);
+    if (node) node.textContent = text;
+  };
+  set('[data-strength]', output.strength);
+  set('[data-entropy]', formatBits(output.bits));
+
+  const meter = scope.querySelector<HTMLElement>('[data-strength-meter]');
+  if (meter) {
+    meter.style.width = `${output.percent}%`;
+    meter.setAttribute('data-strength-level', output.strength.toLowerCase().replace(' ', '-'));
+  }
+}
+
+/** What the generator opens on — the reference's own defaults. */
+export const DEFAULTS: PasswordSettings = {
+  length: 10,
   lower: true,
+  upper: true,
   digits: true,
   symbols: true,
+  excludeAmbiguous: true,
+  excludeBrackets: true,
+  noRepeats: false,
 };
+
+export const passwordBinding: GeneratorBinding<PasswordSettings, PasswordOutput> = {
+  readSettings,
+  validateSettings,
+  generate: (settings) => generate(settings),
+  renderOutput,
+  describeOutput,
+  resetSettings(root) {
+    for (const [name, value] of Object.entries(DEFAULTS)) {
+      const input = root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+      if (!input) continue;
+      if (input.type === 'checkbox') input.checked = Boolean(value);
+      else input.value = String(value);
+    }
+    const slider = root.querySelector<HTMLInputElement>('[data-length-slider]');
+    if (slider) slider.value = String(DEFAULTS.length);
+    const display = root.querySelector<HTMLElement>('[data-length-display]');
+    if (display) display.textContent = String(DEFAULTS.length);
+  },
+};
+
+/**
+ * Settings for the labelled worked example shown on load.
+ *
+ * These are OURS, not the visitor's: the runtime generates from them in the browser and calls this
+ * binding's own renderOutput, so the example reuses the real output markup. Nothing is baked into
+ * the server HTML, and the example is never announced.
+ */
+export const PASSWORD_EXAMPLE_SETTINGS: PasswordSettings = { ...DEFAULTS };
+
+export { MIN_LENGTH, MAX_LENGTH };

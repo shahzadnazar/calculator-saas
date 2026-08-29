@@ -40,10 +40,13 @@ describe('embed-components ↔ registry coverage', () => {
     for (const [, def] of entries) {
       if (def.props) for (const v of Object.values(def.props)) expect(['string', 'number', 'boolean']).toContain(typeof v);
     }
-    // The only prop in the fleet: standard-deviation reuses StatisticsCalculator with primary='sd'.
-    expect(EMBED_COMPONENTS['standard-deviation-calculator'].props).toEqual({ primary: 'sd' });
-    expect(EMBED_COMPONENTS['statistics-calculator'].props).toBeUndefined();
+    // No prop is left in the fleet: standard-deviation now has its own island rather than a
+    // configured StatisticsCalculator, so component identity alone names every embed.
+    for (const [slug, def] of entries) expect(def.props, `${slug} should carry no props`).toBeUndefined();
     expect(EMBED_COMPONENTS['standard-deviation-calculator'].componentPath).toBe(
+      '@components/islands/StandardDeviationCalculator.astro',
+    );
+    expect(EMBED_COMPONENTS['statistics-calculator'].componentPath).toBe(
       '@components/islands/StatisticsCalculator.astro',
     );
     expect(EMBED_COMPONENTS['scientific-calculator'].componentPath).toBe(

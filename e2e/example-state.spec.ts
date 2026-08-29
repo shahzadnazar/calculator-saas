@@ -96,6 +96,10 @@ const STRUCTURAL_DEFAULTS: Record<string, string> = {
   // state but an unanswerable one. The salary amount itself still loads empty.
   holidaysPerYear: 'salary: the documented holidays-per-year assumption',
   vacationDaysPerYear: 'salary: the documented vacation-days assumption',
+  // The password generator's length moved from a slider to a number box paired with one, so its
+  // default is now visible to this check. Ten is the length the product ships with, not the
+  // visitor's own figure — the same kind of default the bare slider carried before.
+  length: 'password generator: the generator length default',
   lower: 'random number: the generator range default',
   upper: 'random number: the generator range default',
   count: 'random number: the generator count default',
