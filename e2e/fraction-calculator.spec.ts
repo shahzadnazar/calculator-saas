@@ -1,251 +1,303 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Fraction calculator — R17B1 task-first migration (bounded Math singleton). Wraps the UNCHANGED
- * computeFraction / simplify via its OWN fraction-form.ts binding on the UNCHANGED standard-form
- * runtime. Two fractions + an operation <select> (add/subtract/multiply/divide); the dominant result
- * is the simplified fraction, with a mixed number (only when it differs) and the decimal as
- * secondaries. Task-first: fields start EMPTY, explicit "Calculate Fraction" → live-after-first,
- * Reset. Strict integer fields; a zero denominator and division by a zero-valued fraction are
- * rejected. NO isUsableResult — the complete-result guard is a NaN sentinel; a valid 0 renders.
+ * Fraction calculators — the reference's SIX, each on its own, on the live page.
+ *
+ * Every reference figure asserted here was verified against the reference's own printed output:
+ * 2/7 + 3/8 = 37/56 at 0.66071428571429, −2 3/4 + 3 5/7 = 27/28, 2 21/98 = 31/14 = 2 3/14,
+ * 1.375 = 11/8 = 1 3/8, 2/7 = 0.28571428571429, and the thirty-one-digit big-number sum.
  */
 const ROUTE = '/math/fraction-calculator';
-const DEBOUNCE = 300;
 
-const shell = (page: Page) => page.locator('#fr-result');
-const primary = (page: Page) => page.locator('#fr-result [data-result-when~="valid"] [data-result-value]').first();
-const summaryLabel = (page: Page) => page.locator('#fr-result [data-result-summary-label]');
-const mixed = (page: Page) => page.locator('[data-fr-mixed]');
-const mixedRow = (page: Page) => page.locator('[data-fr-mixed-row]');
-const decimal = (page: Page) => page.locator('[data-fr-decimal]');
-const interpretation = (page: Page) => page.locator('[data-fr-interpretation]');
-const live = (page: Page) => page.locator('#fr-live');
-const submit = (page: Page) => page.getByRole('button', { name: 'Calculate Fraction' });
-const region = (page: Page, when: string) => page.locator(`#fr-result [data-result-when~="${when}"]`);
+type Key = 'fraction' | 'mixed' | 'simplify' | 'decimal2fraction' | 'fraction2decimal' | 'bignumber';
+const KEYS: Key[] = ['fraction', 'mixed', 'simplify', 'decimal2fraction', 'fraction2decimal', 'bignumber'];
 
-const setFields = async (page: Page, an: string, ad: string, bn: string, bd: string) => {
-  await page.locator('[name="an"]').fill(an);
-  await page.locator('[name="ad"]').fill(ad);
-  await page.locator('[name="bn"]').fill(bn);
-  await page.locator('[name="bd"]').fill(bd);
-};
-const calc = async (page: Page, an: string, ad: string, op: string, bn: string, bd: string) => {
-  await setFields(page, an, ad, bn, bd);
-  await page.locator('[name="op"]').selectOption(op);
-  await submit(page).click();
-};
+const section = (page: Page, key: Key) => page.locator(`[data-fr-key="${key}"]`);
+const shell = (page: Page, key: Key) => page.locator(`#fr-${key}-result`);
+const calculate = (page: Page, key: Key) => section(page, key).locator('button[type="submit"]');
+const live = (page: Page, key: Key) => page.locator(`#fr-${key}-live`);
 
-test.describe('fraction: task-first', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  });
+/** A rendered line flattened to text — a stacked fraction reads back as "n/d". */
+const LINE_TEXT = `(line) => Array.from(line.children).map((c) => {
+  if (c.classList.contains('fx-lead') || c.classList.contains('fx-text')) return c.textContent;
+  const stack = c.querySelector('.fx-frac');
+  const whole = c.querySelector('.fx-whole');
+  const f = stack ? stack.querySelector('.fx-num').textContent + '/' + stack.querySelector('.fx-den').textContent : '';
+  return whole ? whole.textContent + ' ' + f : f;
+}).filter(Boolean).join(' ').trim()`;
 
-  /* ---- initial state ---- */
+const equationOf = (page: Page, key: Key) =>
+  page.evaluate(
+    ([k, fn]) => {
+      const line = document.querySelector(`[data-fr-key="${k}"] [data-fr-equation] .fx-line`);
+      return line ? (new Function('line', `return (${fn})(line)`) as (l: Element) => string)(line) : '';
+    },
+    [key, LINE_TEXT] as const,
+  );
 
-  test('loads empty with the neutral (add) operation, no result, no announcement', async ({ page }) => {
-    for (const n of ['an', 'ad', 'bn', 'bd']) await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
-    await expect(page.locator('[name="op"]')).toHaveValue('add');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
-    // The example fills this calculator's OWN valid region, so it is visible on load.
-    await expect(region(page, 'valid')).toBeVisible();
-    await expect(live(page)).toHaveText('');
-  });
+const stepsOf = (page: Page, key: Key) =>
+  page.evaluate(
+    ([k, fn]) => {
+      const read = new Function('line', `return (${fn})(line)`) as (l: Element) => string;
+      return Array.from(document.querySelectorAll(`[data-fr-key="${k}"] [data-fr-steps] .fx-line`)).map(read);
+    },
+    [key, LINE_TEXT] as const,
+  );
 
-  test('does not calculate before the first submission (fields or operation edits)', async ({ page }) => {
-    await setFields(page, '1', '2', '1', '3');
-    await page.locator('[name="op"]').selectOption('multiply');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  });
+async function solve(page: Page, key: Key, values: Record<string, string>, op?: string) {
+  const root = section(page, key);
+  if (op) await root.locator('[name="op"]').selectOption(op);
+  for (const [name, value] of Object.entries(values)) await root.locator(`[name="${name}"]`).fill(value);
+  await calculate(page, key).click();
+  await expect(shell(page, key)).toHaveAttribute('data-result-state', 'valid');
+}
 
-  /* ---- the four operations ---- */
-
-  test('addition: 1/2 + 1/3 = 5/6 (proper → mixed row hidden) + decimal + announcement', async ({ page }) => {
-    await calc(page, '1', '2', 'add', '1', '3');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(summaryLabel(page)).toHaveText('Simplified fraction');
-    await expect(primary(page)).toHaveText('5/6');
-    await expect(mixedRow(page)).toBeHidden();
-    await expect(decimal(page)).toHaveText('0.8333');
-    await expect(interpretation(page)).toHaveText('This is 1/2 + 1/3, reduced to lowest terms.');
-    await expect(live(page)).toHaveText('Result: 5/6.');
-    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
-  });
-
-  test('subtraction to a negative fraction: 1/2 − 3/4 = −1/4', async ({ page }) => {
-    await calc(page, '1', '2', 'subtract', '3', '4');
-    await expect(primary(page)).toHaveText('-1/4');
-    await expect(mixedRow(page)).toBeHidden();
-    await expect(decimal(page)).toHaveText('-0.25');
-  });
-
-  test('multiplication reduces: 2/3 × 3/4 = 1/2', async ({ page }) => {
-    await calc(page, '2', '3', 'multiply', '3', '4');
-    await expect(primary(page)).toHaveText('1/2');
-    await expect(decimal(page)).toHaveText('0.5');
-  });
-
-  test('division to a whole number: 1/2 ÷ 1/4 = 2/1, mixed "2", announced "Result: 2."', async ({ page }) => {
-    await calc(page, '1', '2', 'divide', '1', '4');
-    await expect(primary(page)).toHaveText('2/1');
-    await expect(mixedRow(page)).toBeVisible();
-    await expect(mixed(page)).toHaveText('2');
-    await expect(live(page)).toHaveText('Result: 2.');
-  });
-
-  test('a zero result renders 0/1', async ({ page }) => {
-    await calc(page, '-1', '2', 'add', '1', '2');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(primary(page)).toHaveText('0/1');
-    await expect(live(page)).toHaveText('Result: 0.');
-  });
-
-  test('an improper result shows a distinct mixed number: 7/2 + 0/1 → 7/2 (3 1/2)', async ({ page }) => {
-    await calc(page, '7', '2', 'add', '0', '1');
-    await expect(primary(page)).toHaveText('7/2');
-    await expect(mixedRow(page)).toBeVisible();
-    await expect(mixed(page)).toHaveText('3 1/2');
-    await expect(decimal(page)).toHaveText('3.5');
-  });
-
-  /* ---- validation ---- */
-
-  test('an all-empty submission reports required errors and focuses the first numerator', async ({ page }) => {
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="an"]')).toHaveText('Enter a numerator.');
-    await expect(page.locator('[data-error-for="ad"]')).toHaveText('Enter a denominator.');
-    await expect(page.locator('[name="an"]')).toBeFocused();
-  });
-
-  test('a zero denominator is a denominator error', async ({ page }) => {
-    await calc(page, '1', '0', 'add', '1', '3');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="ad"]')).toHaveText('The denominator cannot be zero.');
-    await expect(page.locator('[name="ad"]')).toBeFocused();
-  });
-
-  test('division by a fraction equal to zero is rejected on the second numerator', async ({ page }) => {
-    await calc(page, '1', '2', 'divide', '0', '5');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="bn"]')).toHaveText('Cannot divide by a fraction that equals zero.');
-  });
-
-  test('a non-integer numerator is a whole-number error', async ({ page }) => {
-    // type=number keeps a decimal string in .value; the binding rejects it strictly.
-    await page.locator('[name="an"]').fill('1.5');
-    await page.locator('[name="ad"]').fill('2');
-    await page.locator('[name="bn"]').fill('1');
-    await page.locator('[name="bd"]').fill('3');
-    await submit(page).click();
-    await expect(page.locator('[data-error-for="an"]')).toHaveText('Enter a whole number.');
-  });
-
-  /* ---- live update / invalidate / reset ---- */
-
-  test('after the first result, changing the operation recalculates live', async ({ page }) => {
-    await calc(page, '1', '2', 'add', '1', '4');
-    await expect(primary(page)).toHaveText('3/4'); // 1/2 + 1/4
-    await page.locator('[name="op"]').selectOption('subtract');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(primary(page)).toHaveText('1/4'); // 1/2 − 1/4
-  });
-
-  test('after the first result, editing a field recalculates live without moving focus', async ({ page }) => {
-    await calc(page, '1', '2', 'add', '1', '3');
-    await expect(primary(page)).toHaveText('5/6');
-    await page.locator('[name="bd"]').fill('6'); // 1/2 + 1/6 = 2/3
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(primary(page)).toHaveText('2/3');
-    await expect(page.locator('[name="bd"]')).toBeFocused();
-  });
-
-  test('an invalid live edit clears the stale result, keeping focus', async ({ page }) => {
-    await calc(page, '1', '2', 'add', '1', '3');
-    await expect(region(page, 'valid')).toBeVisible();
-    await page.locator('[name="ad"]').fill('0'); // now a zero denominator
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(region(page, 'valid')).toBeHidden();
-    await expect(page.locator('[name="ad"]')).toBeFocused();
-  });
-
-  test('reset clears the four fields, restores add, empties the result + announcement', async ({ page }) => {
-    await calc(page, '1', '2', 'divide', '1', '4');
-    await expect(primary(page)).not.toHaveText('—');
-    await page.click('[data-reset]');
-    for (const n of ['an', 'ad', 'bn', 'bd']) await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
-    await expect(page.locator('[name="op"]')).toHaveValue('add');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(live(page)).toHaveText('');
-  });
-
-  /* ---- keyboard / responsive / theme / embed / monetization ---- */
-
-  test('keyboard submission works from a field', async ({ page }) => {
-    await setFields(page, '2', '3', '3', '4');
-    await page.locator('[name="op"]').selectOption('multiply');
-    await page.locator('[name="bd"]').press('Enter');
-    await expect(primary(page)).toHaveText('1/2');
-  });
-
-  test('desktop shows the simplified fraction within the first viewport at 1366×768', async ({ page }) => {
-    await page.setViewportSize({ width: 1366, height: 768 });
-    await calc(page, '1', '2', 'add', '1', '3');
-    await expect(primary(page)).toBeInViewport();
-  });
-
-  test('mobile does not overflow horizontally', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-    await calc(page, '7', '2', 'add', '0', '1');
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow).toBeLessThanOrEqual(1);
-  });
-
-  test('renders in dark scheme', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await calc(page, '1', '2', 'add', '1', '3');
-    await expect(primary(page)).toBeVisible();
-  });
-
-  test('the generated embed mounts the same island and computes', async ({ page }) => {
-    await page.goto('/embed/math/fraction-calculator', { waitUntil: 'domcontentloaded' });
-    await page.locator('[name="an"]').fill('1');
-    await page.locator('[name="ad"]').fill('2');
-    await page.locator('[name="bn"]').fill('1');
-    await page.locator('[name="bd"]').fill('3');
-    await page.getByRole('button', { name: 'Calculate Fraction' }).click();
-    await expect(page.locator('#fr-result')).toHaveAttribute('data-result-state', 'valid');
-    await expect(page.locator('#fr-result [data-result-when~="valid"] [data-result-value]').first()).toHaveText('5/6');
-  });
-
-  test('the live page carries no monetization output', async ({ page }) => {
-    await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-    expect(await page.content()).not.toContain('data-mon-');
-  });
+test.beforeEach(async ({ page }) => {
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
-/* -------------------- guide embed regression -------------------- */
+/* ---- The six are six ----------------------------------------------------- */
 
-test('the guide that embeds the island renders the migrated task-first tool', async ({ page }) => {
-  await page.goto('/guides/how-to-work-with-fractions', { waitUntil: 'domcontentloaded' });
-  // Exactly one H1 (the guide's); the embedded island injects no page H1 or breadcrumb.
-  await expect(page.locator('h1')).toHaveCount(1);
-  await expect(page.locator('[data-fraction] h1')).toHaveCount(0);
-  await expect(page.locator('[data-fraction] nav')).toHaveCount(0);
-  // Empty (not the legacy prefill), then an explicit calc works inside the guide.
-  await expect(page.locator('#fr-result')).toHaveAttribute('data-result-state', 'example');
-  await page.locator('[name="an"]').fill('1');
-  await page.locator('[name="ad"]').fill('2');
-  await page.locator('[name="bn"]').fill('1');
-  await page.locator('[name="bd"]').fill('3');
-  await page.getByRole('button', { name: 'Calculate Fraction' }).click();
-  await expect(page.locator('#fr-result')).toHaveAttribute('data-result-state', 'valid');
-  await expect(page.locator('#fr-result [data-result-when~="valid"] [data-result-value]').first()).toHaveText('5/6');
+test('offers the reference six calculators, each with its own form, button and result', async ({ page }) => {
+  await expect(page.locator('[data-fr-key]')).toHaveCount(6);
+  for (const key of KEYS) {
+    await expect(section(page, key).locator('form[data-form]')).toHaveCount(1);
+    await expect(calculate(page, key)).toHaveText('Calculate');
+    await expect(section(page, key).locator('[data-reset]')).toHaveText('Clear');
+    await expect(shell(page, key)).toHaveCount(1);
+  }
 });
 
-/* -------------------- same-document two-instance isolation -------------------- */
+test('every calculator loads with empty fields behind a labelled example', async ({ page }) => {
+  for (const key of KEYS) {
+    await expect(shell(page, key)).toHaveAttribute('data-result-state', 'example');
+    const values = await section(page, key).locator('input').evaluateAll((els) =>
+      (els as HTMLInputElement[]).map((e) => e.value),
+    );
+    expect(values.every((v) => v === ''), key).toBe(true);
+    await expect(live(page, key)).toHaveText('');
+  }
+});
+
+test('calculating in one calculator leaves the other five untouched', async ({ page }) => {
+  await solve(page, 'fraction', { an: '2', ad: '7', bn: '3', bd: '8' }, 'add');
+  for (const key of KEYS.filter((k) => k !== 'fraction')) {
+    await expect(shell(page, key)).toHaveAttribute('data-result-state', 'example');
+  }
+});
+
+/* ---- The reference results ---------------------------------------------- */
+
+test('Fraction Calculator reproduces the reference result for 2/7 + 3/8', async ({ page }) => {
+  await solve(page, 'fraction', { an: '2', ad: '7', bn: '3', bd: '8' }, 'add');
+  expect(await equationOf(page, 'fraction')).toBe('2/7 + 3/8 = 37/56');
+  await expect(shell(page, 'fraction').locator('[data-fr-decimal]')).toHaveText('0.66071428571429');
+  expect(await stepsOf(page, 'fraction')).toEqual([
+    '2/7 + 3/8',
+    '= 2 × 8/7 × 8 + 3 × 7/8 × 7',
+    '= 16/56 + 21/56',
+    '= 16+21/56',
+    '= 37/56',
+  ]);
+  // The equation is also illustrated: one pie group per term.
+  await expect(shell(page, 'fraction').locator('[data-fr-pies] .fx-pie')).toHaveCount(3);
+});
+
+test('Mixed Numbers Calculator reproduces the reference result for -2 3/4 + 3 5/7', async ({ page }) => {
+  await solve(page, 'mixed', { a: '-2 3/4', b: '3 5/7' }, 'add');
+  expect(await equationOf(page, 'mixed')).toBe('-2 3/4 + 3 5/7 = 27/28');
+  await expect(shell(page, 'mixed').locator('[data-fr-decimal]')).toHaveText('0.96428571428571');
+  expect(await stepsOf(page, 'mixed')).toEqual([
+    '-2 3/4 + 3 5/7',
+    '= -11/4 + 26/7',
+    '= -11 × 7/4 × 7 + 26 × 4/7 × 4',
+    '= -77/28 + 104/28',
+    '= -77+104/28',
+    '= 27/28',
+  ]);
+});
+
+test('Simplify Fractions Calculator reproduces the reference result for 2 21/98', async ({ page }) => {
+  await solve(page, 'simplify', { whole: '2', num: '21', den: '98' });
+  expect(await equationOf(page, 'simplify')).toBe('2 21/98 = 31/14 = 2 3/14');
+  await expect(shell(page, 'simplify').locator('[data-fr-decimal]')).toHaveText('2.2142857142857');
+  expect(await stepsOf(page, 'simplify')).toEqual([
+    '2 21/98',
+    '= 217/98',
+    '= 217 ÷ 7/98 ÷ 7',
+    '= 31/14',
+    '= 2 3/14',
+  ]);
+});
+
+test('Decimal to Fraction Calculator reproduces the reference result for 1.375', async ({ page }) => {
+  await solve(page, 'decimal2fraction', { value: '1.375' });
+  expect(await equationOf(page, 'decimal2fraction')).toBe('1.375 = 11/8 = 1 3/8');
+  expect(await stepsOf(page, 'decimal2fraction')).toEqual([
+    '1.375',
+    '= 1.375 × 1000/1 × 1000',
+    '= 1375/1000',
+    '= 1375 ÷ 125/1000 ÷ 125',
+    '= 11/8',
+    '= 1 3/8',
+  ]);
+  // The decimal it was handed is not repeated back as a "result in decimals".
+  await expect(shell(page, 'decimal2fraction').locator('[data-fr-decimal-row]')).toBeHidden();
+});
+
+test('Fraction to Decimal Calculator reproduces the reference result for 2/7', async ({ page }) => {
+  await solve(page, 'fraction2decimal', { num: '2', den: '7' });
+  expect(await equationOf(page, 'fraction2decimal')).toBe('2/7 = 0.28571428571429');
+  await expect(shell(page, 'fraction2decimal').locator('[data-fr-steps-row]')).toBeHidden();
+});
+
+test('Big Number Fraction Calculator is exact past what a float can hold', async ({ page }) => {
+  await solve(
+    page,
+    'bignumber',
+    { an: '1234', ad: '748892928829', bn: '33434421132232234333', bd: '8877277388288288288' },
+    'add',
+  );
+  expect(await stepsOf(page, 'bignumber')).toEqual([
+    '1234/748892928829 + 33434421132232234333/8877277388288288288',
+    '= 3 5094410786346152324392512269193/6648130263342672078999418254752',
+  ]);
+});
+
+test('the same big numbers are refused by the plain calculator, which says where to go', async ({ page }) => {
+  const root = section(page, 'fraction');
+  await root.locator('[name="an"]').fill('33434421132232234333');
+  await root.locator('[name="ad"]').fill('2');
+  await root.locator('[name="bn"]').fill('1');
+  await root.locator('[name="bd"]').fill('3');
+  await calculate(page, 'fraction').click();
+  await expect(shell(page, 'fraction')).toHaveAttribute('data-result-state', 'invalid');
+  await expect(root.locator('[data-error-for="an"]')).toContainText('Big Number Fraction Calculator');
+});
+
+/* ---- The four operations ------------------------------------------------ */
+
+test('all four operations work and update live after the first calculation', async ({ page }) => {
+  await solve(page, 'fraction', { an: '2', ad: '7', bn: '3', bd: '8' }, 'add');
+  await expect(section(page, 'fraction').locator('[data-live-note]')).toBeVisible();
+
+  for (const [op, expected] of [
+    ['subtract', '2/7 − 3/8 = -5/56'],
+    ['multiply', '2/7 × 3/8 = 3/28'],
+    ['divide', '2/7 ÷ 3/8 = 16/21'],
+  ] as const) {
+    await section(page, 'fraction').locator('[name="op"]').selectOption(op);
+    await expect(async () => expect(await equationOf(page, 'fraction')).toBe(expected)).toPass();
+  }
+});
+
+test('an improper answer is also read as a mixed number', async ({ page }) => {
+  await solve(page, 'fraction', { an: '3', ad: '4', bn: '2', bd: '3' }, 'divide');
+  expect(await equationOf(page, 'fraction')).toBe('3/4 ÷ 2/3 = 9/8 = 1 1/8');
+});
+
+/* ---- Validation --------------------------------------------------------- */
+
+test('a zero denominator is refused on the denominator itself', async ({ page }) => {
+  const root = section(page, 'fraction');
+  await root.locator('[name="an"]').fill('1');
+  await root.locator('[name="ad"]').fill('0');
+  await root.locator('[name="bn"]').fill('1');
+  await root.locator('[name="bd"]').fill('3');
+  await calculate(page, 'fraction').click();
+  await expect(shell(page, 'fraction')).toHaveAttribute('data-result-state', 'invalid');
+  await expect(root.locator('[data-error-for="ad"]')).toHaveText('The denominator cannot be zero.');
+  await expect(root.locator('[name="ad"]')).toBeFocused();
+});
+
+test('dividing by a fraction that equals zero is refused, but a zero numerator is fine otherwise', async ({ page }) => {
+  const root = section(page, 'fraction');
+  await root.locator('[name="op"]').selectOption('divide');
+  await root.locator('[name="an"]').fill('1');
+  await root.locator('[name="ad"]').fill('2');
+  await root.locator('[name="bn"]').fill('0');
+  await root.locator('[name="bd"]').fill('3');
+  await calculate(page, 'fraction').click();
+  await expect(root.locator('[data-error-for="bn"]')).toHaveText('Cannot divide by a fraction that equals zero.');
+
+  await root.locator('[name="op"]').selectOption('add');
+  await calculate(page, 'fraction').click();
+  await expect(shell(page, 'fraction')).toHaveAttribute('data-result-state', 'valid');
+  expect(await equationOf(page, 'fraction')).toBe('1/2 + 0/3 = 1/2');
+});
+
+test('a malformed mixed number is explained rather than just refused', async ({ page }) => {
+  const root = section(page, 'mixed');
+  await root.locator('[name="a"]').fill('two and a half');
+  await root.locator('[name="b"]').fill('1/2');
+  await calculate(page, 'mixed').click();
+  await expect(shell(page, 'mixed')).toHaveAttribute('data-result-state', 'invalid');
+  await expect(root.locator('[data-error-for="a"]')).toContainText('2 3/4');
+});
+
+test('no result ever shows NaN, Infinity or a raw error', async ({ page }) => {
+  for (const key of KEYS) {
+    await calculate(page, key).click(); // submit empty
+    await expect(shell(page, key)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(shell(page, key)).not.toContainText(/NaN|Infinity|undefined/);
+  }
+});
+
+/* ---- Reset -------------------------------------------------------------- */
+
+test('Clear empties the fields and returns the result to empty', async ({ page }) => {
+  await solve(page, 'fraction', { an: '2', ad: '7', bn: '3', bd: '8' }, 'divide');
+  await section(page, 'fraction').locator('[data-reset]').click();
+  await expect(shell(page, 'fraction')).toHaveAttribute('data-result-state', 'empty');
+  const values = await section(page, 'fraction').locator('input').evaluateAll((els) =>
+    (els as HTMLInputElement[]).map((e) => e.value),
+  );
+  expect(values).toEqual(['', '', '', '']);
+  await expect(section(page, 'fraction').locator('[name="op"]')).toHaveValue('add');
+  await expect(live(page, 'fraction')).toHaveText('');
+});
+
+/* ---- Announcement ------------------------------------------------------- */
+
+test('a completed result is announced once, without formula internals', async ({ page }) => {
+  await solve(page, 'fraction', { an: '2', ad: '7', bn: '3', bd: '8' }, 'add');
+  await expect(live(page, 'fraction')).toHaveText('Fraction Calculator: 2/7 + 3/8 = 37/56');
+  await expect(page.locator('[aria-live]')).toHaveCount(6); // one per calculator, never more
+});
+
+/* ---- Workspace / responsive / theme ------------------------------------- */
+
+test('desktop first viewport shows the first calculator, its action and its result slot', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(calculate(page, 'fraction')).toBeInViewport();
+  expect((await shell(page, 'fraction').boundingBox())!.y).toBeLessThan(768);
+});
+
+test('mobile stacks inputs, Calculate then result, with no horizontal overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  const inputY = (await section(page, 'fraction').locator('[name="an"]').boundingBox())!.y;
+  const buttonY = (await calculate(page, 'fraction').boundingBox())!.y;
+  const resultY = (await shell(page, 'fraction').boundingBox())!.y;
+  expect(buttonY).toBeGreaterThan(inputY);
+  expect(resultY).toBeGreaterThan(buttonY);
+  await solve(page, 'fraction', { an: '2', ad: '7', bn: '3', bd: '8' }, 'add');
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test('renders in dark scheme', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await solve(page, 'fraction', { an: '2', ad: '7', bn: '3', bd: '8' }, 'add');
+  await expect(shell(page, 'fraction').locator('[data-fr-decimal]')).toHaveText('0.66071428571429');
+});
+
+/* ---- Same-document instance isolation ----------------------------------- */
 
 test.describe('fraction: same-document instance isolation', () => {
   const FIXTURE = 'http://localhost:4399/__fraction-two-instance-fixture';
@@ -254,7 +306,7 @@ test.describe('fraction: same-document instance isolation', () => {
     const raw = await (await page.request.get('http://localhost:4399/math/fraction-calculator')).text();
     const parts = await page.evaluate((html) => {
       const d = new DOMParser().parseFromString(html, 'text/html');
-      const root = d.querySelector('[data-fraction]');
+      const root = d.querySelector('[data-frpage]');
       const links = [...d.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.getAttribute('href'));
       const script = [...d.querySelectorAll('script[type="module"][src]')]
         .map((s) => s.getAttribute('src'))
@@ -266,10 +318,12 @@ test.describe('fraction: same-document instance isolation', () => {
       parts.links.map((h) => `<link rel="stylesheet" href="${h}">`).join('') +
       `</head><body><div id="inst-a">${parts.rootHTML}</div><div id="inst-b">${parts.rootHTML}</div>` +
       `<script type="module" src="${parts.script}"></script></body></html>`;
-    await page.route('**/__fraction-two-instance-fixture', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: doc }));
+    await page.route('**/__fraction-two-instance-fixture', (r) =>
+      r.fulfill({ contentType: 'text/html; charset=utf-8', body: doc }),
+    );
     await page.goto(FIXTURE, { waitUntil: 'networkidle' });
-    await expect(page.locator('#inst-a [data-fraction]')).toHaveCount(1);
-    await expect(page.locator('#inst-b [data-fraction]')).toHaveCount(1);
+    await expect(page.locator('#inst-a [data-frpage]')).toHaveCount(1);
+    await expect(page.locator('#inst-b [data-frpage]')).toHaveCount(1);
   }
 
   test('two instances have no duplicate ids and every reference resolves in its own instance', async ({ page }) => {
@@ -277,14 +331,19 @@ test.describe('fraction: same-document instance isolation', () => {
     const duplicates = await page.evaluate(() => {
       const counts: Record<string, number> = {};
       for (const el of document.querySelectorAll('[id]')) counts[el.id] = (counts[el.id] || 0) + 1;
-      return Object.entries(counts).filter(([, n]) => n > 1).map(([id]) => id);
+      return Object.entries(counts)
+        .filter(([, n]) => n > 1)
+        .map(([id]) => id);
     });
     expect(duplicates).toEqual([]);
+
     const ok = await page.evaluate(() => {
       for (const scope of ['#inst-a', '#inst-b']) {
         const root = document.querySelector(scope)!;
         for (const el of root.querySelectorAll('label[for], [aria-describedby]')) {
-          const refs = (el.getAttribute('for') || el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+          const refs = (el.getAttribute('for') || el.getAttribute('aria-describedby') || '')
+            .split(/\s+/)
+            .filter(Boolean);
           for (const id of refs) {
             const t = document.getElementById(id);
             if (!t || !t.closest(scope)) return false;
@@ -296,27 +355,15 @@ test.describe('fraction: same-document instance isolation', () => {
     expect(ok).toBe(true);
   });
 
-  test('calculating and resetting one instance never touches the other', async ({ page }) => {
+  test('calculating in one instance leaves the other alone', async ({ page }) => {
     await mountTwo(page);
-    const A = (sel: string) => page.locator(`#inst-a ${sel}`);
-    const B = (sel: string) => page.locator(`#inst-b ${sel}`);
-    const fillCalc = async (scope: (s: string) => ReturnType<Page['locator']>, an: string, ad: string, bn: string, bd: string) => {
-      await scope('[name="an"]').fill(an);
-      await scope('[name="ad"]').fill(ad);
-      await scope('[name="bn"]').fill(bn);
-      await scope('[name="bd"]').fill(bd);
-      await scope('button[type="submit"]').click();
-    };
-    await fillCalc(A, '1', '2', '1', '3');
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('5/6');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
-
-    await fillCalc(B, '2', '3', '3', '4'); // add → 17/12
-    await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('17/12');
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('5/6'); // A preserved
-
-    await A('[data-reset]').click();
-    await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
-    await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('17/12'); // B unaffected by A's reset
+    const a = page.locator('#inst-a [data-fr-key="fraction"]');
+    const b = page.locator('#inst-b [data-fr-key="fraction"]');
+    for (const [name, value] of Object.entries({ an: '2', ad: '7', bn: '3', bd: '8' })) {
+      await a.locator(`[name="${name}"]`).fill(value);
+    }
+    await a.locator('button[type="submit"]').click();
+    await expect(a.locator('[data-result-shell]')).toHaveAttribute('data-result-state', 'valid');
+    await expect(b.locator('[data-result-shell]')).toHaveAttribute('data-result-state', 'example');
   });
 });

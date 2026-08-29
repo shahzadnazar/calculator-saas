@@ -1,196 +1,422 @@
 ---
 /**
- * Fraction calculator island (R17B1 — bounded singleton; task-first).
+ * Fraction island — the reference's SIX independent calculators.
  *
- * A single form on the UNCHANGED standard-form runtime + the Fraction binding
- * (@lib/calculators/fraction-form), which wraps the UNCHANGED computeFraction / simplify. Two
- * fractions and one operation (add / subtract / multiply / divide) chosen from a native <select>
- * PARAMETER — NOT structural modes, no panels. All fields start EMPTY (the legacy prefilled
- * 1/2 + 1/3 and auto-calculated); the visitor presses "Calculate Fraction" for the first result,
- * then live-after-first. The dominant result is the simplified fraction; a mixed number (only when
- * it differs — improper/whole) and the decimal are secondaries. NO isUsableResult — the complete-
- * result guard lives in the binding's resultValue (a NaN sentinel → the default finite gate; a valid
- * 0 passes). No runtime change; NO generic fraction / operation / equation / rational abstraction.
+ * Fraction, Mixed Numbers, Simplify Fractions, Decimal to Fraction, Fraction to Decimal and Big
+ * Number Fraction. Each is its own calculator with its own fields, its own Calculate button and its
+ * own result; none is a mode or a tab of another.
  *
- * Static ids are namespaced per-instance WHEN more than one Fraction shares a document (the R16B2.1
- * discipline), so an embed gallery has no duplicate ids and every association stays instance-local.
+ * The inputs are drawn the way fractions are written — numerator above a rule, denominator below —
+ * because that is what makes an unlabelled pair of boxes legible at a glance. The result answers in
+ * the same notation: the equation, the decimal, the pies, and the working line by line.
+ *
+ * All six run on the UNCHANGED standard-form runtime. The sections are RENDERED FROM
+ * `FRACTION_SPECS`, so markup and bindings come from one list; the complete-result guard lives in
+ * `resultValue`, and there is no `isUsableResult`.
  */
 import ResultShell from '@components/result/ResultShell.astro';
-import ResultSummary from '@components/result/ResultSummary.astro';
-import ResultValue from '@components/result/ResultValue.astro';
-import ResultInterpretation from '@components/result/ResultInterpretation.astro';
-import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { FRACTION_SPECS, type FractionKey } from '@lib/calculators/fraction-form';
+
+export interface Props {
+  /** Calculators per row on a wide screen. One card per row, or two side by side. */
+  columns?: 1 | 2;
+  /** Render only these calculators, in this order — for a guide that wants one of them. */
+  only?: FractionKey[];
+}
+const { columns = 2, only } = Astro.props;
+const specs = only ? only.map((key) => FRACTION_SPECS.find((s) => s.key === key)!).filter(Boolean) : FRACTION_SPECS;
+
+const OPTIONS = [
+  { value: 'add', label: '+' },
+  { value: 'subtract', label: '−' },
+  { value: 'multiply', label: '×' },
+  { value: 'divide', label: '÷' },
+];
 ---
 
-<div class="fraction mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-fraction>
-  <!-- Inputs -->
-  <form class="card p-4" data-form novalidate aria-label="Fraction calculator">
-    <div class="fr-row">
-      <div class="fr-stack" role="group" aria-label="First fraction">
-        <label class="sr-only" for="fr-an">First numerator</label>
-        <input class="field fr-num" id="fr-an" name="an" type="number" step="1" inputmode="numeric" autocomplete="off" placeholder="1" aria-describedby="fr-an-error" />
-        <div class="fr-bar" aria-hidden="true"></div>
-        <label class="sr-only" for="fr-ad">First denominator</label>
-        <input class="field fr-num" id="fr-ad" name="ad" type="number" step="1" inputmode="numeric" autocomplete="off" placeholder="2" aria-describedby="fr-ad-error" />
-      </div>
+<div class:list={['frpage', columns === 2 && 'frpage--two']} data-frpage data-fr-columns={String(columns)}>
+  {
+    specs.map((spec) => (
+      <section class="fr-calc" data-fr-key={spec.key} aria-labelledby={`fr-${spec.key}-heading`}>
+        <div class="fr-head">
+          <h2 class="fr-title" id={`fr-${spec.key}-heading`}>{spec.title}</h2>
+          {spec.lede && <p class="fr-lede">{spec.lede}</p>}
+        </div>
 
-      <label class="sr-only" for="fr-op">Operation</label>
-      <select class="field fr-op" id="fr-op" name="op" aria-label="Operation">
-        <option value="add">+</option>
-        <option value="subtract">−</option>
-        <option value="multiply">×</option>
-        <option value="divide">÷</option>
-      </select>
+        <div class="card fr-card">
+          <form data-form novalidate aria-label={spec.title}>
+            <div class:list={['fr-inputs', spec.big && 'fr-inputs--big']}>
+              {spec.layout === 'pair' && (
+                <>
+                  <div class="fr-stack" role="group" aria-label="First fraction">
+                    <label class="sr-only" for={`fr-${spec.key}-an`}>First numerator</label>
+                    <input class="field fr-box" id={`fr-${spec.key}-an`} name="an" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-an-error`} />
+                    <span class="fr-rule" aria-hidden="true" />
+                    <label class="sr-only" for={`fr-${spec.key}-ad`}>First denominator</label>
+                    <input class="field fr-box" id={`fr-${spec.key}-ad`} name="ad" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-ad-error`} />
+                  </div>
+                  <label class="sr-only" for={`fr-${spec.key}-op`}>Operation</label>
+                  <select class="field fr-op" id={`fr-${spec.key}-op`} name="op">
+                    {OPTIONS.map((o) => <option value={o.value}>{o.label}</option>)}
+                  </select>
+                  <div class="fr-stack" role="group" aria-label="Second fraction">
+                    <label class="sr-only" for={`fr-${spec.key}-bn`}>Second numerator</label>
+                    <input class="field fr-box" id={`fr-${spec.key}-bn`} name="bn" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-bn-error`} />
+                    <span class="fr-rule" aria-hidden="true" />
+                    <label class="sr-only" for={`fr-${spec.key}-bd`}>Second denominator</label>
+                    <input class="field fr-box" id={`fr-${spec.key}-bd`} name="bd" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-bd-error`} />
+                  </div>
+                  <span class="fr-ask" aria-hidden="true">
+                    <span class="fx-text">=</span>
+                    <span class="fx-frac"><span class="fx-num">?</span><span class="fx-den">?</span></span>
+                  </span>
+                </>
+              )}
 
-      <div class="fr-stack" role="group" aria-label="Second fraction">
-        <label class="sr-only" for="fr-bn">Second numerator</label>
-        <input class="field fr-num" id="fr-bn" name="bn" type="number" step="1" inputmode="numeric" autocomplete="off" placeholder="1" aria-describedby="fr-bn-error" />
-        <div class="fr-bar" aria-hidden="true"></div>
-        <label class="sr-only" for="fr-bd">Second denominator</label>
-        <input class="field fr-num" id="fr-bd" name="bd" type="number" step="1" inputmode="numeric" autocomplete="off" placeholder="3" aria-describedby="fr-bd-error" />
-      </div>
-    </div>
+              {spec.layout === 'text-pair' && (
+                <>
+                  <label class="sr-only" for={`fr-${spec.key}-a`}>First mixed number</label>
+                  <input class="field fr-wide" id={`fr-${spec.key}-a`} name="a" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="2 3/4" aria-describedby={`fr-${spec.key}-a-error`} />
+                  <label class="sr-only" for={`fr-${spec.key}-op`}>Operation</label>
+                  <select class="field fr-op" id={`fr-${spec.key}-op`} name="op">
+                    {OPTIONS.map((o) => <option value={o.value}>{o.label}</option>)}
+                  </select>
+                  <label class="sr-only" for={`fr-${spec.key}-b`}>Second mixed number</label>
+                  <input class="field fr-wide" id={`fr-${spec.key}-b`} name="b" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="3 5/7" aria-describedby={`fr-${spec.key}-b-error`} />
+                  <span class="fr-ask" aria-hidden="true"><span class="fx-text">= ?</span></span>
+                </>
+              )}
 
-    <div class="fr-errors" aria-live="off">
-      <p class="fr-field-error" id="fr-an-error" data-error-for="an" hidden></p>
-      <p class="fr-field-error" id="fr-ad-error" data-error-for="ad" hidden></p>
-      <p class="fr-field-error" id="fr-bn-error" data-error-for="bn" hidden></p>
-      <p class="fr-field-error" id="fr-bd-error" data-error-for="bd" hidden></p>
-      <p class="fr-field-error" data-error-for="op" hidden></p>
-    </div>
+              {spec.layout === 'simplify' && (
+                <>
+                  <label class="sr-only" for={`fr-${spec.key}-whole`}>Whole number</label>
+                  <input class="field fr-box fr-box--whole" id={`fr-${spec.key}-whole`} name="whole" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-whole-error`} />
+                  <div class="fr-stack" role="group" aria-label="Fraction">
+                    <label class="sr-only" for={`fr-${spec.key}-num`}>Numerator</label>
+                    <input class="field fr-box" id={`fr-${spec.key}-num`} name="num" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-num-error`} />
+                    <span class="fr-rule" aria-hidden="true" />
+                    <label class="sr-only" for={`fr-${spec.key}-den`}>Denominator</label>
+                    <input class="field fr-box" id={`fr-${spec.key}-den`} name="den" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-den-error`} />
+                  </div>
+                  <span class="fr-ask" aria-hidden="true">
+                    <span class="fx-text">=</span>
+                    <span class="fx-frac"><span class="fx-num">?</span><span class="fx-den">?</span></span>
+                  </span>
+                </>
+              )}
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Fraction</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
-    </div>
-    <p class="fr-live-note" data-live-note hidden>Changes update automatically.</p>
-  </form>
+              {spec.layout === 'single-fraction' && (
+                <>
+                  <div class="fr-stack" role="group" aria-label="Fraction">
+                    <label class="sr-only" for={`fr-${spec.key}-num`}>Numerator</label>
+                    <input class="field fr-box fr-box--wide" id={`fr-${spec.key}-num`} name="num" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-num-error`} />
+                    <span class="fr-rule fr-rule--wide" aria-hidden="true" />
+                    <label class="sr-only" for={`fr-${spec.key}-den`}>Denominator</label>
+                    <input class="field fr-box fr-box--wide" id={`fr-${spec.key}-den`} name="den" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby={`fr-${spec.key}-den-error`} />
+                  </div>
+                  <span class="fr-ask" aria-hidden="true"><span class="fx-text">= ?</span></span>
+                </>
+              )}
 
-  <!-- Result -->
-  <ResultShell id="fr-result" state="empty" density="standard" label="Fraction result" minHeight="16rem" placeholderAlignment="center">
-    <ExampleNotice />
-    <EmptyResult message="Enter two fractions, choose an operation, then calculate the simplified result." />
+              {spec.layout === 'decimal' && (
+                <>
+                  <label class="sr-only" for={`fr-${spec.key}-value`}>Decimal</label>
+                  <input class="field fr-wide" id={`fr-${spec.key}-value`} name="value" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="1.375" aria-describedby={`fr-${spec.key}-value-error`} />
+                  <span class="fr-ask" aria-hidden="true">
+                    <span class="fx-text">=</span>
+                    <span class="fx-frac"><span class="fx-num">?</span><span class="fx-den">?</span></span>
+                  </span>
+                </>
+              )}
+            </div>
 
-    <div data-result-when="valid">
-      <ResultSummary label="Simplified fraction">
-        <ResultValue value="—" size="text-4xl" />
-      </ResultSummary>
-      <ResultInterpretation>
-        <span data-fr-interpretation></span>
-      </ResultInterpretation>
+            <div class="fr-errors">
+              {spec.fields.map((name) => (
+                <p class="fr-field-error" id={`fr-${spec.key}-${name}-error`} data-error-for={name} hidden />
+              ))}
+              {spec.hasOp && <p class="fr-field-error" data-error-for="op" hidden />}
+            </div>
 
-      <ResultBreakdown title="Other forms">
-        <dl class="fr-metrics">
-          <div data-fr-mixed-row hidden><dt>Mixed number</dt><dd data-fr-mixed>—</dd></div>
-          <div><dt>Decimal</dt><dd data-fr-decimal>—</dd></div>
-        </dl>
-      </ResultBreakdown>
-    </div>
+            <div class="mt-4 flex items-center gap-3">
+              <button type="submit" class="btn btn-primary">Calculate</button>
+              <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+            </div>
+          </form>
 
-    <InvalidResult
-      title="Check your entries"
-      message="Enter whole-number numerators and non-zero denominators, and choose an operation, to calculate."
-    />
+          <ResultShell
+            id={`fr-${spec.key}-result`}
+            state="empty"
+            density="standard"
+            boxed={false}
+            label={`${spec.title} result`}
+            minHeight="0"
+            class="fr-result"
+          >
+            <ExampleNotice />
+            <EmptyResult message={spec.emptyMessage} />
 
-    <ResultAnnouncement id="fr-live" />
-  </ResultShell>
+            <div data-result-when="valid">
+              <div class="fr-equation" data-fr-equation />
+              <p class="fr-decimal" data-fr-decimal-row hidden>
+                <span class="fr-decimal__label">Result in decimals:</span>
+                <span class="fr-decimal__value" data-fr-decimal>—</span>
+              </p>
+              <div class="fr-pies" data-fr-pies hidden />
+              <div data-fr-steps-row hidden>
+                <p class="fr-steps__title">Calculation steps:</p>
+                <div class="fr-steps" data-fr-steps />
+              </div>
+              <span class="sr-only" data-result-value>—</span>
+              <span class="sr-only" data-result-value-a11y />
+            </div>
+
+            <InvalidResult title="Check your entries" message={spec.invalidMessage} />
+
+            <ResultAnnouncement id={`fr-${spec.key}-live`} />
+          </ResultShell>
+
+          <p class="fr-live-note" data-live-note hidden>Changes update automatically.</p>
+        </div>
+      </section>
+    ))
+  }
 </div>
 
 <style>
-  .fr-row {
+  .frpage {
+    display: grid;
+    gap: 1.75rem;
+    width: 100%;
+  }
+  /* Two cards abreast only once there is room for both without squeezing the fraction boxes. */
+  @media (min-width: 60rem) {
+    .frpage--two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+    .frpage:not(.frpage--two) .fr-calc {
+      max-width: 40rem;
+    }
+  }
+
+  .fr-head { margin-bottom: 0.6rem; }
+  .fr-title {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--heading);
+  }
+  .fr-lede {
+    margin: 0.1rem 0 0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  .fr-card { padding: 1rem; }
+
+  /* A fraction is written, not laid out in a grid: numerator, rule, denominator. */
+  .fr-inputs {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
-    gap: 1rem;
+    gap: 0.5rem 0.6rem;
   }
   .fr-stack {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 0.35rem;
+    align-items: stretch;
+    gap: 0.3rem;
+    min-width: 0;
   }
-  .fraction :global(.fr-num) {
-    width: 5rem;
-    text-align: center;
-  }
-  .fr-bar {
+  .fr-rule {
+    display: block;
     height: 2px;
-    width: 4.5rem;
     background: var(--fg);
     border-radius: 1px;
+    opacity: 0.85;
   }
-  .fr-op {
-    width: 4rem;
+
+  .fr-inputs :global(.fr-box) {
+    width: 8.5rem;
+    max-width: 100%;
+    min-height: 2.5rem;
     text-align: center;
-    font-size: 1.25rem;
+    font-variant-numeric: tabular-nums;
   }
-  .fr-errors {
-    margin-top: 0.75rem;
+  .fr-inputs :global(.fr-box--whole) { width: 4.5rem; align-self: center; }
+  .fr-inputs :global(.fr-box--wide) { width: 11rem; }
+  .fr-inputs :global(.fr-wide) {
+    width: 9.5rem;
+    max-width: 100%;
+    min-height: 2.5rem;
+    font-variant-numeric: tabular-nums;
   }
+  .fr-inputs :global(.fr-op) {
+    width: 4.25rem;
+    min-height: 2.5rem;
+    text-align: center;
+    font-size: 1.05rem;
+  }
+  /* A thirty-digit numerator needs the whole width of its card, so the two fractions take a row
+     each rather than being squeezed into eleven visible characters side by side. */
+  .fr-inputs--big .fr-stack { flex: 1 1 14rem; }
+  .fr-inputs--big :global(.fr-box) { width: 100%; }
+
+  .fr-ask {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 1.1rem;
+    color: var(--muted);
+  }
+
+  .fr-errors:not(:empty) { margin-top: 0.2rem; }
   .fr-field-error {
-    margin: 0.3rem 0 0;
+    margin: 0.35rem 0 0;
     font-size: 0.8rem;
     font-weight: 600;
+    line-height: 1.3;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .fr-field-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .fr-field-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .fr-field-error {
-    color: #fca5a5;
-  }
+  :root[data-theme='dark'] .fr-field-error { color: #fca5a5; }
 
   .fr-live-note {
-    margin-top: 0.75rem;
+    margin-top: 0.7rem;
     font-size: 0.8rem;
     color: var(--muted);
   }
 
-  .fr-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
+  /* ResultShell owns this element, so the separating rule is reached with :global(). */
+  .fr-calc :global(.fr-result) {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
   }
-  .fr-metrics > div {
+
+  /* ---- The written answer -------------------------------------- */
+  /* Every line below is built in JS, so its rules must be :global() beneath an element the
+     template owns — Astro's scoping only reaches markup it compiled itself. */
+  .fr-calc :global(.fx-line) {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.1rem 0.45rem;
+    line-height: 1.15;
   }
-  .fr-metrics dt {
-    color: var(--fg);
+  .fr-calc :global(.fx-lead) {
+    min-width: 0.85rem;
+    color: var(--muted);
     font-weight: 600;
   }
-  .fr-metrics dd {
-    margin: 0;
+  .fr-calc :global(.fx-text) {
     font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .fr-calc :global(.fx-group) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .fr-calc :global(.fx-whole) { font-weight: inherit; }
+  .fr-calc :global(.fx-frac) {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+  }
+  .fr-calc :global(.fx-num) {
+    padding: 0 0.3rem 0.08rem;
+    border-bottom: 1.5px solid currentColor;
+  }
+  .fr-calc :global(.fx-den) { padding: 0.08rem 0.3rem 0; }
+  .fr-calc :global(.fx-num),
+  .fr-calc :global(.fx-den) {
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  .fr-equation {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--heading);
+    overflow-wrap: anywhere;
+  }
+  .fr-equation[hidden] { display: none; }
+
+  .fr-decimal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem;
+    margin: 0.75rem 0 0;
+    font-size: 0.95rem;
+  }
+  .fr-decimal__label { color: var(--muted); font-weight: 600; }
+  .fr-decimal__value {
     color: var(--heading);
     font-weight: 700;
-    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .fr-pies {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+  }
+  .fr-calc :global(.fx-pie-set) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .fr-calc :global(.fx-pie-op) {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .fr-calc :global(.fx-pie) {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+  .fr-calc :global(.fx-slice) {
+    fill: transparent;
+    stroke: var(--line);
+  }
+  .fr-calc :global(.fx-slice--on) {
+    fill: var(--color-accent-400, #fbbf24);
+    stroke: var(--color-accent-600, #b45309);
+  }
+
+  .fr-steps__title {
+    margin: 1rem 0 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+  .fr-steps {
+    display: grid;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    color: var(--fg);
   }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { fractionBinding, FRACTION_EXAMPLE_VALUES } from '@lib/calculators/fraction-form';
+  import { FRACTION_SPECS, makeFractionBinding, fractionExampleValues } from '@lib/calculators/fraction-form';
 
-  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
-
-  // When more than one Fraction calculator shares a document (e.g. an embed gallery), the server-
-  // static ids (the four fields + their error slots, result shell, live region) collide. Namespace
-  // THIS root's ids and repoint its in-root references (label `for`, `aria-describedby`, …) so
-  // associations stay instance-local and the document has no duplicate ids; a lone instance is left
-  // untouched. The runtime targets fields by `[name]` / `[data-*]`, never these ids.
   function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
     const remap = new Map<string, string>();
     root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
@@ -213,12 +439,18 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     repoint('aria-controls');
   }
 
-  document.querySelectorAll<HTMLElement>('[data-fraction]').forEach((root) => {
-    if (document.querySelectorAll('[data-fraction]').length > 1) uniquifyStaticIds(root, `f${++ns}`);
-    mountFormCalculator(root, fractionBinding, {
-      recalculationMode: 'live-after-first',
-      example: { values: FRACTION_EXAMPLE_VALUES },
-      calculateButtonLabel: 'Calculate Fraction',
-    });
+  const pages = document.querySelectorAll<HTMLElement>('[data-frpage]');
+  pages.forEach((page, i) => {
+    if (pages.length > 1) uniquifyStaticIds(page, `f${i + 1}`);
+
+    for (const spec of FRACTION_SPECS) {
+      const section = page.querySelector<HTMLElement>(`[data-fr-key="${spec.key}"]`);
+      if (!section) continue;
+      mountFormCalculator(section, makeFractionBinding(spec), {
+        recalculationMode: 'live-after-first',
+        example: { values: fractionExampleValues(spec) },
+        calculateButtonLabel: 'Calculate',
+      });
+    }
   });
 </script>
