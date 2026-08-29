@@ -110,11 +110,15 @@ export function toRadians(value: number, unit: AngleUnit): number {
   return unit === 'rad' ? value : (value * Math.PI) / 180;
 }
 
-/** How a unit reads beside a squared figure: "600 meters²". */
-export const SQUARED_UNIT_LABEL: Record<LengthUnit, string> = {
+/** How a unit reads beside a squared or cubed figure: "600 meters²", "125 meters³". */
+export const UNIT_NOUN: Record<LengthUnit, string> = {
   in: 'inches',
   ft: 'feet',
   yd: 'yards',
   cm: 'centimeters',
   m: 'meters',
 };
+
+/** An area or volume given in some length unit raised to a power, expressed in that unit's noun. */
+export const squaredLabelFor = (unit: LengthUnit): string => `${UNIT_NOUN[unit]}²`;
+export const cubedLabelFor = (unit: LengthUnit): string => `${UNIT_NOUN[unit]}³`;

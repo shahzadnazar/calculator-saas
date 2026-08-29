@@ -14,7 +14,8 @@
  * The triangle is what pins that down — ten decimal places would print 666.5852814907 where the
  * reference prints 666.58528149067.
  */
-import { type LengthUnit, SQUARED_UNIT_LABEL } from './area-units';
+import { type LengthUnit, UNIT_NOUN } from './area-units';
+import { formatSignificant, piStep, type FormulaStep } from './formula-steps';
 
 export type AreaShapeKey =
   | 'rectangle'
@@ -30,20 +31,16 @@ export type AreaShapeKey =
 /* ------------------------------------------------------------------ */
 
 /**
- * A figure as the reference prints it: fourteen significant figures, trailing zeros stripped.
- * Never a placeholder-free NaN — an unusable number returns an em dash so no view can leak one.
+ * A figure as the reference prints it. The rule is shared with the volume calculator, so the two
+ * can never disagree on a digit; see `formula-steps.ts`.
  */
-export function formatArea(value: number): string {
-  if (!Number.isFinite(value)) return '—';
-  if (value === 0) return '0';
-  return String(Number(value.toPrecision(14)));
-}
+export const formatArea = formatSignificant;
 
 /** A number inside a shown step — the same rule, so the working and the answer agree. */
 export const stepNumber = (value: number): string => formatArea(value);
 
 /** "meters²", for the unit the answer is in. */
-export const squaredLabel = (unit: LengthUnit): string => `${SQUARED_UNIT_LABEL[unit]}²`;
+export const squaredLabel = (unit: LengthUnit): string => `${UNIT_NOUN[unit]}²`;
 
 /* ------------------------------------------------------------------ */
 /* The seven areas — every dimension already in ONE unit               */
@@ -84,25 +81,7 @@ export const areaParallelogram = (base: number, height: number): number => base 
 /* ------------------------------------------------------------------ */
 
 /** One line of the shown working: `Area =` / `= π × 30²` / `= 900π`. */
-export interface AreaStep {
-  /** The label on the left, only on the first line of a formula ("Area", "s"). */
-  label?: string;
-  /** The expression on the right of the equals sign. */
-  expression: string;
-  /** The unit shown after this line, when the line is a quantity rather than an expression. */
-  unit?: string;
-  /** True for the final answer, so a view can weight it. */
-  final?: boolean;
-}
-
-/**
- * The multiple of π on its own line — the reference prints `900π` before `2827.4333882308`.
- * Only worth showing when it is not a bare 1, which would read as "1π".
- */
-const piStep = (coefficient: number): AreaStep[] =>
-  Number.isFinite(coefficient) && coefficient !== 1
-    ? [{ expression: `${stepNumber(coefficient)}π` }]
-    : [];
+export type AreaStep = FormulaStep;
 
 /**
  * The working for a shape, with the entered numbers substituted.
@@ -133,7 +112,7 @@ export function areaSteps(
       return [
         { label: 's', expression: '(a + b + c) / 2' },
         { expression: `(${n(0)} + ${n(1)} + ${n(2)}) / 2` },
-        { expression: stepNumber(s), unit: SQUARED_UNIT_LABEL[unit] },
+        { expression: stepNumber(s), unit: UNIT_NOUN[unit] },
         { label: 'Area', expression: '√(s(s − a)(s − b)(s − c))' },
         {
           expression: `√(${stepNumber(s)} × (${stepNumber(s)} − ${n(0)}) × (${stepNumber(s)} − ${n(1)}) × (${stepNumber(s)} − ${n(2)}))`,

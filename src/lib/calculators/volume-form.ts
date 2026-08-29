@@ -1,33 +1,29 @@
 /**
- * Volume form binding (R12C1 Commit 2 — task-first migration, geometry shape-picker family; follow-on).
+ * Volume form layer — ONE binding, eleven shapes.
  *
- * Wraps the UNCHANGED `calculateVolume` / `VOLUME_SHAPES`, frozen by volume.test.ts. Everything here is
- * at the VALIDATION / PRESENTATION boundary; the shape identifiers, per-shape formulas, the
- * `Math.max(0, d[k]||0)` normalization and the number return shape are untouched.
+ * The reference puts eleven separate calculators on the page. As with area and square footage they
+ * do not need eleven bindings: a shape is a list of fields plus one way of solving them, so
+ * `VolumeShapeSpec` holds that and `makeVolumeBinding` turns a spec into a binding.
  *
- * Volume is an INDEPENDENT product that follows the interaction pattern proven by Area: it does NOT
- * import the Area binding, Area field configuration or any shared shape framework — it owns its own
- * shapes, fields, parsing, validation, guard and presentation. (Only the standard-form runtime is shared,
- * unchanged.)
+ * Every measurement carries its own unit, but a shape has only one answer, so each dimension is
+ * converted into the FIRST field's unit before the formula runs and the answer is reported in that
+ * unit cubed — the same rule the area calculator uses.
  *
- * Product decisions (R12C1):
- *   • Task-first: every dimension starts EMPTY, the result is empty, and the visitor presses "Calculate
- *     Volume" for the first result (live-after-first thereafter). No calculation on load.
- *   • The SHAPE is a structural `<select>` (default CUBE — the verified source default, NOT Area's
- *     rectangle). Each shape owns ONLY the dimensions its source formula needs; fields are named
- *     SHAPE-SCOPED (`<shape>.<key>`) so all seven groups coexist in the DOM (values survive switching
- *     away and back) while the island shows/enables only the active group. The binding reads + validates
- *     ONLY the active shape.
- *   • Every active dimension is required, finite and strictly > 0 — strict parsing, never Number(v)||0.
- *     No Volume shape has a cross-field geometric relationship, so there is no form-level domain error.
- *   • The UNIT is INTERPRETIVE (default m): it labels the entered-dimension unit and the CUBED result
- *     unit and NEVER converts entered numbers.
- *   • The complete-result guard lives in the ordinary `resultValue` (a finite, positive volume that
- *     reconciles with `calculateVolume` for the selected shape + dims, else a NaN sentinel). There is NO
- *     `isUsableResult`.
+ * The spherical cap is the one shape that does not require every field: it needs any TWO of base
+ * radius, ball radius and height, and from two radii it has TWO answers. That is carried in the
+ * data (`requires: 'any-two'`, and a solution with more than one volume) rather than in a second
+ * runtime, so the shared binding still serves it.
  */
-import { calculateVolume, VOLUME_SHAPES, type VolumeShapeKey } from './volume';
-import { formatNumber } from '@lib/format';
+import {
+  volumeSolution,
+  formatVolume,
+  cubedLabel,
+  capHeightsFromRadii,
+  type VolumeShapeKey,
+  type VolumeSolution,
+} from './volume';
+import { convertLength, isLengthUnit, UNIT_NOUN, type LengthUnit } from './area-units';
+import type { FormulaStep } from './formula-steps';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -35,201 +31,402 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-export const VOLUME_UNITS = ['cm', 'm', 'in', 'ft', 'yd'] as const;
-export type VolumeUnit = (typeof VOLUME_UNITS)[number];
-export const DEFAULT_SHAPE: VolumeShapeKey = 'cube';
-export const DEFAULT_UNIT: VolumeUnit = 'm';
+export const DEFAULT_UNIT: LengthUnit = 'm';
 
-const SHAPE_MAP = new Map(VOLUME_SHAPES.map((s) => [s.key, s]));
-/** Spoken cubic-unit words for the accessible announcement ("… cubic metres"). */
-const UNIT_WORD: Record<string, string> = {
-  cm: 'cubic centimetres',
-  m: 'cubic metres',
-  in: 'cubic inches',
-  ft: 'cubic feet',
-  yd: 'cubic yards',
-};
+export interface VolumeField {
+  /** Field name, unique within its own form only. */
+  name: string;
+  label: string;
+}
 
-/** Shape-scoped DOM field name for a dimension, e.g. `box.length`, `capsule.height`. */
-export const fieldName = (shape: string, key: string): string => `${shape}.${key}`;
+export interface VolumeShapeSpec {
+  key: VolumeShapeKey;
+  title: string;
+  /** One short line under the heading saying what the shape is. */
+  lede: string;
+  fields: VolumeField[];
+  /** `all` (default) needs every field; `any-two` needs two of three. */
+  requires?: 'all' | 'any-two';
+  /** An instruction the reference prints above the fields. */
+  note?: string;
+  /** A cross-field impossibility the individual fields cannot catch. */
+  check?(values: (number | null)[]): string | null;
+}
+
+export const MSG = {
+  required: 'Enter a value.',
+  invalid: 'Enter a number greater than zero.',
+  needTwo: 'Enter any two of the three values.',
+  capRadii: 'The ball radius must be at least the base radius, or no cap fits on the ball.',
+  capHeight: 'The height cannot be more than twice the ball radius.',
+  tubeBore: 'The inner diameter must be smaller than the outer diameter.',
+  frustumRadii: 'Enter two different radii, or use the cylinder calculator.',
+} as const;
+
+const f = (name: string, label: string): VolumeField => ({ name, label });
+
+/* ------------------------------------------------------------------ */
+/* The eleven specs, in the reference's order                          */
+/* ------------------------------------------------------------------ */
+
+export const VOLUME_SHAPES: VolumeShapeSpec[] = [
+  {
+    key: 'sphere',
+    title: 'Sphere',
+    lede: 'A ball, measured from its centre to its surface.',
+    fields: [f('d1', 'Radius (r)')],
+  },
+  {
+    key: 'cone',
+    title: 'Cone',
+    lede: 'A circular base tapering to a point.',
+    fields: [f('d1', 'Base Radius (r)'), f('d2', 'Height (h)')],
+  },
+  {
+    key: 'cube',
+    title: 'Cube',
+    lede: 'Six square faces — one measurement is enough.',
+    fields: [f('d1', 'Edge Length (a)')],
+  },
+  {
+    key: 'cylinder',
+    title: 'Cylinder',
+    lede: 'A circular base pulled straight up — a can, a pipe, a tank.',
+    fields: [f('d1', 'Base Radius (r)'), f('d2', 'Height (h)')],
+  },
+  {
+    key: 'rectangular-tank',
+    title: 'Rectangular Tank',
+    lede: 'A box — a room, a crate, a sump.',
+    fields: [f('d1', 'Length (l)'), f('d2', 'Width (w)'), f('d3', 'Height (h)')],
+  },
+  {
+    key: 'capsule',
+    title: 'Capsule',
+    lede: 'A cylinder with a hemisphere capping each end.',
+    fields: [f('d1', 'Base Radius (r)'), f('d2', 'Height (h)')],
+  },
+  {
+    key: 'spherical-cap',
+    title: 'Spherical Cap',
+    lede: 'A slice off the top of a ball — a dome, a dished end.',
+    note: 'Please provide any two values below to calculate.',
+    requires: 'any-two',
+    fields: [f('d1', 'Base Radius (r)'), f('d2', 'Ball Radius (R)'), f('d3', 'Height (h)')],
+    check: ([r, R, h]) => {
+      if (r !== null && R !== null) return R < r ? MSG.capRadii : null;
+      if (R !== null && h !== null) return h > 2 * R ? MSG.capHeight : null;
+      return null;
+    },
+  },
+  {
+    key: 'conical-frustum',
+    title: 'Conical Frustum',
+    lede: 'A cone with its point cut off — a bucket, a plant pot.',
+    fields: [f('d1', 'Top Radius (r)'), f('d2', 'Bottom Radius (R)'), f('d3', 'Height (h)')],
+  },
+  {
+    key: 'ellipsoid',
+    title: 'Ellipsoid',
+    lede: 'A squashed or stretched ball, measured along three axes.',
+    fields: [f('d1', 'Axis 1 (a)'), f('d2', 'Axis 2 (b)'), f('d3', 'Axis 3 (c)')],
+  },
+  {
+    key: 'square-pyramid',
+    title: 'Square Pyramid',
+    lede: 'A square base rising to a point.',
+    fields: [f('d1', 'Base Edge (a)'), f('d2', 'Height (h)')],
+  },
+  {
+    key: 'tube',
+    title: 'Tube',
+    lede: 'A pipe — the outer cylinder less its bore, measured across.',
+    fields: [f('d1', 'Outer Diameter (d1)'), f('d2', 'Inner Diameter (d2)'), f('d3', 'Length (l)')],
+    check: ([d1, d2]) => (d1 !== null && d2 !== null && d2 >= d1 ? MSG.tubeBore : null),
+  },
+];
+
+export const volumeShapeByKey = (key: VolumeShapeKey): VolumeShapeSpec =>
+  VOLUME_SHAPES.find((s) => s.key === key)!;
+
+/* ------------------------------------------------------------------ */
+/* Values + computation                                                */
+/* ------------------------------------------------------------------ */
 
 export interface VolumeValues {
-  shape: string;
-  unit: string;
-  /** The ACTIVE shape's raw dimension strings, keyed by the shape's dimension keys. */
   dims: Record<string, string>;
+  units: Record<string, string>;
 }
 
 export interface VolumeComputed {
-  shape: VolumeShapeKey;
-  shapeLabel: string;
-  unit: string;
-  volume: number;
-  /** The parsed active dimensions used to compute the volume (for the guard's shape-identity check). */
-  dims: Record<string, number>;
+  key: VolumeShapeKey;
+  values: VolumeValues;
+  /** The unit the answer is in — the first field's. */
+  unit: LengthUnit;
+  /** Dimensions converted into `unit`; `null` where a field was deliberately left blank. */
+  converted: (number | null)[];
+  solution: VolumeSolution;
 }
 
-/* ------------------------------------------------------------------ */
-/* Parsing + validation (pure) — strict, never Number(v) || 0          */
-/* ------------------------------------------------------------------ */
-
-type NumParse = 'empty' | 'invalid' | number;
-
-/** A geometric dimension: required, finite and strictly greater than zero. */
-function parsePositive(raw: string): NumParse {
-  const t = (raw ?? '').trim();
-  if (t === '') return 'empty';
-  const n = Number(t);
-  if (!Number.isFinite(n) || n <= 0) return 'invalid';
-  return n;
+/** A strictly positive finite decimal; empty and junk are told apart. */
+function parsePositive(raw: string): number | 'empty' | 'invalid' {
+  const s = (raw ?? '').trim();
+  if (s === '') return 'empty';
+  if (!/^\d+\.?\d*$|^\.\d+$/.test(s)) return 'invalid';
+  const v = Number(s);
+  if (!Number.isFinite(v) || v <= 0) return 'invalid';
+  return v;
 }
 
-const shapeDef = (shape: string) => SHAPE_MAP.get(shape as VolumeShapeKey);
+const asUnit = (raw: string): LengthUnit => (isLengthUnit(raw) ? raw : DEFAULT_UNIT);
 
-/**
- * Validate the ACTIVE shape's dimensions only. Each active dimension must be a finite number > 0; the
- * message uses the shape's own visible label. Inactive shapes' fields are never read or blamed. Errors
- * are keyed by the SHAPE-SCOPED field name so the runtime binds them to the right control.
- */
-export function validateVolumeValues(values: VolumeValues): ValidationResult {
-  const def = shapeDef(values.shape);
-  if (!def) return { ok: false, fieldErrors: { shape: 'Choose a shape.' } }; // defensive; the select is closed
+/** The unit the answer is reported in: whatever the first field was measured in. */
+export function resultUnit(spec: VolumeShapeSpec, v: VolumeValues): LengthUnit {
+  return asUnit(v.units[spec.fields[0].name] ?? '');
+}
 
+/** Every dimension in the answer's unit; `null` for a blank field. */
+export function convertDims(spec: VolumeShapeSpec, v: VolumeValues): (number | null)[] {
+  const target = resultUnit(spec, v);
+  return spec.fields.map((field) => {
+    const parsed = parsePositive(v.dims[field.name] ?? '');
+    if (parsed === 'empty') return null;
+    if (parsed === 'invalid') return Number.NaN;
+    return convertLength(parsed, asUnit(v.units[field.name] ?? ''), target);
+  });
+}
+
+export function validateVolume(spec: VolumeShapeSpec, v: VolumeValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
-  for (const inp of def.inputs) {
-    const parsed = parsePositive(values.dims[inp.key] ?? '');
-    if (parsed === 'empty' || parsed === 'invalid') {
-      fieldErrors[fieldName(def.key, inp.key)] = `Enter a ${inp.label.toLowerCase()} greater than zero.`;
-    }
+  const anyTwo = spec.requires === 'any-two';
+  let filled = 0;
+
+  for (const field of spec.fields) {
+    const parsed = parsePositive(v.dims[field.name] ?? '');
+    if (parsed === 'invalid') fieldErrors[field.name] = MSG.invalid;
+    else if (parsed === 'empty') {
+      // A blank is only acceptable where the shape asks for a subset of its fields.
+      if (!anyTwo) fieldErrors[field.name] = MSG.required;
+    } else filled += 1;
   }
-  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+  if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
+  if (anyTwo && filled < 2) return { ok: false, formError: MSG.needTwo };
+
+  const cross = spec.check?.(convertDims(spec, v));
+  if (cross) return { ok: false, formError: cross };
+  return { ok: true };
+}
+
+export function computeVolume(spec: VolumeShapeSpec, v: VolumeValues): VolumeComputed {
+  const unit = resultUnit(spec, v);
+  const converted = convertDims(spec, v);
+  const usable = converted.every((x) => x === null || Number.isFinite(x));
+  const solution = usable
+    ? volumeSolution(spec.key, converted, unit)
+    : { volumes: [], steps: [] as FormulaStep[] };
+  return { key: spec.key, values: v, unit, converted, solution };
+}
+
+/** The headline volume, but only when everything on show reconciles with a recompute. */
+export function completeVolumeValue(spec: VolumeShapeSpec, r: VolumeComputed): number {
+  if (r.key !== spec.key) return Number.NaN;
+  if (resultUnit(spec, r.values) !== r.unit) return Number.NaN;
+
+  const filled = r.converted.filter((x) => x !== null);
+  if (filled.length === 0) return Number.NaN;
+  if (!filled.every((x) => Number.isFinite(x) && (x as number) > 0)) return Number.NaN;
+  if (spec.requires === 'any-two') {
+    if (filled.length < 2) return Number.NaN;
+  } else if (r.converted.some((x) => x === null)) return Number.NaN;
+  if (spec.check?.(r.converted)) return Number.NaN;
+
+  const reConverted = convertDims(spec, r.values);
+  if (reConverted.length !== r.converted.length) return Number.NaN;
+  for (let i = 0; i < reConverted.length; i += 1) {
+    if (reConverted[i] !== r.converted[i]) return Number.NaN;
+  }
+  const re = volumeSolution(spec.key, reConverted, r.unit);
+  if (re.volumes.length !== r.solution.volumes.length) return Number.NaN;
+  if (re.volumes.length === 0) return Number.NaN;
+  for (let i = 0; i < re.volumes.length; i += 1) {
+    if (re.volumes[i] !== r.solution.volumes[i]) return Number.NaN;
+    if (!Number.isFinite(re.volumes[i]) || re.volumes[i] <= 0) return Number.NaN;
+  }
+  return r.solution.volumes[0];
 }
 
 /* ------------------------------------------------------------------ */
-/* Computation (pure) — unchanged pass-through to calculateVolume       */
+/* Presentation                                                        */
 /* ------------------------------------------------------------------ */
 
-export function computeVolume(values: VolumeValues): VolumeComputed {
-  const def = shapeDef(values.shape) ?? SHAPE_MAP.get(DEFAULT_SHAPE)!;
-  const dims: Record<string, number> = {};
-  for (const inp of def.inputs) dims[inp.key] = Number(values.dims[inp.key]);
+export interface VolumePresentation {
+  steps: FormulaStep[];
+  /** The headline figure, or both of them joined, for the announcement. */
+  a11y: string;
+  /** True when the units entered were not all the same. */
+  mixedUnits: boolean;
+}
+
+export function presentVolume(spec: VolumeShapeSpec, r: VolumeComputed): VolumePresentation {
+  const noun = UNIT_NOUN[r.unit];
+  const spoken = r.solution.volumes.map((v) => `${formatVolume(v)} cubic ${noun}`);
+  const used = spec.fields
+    .filter((_, i) => r.converted[i] !== null)
+    .map((field) => r.values.units[field.name]);
   return {
-    shape: def.key,
-    shapeLabel: def.label,
-    unit: values.unit,
-    volume: calculateVolume(def.key, dims),
-    dims,
+    steps: r.solution.steps,
+    a11y:
+      spoken.length > 1
+        ? `Two possible results: ${spoken.join(', or ')}`
+        : (spoken[0] ?? ''),
+    mixedUnits: new Set(used).size > 1,
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* Complete-result guard (pure) — the resultValue sentinel             */
-/* ------------------------------------------------------------------ */
-
-const FAIL = Number.NaN; // non-finite sentinel → the runtime's default finite gate rejects the result
-
-/**
- * The dominant volume — but ONLY when the whole result is well-formed: a known shape, every active
- * dimension finite and > 0, a finite positive volume, and the volume reconciling with `calculateVolume`
- * for the selected shape + dims (shape identity; also rejects the +Infinity-dimension → Infinity-volume
- * path and the unknown-shape NaN). Any failure returns the NaN sentinel — NO `isUsableResult`.
- */
-export function completeResultValue(r: VolumeComputed): number {
-  const def = SHAPE_MAP.get(r.shape);
-  if (!def) return FAIL;
-  if (!Number.isFinite(r.volume) || r.volume <= 0) return FAIL;
-
-  for (const inp of def.inputs) {
-    const v = r.dims[inp.key];
-    if (!Number.isFinite(v) || v <= 0) return FAIL;
-  }
-
-  const expected = calculateVolume(def.key, r.dims);
-  if (!Number.isFinite(expected)) return FAIL;
-  if (Math.abs(r.volume - expected) > Math.max(1e-9, Math.abs(expected) * 1e-9)) return FAIL;
-
-  return r.volume;
-}
-
-/* ------------------------------------------------------------------ */
-/* Presentation (pure)                                                 */
-/* ------------------------------------------------------------------ */
-
-/** Unit cubed for the visible result label, e.g. "m³". */
-export const unitCubed = (unit: string): string => `${unit}³`;
-
-/** Concise announcement — the dominant volume only, spoken with the cubic-unit word. */
-export function describeVolumeResult(r: VolumeComputed): string {
-  return `The calculated volume is ${formatNumber(r.volume, 3)} ${UNIT_WORD[r.unit] ?? r.unit}.`;
-}
-
-/** The visible interpretation sentence (§11), naming the shape and the cubed unit. */
-export function interpretVolume(r: VolumeComputed): string {
-  return `The volume of the selected ${r.shapeLabel.toLowerCase()} is ${formatNumber(r.volume, 3)} ${unitCubed(r.unit)}.`;
+export function describeVolume(spec: VolumeShapeSpec, r: VolumeComputed): string {
+  const p = presentVolume(spec, r);
+  return `${spec.title} volume: ${p.a11y}.`;
 }
 
 /* ------------------------------------------------------------------ */
 /* The binding                                                         */
 /* ------------------------------------------------------------------ */
 
-const control = (root: HTMLElement, name: string) =>
-  root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
+const value = (root: HTMLElement, name: string): string =>
+  root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`)?.value ?? '';
 
-export const volumeBinding: FormCalculatorBinding<VolumeValues, VolumeComputed> = {
-  readValues(root) {
-    const shape = control(root, 'shape')?.value ?? DEFAULT_SHAPE;
-    const unit = control(root, 'unit')?.value ?? DEFAULT_UNIT;
-    const def = shapeDef(shape) ?? SHAPE_MAP.get(DEFAULT_SHAPE)!;
-    const dims: Record<string, string> = {};
-    for (const inp of def.inputs) dims[inp.key] = control(root, fieldName(shape, inp.key))?.value ?? '';
-    return { shape, unit, dims };
-  },
+export function readVolumeValues(root: HTMLElement, spec: VolumeShapeSpec): VolumeValues {
+  const dims: Record<string, string> = {};
+  const units: Record<string, string> = {};
+  for (const field of spec.fields) {
+    dims[field.name] = value(root, field.name);
+    units[field.name] = value(root, `${field.name}Unit`) || DEFAULT_UNIT;
+  }
+  return { dims, units };
+}
 
-  validate: validateVolumeValues,
-
-  compute: computeVolume,
-
-  /** The dominant volume when the ENTIRE result is well-formed, else a NaN sentinel — no isUsableResult. */
-  resultValue: completeResultValue,
-
-  describeResult: describeVolumeResult,
-
-  renderResult(result, context: FormRenderContext) {
-    const scope = context.result;
-    const setText = (sel: string, text: string) => {
-      const el = scope.querySelector<HTMLElement>(sel);
-      if (el) el.textContent = text;
-    };
-    setText('[data-result-when~="valid"] [data-result-value]', formatNumber(result.volume, 3));
-    setText('[data-result-when~="valid"] [data-result-value-a11y]', `${formatNumber(result.volume, 3)} ${UNIT_WORD[result.unit] ?? result.unit}`);
-    setText('[data-vo-unit-cubed]', unitCubed(result.unit));
-    setText('[data-vo-interpretation]', interpretVolume(result));
-  },
-
-  resetValues(root, _mode: ResetMode) {
-    const shapeSel = control(root, 'shape');
-    if (shapeSel) shapeSel.value = DEFAULT_SHAPE;
-    const unitSel = control(root, 'unit');
-    if (unitSel) unitSel.value = DEFAULT_UNIT;
-    for (const s of VOLUME_SHAPES) {
-      for (const inp of s.inputs) {
-        const el = control(root, fieldName(s.key, inp.key));
-        if (el) el.value = '';
-      }
+/** Render the working into a container using text APIs only — never markup from a string. */
+export function renderSteps(container: HTMLElement, steps: FormulaStep[]): void {
+  container.textContent = '';
+  for (const step of steps) {
+    if (step.kind === 'note' || step.kind === 'heading') {
+      const p = document.createElement('p');
+      p.className = step.kind === 'heading' ? 'vl-steps-heading' : 'vl-step-note';
+      p.textContent = step.expression;
+      container.appendChild(p);
+      continue;
     }
-  },
-};
 
-/* ------------------------------------------------------------------ */
-/* Worked example (labelled; the visitor's fields stay EMPTY)          */
-/* ------------------------------------------------------------------ */
+    const row = document.createElement('div');
+    row.className = 'vl-step';
+    if (step.final) row.classList.add('vl-step--final');
+
+    const label = document.createElement('span');
+    label.className = 'vl-step__label';
+    label.textContent = step.label ?? '';
+    row.appendChild(label);
+
+    // Spaces around the equals sign are real characters, not just a grid gap, so the working
+    // copies and pastes as "Volume = 4/3 πr³" and reads aloud that way too.
+    const eq = document.createElement('span');
+    eq.className = 'vl-step__eq';
+    eq.textContent = ' = ';
+    row.appendChild(eq);
+
+    const expr = document.createElement('span');
+    expr.className = 'vl-step__expr';
+    if (step.lead) {
+      const lead = document.createElement('span');
+      lead.textContent = step.lead;
+      expr.appendChild(lead);
+    }
+    const figure = document.createElement('span');
+    figure.className = 'vl-step__figure';
+    figure.textContent = step.expression;
+    expr.appendChild(figure);
+    if (step.unit) {
+      const unit = document.createElement('span');
+      unit.className = 'vl-step__unit';
+      unit.textContent = ` ${step.unit}`;
+      expr.appendChild(unit);
+    }
+    row.appendChild(expr);
+    container.appendChild(row);
+  }
+
+  // The fleet's result-value contract points at the FIRST headline figure.
+  const first = container.querySelector<HTMLElement>('.vl-step--final .vl-step__figure');
+  if (first) first.setAttribute('data-result-value', '');
+}
+
+/** One binding per shape, built from its spec — never eleven hand-written bindings. */
+export function makeVolumeBinding(
+  spec: VolumeShapeSpec,
+): FormCalculatorBinding<VolumeValues, VolumeComputed> {
+  return {
+    readValues: (root) => readVolumeValues(root, spec),
+    validate: (v) => validateVolume(spec, v),
+    compute: (v) => computeVolume(spec, v),
+    resultValue: (r) => completeVolumeValue(spec, r),
+    describeResult: (r) => describeVolume(spec, r),
+    renderResult(result, context: FormRenderContext) {
+      const p = presentVolume(spec, result);
+      const work = context.result.querySelector<HTMLElement>('[data-vl-steps]');
+      if (work) renderSteps(work, p.steps);
+
+      const a11y = context.result.querySelector<HTMLElement>(
+        '[data-result-when~="valid"] [data-result-value-a11y]',
+      );
+      if (a11y) a11y.textContent = p.a11y;
+
+      const mixed = context.result.querySelector<HTMLElement>('[data-vl-mixed]');
+      if (mixed) mixed.hidden = !p.mixedUnits;
+    },
+    resetValues(root, _mode: ResetMode) {
+      for (const field of spec.fields) {
+        const el = root.querySelector<HTMLInputElement>(`[name="${field.name}"]`);
+        if (el) el.value = '';
+        const unit = root.querySelector<HTMLSelectElement>(`[name="${field.name}Unit"]`);
+        if (unit) unit.value = DEFAULT_UNIT;
+      }
+    },
+  };
+}
 
 /**
- * Example inputs for the labelled worked result shown on first load.
+ * Example values for the labelled worked result each shape shows on load — the reference's own
+ * numbers, so the example on screen is one the visitor can check against the source.
  *
- * These are OURS, not the visitor's. The shared runtime computes them and calls
- * this binding's own `renderResult`, so the example reuses the calculator's real
- * result markup and can never drift from the engine. The visitor's fields are
- * never written to — they load and stay empty behind it.
+ * These are OURS, not the visitor's: the runtime computes them and calls the binding's own
+ * renderResult, so the example reuses the real result markup and can never drift from the engine.
  */
-export const VOLUME_EXAMPLE_VALUES: VolumeValues = { shape: 'cube', unit: 'm', dims: { side: '2' } };
+export function volumeExampleValues(spec: VolumeShapeSpec): VolumeValues {
+  const byKey: Record<VolumeShapeKey, (number | null)[]> = {
+    sphere: [33],
+    cone: [11, 22],
+    cube: [5],
+    cylinder: [22, 7],
+    'rectangular-tank': [8, 34, 66],
+    capsule: [5, 8],
+    'spherical-cap': [7, 9, null],
+    'conical-frustum': [2, 4, 5],
+    ellipsoid: [4, 6, 5],
+    'square-pyramid': [3, 5],
+    tube: [4, 1, 6],
+  };
+  const numbers = byKey[spec.key] ?? spec.fields.map(() => 1);
+  const dims: Record<string, string> = {};
+  const units: Record<string, string> = {};
+  spec.fields.forEach((field, i) => {
+    dims[field.name] = numbers[i] === null ? '' : String(numbers[i]);
+    units[field.name] = DEFAULT_UNIT;
+  });
+  return { dims, units };
+}
+
+/** Re-exported so a caller checking a cap's two roots need not reach past this layer. */
+export { capHeightsFromRadii };
+
+/** The first shape's example, for the fleet-wide labelled-example check. */
+export const VOLUME_EXAMPLE_VALUES = volumeExampleValues(VOLUME_SHAPES[0]);
+export const volumeBinding = makeVolumeBinding(VOLUME_SHAPES[0]);
