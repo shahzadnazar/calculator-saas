@@ -25,8 +25,7 @@
  *     reconciled via a fresh `convert` recompute; a legitimate 0 output (e.g. 0 km → mi) is a finite 0
  *     the runtime's default gate accepts.
  */
-import { convert, CATEGORIES } from './conversion';
-import { formatNumber } from '@lib/format';
+import { convert, convertToAll, formatConverted, CATEGORIES, type UnitDef } from './conversion';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -38,12 +37,19 @@ const CATEGORY_MAP = new Map(CATEGORIES.map((c) => [c.key, c]));
 
 export const DEFAULT_CATEGORY = CATEGORIES[0].key; // 'length'
 
-/** The deterministic default units for a category: its first two distinct units (units[0] → units[1]). */
+/**
+ * The units a category opens on — the conversion people actually come for, declared on the category
+ * itself. Falls back to the first two units if a category ever ships without a pair.
+ */
 export function defaultUnits(categoryKey: string): { from: string; to: string } {
   const cat = CATEGORY_MAP.get(categoryKey) ?? CATEGORIES[0];
-  const from = cat.units[0]?.key ?? '';
-  const to = cat.units[Math.min(1, cat.units.length - 1)]?.key ?? from;
-  return { from, to };
+  const known = new Set(cat.units.map((u) => u.key));
+  const [from, to] = cat.defaults ?? [];
+  if (from && to && known.has(from) && known.has(to)) return { from, to };
+  return {
+    from: cat.units[0]?.key ?? '',
+    to: cat.units[Math.min(1, cat.units.length - 1)]?.key ?? cat.units[0]?.key ?? '',
+  };
 }
 
 export interface ConversionValues {
@@ -141,8 +147,43 @@ export function completeConversionValue(r: ConversionComputed): number {
 /* Presentation (pure)                                                 */
 /* ------------------------------------------------------------------ */
 
-/** The converted value formatted to the legacy precision (up to 6 fractional digits, locale grouped). */
-export const formatValue = (n: number): string => formatNumber(n, 6);
+/**
+ * The converted value, in significant figures rather than fixed decimals.
+ *
+ * Six fractional digits used to turn one byte in gigabytes into "0" — not a rounding error but a
+ * wrong answer to a question the tool exists to answer. See `formatConverted`.
+ */
+export const formatValue = (n: number): string => formatConverted(n);
+
+/** One row of the same quantity expressed in every unit of its category. */
+export interface AllUnitRow {
+  key: string;
+  label: string;
+  note?: string;
+  value: string;
+  /** True for the unit the visitor is converting TO, so a view can mark it. */
+  isTarget: boolean;
+  /** True for the unit they are converting FROM. */
+  isSource: boolean;
+}
+
+/**
+ * The same quantity in every unit of its category.
+ *
+ * One conversion answers all of them, and the extra rows cost nothing to compute — so showing only
+ * the requested pair throws away the most useful part of the answer. A visitor converting a recipe
+ * wants tablespoons AND millilitres, not one of them and a second trip through the form.
+ */
+export function allUnitRows(r: ConversionComputed): AllUnitRow[] {
+  return convertToAll(r.input, r.from, r.category).map(({ unit, value }: { unit: UnitDef; value: number }) => ({
+    key: unit.key,
+    label: unit.label,
+    note: unit.note,
+    value: formatConverted(value),
+    isTarget: unit.key === r.to,
+    isSource: unit.key === r.from,
+  }));
+}
 
 /** The full equation, e.g. "1 Kilometres = 0.621371 Miles" (mirrors the legacy summary format). */
 export function conversionEquation(r: ConversionComputed): string {
@@ -194,6 +235,33 @@ export const conversionBinding: FormCalculatorBinding<ConversionValues, Conversi
     set('[data-cv-unit]', result.toLabel);
     // Supporting: the full equation (the primary answer, both sides).
     set('[data-cv-equation]', conversionEquation(result));
+    set('[data-cv-category]', result.categoryLabel.toLowerCase());
+
+    // The whole category, built with text APIs only — never markup from a string.
+    const all = scope.querySelector<HTMLElement>('[data-cv-all]');
+    if (all) {
+      all.textContent = '';
+      for (const row of allUnitRows(result)) {
+        const line = document.createElement('div');
+        line.className = 'cv-row';
+        if (row.isTarget) line.classList.add('cv-row--target');
+        if (row.isSource) line.classList.add('cv-row--source');
+
+        const dt = document.createElement('dt');
+        dt.textContent = row.label;
+        if (row.note) {
+          const note = document.createElement('span');
+          note.className = 'cv-row__note';
+          note.textContent = ` (${row.note})`;
+          dt.appendChild(note);
+        }
+        const dd = document.createElement('dd');
+        dd.textContent = row.value;
+
+        line.append(dt, dd);
+        all.appendChild(line);
+      }
+    }
   },
 
   resetValues(root, _mode: ResetMode) {
