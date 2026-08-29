@@ -21,11 +21,16 @@ import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
+/**
+ * Each field carries an example of what goes in it. A label says what a field means; a placeholder
+ * says what it looks like — "3.663" answers "do I type a letter grade here?" before the visitor has
+ * to guess and be told they were wrong.
+ */
 const PLAN_FIELDS = [
-  { name: 'currentGpa', label: 'Current GPA', hint: 'Your GPA so far.' },
-  { name: 'targetGpa', label: 'Target GPA', hint: 'The GPA you want to reach.' },
-  { name: 'currentCredits', label: 'Current Credits', hint: 'Credits your current GPA covers.' },
-  { name: 'additionalCredits', label: 'Additional Credits', hint: 'Credits still to come.' },
+  { name: 'currentGpa', label: 'Current GPA', placeholder: '3.663', hint: 'Your GPA so far.' },
+  { name: 'targetGpa', label: 'Target GPA', placeholder: '3', hint: 'The GPA you want to reach.' },
+  { name: 'currentCredits', label: 'Current Credits', placeholder: '8', hint: 'Credits your current GPA covers.' },
+  { name: 'additionalCredits', label: 'Additional Credits', placeholder: '15', hint: 'Credits still to come.' },
 ];
 ---
 
@@ -129,6 +134,7 @@ const PLAN_FIELDS = [
                   type="text"
                   inputmode="decimal"
                   autocomplete="off"
+                  placeholder={f.placeholder}
                   aria-describedby={`gpa-${f.name}-hint gpa-${f.name}-error`}
                 />
                 <p class="gpa-hint" id={`gpa-${f.name}-hint`}>{f.hint}</p>
@@ -380,8 +386,13 @@ const PLAN_FIELDS = [
 
   let uid = 0;
 
-  /** One course row, built with the DOM API — never markup from a string. */
-  function buildRow(): HTMLTableRowElement {
+  /**
+   * One course row, built with the DOM API — never markup from a string.
+   *
+   * Only the first row carries example placeholders. Five rows all reading "Math / 3" look like an
+   * instruction to type Math five times; one row shows the format and the rest stay quiet.
+   */
+  function buildRow(withExample = false): HTMLTableRowElement {
     const id = `r${++uid}`;
     const tr = document.createElement('tr');
     tr.className = 'gpa-row';
@@ -393,6 +404,7 @@ const PLAN_FIELDS = [
     name.className = 'field gpa-row__name';
     name.setAttribute('data-gpa-name', '');
     name.autocomplete = 'off';
+    if (withExample) name.placeholder = 'Math';
     name.setAttribute('aria-label', 'Course name (optional)');
     nameCell.appendChild(name);
 
@@ -403,6 +415,7 @@ const PLAN_FIELDS = [
     credits.setAttribute('data-gpa-credits', '');
     credits.inputMode = 'decimal';
     credits.autocomplete = 'off';
+    if (withExample) credits.placeholder = '3';
     credits.setAttribute('aria-label', 'Credits');
     credits.setAttribute('aria-describedby', `gpa-credits-${id}-error`);
     const creditsError = document.createElement('p');
@@ -466,7 +479,7 @@ const PLAN_FIELDS = [
 
     const seed = (count: number) => {
       body.textContent = '';
-      for (let i = 0; i < count; i += 1) body.appendChild(buildRow());
+      for (let i = 0; i < count; i += 1) body.appendChild(buildRow(i === 0));
       syncRemoveButtons();
     };
 
