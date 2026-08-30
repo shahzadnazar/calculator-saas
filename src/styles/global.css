@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* --------------------------------------------------------------------------
-   Inter (self-hosted variable, latin subset)
+   Inter — self-hosted variable font, Latin subset
    -------------------------------------------------------------------------- */
 
 @font-face {
@@ -25,12 +25,12 @@
    AllCalculators — Design System
 
    Visual direction:
-   Plum + Rose + Apricot
+   Purple + Cyan + Indigo
 
-   Plum   = primary brand / actions / links
-   Rose   = secondary accent
-   Apricot = subtle warmth / highlights
-   Neutral = clean calculator-focused surfaces
+   Purple = primary brand, actions and links
+   Cyan   = secondary accent and highlights
+   Indigo = supporting accent
+   Neutral surfaces keep calculators readable
    ========================================================================== */
 
 @theme {
@@ -38,54 +38,62 @@
      Typography
      ------------------------------------------------------------------------ */
 
-  --font-sans: "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui,
-    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
-    sans-serif;
+  --font-sans:
+    "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 
-  --font-mono: "SFMono-Regular", ui-monospace, "JetBrains Mono",
-    "Roboto Mono", Menlo, Consolas, monospace;
+  --font-mono:
+    "SFMono-Regular", ui-monospace, "JetBrains Mono", "Roboto Mono", Menlo,
+    Consolas, monospace;
 
   /* ------------------------------------------------------------------------
-     Brand — Plum
+     Brand — Purple
      ------------------------------------------------------------------------ */
 
-  --color-brand-50: #FAF5FF;
-  --color-brand-100: #F3E8FF;
-  --color-brand-200: #E9D5FF;
-  --color-brand-300: #D8B4FE;
-  --color-brand-400: #C084FC;
-  --color-brand-500: #A855F7;
-  --color-brand-600: #7C3AED;
-  --color-brand-700: #6D28D9;
-  --color-brand-800: #5B21B6;
-  --color-brand-900: #4C1D95;
-  --color-brand-950: #2E1065;
+  --color-brand-50: #faf7ff;
+  --color-brand-100: #f2eaff;
+  --color-brand-200: #372a43;
+  --color-brand-300: #d4b5ff;
+  --color-brand-400: #b985ff;
+  --color-brand-500: #9855f5;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+  --color-brand-800: #5b21b6;
+  --color-brand-900: #4c1d95;
+  --color-brand-950: #2e1065;
 
   /* ------------------------------------------------------------------------
-     Accent — Rose
+     Accent — Cyan blue
      ------------------------------------------------------------------------ */
 
-  --color-accent-400: #FB7185;
-  --color-accent-500: #F43F5E;
-  --color-accent-600: #E11D48;
-  --color-accent-700: #BE123C;
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-600: #0891b2;
+  --color-accent-700: #0e7490;
 
   /* ------------------------------------------------------------------------
-     Warm highlight — Apricot
+     Supporting accent — Indigo
      ------------------------------------------------------------------------ */
 
-  --color-warm-400: #FDBA74;
-  --color-warm-500: #F97316;
-  --color-warm-600: #EA580C;
-  --color-warm-700: #C2410C;
+  --color-warm-400: #818cf8;
+  --color-warm-500: #6366f1;
+  --color-warm-600: #4f46e5;
+  --color-warm-700: #4338ca;
 
   /* ------------------------------------------------------------------------
-     Semantic
+     Semantic colors
+
+     Danger remains red intentionally because errors and destructive actions
+     must remain immediately recognizable.
      ------------------------------------------------------------------------ */
 
   --color-success: #059669;
-  --color-warning: #D97706;
-  --color-danger: #DC2626;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
 
   /* ------------------------------------------------------------------------
      Semantic surfaces
@@ -108,59 +116,98 @@
    ========================================================================== */
 
 :root {
-  /* Very light warm-neutral background.
-     Keeps the purple from becoming visually overwhelming. */
-  --page: #FCFAFD;
+  /* Main surfaces */
+  --page: #fcfbfe;
+  --card: #ffffff;
+  --subtle: #f7f5fa;
+  --line: #e7e1ec;
 
-  /* Clean white cards */
-  --card: #FFFFFF;
+  /* Typography */
+  --fg: #51465a;
+  --muted: #766b80;
+  --heading: #2b193d;
 
-  /* Slightly tinted surface */
-  --subtle: #F7F3FA;
+  /* Theme-aware interactive surfaces */
+  --interactive-soft: #f4effc;
+  --interactive-hover: #eee5fa;
+  --interactive-active: #e6d9f7;
+  --interactive-border: #d7c7eb;
 
-  /* Soft neutral-purple border */
-  --line: #E9E1EF;
+  /* Theme-aware header surfaces */
+  --header-bg: rgb(255 255 255 / 0.9);
+  --header-hover: #f2ebfb;
+  --header-active: #eadff8;
 
-  /* Body text */
-  --fg: #51465A;
-
-  /* Secondary text */
-  --muted: #766B80;
-
-  /* Deep plum heading */
-  --heading: #2B193D;
+  /* Theme-aware focus treatment */
+  --focus-ring: rgb(124 58 237 / 0.2);
 
   color-scheme: light;
 }
 
 /* ==========================================================================
-   Runtime theme variables — Dark
+   Runtime theme variables — Automatic dark mode
    ========================================================================== */
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --page: #110B17;
-    --card: #1B1223;
-    --subtle: #26192F;
-    --line: #3A2944;
+    /* Dark plum surfaces instead of flat grey */
+    --page: #0e0a14;
+    --card: #17111f;
+    --subtle: #211829;
+    --line: #372a43;
 
-    --fg: #D8CFDE;
-    --muted: #A99BAF;
-    --heading: #FAF7FC;
+    /* Typography */
+    --fg: #ded6e5;
+    --muted: #aa9daf;
+    --heading: #fcf9ff;
+
+    /* Purple-tinted interactive surfaces */
+    --interactive-soft: #241831;
+    --interactive-hover: #2d1d3e;
+    --interactive-active: #38244c;
+    --interactive-border: #52386c;
+
+    /* Header surfaces */
+    --header-bg: rgb(23 17 31 / 0.9);
+    --header-hover: #2a1b3b;
+    --header-active: #342149;
+
+    /* Focus treatment */
+    --focus-ring: rgb(168 85 247 / 0.3);
 
     color-scheme: dark;
   }
 }
 
-:root[data-theme="dark"] {
-  --page: #110B17;
-  --card: #1B1223;
-  --subtle: #26192F;
-  --line: #3A2944;
+/* ==========================================================================
+   Runtime theme variables — Manually selected dark mode
+   ========================================================================== */
 
-  --fg: #D8CFDE;
-  --muted: #A99BAF;
-  --heading: #FAF7FC;
+:root[data-theme="dark"] {
+  /* Dark plum surfaces instead of flat grey */
+  --page: #0e0a14;
+  --card: #17111f;
+  --subtle: #211829;
+  --line: #372a43;
+
+  /* Typography */
+  --fg: #ded6e5;
+  --muted: #aa9daf;
+  --heading: #fcf9ff;
+
+  /* Purple-tinted interactive surfaces */
+  --interactive-soft: #241831;
+  --interactive-hover: #2d1d3e;
+  --interactive-active: #38244c;
+  --interactive-border: #52386c;
+
+  /* Header surfaces */
+  --header-bg: rgb(23 17 31 / 0.9);
+  --header-hover: #2a1b3b;
+  --header-active: #342149;
+
+  /* Focus treatment */
+  --focus-ring: rgb(168 85 247 / 0.3);
 
   color-scheme: dark;
 }
@@ -244,8 +291,8 @@
 
   /* Text selection */
   ::selection {
-    background: var(--color-brand-200);
-    color: var(--color-brand-950);
+    background: var(--interactive-active);
+    color: var(--heading);
   }
 }
 
@@ -272,16 +319,9 @@
   }
 
   /* ------------------------------------------------------------------------
-     Browse header — the eyebrow row on a listing page, with its search
-     ------------------------------------------------------------------------
-     Task hubs, category pages and any other page that lists a set of
-     calculators share this: the identity on the left, a search on the right,
-     both above the heading. Listing pages are where someone arrives knowing
-     the name of the tool they want, so the way out is a search, not a scroll.
+     Browse header
      ------------------------------------------------------------------------ */
 
-  /* The breadcrumb's line, with a page-level count sitting opposite it — above
-     the search, which is also right-aligned, so the two line up. */
   .browse-crumbs {
     display: flex;
     flex-wrap: wrap;
@@ -327,28 +367,13 @@
     }
   }
 
-  /* Task hubs put the search UNDER the lede instead: the group's question and
-     intro explain what the page is for, and the search sits directly above the
-     cards it filters. Narrower than the prose so it reads as a control, not a
-     paragraph. */
   .browse-lede__search {
-    margin-top: 1.25rem;
+    margin-top: 12px;
     max-width: 34rem;
   }
 
   /* ------------------------------------------------------------------------
-     Tool shell — the calculator + its optional side rail
-     ------------------------------------------------------------------------
-     NAMESPACE: `tool-`, not `calc-`. The `calc-` prefix already belongs to the
-     physical/scientific calculator in calc.css — `.calc-shell` is that
-     component's own root — so a `.calc-shell` here silently overrode its grid
-     and collapsed the display to 72px on every scientific route.
-     ------------------------------------------------------------------------
-     The rail is ADDITIVE: at our 1280px wrap (1232px of content) a 300px rail
-     plus the gap still leaves the tool ~900px, so every inputs|result split
-     survives. `container-type` means the rail folds to a row underneath based
-     on the space this shell actually has, not on the viewport — so a narrower
-     wrap or a future nested layout gets it right without new breakpoints.
+     Tool shell — calculator and optional side rail
      ------------------------------------------------------------------------ */
 
   .tool-shell {
@@ -381,34 +406,17 @@
     }
   }
 
-  /* The ad's place: held open, entirely unstyled. No border, no background, no
-     label — an empty reservation so switching a network on later cannot shift
-     anything that is already on the page.
-
-     Height is what is left after the things that must stay on the first screen,
-     not the tallest unit that would fit: the rail has a job before any network
-     is connected. The desktop rule below sizes it; as a row on a phone nothing
-     below it is competing for the fold, so it keeps its full height. */
   .tool-rail__slot {
     min-height: 280px;
   }
 
-  /* In the desktop column the ad's place YIELDS to the first screen.
-     A fixed height could not: the rail starts wherever the page's own H1 and
-     intro end, which varies by ~56px across the fleet, so one height that showed
-     five links on a short-intro page at 1366x768 showed two on a long-intro page
-     at 1280x720. Subtracting the fold-critical block instead — the search box,
-     the heading and five links, plus their gaps — holds the count across both.
-     280px stays the ceiling, so a tall screen still gets a full medium
-     rectangle; 140px is the floor, past which the slot stops giving way.
-     `--tool-rail-extra` is set inline by CalculatorRail when it renders an extra
-     section (the New list) above the related links, so the slot yields that much
-     more and the fifth related link stays above the fold. It is 0 otherwise.
-     This block must come AFTER the plain rule above: a container query adds no
-     specificity, so at equal weight the later rule is the one that wins. */
   @container (min-width: 1040px) {
     .tool-rail__slot {
-      min-height: clamp(140px, calc(100vh - 536px - var(--tool-rail-extra, 0px)), 280px);
+      min-height: clamp(
+        140px,
+        calc(100vh - 536px - var(--tool-rail-extra, 0px)),
+        280px
+      );
     }
   }
 
@@ -433,6 +441,7 @@
   }
 
   .tool-rail__links a:hover {
+    color: var(--color-brand-500);
     text-decoration: underline;
   }
 
@@ -461,6 +470,11 @@
       var(--color-brand-500) 45%,
       var(--line)
     );
+
+    box-shadow:
+      0 2px 4px rgb(43 25 61 / 0.06),
+      0 12px 28px -14px
+        color-mix(in srgb, var(--color-brand-700) 24%, transparent);
   }
 
   /* ------------------------------------------------------------------------
@@ -474,7 +488,7 @@
 
     background: color-mix(
       in srgb,
-      var(--color-brand-500) 11%,
+      var(--color-brand-500) 12%,
       transparent
     );
 
@@ -509,57 +523,61 @@
     justify-content: center;
     gap: 0.5rem;
 
-    font-weight: 600;
-    border-radius: 0.625rem;
+    min-height: 2.75rem;
     padding: 0.625rem 1.1rem;
 
+    border: 1px solid transparent;
+    border-radius: 0.625rem;
+
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
     cursor: pointer;
 
     transition:
+      color 0.15s ease,
       background-color 0.15s ease,
       transform 0.15s ease,
       box-shadow 0.15s ease,
       border-color 0.15s ease;
-
-    text-decoration: none;
-    border: 1px solid transparent;
-    line-height: 1.2;
-
-    /* The doctrine's floor for a tap target. Padding and line-height alone came
-       to 41px, three short, on every Calculate / Clear / Reset in the fleet. */
-    min-height: 2.75rem;
   }
 
   .btn:active {
     transform: translateY(1px);
   }
 
-  /* Primary button — Plum */
+  /* Primary button */
 
   .btn-primary {
+    color: #ffffff;
     background: var(--color-brand-600);
-    color: #FFFFFF;
 
     box-shadow:
-      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
       0 1px 2px rgb(43 25 61 / 0.16);
   }
 
   .btn-primary:hover {
     background: var(--color-brand-700);
+
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 6px 16px
+        color-mix(in srgb, var(--color-brand-700) 24%, transparent);
   }
 
   /* Secondary button */
 
   .btn-secondary {
-    background: var(--card);
     color: var(--heading);
+    background: var(--card);
     border-color: var(--line);
   }
 
   .btn-secondary:hover {
-    border-color: var(--color-brand-400);
-    color: var(--color-brand-700);
+    color: var(--color-brand-500);
+    background: var(--interactive-hover);
+    border-color: var(--interactive-border);
   }
 
   /* ------------------------------------------------------------------------
@@ -568,18 +586,14 @@
 
   .field-label {
     display: block;
+    margin-bottom: 0.35rem;
+    color: var(--heading);
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--heading);
-    margin-bottom: 0.35rem;
   }
 
   .field {
     width: 100%;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 0.625rem;
-
     padding: 0.6rem 0.75rem;
     /* An <input> reaches 44px from padding alone, but a <select>'s intrinsic content box is a
        fraction shorter and landed on 43px across the fleet. One rule holds every .field
@@ -587,30 +601,45 @@
     min-height: 2.75rem;
 
     color: var(--fg);
+    background: var(--card);
+
+    border: 1px solid var(--line);
+    border-radius: 0.625rem;
+
     font-size: 1rem;
 
     transition:
       border-color 0.15s ease,
+      background-color 0.15s ease,
       box-shadow 0.15s ease;
+  }
+
+  .field:hover {
+    border-color: var(--interactive-border);
   }
 
   .field:focus {
     outline: none;
     border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
 
-    box-shadow:
-      0 0 0 3px var(--color-brand-100);
+  .field::placeholder {
+    color: var(--muted);
+    opacity: 0.8;
   }
 
   .field-affix {
     display: inline-flex;
     align-items: center;
 
+    padding-inline: 0.65rem;
+
     color: var(--muted);
     background: var(--subtle);
+
     border: 1px solid var(--line);
 
-    padding-inline: 0.65rem;
     font-size: 0.9rem;
   }
 
@@ -619,8 +648,8 @@
      ------------------------------------------------------------------------ */
 
   .prose {
-    color: var(--fg);
     max-width: 68ch;
+    color: var(--fg);
   }
 
   .prose > * + * {
@@ -628,17 +657,17 @@
   }
 
   .prose h2 {
-    font-size: 1.5rem;
-    font-weight: 700;
     margin-top: 2.25rem;
     margin-bottom: 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 700;
   }
 
   .prose h3 {
-    font-size: 1.2rem;
-    font-weight: 700;
     margin-top: 1.75rem;
     margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: 700;
   }
 
   .prose p,
@@ -669,6 +698,10 @@
     text-underline-offset: 2px;
   }
 
+  .prose a:hover {
+    color: var(--color-accent-600);
+  }
+
   .prose strong {
     color: var(--heading);
   }
@@ -678,18 +711,17 @@
      ------------------------------------------------------------------------ */
 
   .prose table {
+    display: block;
     width: 100%;
     margin-top: 1.25rem;
+    overflow-x: auto;
     border-collapse: collapse;
     font-size: 0.9375rem;
-
-    display: block;
-    overflow-x: auto;
   }
 
   .prose thead th {
-    background: var(--subtle);
     color: var(--heading);
+    background: var(--subtle);
     font-weight: 700;
     text-align: left;
     white-space: nowrap;
@@ -697,9 +729,13 @@
 
   .prose th,
   .prose td {
-    border: 1px solid var(--line);
     padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
     vertical-align: top;
+  }
+
+  .prose tbody tr:hover {
+    background: var(--interactive-soft);
   }
 
   /* ------------------------------------------------------------------------
