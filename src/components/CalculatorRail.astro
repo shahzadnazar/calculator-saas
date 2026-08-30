@@ -10,7 +10,9 @@
  *      (all off) it renders nothing and the space stays blank.
  *   2. The SAME search combobox the home page hero uses — one index, one ranking
  *      engine, one set of behaviours, not a second implementation.
- *   3. Plain text links to related calculators and reference tables.
+ *   3. Plain text links to related calculators and reference tables, with
+ *      anything newly added riding at the top of the related list under a
+ *      "New" badge.
  *
  * The rail is a SIBLING of the tool and comes AFTER it in DOM order, so screen
  * readers and small screens reach the calculator first. Below ~1040px of
@@ -19,7 +21,7 @@
 import CalculatorSearch from '@components/search/CalculatorSearch.astro';
 import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
 import { SEARCH_INDEX_URL } from '@lib/search';
-import { getRelatedCalculators, calculatorPath, type Calculator } from '@data/calculators';
+import { getRelatedCalculators, getNewCalculators, calculatorPath, type Calculator } from '@data/calculators';
 import { getReferencesForCalculator, referencePath } from '@data/reference';
 
 interface Props {
@@ -30,10 +32,29 @@ interface Props {
 const { calculator, limit = 12 } = Astro.props;
 
 const related = getRelatedCalculators(calculator, limit);
+// Newest first, at the top of the related list — a new calculator is otherwise unreachable
+// from a page in another category, because the list is registry order within a category.
+// Excludes the page you are already on, and the badge is a WORD, never colour alone.
+const fresh = getNewCalculators(calculator);
+
+/**
+ * How much taller the fold-critical block is because of the new entries.
+ *
+ * They ride at the TOP OF THE RELATED LIST with a New badge rather than in a section of their
+ * own. A separate section would cost its heading and the rail's grid gap on top of the link —
+ * 76px for one entry — and at 1366x650 the ad slot is already at its 140px floor and cannot
+ * yield that, so the related links would fall off the first screen. One extra list item costs
+ * 25px, which the slot can absorb.
+ *
+ * The ad slot's desktop height is "whatever is left after the things that must stay on the
+ * first screen" (see `.tool-rail__slot` in global.css), computed from a fixed budget for the
+ * search box, a heading and five links; this adds to that budget. 25px = one link's line box.
+ */
+const railExtraPx = 25 * fresh.length;
 const references = getReferencesForCalculator(calculator.category, calculator.slug);
 ---
 
-<aside class="tool-rail" aria-label="More from AllCalculators">
+<aside class="tool-rail" aria-label="More from AllCalculators" style={railExtraPx ? `--tool-rail-extra: ${railExtraPx}px` : undefined}>
   <div class="tool-rail__slot"><MonetizationRegion placement="calculator-sidebar" allowSidebar={true} pageSlug={calculator.slug} category={calculator.category} /></div>
 
   <CalculatorSearch
@@ -44,10 +65,16 @@ const references = getReferencesForCalculator(calculator.category, calculator.sl
   />
 
   {
-    related.length > 0 && (
+    (fresh.length > 0 || related.length > 0) && (
       <nav class="tool-rail__links" aria-label="Related calculators">
         <p class="tool-rail__heading">Related calculators</p>
         <ul>
+          {fresh.map((c) => (
+            <li>
+              <a href={calculatorPath(c)}>{c.title}</a>
+              <span class="tool-rail__new"> New</span>
+            </li>
+          ))}
           {related.map((c) => (
             <li><a href={calculatorPath(c)}>{c.title}</a></li>
           ))}

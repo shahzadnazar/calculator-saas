@@ -401,11 +401,14 @@
      the heading and five links, plus their gaps — holds the count across both.
      280px stays the ceiling, so a tall screen still gets a full medium
      rectangle; 140px is the floor, past which the slot stops giving way.
+     `--tool-rail-extra` is set inline by CalculatorRail when it renders an extra
+     section (the New list) above the related links, so the slot yields that much
+     more and the fifth related link stays above the fold. It is 0 otherwise.
      This block must come AFTER the plain rule above: a container query adds no
      specificity, so at equal weight the later rule is the one that wins. */
   @container (min-width: 1040px) {
     .tool-rail__slot {
-      min-height: clamp(140px, calc(100vh - 536px), 280px);
+      min-height: clamp(140px, calc(100vh - 536px - var(--tool-rail-extra, 0px)), 280px);
     }
   }
 
@@ -431,6 +434,17 @@
 
   .tool-rail__links a:hover {
     text-decoration: underline;
+  }
+
+  /* Marks a newly added calculator at the top of the related list. A WORD, so the meaning
+     survives without colour, and small enough that the entry still costs one line. */
+  .tool-rail__new {
+    margin-left: 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-accent-600);
   }
 
   /* ------------------------------------------------------------------------

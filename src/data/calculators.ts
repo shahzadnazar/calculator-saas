@@ -634,6 +634,36 @@ export function getRelatedCalculators(self: Calculator, limit = 6): Calculator[]
   return [...sameCategory, ...others].slice(0, limit);
 }
 
+/**
+ * Recently added calculators, newest first, as "<category>/<slug>" registry refs.
+ *
+ * A new calculator is invisible to anyone already deep in the site: the rail's related list is
+ * registry order within a category, so the newest entry sits below the fold on its own
+ * category's pages and nowhere at all on the others. This list is the one place that says
+ * "surface these everywhere for a while".
+ *
+ * Keep it SHORT — two or three at most — and drop an entry once it is no longer news. It is
+ * an editorial decision, not a ranking signal: nothing here affects search relevance, and it
+ * is never derived from commercial value.
+ */
+export const NEW_CALCULATOR_REFS: readonly string[] = ['finance/vat-calculator'];
+
+/**
+ * The recently-added calculators as registry entries, live only, never including `self`.
+ * Returns an empty array when there is nothing new to show, so the caller renders nothing.
+ */
+export function getNewCalculators(self?: Pick<Calculator, 'category' | 'slug'>): Calculator[] {
+  return NEW_CALCULATOR_REFS.map((ref) => {
+    const [category, slug] = ref.split('/');
+    return getCalculator(category, slug);
+  }).filter(
+    (c): c is Calculator =>
+      Boolean(c) &&
+      c!.status === 'live' &&
+      !(self && c!.category === self.category && c!.slug === self.slug),
+  );
+}
+
 /** Total counts for use in copy ("X calculators and growing"). */
 export const STATS = {
   total: CALCULATORS.length,
