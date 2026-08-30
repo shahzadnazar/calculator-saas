@@ -25,32 +25,36 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="tipcalc" data-tip>
+  <div class="tipcalc__row">
   <!-- 1 — Tip Calculator -->
-  <form class="tpeq card" data-equation="quick" novalidate aria-label="Tip calculator">
+  <section class="tpeq" data-equation="quick" aria-label="Tip calculator">
     <h2 class="tpeq-q">Tip Calculator</h2>
     <p class="tpeq-lede">
       Calculates the tip for a range of percentages of the cost of the service, and the total
       including the tip. In the U.S., a tip of 15% of the before-tax price is typically expected.
     </p>
 
-    <div class="tpeq-fields">
-      <div class="tpeq-field" data-field="price">
-        <label class="field-label" for="tp-price">Price</label>
-        <div class="tpeq-money">
-          <span class="tpeq-affix">$</span>
-          <input class="field tpeq-input" id="tp-price" name="price" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="55" aria-describedby="tp-price-error" />
+    <div class="tpeq-split">
+    <form class="card tpeq-form" novalidate>
+      <div class="tpeq-fields">
+        <div class="tpeq-field" data-field="price">
+          <label class="field-label" for="tp-price">Price</label>
+          <div class="tpeq-money">
+            <span class="tpeq-affix">$</span>
+            <input class="field tpeq-input" id="tp-price" name="price" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="55" aria-describedby="tp-price-error" />
+          </div>
+          <p class="tpeq-error" id="tp-price-error" data-error-for="price" hidden></p>
         </div>
-        <p class="tpeq-error" id="tp-price-error" data-error-for="price" hidden></p>
       </div>
-    </div>
 
-    <div class="tpeq-actions">
-      <button type="submit" class="btn btn-primary tpeq-btn" aria-label="Calculate the tip table">Calculate</button>
-      <button type="button" class="btn btn-secondary tpeq-btn" data-reset aria-label="Clear the tip table">Clear</button>
-      <span class="tpeq-live-note" data-live-note hidden>Changes update automatically.</span>
-    </div>
+      <div class="tpeq-actions">
+        <button type="submit" class="btn btn-primary tpeq-btn" aria-label="Calculate the tip table">Calculate</button>
+        <button type="button" class="btn btn-secondary tpeq-btn" data-reset aria-label="Clear the tip table">Clear</button>
+        <span class="tpeq-live-note" data-live-note hidden>Changes update automatically.</span>
+      </div>
+    </form>
 
-    <ResultShell state="example" density="standard" minHeight="7rem" placeholderAlignment="center" boxed={false} label="Tip table result" class="tpeq-result">
+    <ResultShell state="example" density="standard" minHeight="7rem" placeholderAlignment="center" label="Tip table result" class="tpeq-result">
       <ExampleNotice caption="Sample: a $55 bill." />
       <EmptyResult message="Enter a price, then calculate." />
 
@@ -92,49 +96,53 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
       <InvalidResult message="Enter a price of zero or more." />
       <ResultAnnouncement id="tp-live" />
     </ResultShell>
-  </form>
+    </div>
+  </section>
 
   <!-- 2 — Shared Bill Tip Calculator -->
-  <form class="tpeq card" data-equation="shared" novalidate aria-label="Shared bill tip calculator">
+  <section class="tpeq" data-equation="shared" aria-label="Shared bill tip calculator">
     <h2 class="tpeq-q">Shared Bill Tip Calculator</h2>
     <p class="tpeq-lede">
       Takes the cost of the service, the number of people and the chosen tip percentage, and works
       out the tip per person as well as the total cost per person.
     </p>
 
-    <div class="tpeq-fields">
-      <div class="tpeq-field" data-field="price">
-        <label class="field-label" for="tps-price">Price</label>
-        <div class="tpeq-money">
-          <span class="tpeq-affix">$</span>
-          <input class="field tpeq-input" id="tps-price" name="price" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="55" aria-describedby="tps-price-error" />
+    <div class="tpeq-split">
+    <form class="card tpeq-form" novalidate>
+      <div class="tpeq-fields">
+        <div class="tpeq-field" data-field="price">
+          <label class="field-label" for="tps-price">Price</label>
+          <div class="tpeq-money">
+            <span class="tpeq-affix">$</span>
+            <input class="field tpeq-input" id="tps-price" name="price" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="55" aria-describedby="tps-price-error" />
+          </div>
+          <p class="tpeq-error" id="tps-price-error" data-error-for="price" hidden></p>
         </div>
-        <p class="tpeq-error" id="tps-price-error" data-error-for="price" hidden></p>
-      </div>
 
-      <div class="tpeq-field" data-field="tipPct">
-        <label class="field-label" for="tps-tip">Tip %</label>
-        <div class="tpeq-money">
-          <input class="field tpeq-input tpeq-input--pct" id="tps-tip" name="tipPct" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" value={DEFAULT_TIP_PCT} aria-describedby="tps-tip-error" />
-          <span class="tpeq-affix tpeq-affix--suffix">%</span>
+        <div class="tpeq-field" data-field="tipPct">
+          <label class="field-label" for="tps-tip">Tip %</label>
+          <div class="tpeq-money">
+            <input class="field tpeq-input tpeq-input--pct" id="tps-tip" name="tipPct" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" value={DEFAULT_TIP_PCT} aria-describedby="tps-tip-error" />
+            <span class="tpeq-affix tpeq-affix--suffix">%</span>
+          </div>
+          <p class="tpeq-error" id="tps-tip-error" data-error-for="tipPct" hidden></p>
         </div>
-        <p class="tpeq-error" id="tps-tip-error" data-error-for="tipPct" hidden></p>
+
+        <div class="tpeq-field" data-field="people">
+          <label class="field-label" for="tps-people">Number of People</label>
+          <input class="field tpeq-input tpeq-input--plain" id="tps-people" name="people" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" value={DEFAULT_PEOPLE} aria-describedby="tps-people-error" />
+          <p class="tpeq-error" id="tps-people-error" data-error-for="people" hidden></p>
+        </div>
       </div>
 
-      <div class="tpeq-field" data-field="people">
-        <label class="field-label" for="tps-people">Number of People</label>
-        <input class="field tpeq-input tpeq-input--plain" id="tps-people" name="people" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" value={DEFAULT_PEOPLE} aria-describedby="tps-people-error" />
-        <p class="tpeq-error" id="tps-people-error" data-error-for="people" hidden></p>
+      <div class="tpeq-actions">
+        <button type="submit" class="btn btn-primary tpeq-btn" aria-label="Calculate the shared bill">Calculate</button>
+        <button type="button" class="btn btn-secondary tpeq-btn" data-reset aria-label="Clear the shared bill">Clear</button>
+        <span class="tpeq-live-note" data-live-note hidden>Changes update automatically.</span>
       </div>
-    </div>
+    </form>
 
-    <div class="tpeq-actions">
-      <button type="submit" class="btn btn-primary tpeq-btn" aria-label="Calculate the shared bill">Calculate</button>
-      <button type="button" class="btn btn-secondary tpeq-btn" data-reset aria-label="Clear the shared bill">Clear</button>
-      <span class="tpeq-live-note" data-live-note hidden>Changes update automatically.</span>
-    </div>
-
-    <ResultShell state="example" density="standard" minHeight="7rem" placeholderAlignment="center" boxed={false} label="Shared bill result" class="tpeq-result">
+    <ResultShell state="example" density="standard" minHeight="7rem" placeholderAlignment="center" label="Shared bill result" class="tpeq-result">
       <ExampleNotice caption="Sample: a $55 bill at 15%, split one way." />
       <EmptyResult message="Enter a price, a tip percentage and the number of people, then calculate." />
 
@@ -161,18 +169,70 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
       <InvalidResult message="Enter a price, a tip percentage of zero or more, and at least one person." />
       <ResultAnnouncement id="tps-live" />
     </ResultShell>
-  </form>
+    </div>
+  </section>
+  </div>
 </div>
 
 <style>
   .tipcalc {
-    display: grid;
-    gap: 0.75rem;
+    /* The container the queries below measure. `.tool-shell__core` is not one, so
+       a bare @container query would resolve against the whole page shell and be
+       wrong the moment a side rail takes 300px of it. Declaring it here also
+       keeps the layout correct on an embed, where this island owns the width. */
+    container-type: inline-size;
   }
 
-  .tpeq {
-    padding: 0.9rem 1rem 1rem;
+  /* The two calculators sit side by side, each one stacked: its form, then its
+     answer underneath. */
+  .tipcalc__row {
+    display: grid;
+    gap: 1rem;
+    align-items: start;
+    min-width: 0;
   }
+  .tpeq { min-width: 0; }
+  .tpeq-form {
+    padding: 0.9rem 1rem 1rem;
+    min-width: 0;
+  }
+
+  /* The heading sits above its own two cards — the form and the result — rather
+     than one card wrapping both, so this reads like the rest of the fleet. */
+  .tpeq-split {
+    display: grid;
+    gap: 0.75rem;
+    align-items: start;
+    min-width: 0;
+    margin-top: 0.6rem;
+  }
+
+  /* AFTER the base rules above on purpose: a container query adds no specificity,
+     so at equal weight the later rule wins — declared first, `display: grid` on
+     .tpeq-split would beat the `display: contents` this needs. */
+  @container (min-width: 54rem) {
+    .tipcalc__row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      /* heading · lede · form · result */
+      grid-template-rows: auto auto auto auto;
+      column-gap: 1.5rem;
+      row-gap: 0.75rem;
+    }
+    /* Subgrid so the two columns share their row heights: the headings line up,
+       and so do the two answer cards, even though one form has three fields and
+       the other has one. `display: contents` lets the form and the result be
+       rows of that subgrid rather than one block between them. */
+    .tpeq {
+      display: grid;
+      grid-template-rows: subgrid;
+      grid-row: span 4;
+      row-gap: 0.75rem;
+    }
+    .tpeq-split { display: contents; }
+    .tpeq-q,
+    .tpeq-lede { margin: 0; }
+  }
+  .tpeq :global(.tpeq-result) { min-width: 0; }
 
   .tpeq-q {
     margin: 0;
@@ -397,11 +457,13 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     shared: SHARED_TIP_EXAMPLE_VALUES,
   };
 
-  document.querySelectorAll<HTMLFormElement>('form[data-equation]').forEach((form) => {
-    const kind = form.dataset.equation as EqKind;
+  // The root is the SECTION, not the form: the runtime finds the form inside it
+  // and the result shell beside it, which is what lets them be two separate cards.
+  document.querySelectorAll<HTMLElement>('[data-equation]').forEach((root) => {
+    const kind = root.dataset.equation as EqKind;
     const binding = BINDINGS[kind];
     if (!binding) return;
-    mountEquationCalculator(form, binding, {
+    mountEquationCalculator(root, binding, {
       calculateButtonLabel: 'Calculate',
       recalculationMode: 'live-after-first',
       example: { values: EXAMPLES[kind] },

@@ -10,7 +10,9 @@ const ROUTE = '/finance/tip-calculator';
 const DEBOUNCE = 300;
 
 type Kind = 'quick' | 'shared';
-const form = (page: Page, kind: Kind) => page.locator(`form[data-equation="${kind}"]`);
+// Each calculator is a <section> holding its own form card and result card,
+// laid out as a row like the rest of the fleet — so the scope is the section.
+const form = (page: Page, kind: Kind) => page.locator(`[data-equation="${kind}"]`);
 const shell = (page: Page, kind: Kind) => form(page, kind).locator('[data-result-shell]');
 const primary = (page: Page, kind: Kind) =>
   form(page, kind).locator('[data-result-when~="valid"] [data-result-value]').first();
@@ -62,7 +64,7 @@ test.describe('the two calculators', () => {
     // result panel carries headings of its own.
     await expect(form(page, 'quick').locator('h2.tpeq-q')).toHaveText('Tip Calculator');
     await expect(form(page, 'shared').locator('h2.tpeq-q')).toHaveText('Shared Bill Tip Calculator');
-    await expect(page.locator('form[data-equation]')).toHaveCount(2);
+    await expect(page.locator('[data-equation]')).toHaveCount(2);
   });
 
   test('both open on a labelled example with the price blank', async ({ page }) => {
@@ -244,7 +246,7 @@ test.describe('doctrine', () => {
   test('every control clears 44px', async ({ page }) => {
     const small = await page.evaluate(
       () =>
-        [...document.querySelectorAll('form[data-equation] button, form[data-equation] input')]
+        [...document.querySelectorAll('[data-equation] button, [data-equation] input')]
           .filter((e) => (e as HTMLElement).offsetParent !== null)
           .map((e) => e.closest('label') ?? e)
           .filter((e) => e.getBoundingClientRect().height < 44).length,
@@ -264,7 +266,7 @@ test.describe('doctrine', () => {
 
   test('the generated embed mounts both calculators', async ({ page }) => {
     await page.goto('/embed/finance/tip-calculator');
-    await expect(page.locator('form[data-equation]')).toHaveCount(2);
+    await expect(page.locator('[data-equation]')).toHaveCount(2);
     await calcQuick(page);
     await expect(page.locator('[data-tip-total="15"]')).toHaveText('$63.25');
   });
