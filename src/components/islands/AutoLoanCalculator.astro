@@ -90,50 +90,58 @@ import { STATE_SALES_TAX, STATE_TAX_REVIEWED } from '@data/state-sales-tax';
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div data-field="amountOwedOnTradeIn">
-          <label class="field-label" for="al-owed">Amount owed on trade-in</label>
-          <div class="flex">
-            <span class="field-affix rounded-l-lg border-r-0">$</span>
-            <input class="field rounded-l-none" id="al-owed" name="amountOwedOnTradeIn" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-owed-error" />
+      <details class="al-more" data-al-more>
+        <summary class="al-more__summary">
+          <span>Trade-in, tax and fees</span>
+          <span class="al-more__hint">optional</span>
+        </summary>
+        <div class="al-more__body">
+        <div class="grid grid-cols-2 gap-3">
+          <div data-field="amountOwedOnTradeIn">
+            <label class="field-label" for="al-owed">Amount owed on trade-in</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="al-owed" name="amountOwedOnTradeIn" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-owed-error" />
+            </div>
+            <p class="al-field-error" id="al-owed-error" data-error-for="amountOwedOnTradeIn" hidden></p>
           </div>
-          <p class="al-field-error" id="al-owed-error" data-error-for="amountOwedOnTradeIn" hidden></p>
-        </div>
-        <div data-field="stateCode">
-          <label class="field-label" for="al-state">Your state</label>
-          <select class="field" id="al-state" name="stateCode" data-al-state>
-            <option value="">— Select —</option>
-            {STATE_SALES_TAX.map((st) => <option value={st.code} data-rate={st.ratePct}>{st.name}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        <div data-field="salesTaxRatePct">
-          <label class="field-label" for="al-tax">Sales tax</label>
-          <div class="flex">
-            <input class="field rounded-r-none" id="al-tax" name="salesTaxRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-tax-error" />
-            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          <div data-field="stateCode">
+            <label class="field-label" for="al-state">Your state</label>
+            <select class="field" id="al-state" name="stateCode" data-al-state>
+              <option value="">— Select —</option>
+              {STATE_SALES_TAX.map((st) => <option value={st.code} data-rate={st.ratePct}>{st.name}</option>)}
+            </select>
           </div>
-          <p class="al-field-error" id="al-tax-error" data-error-for="salesTaxRatePct" hidden></p>
         </div>
-        <div data-field="fees">
-          <label class="field-label" for="al-fees">Title, registration and other fees</label>
-          <div class="flex">
-            <span class="field-affix rounded-l-lg border-r-0">$</span>
-            <input class="field rounded-l-none" id="al-fees" name="fees" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-fees-error" />
+  
+        <div class="grid grid-cols-2 gap-3">
+          <div data-field="salesTaxRatePct">
+            <label class="field-label" for="al-tax">Sales tax</label>
+            <div class="flex">
+              <input class="field rounded-r-none" id="al-tax" name="salesTaxRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-tax-error" />
+              <span class="field-affix rounded-r-lg border-l-0">%</span>
+            </div>
+            <p class="al-field-error" id="al-tax-error" data-error-for="salesTaxRatePct" hidden></p>
           </div>
-          <p class="al-field-error" id="al-fees-error" data-error-for="fees" hidden></p>
+          <div data-field="fees">
+            <label class="field-label" for="al-fees">Title, registration and other fees</label>
+            <div class="flex">
+              <span class="field-affix rounded-l-lg border-r-0">$</span>
+              <input class="field rounded-l-none" id="al-fees" name="fees" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="al-fees-error" />
+            </div>
+            <p class="al-field-error" id="al-fees-error" data-error-for="fees" hidden></p>
+          </div>
         </div>
-      </div>
-      <p class="al-state-note">A state fills in its base rate (reviewed {STATE_TAX_REVIEWED}); local taxes add to it — enter your real rate if you know it.</p>
-
-      <div class="al-finance">
-        <label class="al-finance__label">
-          <input type="checkbox" name="includeTaxesFeesInLoan" data-al-finance />
-          <span>Include taxes and fees in loan</span>
-        </label>
-      </div>
+        <p class="al-state-note">A state fills in its base rate (reviewed {STATE_TAX_REVIEWED}); local taxes add to it — enter your real rate if you know it.</p>
+  
+        <div class="al-finance">
+          <label class="al-finance__label">
+            <input type="checkbox" name="includeTaxesFeesInLoan" data-al-finance />
+            <span>Include taxes and fees in loan</span>
+          </label>
+        </div>
+        </div>
+      </details>
     </div>
 
     <div class="mt-4 flex items-center gap-3">
@@ -258,6 +266,24 @@ import { STATE_SALES_TAX, STATE_TAX_REVIEWED } from '@data/state-sales-tax';
   .al-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
   .al-fields { display: grid; gap: 0.5rem; }
+  /* Price, term, rate, incentives, down payment and trade-in decide the payment
+     and stay visible; the rest folds away so Calculate is on the first screen. */
+  .al-more__summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-brand-600);
+  }
+  .al-more__summary::-webkit-details-marker { display: none; }
+  .al-more__summary::after { content: '+'; font-size: 1rem; line-height: 1; }
+  .al-more[open] > .al-more__summary::after { content: '−'; }
+  .al-more__hint { font-size: 0.78rem; font-weight: 500; color: var(--muted); }
+  .al-more__body { display: grid; gap: 0.5rem; margin-top: 0.4rem; }
   .al-state-note {
     margin: 0;
     font-size: 0.75rem;
@@ -388,7 +414,7 @@ import { STATE_SALES_TAX, STATE_TAX_REVIEWED } from '@data/state-sales-tax';
     border-radius: 0.55rem;
     background: var(--subtle);
   }
-  .al-view__opt { position: relative; cursor: pointer; }
+  .al-view__opt { position: relative; cursor: pointer; /* the label is the tap target */ min-height: 2.75rem; align-items: center; }
   .al-view__opt input {
     position: absolute;
     opacity: 0;
@@ -475,7 +501,7 @@ import { STATE_SALES_TAX, STATE_TAX_REVIEWED } from '@data/state-sales-tax';
   .al-disclosure__summary { cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--color-brand-600); padding: 0.25rem 0; }
 
   .al-finance { margin-top: 0.25rem; }
-  .al-finance__label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 600; color: var(--fg); cursor: pointer; }
+  .al-finance__label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 600; color: var(--fg); cursor: pointer; min-height: 2.75rem; }
   .al-finance__label input { width: 1.05rem; height: 1.05rem; cursor: pointer; }
   .al-finance__note { margin: 0.35rem 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
 

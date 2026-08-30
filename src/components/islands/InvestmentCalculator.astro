@@ -239,7 +239,8 @@ const COMPOUND_LABELS: Record<string, string> = {
   }
   .inv-timing__line:last-child { margin-bottom: 0; }
   .inv-timing__label { color: var(--fg); font-weight: 600; }
-  .inv-radio { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; color: var(--fg); }
+  /* The label is the tap target, so it carries the 44px floor. */
+  .inv-radio { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; cursor: pointer; color: var(--fg); }
   .inv-radio input { width: 0.95rem; height: 0.95rem; accent-color: var(--color-brand-600); }
 
   .inv-error {
@@ -327,7 +328,7 @@ const COMPOUND_LABELS: Record<string, string> = {
 
   .inv-schedule { margin-top: 1.1rem; }
   .inv-view { border: 0; padding: 0; margin: 0 0 0.5rem; display: flex; gap: 0.4rem; }
-  .inv-view__opt { position: relative; display: inline-flex; }
+  .inv-view__opt { position: relative; display: inline-flex; min-height: 2.75rem; align-items: center; }
   .inv-view__opt input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; }
   .inv-view__opt span {
     display: inline-block;

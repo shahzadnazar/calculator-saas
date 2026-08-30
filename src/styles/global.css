@@ -456,6 +456,10 @@
     text-decoration: none;
     border: 1px solid transparent;
     line-height: 1.2;
+
+    /* The doctrine's floor for a tap target. Padding and line-height alone came
+       to 41px, three short, on every Calculate / Clear / Reset in the fleet. */
+    min-height: 2.75rem;
   }
 
   .btn:active {

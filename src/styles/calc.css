@@ -51,7 +51,8 @@
   font-weight: 600;
   font-size: 0.85rem;
   padding: 0.4rem 0.85rem;
-  min-height: 2rem;
+  /* Deg/Rad is a tap target, not a caption. */
+  min-height: 2.75rem;
   border-radius: 0.45rem;
   cursor: pointer;
   transition: background-color 0.12s ease, color 0.12s ease;
@@ -244,7 +245,8 @@
 
 .keypad--sci-fn .calc-key,
 .keypad--sci-fn-final .calc-key {
-  min-height: 2.7rem;
+  /* 2.7rem came to 43px — one pixel under the target floor .calc-key sets. */
+  min-height: 2.75rem;
 }
 
 /* Compact (homepage) variant — ~8–12% shorter, targets stay ≥44px. */
@@ -304,7 +306,7 @@
 
   .keypad--sci-fn .calc-key,
   .keypad--sci-fn-final .calc-key {
-    min-height: 2.7rem;
+    min-height: 2.75rem;
     font-size: 0.82rem;
   }
 }

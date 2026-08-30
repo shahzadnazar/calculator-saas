@@ -38,8 +38,42 @@ const calc = async (page: Page, price: string, rate: string, opts: { down?: stri
   await submit(page).click();
 };
 
+/**
+ * Trade-in, tax and fees live behind a labelled disclosure so Calculate lands on
+ * the first screen. Open it for the suite, so every test sees the same fields it
+ * always did; the disclosure's own behaviour is asserted separately below.
+ */
+const openMore = async (page: Page) => {
+  const more = page.locator('[data-al-more]');
+  if (await more.count()) await more.locator('summary').click();
+};
+
 test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await openMore(page);
+});
+
+test.describe('the optional fields fold away', () => {
+  test('it starts closed, with the fields that decide the payment still visible', async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' }); // fresh, before openMore
+    await expect(page.locator('[data-al-more]')).not.toHaveAttribute('open', /.*/);
+    for (const name of ['autoPrice', 'loanTermMonths', 'interestRatePct', 'downPayment', 'tradeInValue']) {
+      await expect(page.locator(`[name="${name}"]`)).toBeVisible();
+    }
+    for (const name of ['salesTaxRatePct', 'fees', 'includeTaxesFeesInLoan']) {
+      await expect(page.locator(`[name="${name}"]`)).not.toBeVisible();
+    }
+    await expect(submit(page)).toBeInViewport();
+  });
+
+  test('opening it reveals the rest, and they still reach the answer', async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await openMore(page);
+    await expect(page.locator('[name="salesTaxRatePct"]')).toBeVisible();
+    await calc(page, '50000', '6', { tax: '7' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(tax(page)).not.toHaveText('—');
+  });
 });
 
 /* ---- Initial state ------------------------------------------------------ */
@@ -258,6 +292,7 @@ test('renders in dark scheme', async ({ page }) => {
 
 test('the generated embed route mounts the same interactive island', async ({ page }) => {
   await page.goto('/embed/finance/auto-loan-calculator', { waitUntil: 'domcontentloaded' });
+  await openMore(page);
   await page.fill('[name="autoPrice"]', '30000');
   await page.fill('[name="interestRatePct"]', '0');
   await page.fill('[name="downPayment"]', '3000');
@@ -287,6 +322,7 @@ test.describe('guide embed (getting-the-best-auto-loan)', () => {
 
   test('the guide-embedded calculator computes a valid result', async ({ page }) => {
     await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
+    await openMore(page);
     await page.fill('[name="autoPrice"]', '30000');
     await page.fill('[name="interestRatePct"]', '0');
     await page.fill('[name="downPayment"]', '3000');
@@ -322,6 +358,7 @@ const yearEnds = (page: Page) => page.locator('[data-al-rows="monthly"] tr.al-ye
 test.describe('auto loan: the reference field set and result', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await openMore(page);
   });
 
   test('offers every field the reference product does, by name', async ({ page }) => {
@@ -486,6 +523,7 @@ test.describe('auto loan: the reference field set and result', () => {
   test('mobile keeps the schedule scrolling inside its own container', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await openMore(page);
     await fillReference(page);
     await submit(page).click();
     await openSchedule(page);

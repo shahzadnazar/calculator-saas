@@ -266,7 +266,7 @@ const COMPOUND_LABELS: Record<string, string> = {
     border-radius: 0.55rem;
     padding: 0.125rem;
   }
-  .seg { position: relative; display: inline-flex; }
+  .seg { position: relative; display: inline-flex; /* the label is the tap target */ min-height: 2.75rem; align-items: center; }
   .seg input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
   .seg span {
     padding: 0.3rem 0.85rem;
@@ -380,7 +380,7 @@ const COMPOUND_LABELS: Record<string, string> = {
     border-radius: 0.5rem;
     padding: 0.1rem;
   }
-  .sv-view__opt { position: relative; display: inline-flex; }
+  .sv-view__opt { position: relative; display: inline-flex; /* the label is the tap target */ min-height: 2.75rem; align-items: center; }
   .sv-view__opt input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
   .sv-view__opt span {
     padding: 0.3rem 0.75rem;

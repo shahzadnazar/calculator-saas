@@ -157,25 +157,38 @@ const id = (name: string) => `it-${name}`;
             <p class="it-error" id="it-selfEmploymentIncome-error" data-error-for="selfEmploymentIncome" hidden></p>
           </div>
 
-          {MORE_INCOME.map((f) => (
-            <div class="it-field" data-field={f.name}>
-              <label class="field-label" for={id(f.name)}>{f.label}</label>
-              <div class="it-money">
-                {!f.percent && <span class="it-affix">$</span>}
-                <input class={`field it-input ${f.percent ? 'it-input--pct' : 'it-input--money'}`} id={id(f.name)} name={f.name} type="number" min="0" step="any" max={f.percent ? '100' : undefined} inputmode="decimal" autocomplete="off" value="" placeholder={f.percent ? "0" : "0"} aria-describedby={`${id(f.name)}-error`} />
-                {f.percent && <span class="it-affix it-affix--suffix">%</span>}
-              </div>
-              {f.hint && <p class="it-hint">{f.hint}</p>}
-              <p class="it-error" id={`${id(f.name)}-error`} data-error-for={f.name} hidden></p>
+          <details class="it-more it-field--wide" data-it-more>
+            <summary class="it-more__summary">
+              <span>Other income</span>
+              <span class="it-more__hint">optional</span>
+            </summary>
+            <div class="it-fields it-more__body">
+              {MORE_INCOME.map((f) => (
+                <div class="it-field" data-field={f.name}>
+                  <label class="field-label" for={id(f.name)}>{f.label}</label>
+                  <div class="it-money">
+                    {!f.percent && <span class="it-affix">$</span>}
+                    <input class={`field it-input ${f.percent ? 'it-input--pct' : 'it-input--money'}`} id={id(f.name)} name={f.name} type="number" min="0" step="any" max={f.percent ? '100' : undefined} inputmode="decimal" autocomplete="off" value="" placeholder={f.percent ? "0" : "0"} aria-describedby={`${id(f.name)}-error`} />
+                    {f.percent && <span class="it-affix it-affix--suffix">%</span>}
+                  </div>
+                  {f.hint && <p class="it-hint">{f.hint}</p>}
+                  <p class="it-error" id={`${id(f.name)}-error`} data-error-for={f.name} hidden></p>
+                </div>
+              ))}
             </div>
-          ))}
+          </details>
         </div>
       </fieldset>
 
       <!-- Deductions & Credits -->
       <fieldset class="card it-card">
         <legend class="it-legend">Deductions &amp; Credits</legend>
-        <div class="it-fields">
+        <details class="it-more" data-it-more>
+        <summary class="it-more__summary">
+          <span>Itemise deductions and credits</span>
+          <span class="it-more__hint">optional — the standard deduction applies otherwise</span>
+        </summary>
+        <div class="it-fields it-more__body">
           {DEDUCTIONS.map((f) => (
             <div class="it-field" data-field={f.name}>
               <label class="field-label" for={id(f.name)}>{f.label}</label>
@@ -188,6 +201,7 @@ const id = (name: string) => `it-${name}`;
             </div>
           ))}
         </div>
+        </details>
 
         <div class="it-actions">
           <button type="submit" class="btn btn-primary it-btn">Calculate</button>
@@ -267,8 +281,10 @@ const id = (name: string) => `it-${name}`;
     min-width: 0;
   }
 
+  /* Tightened toward the doctrine's 1366x768 target: nine required inputs plus a
+     result panel is a lot to fit, so every row earns its height. */
   .it-card {
-    padding: 0.9rem 1rem 1rem;
+    padding: 0.6rem 0.75rem 0.7rem;
     border: 1px solid var(--line);
   }
   .it-legend {
@@ -282,7 +298,7 @@ const id = (name: string) => `it-${name}`;
   .it-fields {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem 0.9rem;
+    gap: 0.4rem 0.75rem;
   }
   .it-field {
     min-width: 0;
@@ -290,6 +306,27 @@ const id = (name: string) => `it-${name}`;
   .it-field--wide {
     grid-column: 1 / -1;
   }
+
+  /* Optional groups, using the same disclosure the mortgage calculator uses:
+     required fields stay visible and the long tail folds away, so the primary
+     action is not pushed off the first screen. */
+  .it-more { padding-top: 0.15rem; }
+  .it-more__summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-brand-600);
+  }
+  .it-more__summary::-webkit-details-marker { display: none; }
+  .it-more__summary::after { content: '+'; font-size: 1rem; line-height: 1; }
+  .it-more[open] > .it-more__summary::after { content: '−'; }
+  .it-more__hint { font-size: 0.78rem; font-weight: 500; color: var(--muted); }
+  .it-more__body { margin-top: 0.5rem; }
   @media (max-width: 36rem) {
     .it-fields {
       grid-template-columns: minmax(0, 1fr);
@@ -298,8 +335,9 @@ const id = (name: string) => `it-${name}`;
 
   .it-field .field-label {
     display: block;
+    margin-bottom: 0.1rem;
     font-size: 0.82rem;
-    line-height: 1.3;
+    line-height: 1.25;
   }
 
   .it-money {
@@ -342,9 +380,9 @@ const id = (name: string) => `it-${name}`;
   }
 
   .it-hint {
-    margin: 0.2rem 0 0;
-    font-size: 0.74rem;
-    line-height: 1.35;
+    margin: 0.1rem 0 0;
+    font-size: 0.72rem;
+    line-height: 1.25;
     color: var(--muted);
   }
   .it-error {

@@ -32,8 +32,18 @@ const REFERENCE: [string, string][] = [
   ['amountOwed', '$49'],
 ];
 
+/**
+ * Other income and the itemised deductions live behind labelled disclosures so
+ * Calculate lands closer to the first screen. Open whichever holds the field
+ * before filling it, so these tests drive the same sheet they always did.
+ */
 const fill = async (page: Page, name: string, value: string) => {
-  await page.locator(`[name="${name}"]`).fill(value);
+  const field = page.locator(`[name="${name}"]`);
+  await field.evaluate((el) => {
+    const d = el.closest('details');
+    if (d && !d.open) d.open = true;
+  });
+  await field.fill(value);
 };
 
 const calcReference = async (page: Page) => {
@@ -45,6 +55,29 @@ const calcReference = async (page: Page) => {
 
 test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE);
+});
+
+test.describe('the optional parts of the sheet fold away', () => {
+  test('they start closed, with the W-2 fields still visible', async ({ page }) => {
+    const groups = page.locator('[data-it-more]');
+    expect(await groups.count()).toBe(2);
+    for (let i = 0; i < 2; i++) await expect(groups.nth(i)).not.toHaveAttribute('open', /.*/);
+    for (const name of ['wages', 'federalWithheld', 'filingStatus']) {
+      await expect(page.locator(`[name="${name}"]`)).toBeVisible();
+    }
+    await expect(page.locator('[name="longTermGains"]')).not.toBeVisible();
+    await expect(page.locator('[name="mortgageInterest"]')).not.toBeVisible();
+  });
+
+  test('a folded field still counts once it is filled', async ({ page }) => {
+    await page.locator('[data-example-dismiss]').click();
+    await fill(page, 'wages', '80000');
+    await submit(page).click();
+    const plain = await primary(page).textContent();
+    await fill(page, 'interestIncome', '5000');   // inside "Other income"
+    await submit(page).click();
+    await expect(primary(page)).not.toHaveText(plain!);
+  });
 });
 
 /* ------------------------------------------------------------------ */
@@ -124,6 +157,8 @@ test.describe('the reference field set', () => {
 
   test('labels the W-2 boxes and the credit limits, as the reference does', async ({ page }) => {
     const form = page.locator('form[data-form]');
+    // The credit limits sit inside the optional disclosures; open them to read the labels.
+    await page.locator('[data-it-more]').evaluateAll((els) => els.forEach((d) => ((d as HTMLDetailsElement).open = true)));
     for (const hint of [
       'W-2 box 1', 'W-2 box 2', 'W-2 box 17', 'W-2 box 19',
       'Max $10,000 for qualified vehicle purchase', 'Max $2,500/Person',
