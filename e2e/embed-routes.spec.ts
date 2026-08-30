@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
@@ -27,8 +27,16 @@ for (const category of readdirSync(PAGES)) {
   }
 }
 
-test('all 49 generated embed routes serve a 200 static page with the shared shell', async ({ page }) => {
-  expect(routes.length).toBe(49);
+// Every manifest entry must have produced a generated page. Derived rather than a literal,
+// so adding a calculator does not need this spec edited — while a generator that skipped or
+// duplicated a slug still fails here. (Manifest <-> registry is embed-components.test.ts.)
+const MANIFEST_SLUGS = Object.keys(
+  JSON.parse(readFileSync('src/data/embed-components.json', 'utf8')) as Record<string, unknown>,
+);
+
+test('every generated embed route serves a 200 static page with the shared shell', async ({ page }) => {
+  expect(routes.length).toBe(MANIFEST_SLUGS.length);
+  expect([...routes.map((r) => r.slug)].sort()).toEqual([...MANIFEST_SLUGS].sort());
   for (const { url } of routes) {
     const resp = await page.goto(url, { waitUntil: 'domcontentloaded' });
     expect(resp?.status(), `${url} status`).toBe(200);

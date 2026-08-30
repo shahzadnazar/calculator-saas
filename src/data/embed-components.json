@@ -143,6 +143,9 @@
   "triangle-calculator": {
     "componentPath": "@components/islands/TriangleCalculator.astro"
   },
+  "vat-calculator": {
+    "componentPath": "@components/islands/VatCalculator.astro"
+  },
   "volume-calculator": {
     "componentPath": "@components/islands/VolumeCalculator.astro"
   }

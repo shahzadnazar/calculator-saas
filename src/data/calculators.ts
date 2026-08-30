@@ -267,6 +267,16 @@ export const CALCULATORS: readonly Calculator[] = [
     keywords: ['sales tax calculator', 'reverse sales tax', 'price before tax', 'tax rate from receipt', 'after tax price'],
   },
   {
+    slug: 'vat-calculator',
+    title: 'VAT Calculator',
+    category: 'finance',
+    status: 'live',
+    description: 'Fill in any two of VAT rate, net price, gross price and tax amount to get the other two.',
+    keywords: ['vat calculator', 'add vat', 'remove vat', 'reverse vat calculator', 'vat inclusive price', 'net to gross'],
+    aliases: ['value added tax calculator', 'gst calculator'],
+    phrases: ['how much vat do i pay', 'price excluding vat', 'work out vat backwards'],
+  },
+  {
     slug: 'income-tax-calculator',
     title: 'Income Tax Calculator',
     category: 'finance',

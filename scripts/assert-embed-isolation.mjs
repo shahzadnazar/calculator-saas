@@ -54,7 +54,8 @@ function generatedPages() {
   }
   return out;
 }
-for (const { rel, src } of generatedPages()) {
+const generated = generatedPages();
+for (const { rel, src } of generated) {
   if (/import\.meta\.glob/.test(src)) problems.push(`${rel}: uses import.meta.glob`);
   if (/ISLANDS\[|IslandBySlug/.test(src)) problems.push(`${rel}: uses a component map / IslandBySlug`);
   if (/await import\(/.test(src)) problems.push(`${rel}: uses a runtime dynamic import`);
@@ -100,7 +101,12 @@ function unrelatedScopedCids(htmlPath) {
 }
 
 const routes = embedRoutes();
-if (routes.length !== 49) problems.push(`expected 49 calculator embed routes in dist, found ${routes.length}`);
+// Derived from the generated SOURCE pages (themselves reconciled against the registry by
+// `assert:embed-pages-current`), not a literal — so adding a calculator never needs this file
+// edited, while a build that silently drops or duplicates an embed still fails here.
+if (routes.length !== generated.length) {
+  problems.push(`expected ${generated.length} calculator embed routes in dist, found ${routes.length}`);
+}
 for (const route of routes) {
   const orphans = unrelatedScopedCids(route);
   if (orphans.length) problems.push(`${route}: unrelated calculator-scoped CSS for cid(s) ${orphans.join(', ')}`);

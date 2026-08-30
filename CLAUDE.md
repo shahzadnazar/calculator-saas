@@ -1,6 +1,6 @@
 # AllCalculators — project logic & working rules
 
-Astro 5 static SEO-authority site: **49 live calculators, 0 planned** (finance 19 / health 11 /
+Astro 5 static SEO-authority site: **50 live calculators, 0 planned** (finance 20 / health 11 /
 math 9 / everyday 10) + guides, reference tables, task hubs and topic clusters.
 (The README's "44 calculators" line is STALE — the registry is authoritative.)
 Brand `AllCalculators`, domain `https://allcalculators.com`.
@@ -52,13 +52,13 @@ src/data/       calculators.ts (THE REGISTRY) · tasks.ts (primary IA) · cluste
                 reference.ts (citable tables) · offers.ts (affiliate, empty) ·
                 popular-calculators.ts (search empty-state only) · embed-components.json/.ts
 src/lib/calculators/   <name>.ts  = pure engine  + <name>.test.ts
-                       <name>-form.ts = runtime binding + <name>-form.test.ts   (47 of each)
+                       <name>-form.ts = runtime binding + <name>-form.test.ts   (51 of each)
 src/lib/result/        state.ts · form-runtime.ts · equation-runtime.ts ·
                        generator-runtime.ts · focus.ts     ← the shared runtimes
 src/lib/monetization/  policy.ts · layout.ts · result-bridge.ts · styles.ts
 src/lib/        format.ts · format-duration.ts · finance.ts · schema.ts ·
                 search-core.ts (browser-safe, no registry) · search.ts (build only) · embed.ts
-src/components/islands/   47 calculator islands
+src/components/islands/   52 calculator islands
 src/components/result/    ResultShell/Value/Unit/Summary/Interpretation/Breakdown/
                           Assumptions/Actions/Empty/Invalid/Example/Announcement
 src/layouts/    BaseLayout · CalculatorLayout · ContentLayout · GuideLayout ·
@@ -125,7 +125,7 @@ behavior and density, never their branding, styling, code, content or layout.**
 
 ## 5. Migration status — COMPLETE
 
-**49/49 migrated, 0 legacy, 0 approved exceptions.** Every calculator is task-first on
+**50/50 migrated, 0 legacy, 0 approved exceptions.** Every calculator is task-first on
 a shared runtime: empty-first, explicit primary action, live-after-first, Reset, strict
 validation, `aria-live` result. `compound-interest` migrated LAST (R21A1) as the final
 regression sentinel because it owns the shared compound-growth engine consumed by
@@ -133,7 +133,7 @@ Investment / Savings / Retirement / Interest and two reference tables.
 `e2e/legacy-layout.spec.ts` is now a **zero-legacy sentinel** — it fails if any legacy
 layout is reintroduced.
 
-**13 families:** physical/keypad (1) · standard form (15) · complex form (7) ·
+**13 families:** physical/keypad (1) · standard form (16) · complex form (7) ·
 shape selector (2) · equation (2) · explicit-output generator (1) · random-data
 generator (1) · converter (2) · date/duration (6) · multi-mode (4) · dynamic-row (2) ·
 financial schedule (4) · specialized report (2). Same psychology globally; **workspace
@@ -181,7 +181,7 @@ Public embeds are **generated per-slug static pages** `src/pages/embed/<category
 each with a **literal static import of exactly one island** + `EmbedPageShell`. The old
 dynamic `IslandBySlug` route imported all islands into a runtime map, so Astro emitted
 **every** island's scoped CSS onto **every** embed page (~23 KB dead). Result now:
-**0 B unrelated calculator-scoped CSS** on all 49 embeds.
+**0 B unrelated calculator-scoped CSS** on all 50 embeds.
 
 `embed-components.json` carries **component identity only** (`slug → {componentPath, props?}`);
 the registry alone owns category/route, so there is no projection to drift.
