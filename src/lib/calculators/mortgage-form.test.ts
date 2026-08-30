@@ -482,6 +482,30 @@ describe('mortgage binding — readValues / resetValues', () => {
     expect(fields.hoaMonthly.value).toBe('');
     expect(fields.loanTermYears.value).toBe('30'); // default term restored, not blanked
   });
+
+  it('reset puts the repayment start back to today, not to whatever was last picked', () => {
+    // startMonth is a closed <select> with no blank option, so clearing it to '' was a silent
+    // no-op that left the visitor's last choice in place after Reset. The page ships with the
+    // visitor's own today in it, so that is the state Reset has to restore.
+    const fields: Record<string, { value: string; dataset?: Record<string, string> }> = {
+      homePrice: { value: '360000' },
+      startMonth: { value: '3', dataset: { touched: '1' } },
+      startYear: { value: '2031' },
+    };
+    const root = {
+      querySelector: (sel: string) => {
+        const m = sel.match(/^\[name="(.+)"\]$/);
+        return m ? fields[m[1]] ?? null : null;
+      },
+    } as unknown as HTMLElement;
+
+    const today = new Date();
+    mortgageBinding.resetValues(root, 'personal');
+    expect(fields.startMonth.value).toBe(String(today.getMonth() + 1));
+    expect(fields.startYear.value).toBe(String(today.getFullYear()));
+    // ...and the island's today-seeding gets the field back.
+    expect(fields.startMonth.dataset?.touched).toBeUndefined();
+  });
 });
 
 describe('down payment: dollar and percent units feed ONE engine', () => {

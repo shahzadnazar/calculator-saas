@@ -259,7 +259,9 @@ const OPTIONS = [
   }
   .fr-inputs :global(.fr-op) {
     width: 4.25rem;
-    min-height: 2.5rem;
+    /* 2.75rem, not 2.5rem: this rule outranks the shared `.field` min-height, so a smaller
+       value here is the one thing that can put a control back under the 44px target. */
+    min-height: 2.75rem;
     text-align: center;
     font-size: 1.05rem;
   }

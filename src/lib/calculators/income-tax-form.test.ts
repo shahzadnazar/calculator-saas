@@ -81,8 +81,25 @@ describe('validation', () => {
     expect(validateIncomeTaxValues(REF)).toEqual({ ok: true });
   });
 
-  it('accepts the untouched default sheet', () => {
-    expect(validateIncomeTaxValues(DEFAULT_VALUES)).toEqual({ ok: true });
+  it('asks for an amount when the whole sheet is untouched', () => {
+    expect(validateIncomeTaxValues(DEFAULT_VALUES)).toEqual({
+      ok: false,
+      fieldErrors: {},
+      formError: MSG.nothingEntered,
+    });
+  });
+
+  it('one amount anywhere is enough — an income line, or a withholding line alone', () => {
+    expect(validateIncomeTaxValues(vals({ wages: '80000' }))).toEqual({ ok: true });
+    // A refund claim: nothing earned on this sheet, but tax was withheld.
+    expect(validateIncomeTaxValues(vals({ wages: '', federalWithheld: '500' }))).toEqual({ ok: true });
+    // An explicit zero is an answer, not a blank.
+    expect(validateIncomeTaxValues(vals({ wages: '0' }))).toEqual({ ok: true });
+  });
+
+  it('a filing status, year and age cannot stand in for an amount', () => {
+    const noMoney = { ...DEFAULT_VALUES, filingStatus: 'single' as const, taxYear: '2025', age: '30' };
+    expect(validateIncomeTaxValues(noMoney)).toMatchObject({ ok: false, formError: MSG.nothingEntered });
   });
 
   it('rejects a negative or unreadable amount on any money field', () => {
@@ -246,8 +263,11 @@ describe('defaults and the worked example', () => {
     for (const f of MONEY_FIELDS) expect(DEFAULT_VALUES[f]).toBe('');
   });
 
-  it('a blank sheet is a valid return owing nothing', () => {
-    expect(validateIncomeTaxValues(DEFAULT_VALUES)).toEqual({ ok: true });
+  it('a blank sheet is a prompt, not a $0 finding', () => {
+    // "Tax Amount Owe for 2025: $0" over an untouched form reads as an answer to a question
+    // nobody asked. The arithmetic underneath is still sound — it is the presentation of an
+    // empty sheet as a result that is wrong.
+    expect(validateIncomeTaxValues(DEFAULT_VALUES)).toMatchObject({ ok: false, formError: MSG.nothingEntered });
     const r = computeIncomeTax(DEFAULT_VALUES);
     expect(r.totalIncome).toBe(0);
     expect(r.amountOwed).toBe(0);

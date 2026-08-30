@@ -78,6 +78,8 @@ export function formatDisplay(n: number): string {
 
 function friendlyError(err: unknown): string {
   if (err instanceof CalculatorError) {
+    if (err.message === '__divzero__') return 'Cannot divide by zero';
+    if (err.message === '__overflow__') return 'Result is too large to show';
     const m = err.message.toLowerCase();
     if (m.includes('paren')) return 'Check the parentheses';
     if (m.includes('factorial')) return 'Factorial needs a whole number ≥ 0';
@@ -426,7 +428,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
         tokens = [{ t: 'num', s: shown.replace(/^-/, ''), neg: shown.startsWith('-'), exact: r }];
         justEvaluated = true;
       } catch (err) {
-        fail(err instanceof CalculatorError && err.message === '__divzero__' ? 'Cannot divide by zero' : friendlyError(err));
+        fail(friendlyError(err));
       }
     }
     // else: pending operator / fresh buffer → no-op
@@ -461,9 +463,11 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
         exprDisplay = exprString();
         result = evalTokens();
       }
-      // The safe parser returns Infinity for x/0 (it only throws on NaN); in a
-      // calculator that reads as divide-by-zero. Never surface Infinity.
-      if (!Number.isFinite(result)) throw new CalculatorError('__divzero__');
+      // Division by zero is raised where it happens — by `applyOp` here and by the safe
+      // parser — so a result that is still non-finite overflowed the double. Saying
+      // "cannot divide by zero" for 999^999 was simply the wrong reason. Never surface
+      // Infinity either way.
+      if (!Number.isFinite(result)) throw new CalculatorError('__overflow__');
       ans = result;
       const shown = formatDisplay(result);
       tokens = [{ t: 'num', s: shown.replace(/^-/, ''), neg: shown.startsWith('-'), exact: result }];
@@ -472,10 +476,7 @@ export function createEngine(opts: { feature?: Feature; angle?: AngleMode } = {}
       lastExprDisplay = exprDisplay ? `${exprDisplay} =` : null;
       error = null;
     } catch (err) {
-      error =
-        err instanceof CalculatorError && err.message === '__divzero__'
-          ? 'Cannot divide by zero'
-          : friendlyError(err);
+      error = friendlyError(err);
       announce = error;
       justEvaluated = false;
     }

@@ -287,6 +287,7 @@ test.describe('validation and behaviour', () => {
 
   test('rejects an impossible age but accepts a blank one', async ({ page }) => {
     await page.locator('[data-example-dismiss]').click();
+    await fill(page, 'wages', '80000');
     await fill(page, 'age', '200');
     await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
@@ -298,11 +299,23 @@ test.describe('validation and behaviour', () => {
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
   });
 
-  test('a blank sheet is a valid return owing nothing', async ({ page }) => {
+  test('a blank sheet asks for an amount instead of reporting $0 owed', async ({ page }) => {
+    // "Tax Amount Owe for 2025: $0" over a form nobody has touched reads as a finding rather
+    // than as a prompt. One amount anywhere is enough to get a return.
     await page.locator('[data-example-dismiss]').click();
     await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(shell(page)).toContainText('at least one income or withholding amount');
+  });
+
+  test('a withholding line alone is enough — a refund needs no income', async ({ page }) => {
+    await page.locator('[data-example-dismiss]').click();
+    await fill(page, 'federalWithheld', '500');
+    await submit(page).click();
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(row(page, 'amountOwed')).toHaveText('$0');
+    // No income, $500 already withheld: the whole $500 comes back.
+    await expect(row(page, 'amountOwed')).toHaveText('-$500');
+    await expect(shell(page)).toContainText('Refund');
   });
 
   test('updates live after the first calculation', async ({ page }) => {

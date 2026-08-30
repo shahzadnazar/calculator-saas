@@ -1061,6 +1061,19 @@ export const mortgageBinding: FormCalculatorBinding<MortgageValues, MortgageComp
     }
     const biweekly = root.querySelector<HTMLInputElement>('[name="showBiweekly"]');
     if (biweekly) biweekly.checked = false;
+
+    // The repayment start is seeded from the visitor's own today on hydration, so it is never
+    // blank — and `startMonth` is a closed <select> with no empty option, which made the
+    // clear-to-'' above a silent no-op that left whichever month was last chosen. Restore the
+    // state the page shipped in: this month, this year.
+    const today = new Date();
+    const startMonth = root.querySelector<HTMLSelectElement>('[name="startMonth"]');
+    if (startMonth) {
+      startMonth.value = String(today.getMonth() + 1);
+      delete startMonth.dataset.touched; // hand the field back to the island's today-seeding
+    }
+    const startYear = root.querySelector<HTMLInputElement>('[name="startYear"]');
+    if (startYear) startYear.value = String(today.getFullYear());
   },
 };
 

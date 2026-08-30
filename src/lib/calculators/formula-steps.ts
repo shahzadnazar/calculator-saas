@@ -51,7 +51,30 @@ export function formatSignificant(value: number): string {
 export function formatDigits(value: number, digits: number): string {
   if (!Number.isFinite(value)) return '—';
   if (value === 0) return '0';
-  return String(Number(value.toPrecision(digits)));
+  const plain = String(Number(value.toPrecision(digits)));
+  return plain.includes('e') ? expandExponential(plain) : plain;
+}
+
+/**
+ * Expand a JavaScript exponential literal into plain digits, exactly.
+ *
+ * `String()` switches to exponential past 1e21 and below 1e-7, so a cube with absurd sides
+ * printed its volume as `4.1887902047864e+45` — a language detail, not a figure anyone reads.
+ * `toFixed(0)` is not the way out either: it renders 1e30 as 1000000000000000019884624838656,
+ * float noise dressed as precision. Rebuilding the digits from the mantissa keeps exactly the
+ * significant figures the caller asked for and pads the rest with honest zeros.
+ */
+function expandExponential(literal: string): string {
+  const m = /^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(literal);
+  if (!m) return literal;
+  const [, sign, lead, frac = '', expStr] = m;
+  const exp = Number(expStr);
+  const mantissa = lead + frac;
+  if (exp < 0) return `${sign}0.${'0'.repeat(-exp - 1)}${mantissa}`;
+  const trailingZeros = exp - frac.length;
+  return trailingZeros >= 0
+    ? sign + mantissa + '0'.repeat(trailingZeros)
+    : `${sign}${mantissa.slice(0, exp + 1)}.${mantissa.slice(exp + 1)}`;
 }
 
 /**

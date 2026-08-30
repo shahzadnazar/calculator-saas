@@ -271,8 +271,12 @@ const ex = percentExamples();
     color: var(--muted);
     font-weight: 600;
   }
+  /* `width: auto` sizes the box to its longest option, and the tighter padding then dropped it
+     to 37px — the only control in the fleet under the 44px target. The min-height puts it back
+     without widening it. */
   .eq-select {
     width: auto;
+    min-height: 2.75rem;
     padding-block: 0.4rem;
   }
   .eq-note {

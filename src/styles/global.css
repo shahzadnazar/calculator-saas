@@ -581,6 +581,10 @@
     border-radius: 0.625rem;
 
     padding: 0.6rem 0.75rem;
+    /* An <input> reaches 44px from padding alone, but a <select>'s intrinsic content box is a
+       fraction shorter and landed on 43px across the fleet. One rule holds every .field
+       control on the 44px target instead of each island patching its own selects. */
+    min-height: 2.75rem;
 
     color: var(--fg);
     font-size: 1rem;

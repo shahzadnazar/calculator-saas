@@ -103,6 +103,7 @@ export const MSG = {
   rate: 'Enter a rate between 0 and 100%.',
   year: 'Choose a tax year.',
   status: 'Choose a filing status.',
+  nothingEntered: 'Enter at least one income or withholding amount to see a return.',
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -170,8 +171,21 @@ export function validateIncomeTaxValues(v: IncomeTaxValues): ValidationResult {
   for (const name of MONEY_FIELDS) {
     if (parseMoney(v[name]) === 'invalid') fieldErrors[name] = MSG.money;
   }
+  if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
 
-  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+  /**
+   * A blank money field means zero — that is the reference's own "$0" default and it is what
+   * lets someone fill in three lines out of twenty-seven. But a form where EVERY money field
+   * is blank has been told nothing at all, and answering it with "Tax Amount Owe: $0" reads
+   * as a finding rather than as a prompt. Filing status, year and age cannot produce a return
+   * on their own, so the gate is one amount, anywhere — an income line or a withholding line,
+   * since a withholding-only return is a real refund calculation.
+   */
+  if (MONEY_FIELDS.every((name) => (v[name] ?? '').trim() === '')) {
+    return { ok: false, fieldErrors, formError: MSG.nothingEntered };
+  }
+
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */

@@ -562,3 +562,32 @@ describe('equals-line expression echoes the completed parentheses', () => {
     expect(e.view().sub).toBe('');
   });
 });
+
+describe('overflow is reported as overflow, not as division by zero', () => {
+  it('999^999 says the result is too large', () => {
+    const e = createEngine({ feature: 'scientific' });
+    for (const d of ['9', '9', '9']) e.inputDigit(d);
+    e.inputToken('^', '^');
+    for (const d of ['9', '9', '9']) e.inputDigit(d);
+    e.equals();
+    expect(e.view().error).toBe('Result is too large to show');
+    expect(e.view().main).not.toMatch(/Infinity|NaN|undefined/);
+  });
+
+  it('division by zero still says division by zero, in both modes', () => {
+    const basic = createEngine({ feature: 'basic' });
+    basic.inputDigit('5'); basic.inputOp('/'); basic.inputDigit('0'); basic.equals();
+    expect(basic.view().error).toBe('Cannot divide by zero');
+
+    const sci = createEngine({ feature: 'scientific' });
+    sci.inputDigit('5'); sci.inputOp('/'); sci.inputDigit('0'); sci.equals();
+    expect(sci.view().error).toBe('Cannot divide by zero');
+  });
+
+  it('a division by zero INSIDE a larger expression is still named correctly', () => {
+    const e = press('(5/0)', 'scientific');
+    e.inputOp('+'); e.inputDigit('1'); e.equals();
+    expect(e.view().error).toBe('Cannot divide by zero');
+    expect(e.view().main).not.toMatch(/Infinity/);
+  });
+});
