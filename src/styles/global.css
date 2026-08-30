@@ -272,6 +272,62 @@
   }
 
   /* ------------------------------------------------------------------------
+     Browse header — the eyebrow row on a listing page, with its search
+     ------------------------------------------------------------------------
+     Task hubs, category pages and any other page that lists a set of
+     calculators share this: the identity on the left, a search on the right,
+     both above the heading. Listing pages are where someone arrives knowing
+     the name of the tool they want, so the way out is a search, not a scroll.
+     ------------------------------------------------------------------------ */
+
+  /* The breadcrumb's line, with a page-level count sitting opposite it — above
+     the search, which is also right-aligned, so the two line up. */
+  .browse-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 1.5rem;
+  }
+
+  .browse-crumbs__count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .browse-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+  }
+
+  .browse-head__label {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .browse-head__search {
+    flex: 1 1 20rem;
+    max-width: 26rem;
+    min-width: 0;
+  }
+
+  @media (max-width: 34rem) {
+    .browse-head__search {
+      max-width: none;
+    }
+  }
+
+  /* ------------------------------------------------------------------------
      Tool shell — the calculator + its optional side rail
      ------------------------------------------------------------------------
      NAMESPACE: `tool-`, not `calc-`. The `calc-` prefix already belongs to the

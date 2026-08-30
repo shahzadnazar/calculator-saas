@@ -4,6 +4,8 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import Icon from '@components/Icon.astro';
 import CalculatorCard from '@components/CalculatorCard.astro';
+import CalculatorSearch from '@components/search/CalculatorSearch.astro';
+import { SEARCH_INDEX_URL } from '@lib/search';
 import {
   CATEGORIES,
   type Category,
@@ -42,20 +44,43 @@ const crumbs = [
   jsonLd={[breadcrumbSchema(crumbs)]}
 >
   <div class="wrap py-4">
-    <Breadcrumbs crumbs={crumbs} />
-
-    <header class="mt-5 max-w-3xl">
-      <span class="icon-chip h-14 w-14"><Icon name={category.icon} size={28} /></span>
-      <h1 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{category.name}</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">{category.description}</p>
+    <!-- The count rides on the breadcrumb's line: it labels the page rather than
+         the calculators, so it belongs with the trail, not in the heading block. -->
+    <div class="browse-crumbs">
+      <Breadcrumbs crumbs={crumbs} />
       {
         live.length > 0 && (
-          <p class="mt-4 inline-flex items-center gap-2 text-sm font-semibold" style="color: var(--muted)">
+          <p class="browse-crumbs__count" style="color: var(--muted)">
             <span class="h-2 w-2 rounded-full" style="background: var(--color-accent-500)" />
             {live.length} {live.length === 1 ? 'calculator' : 'calculators'} · free, no sign-up
           </p>
         )
       }
+    </div>
+
+    <header class="mt-5">
+      <!-- A category page lists a whole set, so the way to a named calculator is a
+           search, not a scroll. Same combobox as the header, home page and task
+           hubs, over the one index. -->
+      <div class="browse-head">
+        <div class="browse-head__label">
+          <span class="icon-chip h-14 w-14"><Icon name={category.icon} size={28} /></span>
+        </div>
+
+        <div class="browse-head__search">
+          <CalculatorSearch
+            id={`category-search-${category.slug}`}
+            indexUrl={SEARCH_INDEX_URL}
+            loadStrategy="interaction"
+            placeholder="Search all calculators…"
+          />
+        </div>
+      </div>
+
+      <div class="max-w-3xl">
+      <h1 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{category.name}</h1>
+      <p class="mt-3 text-lg" style="color: var(--muted)">{category.description}</p>
+      </div>
     </header>
 
     {

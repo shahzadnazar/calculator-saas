@@ -5,6 +5,8 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import Breadcrumbs from '@components/Breadcrumbs.astro';
 import Icon from '@components/Icon.astro';
 import CalculatorCard from '@components/CalculatorCard.astro';
+import CalculatorSearch from '@components/search/CalculatorSearch.astro';
+import { SEARCH_INDEX_URL } from '@lib/search';
 import { TASK_GROUPS, type TaskGroup, taskPath } from '@data/tasks';
 import { getCalculator, calculatorPath } from '@data/calculators';
 import { getCluster, clusterPath } from '@data/clusters';
@@ -79,21 +81,38 @@ const jsonLd = [
   <div class="wrap py-4">
     <Breadcrumbs crumbs={crumbs} />
 
-    <header class="mt-2 max-w-3xl">
-   <div class="flex w-fit flex-row gap-3 items-center">
-  <span class="icon-chip h-10 w-10">
-    <Icon name={group.icon} size={24} />
-  </span>
+    <header class="mt-2">
+      <!-- The hub lists a whole task group, so the way to a named calculator is a
+           search, not a scroll. It sits on the eyebrow's line, above the question,
+           where it is the first thing on the page after the breadcrumb — and it is
+           the SAME combobox the header and home page use, over one index. -->
+      <div class="browse-head">
+        <div class="browse-head__label">
+          <span class="icon-chip h-10 w-10">
+            <Icon name={group.icon} size={24} />
+          </span>
+          <p
+            class="mt-0 text-sm font-semibold uppercase tracking-wide"
+            style="color: var(--color-brand-600)"
+          >
+            {group.title}
+          </p>
+        </div>
 
-  <p
-    class="mt-0 text-sm font-semibold uppercase tracking-wide"
-    style="color: var(--color-brand-600)"
-  >
-    {group.title}
-  </p>
-</div>
-      <h1 class="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">{group.question}</h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">{group.intro}</p>
+        <div class="browse-head__search">
+          <CalculatorSearch
+            id={`task-search-${group.slug}`}
+            indexUrl={SEARCH_INDEX_URL}
+            loadStrategy="interaction"
+            placeholder="Search all calculators…"
+          />
+        </div>
+      </div>
+
+      <div class="max-w-3xl">
+        <h1 class="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">{group.question}</h1>
+        <p class="mt-3 text-lg" style="color: var(--muted)">{group.intro}</p>
+      </div>
     </header>
 
     {
