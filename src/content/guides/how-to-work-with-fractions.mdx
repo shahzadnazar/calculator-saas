@@ -4,7 +4,7 @@ description: "Add, subtract, multiply and divide fractions with confidence — t
 category: math
 author: editorial
 publishDate: 2026-07-17
-updatedDate: 2026-07-17
+updatedDate: 2026-08-30
 relatedCalculators:
   - math/fraction-calculator
 ---
@@ -18,6 +18,8 @@ Fractions describe parts of a whole, and once you know the four rules for combin
 ## Adding and subtracting: find a common denominator
 
 You can only add or subtract fractions that share the same denominator (bottom number). To add `1/2 + 1/3`, convert both to sixths: `3/6 + 2/6 = 5/6`. The shortcut is to multiply the denominators for the new denominator, and cross-multiply for the numerators.
+
+The calculator writes this out as you would in an exercise book: the common denominator, both fractions expanded onto it, the sum, and then the division by the greatest common divisor that reduces the answer. Your two operands are quoted back exactly as you typed them — `2/4 + 1/2` stays `2/4 + 1/2`, because reducing an operand before showing it would be answering a question you didn't ask.
 
 ## Multiplying: straight across
 
@@ -35,6 +37,23 @@ Always reduce your answer to **lowest terms** by dividing the top and bottom by 
 
 Divide the numerator by the denominator: `5/8 = 0.625`. Decimals are handy for comparisons and for entering values into other calculators.
 
+## Six calculators, not six modes
+
+The [fraction calculator](/math/fraction-calculator) page carries six separate tools, each with its own fields, its own button and its own answer — none is a tab or a mode of another, so you can leave one filled in while you use the next:
+
+1. **Fraction Calculator** — the four operations on two fractions.
+2. **Mixed Numbers Calculator** — the same four, on whole-number-and-fraction values.
+3. **Simplify Fractions Calculator** — reduce one fraction to lowest terms.
+4. **Decimal to Fraction Calculator** — turn `0.625` back into `5/8`.
+5. **Fraction to Decimal Calculator** — the other direction.
+6. **Big Number Fraction Calculator** — for integers far too large for ordinary arithmetic.
+
+Every answer arrives with the equation, the result in decimals to fourteen significant figures, pie diagrams for the operands and the answer, and the calculation steps in full.
+
+## Why the big-number one exists
+
+Ordinary computer arithmetic loses precision above about sixteen digits, and a fraction calculator hits that ceiling fast: adding `1/999999937` and `1/999999893` needs a denominator of 999999830000006741, which does not fit. Every fraction here is held as a pair of exact whole numbers instead, so a thirty-digit denominator is reproduced digit for digit rather than rounded to something plausible.
+
 ## Where fractions show up
 
-Cooking (half of ¾ cup), construction (⅝-inch bolt), and probability all rely on fractions. The [fraction calculator](/math/fraction-calculator) shows the simplified fraction, the mixed number and the decimal at once, so you can check your work in whichever form you need.
+Cooking (half of ¾ cup), construction (⅝-inch bolt), and probability all rely on fractions. The calculator shows the simplified fraction, the mixed number and the decimal at once, so you can check your work in whichever form you need.
