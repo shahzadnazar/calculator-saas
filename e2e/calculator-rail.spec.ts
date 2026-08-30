@@ -72,7 +72,7 @@ test.describe('the rail beside the tool', () => {
         (a) => a.getBoundingClientRect().bottom <= window.innerHeight,
       ).length,
     );
-    expect(visible).toBeGreaterThanOrEqual(4);
+    expect(visible).toBeGreaterThanOrEqual(5);
   });
 
   test('the search is the shared one and really searches', async ({ page }) => {
@@ -99,7 +99,11 @@ test.describe("the ad's place while monetization is off", () => {
   test('is reserved but completely empty — no border, no background, no label', async ({ page }) => {
     await expect(slot(page)).toHaveCount(1);
     const box = (await slot(page).boundingBox())!;
-    expect(box.height).toBeGreaterThanOrEqual(280); // held open, so a fill cannot shift the page
+    // Held open so a fill cannot shift the page, but it yields to the first
+    // screen rather than taking a fixed height — 280px is the ceiling on a tall
+    // window, 140px the floor on a short one.
+    expect(box.height).toBeGreaterThanOrEqual(140);
+    expect(box.height).toBeLessThanOrEqual(280);
 
     const painted = await page.evaluate(() => {
       const s = getComputedStyle(document.querySelector('.tool-rail__slot')!);
@@ -114,6 +118,27 @@ test.describe("the ad's place while monetization is off", () => {
     await expect(page.locator('[data-mon-region]')).toHaveCount(0);
     expect(await page.content()).not.toContain('data-mon-');
   });
+});
+
+test('five related calculators survive even a short desktop window', async ({ page }) => {
+  // The regression this guards: a fixed slot height showed five links on a
+  // short-intro page at 1366x768 and two on a long-intro page at 1280x720.
+  for (const [w, h] of [
+    [1280, 720],
+    [1366, 768],
+    [1366, 650],
+  ] as const) {
+    await page.setViewportSize({ width: w, height: h });
+    // percent has one of the tallest headers in the fleet, so it is the worst case
+    await page.goto('/math/percent-calculator', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.tool-rail .calc-search__input')).toBeInViewport();
+    const visible = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.tool-rail__links a')).filter(
+        (a) => a.getBoundingClientRect().bottom <= window.innerHeight,
+      ).length,
+    );
+    expect(visible, `${w}x${h}`).toBeGreaterThanOrEqual(5);
+  }
 });
 
 test('on a phone the rail becomes a row under the calculator', async ({ page }) => {

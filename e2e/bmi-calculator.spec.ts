@@ -261,9 +261,9 @@ test('the gauge needle moves with the result and agrees with the linear scale', 
   expect(angle(high)).toBeLessThanOrEqual(90);
 });
 
-test('Other units opens a converter that never touches the BMI inputs', async ({ page }) => {
-  const toggle = page.locator('[data-bmi-other-toggle]');
-  const panel = page.locator('[data-bmi-other]');
+test('Other Units opens the shared converter, and it never touches the BMI inputs', async ({ page }) => {
+  const toggle = page.locator('[data-converter-toggle]');
+  const panel = page.locator('[data-converter]');
   await expect(panel).toBeHidden();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
@@ -271,13 +271,20 @@ test('Other units opens a converter that never touches the BMI inputs', async ({
   await expect(panel).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
 
-  // Defaults to the pair a BMI visitor needs, and converts through the site's engine.
-  await page.selectOption('[data-bmi-conv-category]', 'mass');
-  await page.fill('[data-bmi-conv-value]', '160');
-  await expect(page.locator('[data-bmi-conv-out]')).toContainText('Kilograms');
-  await expect(page.locator('[data-bmi-conv-out]')).toContainText('Pounds');
+  // The same panel body fat and ideal weight use — one converter, one set of factors.
+  const cats = (await page.locator('[data-conv-cat]').allTextContents()).map((t) => t.trim());
+  expect(cats).toEqual(['Length', 'Temperature', 'Area', 'Volume', 'Weight']);
 
-  // The calculator's own fields and result are untouched by the helper.
+  await page.locator('[data-conv-cat="mass"]').click();
+  await page.locator('[data-conv-from-unit]').selectOption('kg');
+  await page.locator('[data-conv-to-unit]').selectOption('lb');
+  await page.locator('[data-conv-from-value]').fill('80');
+  expect(Number(await page.locator('[data-conv-to-value]').inputValue())).toBeCloseTo(176.37, 1);
+  await expect(page.locator('[data-conv-sentence]')).toContainText('Kilograms');
+  await expect(page.locator('[data-conv-sentence]')).toContainText('Pounds');
+
+  // A helper, not a mode: the calculator keeps its own unit system, fields and result.
+  await expect(page.locator('[data-unit="metric"]')).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('[name="heightCm"]')).toHaveValue('');
   await expect(page.locator('[name="weightKg"]')).toHaveValue('');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'example');

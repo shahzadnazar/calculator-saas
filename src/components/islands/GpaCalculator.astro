@@ -45,7 +45,7 @@ const PLAN_FIELDS = [
 
     <div class="gpa-split">
       <form class="card gpa-card" data-form novalidate aria-label="GPA calculator">
-        <div class="gpa-scroll">
+        <div class="gpa-scroll gpa-scroll--fits">
           <table class="gpa-input-table">
             <thead>
               <tr>
@@ -207,6 +207,11 @@ const PLAN_FIELDS = [
      otherwise take the PAGE as its containing block, escape this scroller and stretch the document
      forty pixels wider than the phone. */
   .gpa-scroll { overflow-x: auto; min-width: 0; position: relative; }
+  /* The input table is table-layout:fixed, so it can no longer outgrow the card
+     and has nothing to scroll. Left as a scroll container it still reported a
+     1px sub-pixel overflow and drew a scrollbar under the rows, so clip it. The
+     report table below keeps its scroller — that one can genuinely be wide. */
+  .gpa-scroll--fits { overflow-x: clip; }
 
   /* ---- The course table ---------------------------------------- */
   /* Sized to its fields, not stretched across the card: a credits box three hundred pixels wide
@@ -229,9 +234,17 @@ const PLAN_FIELDS = [
   /* Explicit widths, not min-widths: an <input> carries an intrinsic size of about twenty
      characters, so a min-width lets the column grow to that instead of down to what it needs. */
   .gpa-calc :global(.gpa-row .field) { min-height: 2.75rem; max-width: 100%; }
-  .gpa-calc :global(.gpa-row__name) { width: 11rem; }
-  .gpa-calc :global(.gpa-row__credits) { width: 6rem; font-variant-numeric: tabular-nums; }
-  .gpa-calc :global(.gpa-row__grade) { width: 6rem; }
+  /* Fixed layout so the columns divide the card, instead of the widest header
+     deciding the table's width. With intrinsic sizing the filled table came out
+     44px wider than its card and put a scrollbar under the rows. */
+  .gpa-input-table { width: 100%; table-layout: fixed; }
+  .gpa-input-table th { overflow-wrap: anywhere; }
+  .gpa-input-table th:nth-child(2),
+  .gpa-input-table th:nth-child(3) { width: 5.75rem; }
+  .gpa-input-table th:nth-child(4) { width: 3rem; }
+  .gpa-calc :global(.gpa-row__name) { width: 100%; }
+  .gpa-calc :global(.gpa-row__credits) { width: 100%; font-variant-numeric: tabular-nums; }
+  .gpa-calc :global(.gpa-row__grade) { width: 100%; }
   .gpa-calc :global(.gpa-row__remove) {
     display: grid;
     place-items: center;

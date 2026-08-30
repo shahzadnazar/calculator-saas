@@ -36,7 +36,7 @@ const FINAL_FIELDS = [
 
     <div class="grade-split">
       <form class="card grade-card" data-form novalidate aria-label="Grade calculator">
-        <div class="grade-scroll">
+        <div class="grade-scroll grade-scroll--fits">
           <table class="grade-input-table">
             <thead>
               <tr>
@@ -218,6 +218,11 @@ const FINAL_FIELDS = [
   /* `position: relative` matters: an absolutely positioned .sr-only label inside the table would
      otherwise take the page as its containing block and stretch the document past the viewport. */
   .grade-scroll { overflow-x: auto; min-width: 0; position: relative; }
+  /* The input table is table-layout:fixed, so it can no longer outgrow the card
+     and has nothing to scroll. Left as a scroll container it still reported a
+     1px sub-pixel overflow and drew a scrollbar under the rows, so clip it. The
+     report table below keeps its scroller — that one can genuinely be wide. */
+  .grade-scroll--fits { overflow-x: clip; }
 
   /* ---- The assignment table -------------------------------------- */
   .grade-input-table { width: auto; border-collapse: collapse; }
@@ -236,12 +241,19 @@ const FINAL_FIELDS = [
   /* Rows are built in JS, so their rules must be :global() beneath an element the template owns. */
   .grade-calc :global(.grade-row td) { padding: 0.08rem 0.3rem; vertical-align: top; }
   .grade-calc :global(.grade-row .field) { min-height: 2.75rem; max-width: 100%; }
-  /* The optional name is the column that gives way: with the "%" now inline the
-     four cells have to fit the card at a 900px tool width, and the remove
-     button is the one thing that must never be clipped. */
-  .grade-calc :global(.grade-row__name) { width: 8rem; }
-  .grade-calc :global(.grade-row__score) { width: 4.5rem; font-variant-numeric: tabular-nums; }
-  .grade-calc :global(.grade-row__weight) { width: 4.5rem; font-variant-numeric: tabular-nums; }
+  /* Fixed layout so the columns divide the card, instead of the widest header
+     deciding the table's width. With intrinsic sizing the filled table came out
+     wider than its card and put a scrollbar under the rows; the optional name
+     is the column that gives way, and the remove button is the one thing that
+     must never be clipped. */
+  .grade-input-table { width: 100%; table-layout: fixed; }
+  .grade-input-table th { overflow-wrap: anywhere; }
+  .grade-input-table th:nth-child(2) { width: 4.75rem; }
+  .grade-input-table th:nth-child(3) { width: 5.5rem; }
+  .grade-input-table th:nth-child(4) { width: 3rem; }
+  .grade-calc :global(.grade-row__name) { width: 100%; }
+  .grade-calc :global(.grade-row__score) { width: 100%; font-variant-numeric: tabular-nums; }
+  .grade-calc :global(.grade-row__weight) { width: 100%; font-variant-numeric: tabular-nums; }
   .grade-calc :global(.grade-row__remove) {
     display: grid;
     place-items: center;

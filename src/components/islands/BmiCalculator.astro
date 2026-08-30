@@ -18,14 +18,13 @@ import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 import ExampleNotice from '@components/result/ExampleNotice.astro';
-import { CATEGORIES } from '@lib/calculators/conversion';
-
-// The "Other units" helper reuses the site's OWN reviewed conversion engine and its
-// category/unit table — no second copy of the factors lives here.
-const CONVERTER_CATEGORIES = CATEGORIES;
+import UnitConverterPanel from '@components/calc/UnitConverterPanel.astro';
 ---
 
-<div class="bmi mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-bmi>
+<div class="bmiwrap mx-auto w-full max-w-4xl" data-bmi>
+  <UnitConverterPanel id="bmi-converter" />
+
+  <div class="bmi grid gap-6 md:grid-cols-2 md:items-start">
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="BMI calculator">
     <div class="bmi-controls">
@@ -44,45 +43,16 @@ const CONVERTER_CATEGORIES = CATEGORIES;
         <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial (US)</button>
       </div>
 
-      <!-- A HELPER, not a third unit system: it opens a converter and leaves the
-           calculator on whichever system is selected above. Hence a toggle button
-           with aria-expanded, never a third radio in the unit group. -->
+      <!-- A HELPER, not a third unit system: it opens the SHARED converter panel
+           above and leaves the calculator on whichever system is selected here.
+           Hence a toggle button with aria-expanded, never a third radio. -->
       <button
         type="button"
         class="unit-btn bmi-other-toggle"
-        data-bmi-other-toggle
+        data-converter-toggle
         aria-expanded="false"
-        aria-controls="bmi-other-units"
-      >Other units</button>
-    </div>
-
-    <!-- Other units: convert any measurement into the unit this calculator accepts. -->
-    <div class="bmi-other" id="bmi-other-units" data-bmi-other hidden>
-      <p class="bmi-other__lede">Convert a measurement, then type the result into the field above.</p>
-      <div class="bmi-other__row">
-        <label class="sr-only" for="bmi-conv-category">Category</label>
-        <select class="field" id="bmi-conv-category" data-bmi-conv-category>
-          {CONVERTER_CATEGORIES.map((c) => <option value={c.key}>{c.label}</option>)}
-        </select>
-        <label class="sr-only" for="bmi-conv-value">Value to convert</label>
-        <input
-          class="field"
-          id="bmi-conv-value"
-          data-bmi-conv-value
-          type="number"
-          step="any"
-          inputmode="decimal"
-          autocomplete="off"
-          placeholder="1"
-        />
-      </div>
-      <div class="bmi-other__row">
-        <label class="sr-only" for="bmi-conv-from">From unit</label>
-        <select class="field" id="bmi-conv-from" data-bmi-conv-from></select>
-        <label class="sr-only" for="bmi-conv-to">To unit</label>
-        <select class="field" id="bmi-conv-to" data-bmi-conv-to></select>
-      </div>
-      <output class="bmi-other__out" data-bmi-conv-out aria-live="polite"></output>
+        aria-controls="bmi-converter"
+      >Other Units</button>
     </div>
 
     <!-- Metric -->
@@ -269,6 +239,7 @@ const CONVERTER_CATEGORIES = CATEGORIES;
     <ResultAnnouncement id="bmi-live" />
   </ResultShell>
 </div>
+</div>
 
 <style>
   .unit-btn {
@@ -335,36 +306,6 @@ const CONVERTER_CATEGORIES = CATEGORIES;
   }
 
   /* Other units — a converter helper, visually subordinate to the real inputs. */
-  .bmi-other {
-    margin-top: 0.85rem;
-    padding: 0.85rem;
-    border: 1px dashed var(--line);
-    border-radius: 0.65rem;
-    background: var(--subtle);
-  }
-  .bmi-other__lede {
-    margin: 0 0 0.6rem;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
-  .bmi-other__row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
-  .bmi-other__row + .bmi-other__row {
-    margin-top: 0.5rem;
-  }
-  .bmi-other__out {
-    display: block;
-    margin-top: 0.6rem;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--heading);
-    font-variant-numeric: tabular-nums;
-    min-height: 1.4em;
-  }
-
   /* Category gauge. */
   .bmi-gauge {
     margin: 1rem 0 0;
@@ -455,103 +396,12 @@ const CONVERTER_CATEGORIES = CATEGORIES;
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { CATEGORIES, convert } from '@lib/calculators/conversion';
-  import { formatNumber } from '@lib/format';
+  import { mountUnitConverterPanel } from '@lib/calculators/unit-converter-panel';
   import { bmiBinding, BMI_EXAMPLE_VALUES } from '@lib/calculators/bmi-form';
 
-  /**
-   * The "Other units" helper. It converts a measurement so the visitor can type the
-   * result into a field — it NEVER writes into the BMI inputs and never triggers a
-   * calculation, so the calculator's own logic is untouched by it.
-   */
-  function mountConverter(root: HTMLElement) {
-    const panel = root.querySelector<HTMLElement>('[data-bmi-other]');
-    const toggle = root.querySelector<HTMLButtonElement>('[data-bmi-other-toggle]');
-    const catSel = root.querySelector<HTMLSelectElement>('[data-bmi-conv-category]');
-    const fromSel = root.querySelector<HTMLSelectElement>('[data-bmi-conv-from]');
-    const toSel = root.querySelector<HTMLSelectElement>('[data-bmi-conv-to]');
-    const valueEl = root.querySelector<HTMLInputElement>('[data-bmi-conv-value]');
-    const out = root.querySelector<HTMLElement>('[data-bmi-conv-out]');
-    if (!panel || !toggle || !catSel || !fromSel || !toSel || !valueEl || !out) return;
-
-    const categoryOf = (key: string) => CATEGORIES.find((c) => c.key === key) ?? CATEGORIES[0];
-
-    const fillUnits = () => {
-      const cat = categoryOf(catSel.value);
-      for (const sel of [fromSel, toSel]) {
-        sel.replaceChildren();
-        for (const u of cat.units) {
-          const opt = document.createElement('option');
-          opt.value = u.key;
-          opt.textContent = u.label;
-          sel.appendChild(opt);
-        }
-      }
-      // Default to the pair a BMI visitor actually needs, where the category has
-      // one; otherwise the first two units of that category.
-      const preferred: Record<string, [string, string]> = {
-        length: ['cm', 'in'],
-        mass: ['kg', 'lb'],
-        weight: ['kg', 'lb'],
-      };
-      const pick = preferred[cat.key];
-      const index = (key: string | undefined, fallback: number) => {
-        const i = cat.units.findIndex((u) => u.key === key);
-        return i === -1 ? fallback : i;
-      };
-      fromSel.selectedIndex = index(pick?.[0], 0);
-      toSel.selectedIndex = index(pick?.[1], Math.min(1, cat.units.length - 1));
-    };
-
-    const render = () => {
-      const raw = valueEl.value.trim();
-      if (raw === '') {
-        out.textContent = '';
-        return;
-      }
-      const n = Number(raw);
-      if (!Number.isFinite(n)) {
-        out.textContent = 'Enter a number to convert.';
-        return;
-      }
-      const cat = categoryOf(catSel.value);
-      const result = convert(n, fromSel.value, toSel.value, cat.key);
-      if (!Number.isFinite(result)) {
-        out.textContent = 'That conversion is not available.';
-        return;
-      }
-      const fromLabel = cat.units.find((u) => u.key === fromSel.value)?.label ?? fromSel.value;
-      const toLabel = cat.units.find((u) => u.key === toSel.value)?.label ?? toSel.value;
-      out.textContent = `${formatNumber(n, 4)} ${fromLabel} = ${formatNumber(result, 4)} ${toLabel}`;
-    };
-
-    fillUnits();
-
-    // The helper sits inside the <form>, so its own input/change events would
-    // otherwise bubble to the runtime and be read as the visitor starting to
-    // enter values — dismissing the worked example and arming live recalculation.
-    // Containing them here keeps the converter genuinely inert with respect to
-    // the calculator: the runtime never sees a keystroke it did not receive from
-    // a real BMI field.
-    for (const type of ['input', 'change'] as const) {
-      panel.addEventListener(type, (e) => e.stopPropagation());
-    }
-
-    toggle.addEventListener('click', () => {
-      const open = toggle.getAttribute('aria-expanded') === 'true';
-      toggle.setAttribute('aria-expanded', String(!open));
-      panel.hidden = open;
-    });
-    catSel.addEventListener('change', () => {
-      fillUnits();
-      render();
-    });
-    for (const el of [fromSel, toSel]) el.addEventListener('change', render);
-    valueEl.addEventListener('input', render);
-  }
-
   document.querySelectorAll<HTMLElement>('[data-bmi]').forEach((root) => {
-    mountConverter(root);
+    // The "Other Units" converter, shared with body fat and ideal weight.
+    mountUnitConverterPanel(root);
     mountFormCalculator(root, bmiBinding, {
       recalculationMode: 'live-after-first',
       example: { values: BMI_EXAMPLE_VALUES },

@@ -320,14 +320,28 @@
      label — an empty reservation so switching a network on later cannot shift
      anything that is already on the page.
 
-     Height is set by what has to stay above the fold, not by the tallest unit
-     that would fit: the rail has a job before any network is connected. 280px
-     leaves the search box plus 4 related calculators visible on landing at
-     1280x720 and 5 at 1366x768. It still holds a 300x250 medium rectangle —
-     the standard unit for a 300px rail — with room to spare; a 300x600 half
-     page would push the search and every link off the first screen. */
+     Height is what is left after the things that must stay on the first screen,
+     not the tallest unit that would fit: the rail has a job before any network
+     is connected. The desktop rule below sizes it; as a row on a phone nothing
+     below it is competing for the fold, so it keeps its full height. */
   .tool-rail__slot {
     min-height: 280px;
+  }
+
+  /* In the desktop column the ad's place YIELDS to the first screen.
+     A fixed height could not: the rail starts wherever the page's own H1 and
+     intro end, which varies by ~56px across the fleet, so one height that showed
+     five links on a short-intro page at 1366x768 showed two on a long-intro page
+     at 1280x720. Subtracting the fold-critical block instead — the search box,
+     the heading and five links, plus their gaps — holds the count across both.
+     280px stays the ceiling, so a tall screen still gets a full medium
+     rectangle; 140px is the floor, past which the slot stops giving way.
+     This block must come AFTER the plain rule above: a container query adds no
+     specificity, so at equal weight the later rule is the one that wins. */
+  @container (min-width: 1040px) {
+    .tool-rail__slot {
+      min-height: clamp(140px, calc(100vh - 536px), 280px);
+    }
   }
 
   .tool-rail__heading {
@@ -343,7 +357,7 @@
   }
 
   .tool-rail__links li {
-    line-height: 1.7;
+    line-height: 1.55;
   }
 
   .tool-rail__links a {
