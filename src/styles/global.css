@@ -327,6 +327,15 @@
     }
   }
 
+  /* Task hubs put the search UNDER the lede instead: the group's question and
+     intro explain what the page is for, and the search sits directly above the
+     cards it filters. Narrower than the prose so it reads as a control, not a
+     paragraph. */
+  .browse-lede__search {
+    margin-top: 1.25rem;
+    max-width: 34rem;
+  }
+
   /* ------------------------------------------------------------------------
      Tool shell — the calculator + its optional side rail
      ------------------------------------------------------------------------
