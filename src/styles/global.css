@@ -436,17 +436,6 @@
     text-decoration: underline;
   }
 
-  /* Marks a newly added calculator at the top of the related list. A WORD, so the meaning
-     survives without colour, and small enough that the entry still costs one line. */
-  .tool-rail__new {
-    margin-left: 0.35rem;
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-accent-600);
-  }
-
   /* ------------------------------------------------------------------------
      Cards
      ------------------------------------------------------------------------ */
