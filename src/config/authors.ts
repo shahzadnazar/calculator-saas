@@ -3,6 +3,7 @@
  * and readers want to know who stands behind the content. Referenced by key
  * from guide frontmatter.
  */
+import { SITE } from '@config/site';
 
 export interface Author {
   name: string;
@@ -12,7 +13,7 @@ export interface Author {
 
 export const AUTHORS: Record<string, Author> = {
   editorial: {
-    name: 'AllCalculators Editorial Team',
+    name: `${SITE.name} Editorial Team`,
     role: 'Reviewed by our editorial team',
     bio: 'Our editorial team researches every topic against authoritative sources and verifies the maths behind each calculator with an automated test suite. We write to help you understand the numbers, not just get an answer.',
   },

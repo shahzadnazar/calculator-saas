@@ -31,20 +31,33 @@ export interface SiteConfig {
   };
 }
 
+/**
+ * The wordmark, split for two-tone rendering: the leading capitalised word, then the rest.
+ *
+ * The logo used to hard-code "All" + "Calculators", which meant renaming the brand needed an
+ * edit in a component as well as here — exactly the kind of second place this file exists to
+ * prevent. Derived from `SITE.name`, so the name above stays the only thing to change.
+ * A single-word name returns an empty tail and simply renders in one colour.
+ */
+export function wordmarkParts(name: string = SITE.name): { lead: string; tail: string } {
+  const m = /^([A-Z][a-z0-9]*)(.*)$/.exec(name);
+  return m ? { lead: m[1], tail: m[2] } : { lead: name, tail: '' };
+}
+
 export const SITE: SiteConfig = {
-  name: 'AllCalculators',
-  legalName: 'AllCalculators',
+  name: 'BestCalculate',
+  legalName: 'BestCalculate',
   // Canonical domain. If the registered domain differs, change ONLY this line.
-  url: 'https://allcalculators.com',
-  tagline: 'Every calculator you need, in one place.',
-  contactEmail: 'hello@allcalculators.com',
+  url: 'https://bestcalculate.com',
+  tagline: 'Calculate anything instantly',
+  contactEmail: 'hello@bestcalculate.com',
   description:
     'Free online calculators for finance, health, math, and everyday life. Fast, accurate, mobile-friendly, and ad-light — no sign-up required.',
   defaultOgImage: '/og/default.png',
   themeColor: '#2563eb',
   locale: 'en_US',
   social: {
-    twitter: 'allcalculators',
+    twitter: 'bestcalculate',
   },
 };
 

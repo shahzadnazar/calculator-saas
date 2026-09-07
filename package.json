@@ -1,9 +1,9 @@
 {
-  "name": "allcalculators",
+  "name": "bestcalculate",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "AllCalculators \u2014 free, fast, accurate online calculators for finance, health, math, and everyday life.",
+  "description": "BestCalculate \u2014 free, fast, accurate online calculators for finance, health, math, and everyday life.",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",

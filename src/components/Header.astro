@@ -12,6 +12,7 @@ import Logo from '@components/Logo.astro';
 import Icon from '@components/Icon.astro';
 import { TASK_GROUPS_ORDERED, taskPath, getTaskGroupForCalculator } from '@data/tasks';
 import { CATEGORIES, getCalculator } from '@data/calculators';
+import { SITE } from '@config/site';
 
 // The build emits file-style URLs (`format: 'file'`), so `Astro.url.pathname` arrives as
 // "/finance/mortgage-calculator.html". Normalise the extension away — without this nothing in the
@@ -54,7 +55,7 @@ const isGroupActive = (group: { slug: string }) =>
     <a
       href="/"
       class="site-brand"
-      aria-label="AllCalculators home"
+      aria-label={`${SITE.name} home`}
     >
       <span class="site-brand-mark">
         <Logo />

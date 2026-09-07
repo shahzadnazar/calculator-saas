@@ -1,4 +1,4 @@
-# AllCalculators
+# BestCalculate
 
 Free, fast, accurate online calculators for finance, health, math and everyday
 life — built as a long-term SEO authority site.

@@ -11,7 +11,7 @@ Referenced from: `STRATEGY.md`, `TASK-FIRST-MIGRATION.md`,
 ## North star
 
 > Calculator.net's immediate utility, familiar anatomy and information density
-> **+** AllCalculators' modern design, accessibility, responsiveness, search,
+> **+** BestCalculate's modern design, accessibility, responsiveness, search,
 > result states, trust and controlled monetization.
 
 **Do not copy** Calculator.net's branding, visual styling, code, content or exact

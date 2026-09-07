@@ -1,17 +1,18 @@
 ---
 import ContentLayout from '@layouts/ContentLayout.astro';
+import { SITE } from '@config/site';
 ---
 
 <ContentLayout
   title="How We Build Our Calculators"
-  description="Our editorial and engineering process: how AllCalculators researches formulas, tests for accuracy, and reviews every tool before it goes live."
+  description={`Our editorial and engineering process: how ${SITE.name} researches formulas, tests for accuracy, and reviews every tool before it goes live.`}
   path="/methodology"
   heading="How we build our calculators"
   updated="2026-07-17"
 >
   <p>
     A calculator is only worth using if you can trust its answer. This page explains
-    the process behind every tool on AllCalculators so you can judge our work for
+    the process behind every tool on {SITE.name} so you can judge our work for
     yourself.
   </p>
 

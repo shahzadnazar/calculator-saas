@@ -1,6 +1,6 @@
 {
-  "name": "AllCalculators",
-  "short_name": "AllCalc",
+  "name": "BestCalculate",
+  "short_name": "BestCalc",
   "description": "Free, fast, accurate online calculators for finance, health, math and everyday life.",
   "start_url": "/",
   "display": "standalone",

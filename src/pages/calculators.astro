@@ -10,6 +10,7 @@ import {
   categoryPath,
   STATS,
 } from '@data/calculators';
+import { SITE } from '@config/site';
 
 const crumbs = [
   { name: 'Home', path: '/' },
@@ -19,7 +20,7 @@ const crumbs = [
 
 <BaseLayout
   title="All Calculators — Full Directory"
-  description={`Browse every calculator on AllCalculators — ${STATS.live} live tools across ${STATS.categories} categories, with more added regularly. Search to find the one you need.`}
+  description={`Browse every calculator on ${SITE.name} — ${STATS.live} live tools across ${STATS.categories} categories, with more added regularly. Search to find the one you need.`}
   path="/calculators"
 >
   <div class="wrap py-4">

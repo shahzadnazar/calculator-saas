@@ -17,6 +17,11 @@ import { CATEGORIES, getLiveCalculators, getCategory } from '../src/data/calcula
 import { REFERENCES } from '../src/data/reference.ts';
 import { CLUSTERS } from '../src/data/clusters.ts';
 import { TASK_GROUPS } from '../src/data/tasks.ts';
+import { SITE, wordmarkParts } from '../src/config/site.ts';
+
+// Brand text comes from the config, so a rebrand never leaves 97 stale PNGs behind.
+const { lead: BRAND_LEAD, tail: BRAND_TAIL } = wordmarkParts();
+const BRAND_HOST = SITE.url.replace(/^https?:\/\//, '');
 
 const F = 'node_modules/@fontsource/inter/files';
 const fonts = [
@@ -41,7 +46,7 @@ function card({ title, subtitle, label }) {
     el('div', { alignItems: 'center', gap: '18px' }, [
       { type: 'img', props: { src: LOGO_URI, width: 60, height: 60, style: { display: 'flex' } } },
       el('div', { fontSize: '32px', fontWeight: 800, color: '#0f172a' }, [
-        'All', el('span', { color: '#2563eb' }, ['Calculators']),
+        BRAND_LEAD, el('span', { color: '#2563eb' }, [BRAND_TAIL]),
       ]),
     ]),
     // Title + subtitle
@@ -52,7 +57,7 @@ function card({ title, subtitle, label }) {
     // Footer row
     el('div', { alignItems: 'center', justifyContent: 'space-between' }, [
       el('div', { alignItems: 'center', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '26px', fontWeight: 600, padding: '10px 24px', borderRadius: '999px' }, [label]),
-      el('div', { fontSize: '26px', color: '#94a3b8', fontWeight: 500 }, ['allcalculators.com']),
+      el('div', { fontSize: '26px', color: '#94a3b8', fontWeight: 500 }, [BRAND_HOST]),
     ]),
   ]);
 }
@@ -65,7 +70,7 @@ async function write(name, opts) {
 
 const jobs = [];
 // Default
-jobs.push(['default', { title: 'Every calculator you need, in one place.', subtitle: 'Free, fast and accurate online calculators for finance, health, math and everyday life.', label: 'AllCalculators' }]);
+jobs.push(['default', { title: SITE.tagline, subtitle: 'Free, fast and accurate online calculators for finance, health, math and everyday life.', label: SITE.name }]);
 // Categories
 for (const c of CATEGORIES) jobs.push([`cat-${c.slug}`, { title: c.name, subtitle: c.description, label: 'Category' }]);
 // Calculators

@@ -13,6 +13,12 @@ const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const BRAND = '#2563eb';
 const ACCENT = '#34d399';
 
+// This script runs in plain node (no TS loader), so it cannot import src/config/site.ts.
+// These two MIRROR that file and must be changed with it — gen-og.mjs, which produces the
+// other 96 cards, imports the config directly.
+const BRAND_NAME = 'BestCalculate';
+const TAGLINE = 'Calculate anything instantly';
+
 const markSvg = (size) => `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}">
   <rect width="32" height="32" rx="8" fill="${BRAND}"/>
@@ -48,10 +54,9 @@ const ogSvg = `
       <rect x="13.25" y="23.25" width="5.5" height="3.75" rx="1.4" fill="#fff"/>
       <rect x="20.5" y="23.25" width="5.5" height="3.75" rx="1.4" fill="${ACCENT}"/>
     </g>
-    <text x="105" y="60" font-family="DejaVu Sans, Arial, sans-serif" font-size="52" font-weight="bold" fill="#0f172a">AllCalculators</text>
+    <text x="105" y="60" font-family="DejaVu Sans, Arial, sans-serif" font-size="52" font-weight="bold" fill="#0f172a">${BRAND_NAME}</text>
   </g>
-  <text x="90" y="360" font-family="DejaVu Sans, Arial, sans-serif" font-size="72" font-weight="bold" fill="#0f172a">Every calculator you need,</text>
-  <text x="90" y="450" font-family="DejaVu Sans, Arial, sans-serif" font-size="72" font-weight="bold" fill="${BRAND}">in one place.</text>
+  <text x="90" y="400" font-family="DejaVu Sans, Arial, sans-serif" font-size="72" font-weight="bold" fill="${BRAND}">${TAGLINE}</text>
   <text x="90" y="530" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" fill="#475569">Free · Fast · Accurate · No sign-up</text>
 </svg>`;
 

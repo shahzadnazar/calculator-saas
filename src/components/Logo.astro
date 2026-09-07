@@ -3,7 +3,7 @@
  * Brand mark + wordmark. Inline SVG so it is crisp at any size, themeable via
  * currentColor, and adds zero network requests.
  */
-import { SITE } from '@config/site';
+import { SITE, wordmarkParts } from '@config/site';
 
 interface Props {
   /** Render only the glyph (no wordmark), e.g. for compact contexts. */
@@ -11,6 +11,7 @@ interface Props {
   class?: string;
 }
 const { markOnly = false, class: className = '' } = Astro.props;
+const { lead, tail } = wordmarkParts();
 ---
 
 <span class={`inline-flex items-center gap-2 ${className}`}>
@@ -38,7 +39,7 @@ const { markOnly = false, class: className = '' } = Astro.props;
   {
     !markOnly && (
       <span class="text-lg font-extrabold tracking-tight" style="color: var(--heading)">
-        All<span style="color: var(--color-brand-600)">Calculators</span>
+        {lead}<span style="color: var(--color-brand-600)">{tail}</span>
       </span>
     )
   }

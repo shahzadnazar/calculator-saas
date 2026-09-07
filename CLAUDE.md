@@ -1,9 +1,9 @@
-# AllCalculators — project logic & working rules
+# BestCalculate — project logic & working rules
 
 Astro 5 static SEO-authority site: **50 live calculators, 0 planned** (finance 20 / health 11 /
 math 9 / everyday 10) + guides, reference tables, task hubs and topic clusters.
 (The README's "44 calculators" line is STALE — the registry is authoritative.)
-Brand `AllCalculators`, domain `https://allcalculators.com`.
+Brand `BestCalculate`, domain `https://bestcalculate.com`.
 
 Read `docs/` before changing anything structural. `docs/TASK-COMPLETION-DOCTRINE.md`
 is **non-negotiable product law** and every design/migration review checks compliance.
@@ -71,7 +71,7 @@ src/pages/      / · /<category> · /<category>/<slug> · /calculators · /tasks
 ## 4. Task-Completion Doctrine — the rules that bind every change
 
 North star: *Calculator.net's immediate utility, familiar anatomy and information
-density + AllCalculators' modern design, accessibility, responsiveness, search,
+density + BestCalculate's modern design, accessibility, responsiveness, search,
 result states, trust and controlled monetization.* **Match the task-completion
 behavior and density, never their branding, styling, code, content or layout.**
 

@@ -7,7 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 // Canonical site URL. Kept in sync with src/config/site.ts (SITE.url).
 // Declared here as a literal because astro.config is loaded before app code
 // and drives absolute URLs in the generated sitemap + canonical tags.
-const SITE_URL = 'https://allcalculators.com';
+const SITE_URL = 'https://bestcalculate.com';
 
 // https://astro.build/config
 export default defineConfig({
