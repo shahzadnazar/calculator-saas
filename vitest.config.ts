@@ -17,7 +17,9 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    // `scripts/` is included so the asset generators' output-ownership guard runs in CI with
+    // the rest of the suite; everything else under scripts/ is untested build tooling.
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
     environment: 'node',
   },
 });

@@ -1,16 +1,20 @@
 /**
  * Generate per-page Open Graph images (1200x630 PNG) into public/og/.
  *
+ * SOLE OWNER of public/og/ — every card, `default.png` included. `generate-assets.mjs` used to
+ * write its own simpler `default.png` too, which made the result depend on run order; it now
+ * produces brand marks only. See `scripts/asset-outputs.mjs`.
+ *
  * Run offline; the PNGs are committed as static assets, so the site build has NO
  * dependency on satori/resvg. Regenerate after adding pages or changing the
  * template:
  *   npm i --no-save satori @resvg/resvg-js @fontsource/inter
- *   node --experimental-strip-types scripts/gen-og.mjs
+ *   npm run assets:og
  *
  * Layout is satori (flexbox → SVG, text shaped with Inter woff), rasterized to
  * PNG by resvg. Titles/labels come straight from the registries.
  */
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 import { CATEGORIES, getLiveCalculators, getCategory } from '../src/data/calculators.ts';
@@ -19,6 +23,7 @@ import { CLUSTERS } from '../src/data/clusters.ts';
 import { TASK_GROUPS } from '../src/data/tasks.ts';
 import { SITE, wordmarkParts } from '../src/config/site.ts';
 import { readPalette } from './brand-palette.mjs';
+import { OG_DIR } from './asset-outputs.mjs';
 
 // Brand text comes from the config, so a rebrand never leaves 97 stale PNGs behind.
 const { lead: BRAND_LEAD, tail: BRAND_TAIL } = wordmarkParts();
@@ -65,10 +70,12 @@ function card({ title, subtitle, label }) {
   ]);
 }
 
+const OUT_DIR = `public/${OG_DIR}`;
+
 async function write(name, opts) {
   const svg = await satori(card(opts), { width: 1200, height: 630, fonts });
   const png = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 } }).render().asPng();
-  writeFileSync(`public/og/${name}.png`, png);
+  writeFileSync(`${OUT_DIR}/${name}.png`, png);
 }
 
 const jobs = [];
@@ -92,9 +99,13 @@ for (const file of readdirSync('src/content/guides').filter((f) => f.endsWith('.
   jobs.push([`guide-${file.replace('.mdx', '')}`, { title, subtitle: truncate(desc, 120), label: 'Guide' }]);
 }
 
+// Owning the directory means creating it: the brand generator used to do this on the way to
+// writing its own default.png, and no longer touches public/og at all.
+mkdirSync(OUT_DIR, { recursive: true });
+
 let done = 0;
 for (const [name, opts] of jobs) {
   await write(name, opts);
   done++;
 }
-console.log(`Generated ${done} OG images into public/og/`);
+console.log(`Generated ${done} OG images into ${OUT_DIR}/`);

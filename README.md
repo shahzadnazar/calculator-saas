@@ -31,7 +31,7 @@ npm run build      # production build → dist/
 npm run preview    # serve the production build locally
 npm run check      # Astro + TypeScript diagnostics (must be clean)
 npm run test       # run the calculator unit tests
-npm run assets     # regenerate favicons + OG image from source SVG
+npm run assets     # regenerate every brand asset, then every OG card (assets:brand + assets:og)
 ```
 
 ## Project structure
