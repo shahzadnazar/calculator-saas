@@ -4,14 +4,15 @@
  * Uses sharp, which ships as an Astro dependency.
  */
 import sharp from 'sharp';
+import { readPalette } from './brand-palette.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
-const BRAND = '#2563eb';
-const ACCENT = '#34d399';
+// Read from the design tokens so the icons cannot drift from the site again.
+const { brand: BRAND, accent: ACCENT, tintFrom: TINT_FROM, tintTo: TINT_TO } = readPalette();
 
 // This script runs in plain node (no TS loader), so it cannot import src/config/site.ts.
 // These two MIRROR that file and must be changed with it — gen-og.mjs, which produces the
@@ -37,8 +38,8 @@ const ogSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#eff6ff"/>
-      <stop offset="1" stop-color="#dbeafe"/>
+      <stop offset="0" stop-color="${TINT_FROM}"/>
+      <stop offset="1" stop-color="${TINT_TO}"/>
     </linearGradient>
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>

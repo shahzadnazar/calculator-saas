@@ -54,7 +54,8 @@ export const SITE: SiteConfig = {
   description:
     'Free online calculators for finance, health, math, and everyday life. Fast, accurate, mobile-friendly, and ad-light — no sign-up required.',
   defaultOgImage: '/og/default.png',
-  themeColor: '#2563eb',
+  // Matches --color-brand-600 in global.css; the browser chrome should be the brand's.
+  themeColor: '#7c3aed',
   locale: 'en_US',
   social: {
     twitter: 'bestcalculate',
