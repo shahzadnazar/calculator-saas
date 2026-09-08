@@ -15,6 +15,7 @@ export const OG_DIR = 'og';
 
 /** Every file `generate-assets.mjs` produces, relative to `public/`. */
 export const BRAND_ASSETS = Object.freeze([
+  'favicon.svg',
   'favicon-32.png',
   'apple-touch-icon.png',
   'icon-192.png',

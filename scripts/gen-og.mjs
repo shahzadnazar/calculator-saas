@@ -24,6 +24,7 @@ import { TASK_GROUPS } from '../src/data/tasks.ts';
 import { SITE, wordmarkParts } from '../src/config/site.ts';
 import { readPalette } from './brand-palette.mjs';
 import { OG_DIR } from './asset-outputs.mjs';
+import { brandMarkSvg } from './brand-mark.mjs';
 
 // Brand text comes from the config, so a rebrand never leaves 97 stale PNGs behind.
 const { lead: BRAND_LEAD, tail: BRAND_TAIL } = wordmarkParts();
@@ -38,7 +39,7 @@ const fonts = [
   { name: 'Inter', weight: 700, style: 'normal', data: readFileSync(`${F}/inter-latin-700-normal.woff`) },
 ];
 
-const LOGO = `<svg width="64" height="64" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="7.5" fill="${BRAND}"/><path d="M0 7.5A7.5 7.5 0 0 1 7.5 0h17A7.5 7.5 0 0 1 32 7.5V13H0Z" fill="#ffffff" fill-opacity="0.08"/><rect x="6" y="5.5" width="20" height="7" rx="2" fill="#ffffff" fill-opacity="0.95"/><g fill="#ffffff"><rect x="6" y="16" width="5.5" height="5.5" rx="1.5"/><rect x="13.25" y="16" width="5.5" height="5.5" rx="1.5"/><rect x="6" y="23.25" width="5.5" height="3.75" rx="1.5"/><rect x="13.25" y="23.25" width="5.5" height="3.75" rx="1.5"/></g><rect x="20.5" y="16" width="5.5" height="11" rx="1.8" fill="${ACCENT}"/></svg>`;
+const LOGO = brandMarkSvg({ size: 64, id: '-og' });
 const LOGO_URI = 'data:image/svg+xml;base64,' + Buffer.from(LOGO).toString('base64');
 
 const el = (type, style, children) => ({ type, props: { style: { display: 'flex', ...style }, children } });

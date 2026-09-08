@@ -76,6 +76,19 @@
   --color-accent-700: #0e7490;
 
   /* ------------------------------------------------------------------------
+     Logo mark — the "=" key and the corner dot
+     ------------------------------------------------------------------------
+     A pink that appears nowhere else in the interface, and that is deliberate:
+     it belongs to the mark, not to the UI accent scale, so no component borrows
+     it. Tokens rather than literals so the component, the favicon, the app
+     icons and the OG cards all read the mark's colours from one place.
+     ------------------------------------------------------------------------ */
+
+  --color-mark-key-from: #f77fc0;
+  --color-mark-key-to: #ec4899;
+  --color-mark-dot: #f43f5e;
+
+  /* ------------------------------------------------------------------------
      Supporting accent — Indigo
      ------------------------------------------------------------------------ */
 

@@ -10,11 +10,28 @@
  * nothing more complicated is needed. A missing token throws, because silently falling back to
  * a default colour is how the drift started.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, parse } from 'node:path';
 
-const CSS = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'styles', 'global.css');
+/**
+ * The project root, found by walking up to the nearest `package.json`.
+ *
+ * Not a path relative to this file: `Logo.astro` imports the mark that reads these tokens, so
+ * Astro bundles this module into `dist/chunks/` and a `../src/styles` from there points
+ * nowhere. Walking up lands on the repo root from both locations.
+ */
+function projectRoot(from = dirname(fileURLToPath(import.meta.url))) {
+  let dir = from;
+  while (!existsSync(join(dir, 'package.json'))) {
+    const up = dirname(dir);
+    if (up === dir) throw new Error(`brand-palette: no package.json above ${from}`);
+    dir = up;
+  }
+  return dir;
+}
+
+const CSS = join(projectRoot(), 'src', 'styles', 'global.css');
 
 export function readToken(name, css = readFileSync(CSS, 'utf8')) {
   const m = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})\\s*;`).exec(css);
@@ -26,8 +43,13 @@ export function readToken(name, css = readFileSync(CSS, 'utf8')) {
 export function readPalette() {
   const css = readFileSync(CSS, 'utf8');
   return {
-    brand: readToken('color-brand-600', css), // the mark's rounded square, and the wordmark tail
-    accent: readToken('color-accent-400', css), // the one highlighted "operator" key
+    brand: readToken('color-brand-600', css), // the mark's glyphs, and the wordmark tail
+    accent: readToken('color-accent-400', css), // the UI accent
+    squareFrom: readToken('color-brand-700', css), // the mark's rounded square, top-left...
+    squareTo: readToken('color-brand-500', css), // ...to bottom-right
+    markKeyFrom: readToken('color-mark-key-from', css), // the highlighted "=" key
+    markKeyTo: readToken('color-mark-key-to', css),
+    markDot: readToken('color-mark-dot', css), // the corner dot
     tintFrom: readToken('color-brand-50', css), // OG card background gradient
     tintTo: readToken('color-brand-100', css),
     pillText: readToken('color-brand-700', css), // the OG card's label pill
