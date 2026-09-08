@@ -49,7 +49,7 @@ export const SITE: SiteConfig = {
   legalName: 'BestCalculate',
   // Canonical domain. If the registered domain differs, change ONLY this line.
   url: 'https://bestcalculate.com',
-  tagline: 'Calculate anything instantly',
+  tagline: 'Calculate everything instantly',
   contactEmail: 'hello@bestcalculate.com',
   description:
     'Free online calculators for finance, health, math, and everyday life. Fast, accurate, mobile-friendly, and ad-light — no sign-up required.',
