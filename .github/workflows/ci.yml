@@ -31,12 +31,26 @@ jobs:
       - name: E2E smoke
         run: npm run test:e2e
 
-  # The internal /dev/ demo route is allowed on feature branches while building
-  # the shared utility system, but must never reach production. Enforced on the
-  # default branch only.
-  prelaunch-no-dev:
+  # --------------------------------------------------------------------------
+  # Deploy to Hostinger over FTP, from main only, and only once every gate above
+  # has passed. `needs` is the whole point: a red test suite cannot reach the
+  # live site, because this job never starts.
+  #
+  # Hostinger shared hosting runs no Node, so the build happens HERE and only the
+  # finished dist/ is shipped. Nothing about the server needs to know this is an
+  # Astro project.
+  #
+  # Requires three repository secrets (Settings -> Secrets and variables ->
+  # Actions): FTP_SERVER, FTP_USERNAME, FTP_PASSWORD.
+  # --------------------------------------------------------------------------
+  deploy:
+    needs: build-and-test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Two deploys writing to public_html at once would interleave files. Queue them.
+    concurrency:
+      group: hostinger-production
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,6 +58,49 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm run build
-      - name: Assert no /dev/ output in production build
+      - name: Build
+        run: npm run build
+
+      # The internal demo routes never leave the runner. Removed here as well as
+      # excluded from the upload below, so neither alone is load-bearing.
+      - name: Strip internal /dev routes from the bundle
+        run: rm -rf dist/dev
+
+      - name: Assert no /dev output is about to ship
         run: npm run assert:no-dev
+
+      # A dotfile, and the single file every clean URL depends on. Cheap to check,
+      # expensive to discover missing on the live site.
+      - name: Assert .htaccess is in the bundle
+        run: test -f dist/.htaccess || (echo "::error::dist/.htaccess missing - clean URLs would 404" && exit 1)
+
+      - name: Upload to Hostinger
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./dist/
+          server-dir: public_html/
+          # Only changed files are sent; the action keeps a state file on the
+          # server to work that out, so a routine deploy moves a handful of KB.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            dev/**
+            **/*.map
+
+  # The /dev/ guarantee now lives in the `deploy` job above, which strips the
+  # routes and then runs `assert:no-dev` on the exact bundle it is about to
+  # upload — the only moment the guarantee actually matters.
+  #
+  # The standalone job that used to sit here asserted that a plain `astro build`
+  # produces no dist/dev at all, on the assumption that src/pages/dev/ would be
+  # deleted before launch. That assumption turned out to be wrong: four e2e specs
+  # (monetization, calculator, result-primitives, calculator-search) use those
+  # routes as isolated harnesses, so the source has to stay and the build will
+  # always emit them. Kept as written, the job would have been red on main
+  # forever, which is worse than no job at all — a permanently failing check is
+  # one nobody reads.

@@ -38,11 +38,13 @@ npm run gen:embed-pages            # regenerate per-slug embed pages
 npm run assert:embed-pages-current # drift gate (CI)
 npm run assert:embed-isolation     # 0 unrelated scoped CSS per embed (CI, post-build)
 npm run assert:mon-off             # no monetization artifact on live pages (CI)
-npm run assert:no-dev              # /dev/* must not reach production (main only)
+npm run assert:no-dev              # /dev/* not in the bundle (run after stripping it)
 ```
 
 CI job `build-and-test`: check → embed-drift → unit → build → embed-isolation →
-mon-off → e2e. A separate `prelaunch-no-dev` job runs on `main` only.
+mon-off → e2e. A `deploy` job then runs on `main` ONLY when that passes: it
+rebuilds, strips `dist/dev`, asserts the bundle is clean, and FTPs it to
+Hostinger. A red suite cannot reach the live site, because `deploy` never starts.
 
 ## 3. Directory map
 
@@ -254,8 +256,8 @@ audience, so **affiliate and email come before AdSense**.
 ## 10. Search
 
 Embedded behavior, never a destination — **there is no public standalone Search page**.
-`/dev/search` is an internal test route, noindex + sitemap-excluded, deleted before
-launch. One shared index + `rankCalculators` engine across homepage, header, directory
+`/dev/search` is an internal test route, noindex + sitemap-excluded, and stripped from
+the deploy bundle rather than deleted — four e2e specs harness the /dev routes.` One shared index + `rankCalculators` engine across homepage, header, directory
 and category surfaces.
 
 `search-core.ts` is deliberately registry-free and DOM-free so the browser bundle stays
@@ -278,7 +280,7 @@ influence relevance; popularity is never derived from affiliate/ad/CPC value.
 - Brand/domain and monetization stay single-config switches.
 - Personal values are never persisted; calculations run in the browser and nothing the
   visitor enters is sent to a server.
-- `/dev/*` must never reach production.
+- `/dev/*` must never reach production — the `deploy` job strips it, then asserts.
 
 ## 12. Branch & recent work
 
