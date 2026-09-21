@@ -1,0 +1,112 @@
+# ============================================================================
+# BestCalculate — Apache / LiteSpeed config for shared hosting (Hostinger)
+#
+# Astro builds with `format: 'file'` and `trailingSlash: 'never'`, so a page is
+# emitted as `finance.html`, not `finance/index.html`, and every internal link
+# points at the extensionless `/finance`. Apache does not make that connection
+# on its own, so without this file nine URLs 404 and every calculator page is
+# reachable only with a `.html` suffix that no link on the site uses.
+#
+# Copied verbatim from public/ into dist/ on every build — upload it with the
+# rest of dist/ and it lands at the web root.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# 1. Extensionless URLs
+# ---------------------------------------------------------------------------
+# MultiViews would guess at this and sometimes get it right; an explicit rule
+# is predictable. Off first, so the rewrite below is the only thing deciding.
+Options -MultiViews
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # `/finance` is BOTH a file (finance.html) and a directory (finance/...).
+  # Apache resolves the directory first and 301s `/finance` to `/finance/`,
+  # which has no index file — a redirect straight into a 404. This affects
+  # /finance /health /math /everyday /tasks /topics /guides /reference /embed.
+  DirectorySlash Off
+
+  # Canonical host. Pick ONE of the two blocks below and delete the other.
+  # ---- with www ----
+  # RewriteCond %{HTTP_HOST} !^www\. [NC]
+  # RewriteRule ^(.*)$ https://www.bestcalculate.com/$1 [R=301,L]
+  # ---- without www (matches SITE.url in src/config/site.ts) ----
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+
+  # Trailing slashes are stripped because the site declares
+  # `trailingSlash: 'never'` — /finance/ and /finance must not both resolve, or
+  # Google sees two URLs for one page.
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_URI} !^/$
+  RewriteRule ^(.+?)/+$ /$1 [R=301,L]
+
+  # The actual mapping: /finance → finance.html, when that file exists.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME}.html -f
+  RewriteRule ^(.*)$ /$1.html [L]
+
+  # Someone arriving on the .html form is sent to the canonical URL. %{THE_REQUEST}
+  # is used so this only fires for a real browser request, never for the internal
+  # rewrite above — otherwise the two rules loop.
+  RewriteCond %{THE_REQUEST} \s/(.+?)\.html[\s?] [NC]
+  RewriteRule ^ /%1 [R=301,L]
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# 2. Error page
+# ---------------------------------------------------------------------------
+ErrorDocument 404 /404.html
+
+# ---------------------------------------------------------------------------
+# 3. Caching
+# ---------------------------------------------------------------------------
+# Everything under /_astro/ and the fonts carry a content hash in the filename,
+# so they can be cached forever — a changed file gets a new name. HTML must not
+# be, or a deploy would be invisible to anyone who has visited before.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault                          "access plus 1 month"
+  ExpiresByType text/html                 "access plus 0 seconds"
+  ExpiresByType application/json          "access plus 0 seconds"
+  ExpiresByType image/svg+xml             "access plus 1 year"
+  ExpiresByType image/png                 "access plus 1 year"
+  ExpiresByType font/woff2                "access plus 1 year"
+  ExpiresByType text/css                  "access plus 1 year"
+  ExpiresByType application/javascript    "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2|png|svg|jpg|jpeg|webp|avif)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+  # The search index is fingerprinted in its filename, so it caches like an asset.
+  <FilesMatch "^[a-f0-9]+\.json$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# 4. Compression
+# ---------------------------------------------------------------------------
+# LiteSpeed usually does this already; harmless where it does.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# 5. MIME types
+# ---------------------------------------------------------------------------
+<IfModule mod_mime.c>
+  AddType font/woff2 .woff2
+  AddType image/svg+xml .svg
+  AddType application/json .json
+</IfModule>

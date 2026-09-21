@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "assert:no-dev": "node scripts/assert-no-dev.mjs",
+    "deploy:pack": "npm run build && node scripts/pack-deploy.mjs",
     "assert:mon-off": "node scripts/assert-monetization-off.mjs",
     "report:embed-css": "node scripts/report-embed-css.mjs",
     "gen:embed-pages": "node scripts/gen-embed-pages.mjs",
