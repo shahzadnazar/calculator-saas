@@ -6,6 +6,9 @@ import {
   describeBmiResult,
   severityPhrase,
   bmiBinding,
+  bmiExample,
+  BMI_EXAMPLE,
+  markerPosition,
   type BmiValues,
 } from './bmi-form';
 import { calculateBmi } from './bmi';
@@ -18,8 +21,9 @@ import { calculateBmi } from './bmi';
  * the reviewed calculator.
  */
 
-const metric = (heightCm: string, weightKg: string): BmiValues => ({ system: 'metric', heightCm, weightKg });
+const metric = (heightCm: string, weightKg: string): BmiValues => ({ sex: 'male', system: 'metric', heightCm, weightKg });
 const imperial = (heightFt: string, heightIn: string, weightLb: string): BmiValues => ({
+  sex: 'male',
   system: 'imperial',
   heightFt,
   heightIn,
@@ -193,5 +197,101 @@ describe('severityPhrase', () => {
     expect(severityPhrase('low')).toMatch(/below/i);
     expect(severityPhrase('high')).toMatch(/above/i);
     expect(severityPhrase('danger')).toMatch(/well above/i);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Worked example (the labelled Example result state)                  */
+/* ------------------------------------------------------------------ */
+
+describe('bmiExample — the labelled Example shown on first load', () => {
+  it('pins the published scenario so the caption and the figures cannot disagree', () => {
+    expect(BMI_EXAMPLE).toEqual({ system: 'metric', heightCm: 175, weightKg: 70 });
+  });
+
+  it('derives every figure from the reviewed engine, never from hand-written copy', () => {
+    const ex = bmiExample();
+    const engine = calculateBmi({ system: 'metric', heightCm: 175, weightKg: 70 });
+    expect(ex.bmi).toBe(engine.bmi);
+    expect(ex.category).toBe(engine.category);
+    expect(ex.severity).toBe(engine.severity);
+    expect(ex.healthyMin).toBe(engine.healthyMin);
+    expect(ex.healthyMax).toBe(engine.healthyMax);
+    expect(ex.unitLabel).toBe(engine.unitLabel);
+    expect(ex.markerPercent).toBe(markerPosition(engine.bmi));
+  });
+
+  it('echoes its own inputs so the example can state the scenario it came from', () => {
+    const ex = bmiExample();
+    expect(ex.heightCm).toBe(BMI_EXAMPLE.heightCm);
+    expect(ex.weightKg).toBe(BMI_EXAMPLE.weightKg);
+  });
+
+  it('is a realistic, finite, normal-weight scenario (never NaN / Infinity)', () => {
+    const ex = bmiExample();
+    expect(Number.isFinite(ex.bmi)).toBe(true);
+    expect(Number.isFinite(ex.healthyMin)).toBe(true);
+    expect(Number.isFinite(ex.healthyMax)).toBe(true);
+    expect(ex.bmi).toBeCloseTo(22.9, 5);
+    expect(ex.category).toBe('Normal weight');
+    expect(ex.phrase).toBe(severityPhrase(ex.severity));
+  });
+});
+
+
+/* ------------------------------------------------------------------ */
+/* Sex selector — recorded, never applied                              */
+/* ------------------------------------------------------------------ */
+
+describe('the sex selector', () => {
+  const withSex = (sex: 'male' | 'female'): BmiValues => ({
+    sex,
+    system: 'metric',
+    heightCm: '180',
+    weightKg: '65',
+  });
+
+  it('rides along on the computed result', () => {
+    expect(bmiBinding.compute(withSex('female')).sex).toBe('female');
+    expect(bmiBinding.compute(withSex('male')).sex).toBe('male');
+  });
+
+  it('does NOT change the BMI, the category or the healthy range', () => {
+    const male = bmiBinding.compute(withSex('male'));
+    const female = bmiBinding.compute(withSex('female'));
+    // WHO adult thresholds are sex-independent — the selector must never appear
+    // to move a number it cannot move.
+    expect(female.bmi).toBe(male.bmi);
+    expect(female.category).toBe(male.category);
+    expect(female.severity).toBe(male.severity);
+    expect(female.healthyMin).toBe(male.healthyMin);
+    expect(female.healthyMax).toBe(male.healthyMax);
+  });
+
+  it('reproduces the published reference figure (180 cm, 65 kg = 20.1)', () => {
+    expect(bmiBinding.compute(withSex('male')).bmi).toBe(20.1);
+  });
+});
+
+describe('the gauge needle', () => {
+  const angleFor = (bmi: number) => (markerPosition(bmi) / 100) * 180 - 90;
+
+  it('reads off the same scale position as the linear bar', () => {
+    for (const bmi of [10, 18.5, 22, 25, 30, 45]) {
+      expect(angleFor(bmi)).toBeCloseTo((markerPosition(bmi) / 100) * 180 - 90, 10);
+    }
+  });
+
+  it('stays inside the half-circle sweep for every plausible BMI', () => {
+    for (const bmi of [1, 12, 18.4, 18.5, 24.9, 25, 29.9, 30, 60, 120]) {
+      const a = angleFor(bmi);
+      expect(a).toBeGreaterThanOrEqual(-90);
+      expect(a).toBeLessThanOrEqual(90);
+    }
+  });
+
+  it('points left of centre when underweight and right of centre when obese', () => {
+    expect(angleFor(15)).toBeLessThan(angleFor(22));
+    expect(angleFor(22)).toBeLessThan(angleFor(35));
   });
 });

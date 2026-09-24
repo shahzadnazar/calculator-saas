@@ -1,256 +1,383 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateSquareFootageValues,
-  computeSquareFootage,
-  describeSquareFootageResult,
-  interpretSquareFootage,
-  isSquareFootageResultUsable,
-  convertDimension,
-  spokenArea,
+  SHAPES,
+  MSG,
+  shapeByKey,
+  convertDims,
+  validateShape,
+  computeShape,
+  completeShapeValue,
+  presentShape,
+  describeShape,
+  makeShapeBinding,
+  shapeExampleValues,
+  SQUARE_FOOTAGE_EXAMPLE_VALUES,
   squareFootageBinding,
-  type SquareFootageValues,
-  type SquareFootageComputed,
+  type ShapeSpec,
+  type ShapeValues,
 } from './square-footage-form';
-import { calculateSquareFootage } from './square-footage';
+import { formatExactArea, fromSqFt } from './square-footage';
 
-const vals = (over: Partial<SquareFootageValues> = {}): SquareFootageValues => ({
-  length: '10',
-  width: '12',
-  unit: 'ft',
-  quantity: '1',
-  pricePerSqFt: '',
-  ...over,
-});
+/**
+ * The form layer over the nine shapes.
+ *
+ * One binding serves all nine, so the tests that matter most are the ones that run over EVERY spec
+ * rather than over a favourite one: if the shared binding only works for rectangles, the sweeps
+ * below are what says so.
+ */
 
-const errs = (r: ReturnType<typeof validateSquareFootageValues>) =>
-  (r as { fieldErrors: Record<string, string> }).fieldErrors;
+const rect = shapeByKey('rectangle');
 
-const result = (over: Partial<SquareFootageComputed> = {}): SquareFootageComputed => ({
-  areaSqFt: 120,
-  totalSqFt: 120,
-  totalSqM: 11.15,
-  totalSqYd: 13.33,
-  cost: 0,
-  quantity: 1,
-  pricePerSqFt: 0,
-  priceProvided: false,
-  unit: 'ft',
-  ...over,
-});
-
-function stubRoot(v: Record<string, string>) {
-  const inputs: Record<string, { value: string }> = {};
-  for (const [k, val] of Object.entries(v)) inputs[k] = { value: val };
+/** Values for a spec, its dimensions given in order. */
+const vals = (spec: ShapeSpec, numbers: (string | number)[], over: Partial<ShapeValues> = {}): ShapeValues => {
+  const dims: Record<string, string> = {};
+  const units: Record<string, string> = {};
+  spec.fields.forEach((f, i) => {
+    dims[f.name] = String(numbers[i] ?? '');
+    units[f.name] = f.kind === 'angle' ? 'deg' : 'ft';
+  });
   return {
-    querySelector(sel: string) {
-      const m = sel.match(/\[name="(.+?)"\]/);
-      return m ? (inputs[m[1]] ?? null) : null;
-    },
-  } as unknown as HTMLElement;
-}
+    ...{ quantity: '1', price: '', priceUnit: 'sqft' },
+    ...over,
+    dims: { ...dims, ...(over.dims ?? {}) },
+    units: { ...units, ...(over.units ?? {}) },
+  };
+};
 
-/* ------------------------------------------------------------------ */
-/* Validation                                                          */
-/* ------------------------------------------------------------------ */
+const fieldErrors = (r: ReturnType<typeof validateShape>) =>
+  (r as { fieldErrors?: Record<string, string> }).fieldErrors ?? {};
+const formError = (r: ReturnType<typeof validateShape>) => (r as { formError?: string }).formError;
 
-describe('square-footage-form — validation', () => {
-  it('accepts an ordinary calculation (price optional, left blank)', () => {
-    expect(validateSquareFootageValues(vals())).toEqual({ ok: true });
+describe('the specs', () => {
+  it('offers the nine shapes the reference has, in its order', () => {
+    expect(SHAPES.map((s) => s.key)).toEqual([
+      'rectangle',
+      'rectangle-border',
+      'circle',
+      'ring',
+      'triangle-edges',
+      'triangle-base',
+      'trapezoid',
+      'sector',
+      'parallelogram',
+    ]);
   });
 
-  it('empty length/width are invalid (only neutral defaults present)', () => {
-    const e = errs(validateSquareFootageValues(vals({ length: '', width: '' })));
-    expect(e.length).toBe('Enter a length greater than zero.');
-    expect(e.width).toBe('Enter a width greater than zero.');
-  });
-
-  it('length/width: > 0 required — zero, negative and non-finite rejected', () => {
-    expect(errs(validateSquareFootageValues(vals({ length: '0' }))).length).toBe('Enter a length greater than zero.');
-    expect(errs(validateSquareFootageValues(vals({ width: '-4' }))).width).toBe('Enter a width greater than zero.');
-    expect(errs(validateSquareFootageValues(vals({ length: 'Infinity' }))).length).toBe('Enter a length greater than zero.');
-  });
-
-  it('every supported unit is accepted', () => {
-    for (const unit of ['ft', 'in', 'yd', 'm'] as const) expect(validateSquareFootageValues(vals({ unit }))).toEqual({ ok: true });
-  });
-
-  it('quantity: whole ≥ 1 — zero, fractional, negative and non-finite rejected', () => {
-    expect(validateSquareFootageValues(vals({ quantity: '1' }))).toEqual({ ok: true });
-    expect(validateSquareFootageValues(vals({ quantity: '3' }))).toEqual({ ok: true });
-    for (const q of ['0', '2.5', '-1', 'NaN']) {
-      expect(errs(validateSquareFootageValues(vals({ quantity: q }))).quantity).toBe('Enter a whole number of at least 1.');
+  it('gives every shape a title, a lede and at least one field', () => {
+    for (const s of SHAPES) {
+      expect(s.title.length).toBeGreaterThan(0);
+      expect(s.lede.length).toBeGreaterThan(0);
+      expect(s.fields.length).toBeGreaterThan(0);
     }
   });
 
-  it('price: empty valid; 0 valid; positive valid; negative and non-finite invalid', () => {
-    expect(validateSquareFootageValues(vals({ pricePerSqFt: '' }))).toEqual({ ok: true });
-    expect(validateSquareFootageValues(vals({ pricePerSqFt: '0' }))).toEqual({ ok: true });
-    expect(validateSquareFootageValues(vals({ pricePerSqFt: '5.5' }))).toEqual({ ok: true });
-    expect(errs(validateSquareFootageValues(vals({ pricePerSqFt: '-1' }))).pricePerSqFt).toBe('Enter a price of zero or more, or leave it blank.');
-    expect(errs(validateSquareFootageValues(vals({ pricePerSqFt: 'Infinity' }))).pricePerSqFt).toBe('Enter a price of zero or more, or leave it blank.');
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* Computation                                                         */
-/* ------------------------------------------------------------------ */
-
-describe('square-footage-form — compute', () => {
-  it('ordinary feet calculation carries the outputs, quantity and price flags', () => {
-    expect(computeSquareFootage(vals())).toMatchObject({ areaSqFt: 120, totalSqFt: 120, quantity: 1, priceProvided: false, unit: 'ft' });
-  });
-
-  it('every input unit computes (inches / yards / metres)', () => {
-    expect(computeSquareFootage(vals({ length: '120', width: '144', unit: 'in' })).totalSqFt).toBeCloseTo(120, 6);
-    expect(computeSquareFootage(vals({ length: '3.3333333', width: '4', unit: 'yd' })).totalSqFt).toBeCloseTo(120, 3);
-    expect(computeSquareFootage(vals({ length: '3.048', width: '3.6576', unit: 'm' })).totalSqFt).toBeCloseTo(120, 6);
-  });
-
-  it('multiple quantity multiplies; price marks provided and gives a cost', () => {
-    const r = computeSquareFootage(vals({ quantity: '2', pricePerSqFt: '5' }));
-    expect(r.totalSqFt).toBe(240);
-    expect(r.priceProvided).toBe(true);
-    expect(r.cost).toBe(1200);
-  });
-
-  it('an entered price of 0 is provided (cost row will show $0.00)', () => {
-    const r = computeSquareFootage(vals({ pricePerSqFt: '0' }));
-    expect(r.priceProvided).toBe(true);
-    expect(r.cost).toBe(0);
-  });
-
-  it('preserves the pure formula output exactly (delegation)', () => {
-    for (const c of [vals(), vals({ unit: 'm', quantity: '2', pricePerSqFt: '8' })]) {
-      const r = computeSquareFootage(c);
-      const pure = calculateSquareFootage({ length: Number(c.length), width: Number(c.width), unit: c.unit, quantity: Number(c.quantity), pricePerSqFt: c.pricePerSqFt.trim() === '' ? 0 : Number(c.pricePerSqFt) });
-      expect(r.totalSqFt).toBe(pure.totalSqFt);
-      expect(r.totalSqM).toBe(pure.totalSqM);
-      expect(r.cost).toBe(pure.cost);
+  it('keeps every field name unique within its own shape', () => {
+    for (const s of SHAPES) {
+      const names = s.fields.map((f) => f.name);
+      expect(new Set(names).size).toBe(names.length);
     }
   });
 
-  it('output relationships and finiteness hold across the validated domain', () => {
-    for (const c of [vals(), vals({ quantity: '3', pricePerSqFt: '4.2' }), vals({ unit: 'm', length: '5', width: '4' })]) {
-      const r = computeSquareFootage(c);
-      expect(r.totalSqM).toBeCloseTo(r.totalSqFt / 10.7639104, 9);
-      expect(r.totalSqYd).toBeCloseTo(r.totalSqFt / 9, 9);
-      expect(r.totalSqFt).toBeCloseTo(r.areaSqFt * r.quantity, 9);
-      if (r.priceProvided) expect(r.cost).toBeCloseTo(r.totalSqFt * r.pricePerSqFt, 9);
-      expect(isSquareFootageResultUsable(r)).toBe(true);
+  it('never names a dimension field after a shared control', () => {
+    for (const s of SHAPES) {
+      for (const f of s.fields) {
+        expect(['quantity', 'price', 'priceUnit']).not.toContain(f.name);
+      }
     }
   });
-});
 
-/* ------------------------------------------------------------------ */
-/* Result guard (default finite gate via resultValue; no isUsableResult) */
-/* ------------------------------------------------------------------ */
-
-describe('square-footage-form — resultValue guard', () => {
-  it('returns the dominant total sq ft for a usable result', () => {
-    expect(squareFootageBinding.resultValue(result({ totalSqFt: 240 }))).toBe(240);
-  });
-
-  it('returns a NON-FINITE sentinel for a malformed output → default gate rejects it', () => {
-    expect(Number.isNaN(squareFootageBinding.resultValue(result({ totalSqFt: Infinity })))).toBe(true);
-    expect(Number.isNaN(squareFootageBinding.resultValue(result({ totalSqM: NaN })))).toBe(true);
-    expect(Number.isNaN(squareFootageBinding.resultValue(result({ priceProvided: true, cost: NaN })))).toBe(true);
-    // A NaN cost is ignored when no price was provided (cost isn't rendered).
-    expect(squareFootageBinding.resultValue(result({ priceProvided: false, cost: NaN, totalSqFt: 120 }))).toBe(120);
-  });
-
-  it('does not implement isUsableResult (the guard lives in resultValue)', () => {
-    expect(squareFootageBinding.isUsableResult).toBeUndefined();
+  it('uses an angle only where the shape needs one', () => {
+    const withAngle = SHAPES.filter((s) => s.fields.some((f) => f.kind === 'angle'));
+    expect(withAngle.map((s) => s.key)).toEqual(['sector']);
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Presentation                                                        */
-/* ------------------------------------------------------------------ */
-
-describe('square-footage-form — announcement + interpretation', () => {
-  it('announces the dominant total area only (singular vs multi-section)', () => {
-    expect(describeSquareFootageResult(result({ totalSqFt: 120, quantity: 1 }))).toBe('The total area is 120 square feet.');
-    expect(describeSquareFootageResult(result({ totalSqFt: 360, quantity: 3 }))).toBe('The total area across 3 sections is 360 square feet.');
+describe('validation', () => {
+  it('asks for a value before complaining about it', () => {
+    const r = validateShape(rect, vals(rect, ['', '']));
+    expect(fieldErrors(r).d1).toBe(MSG.required);
+    expect(fieldErrors(r).d2).toBe(MSG.required);
   });
 
-  it('interpretation: single area', () => {
-    expect(interpretSquareFootage(result({ totalSqFt: 120, quantity: 1 }))).toBe('The area is 120 square feet.');
+  it('rejects zero, a negative and junk', () => {
+    expect(fieldErrors(validateShape(rect, vals(rect, ['0', '10']))).d1).toBe(MSG.invalid);
+    expect(fieldErrors(validateShape(rect, vals(rect, ['-3', '10']))).d1).toBe(MSG.invalid);
+    expect(fieldErrors(validateShape(rect, vals(rect, ['abc', '10']))).d1).toBe(MSG.invalid);
+    expect(fieldErrors(validateShape(rect, vals(rect, ['1e5', '10']))).d1).toBe(MSG.invalid);
   });
 
-  it('interpretation: multi-section states each area + the total', () => {
-    expect(interpretSquareFootage(result({ areaSqFt: 120, totalSqFt: 360, quantity: 3 }))).toBe(
-      'Each area is 120 square feet. Across 3 identical areas, the total is 360 square feet.',
+  it('accepts a bare decimal', () => {
+    expect(validateShape(rect, vals(rect, ['.5', '10'])).ok).toBe(true);
+  });
+
+  it('accepts a sound rectangle', () => {
+    expect(validateShape(rect, vals(rect, ['30', '20'])).ok).toBe(true);
+  });
+
+  it('takes a blank quantity as one area and a blank price as no estimate', () => {
+    const r = validateShape(rect, vals(rect, ['30', '20'], { quantity: '', price: '' }));
+    expect(r.ok).toBe(true);
+    const c = computeShape(rect, vals(rect, ['30', '20'], { quantity: '', price: '' }));
+    expect(c.quantity).toBe(1);
+    expect(c.price).toBe(0);
+  });
+
+  it('rejects a fractional or zero quantity', () => {
+    expect(fieldErrors(validateShape(rect, vals(rect, ['3', '4'], { quantity: '1.5' }))).quantity).toBe(MSG.quantityInvalid);
+    expect(fieldErrors(validateShape(rect, vals(rect, ['3', '4'], { quantity: '0' }))).quantity).toBe(MSG.quantityInvalid);
+    expect(fieldErrors(validateShape(rect, vals(rect, ['3', '4'], { quantity: '-2' }))).quantity).toBe(MSG.quantityInvalid);
+  });
+
+  it('accepts a zero price but not a negative one', () => {
+    expect(validateShape(rect, vals(rect, ['3', '4'], { price: '0' })).ok).toBe(true);
+    expect(fieldErrors(validateShape(rect, vals(rect, ['3', '4'], { price: '-1' }))).price).toBe(MSG.priceInvalid);
+  });
+
+  it('judges a cross-field impossibility only once every field is sound', () => {
+    const border = shapeByKey('rectangle-border');
+    // A blank third field is a field error, not a border complaint.
+    const blank = validateShape(border, vals(border, ['10', '10', '']));
+    expect(fieldErrors(blank).d3).toBe(MSG.required);
+    expect(formError(blank)).toBeUndefined();
+  });
+
+  it('rejects a border that swallows the rectangle', () => {
+    const border = shapeByKey('rectangle-border');
+    expect(formError(validateShape(border, vals(border, ['10', '10', '5'])))).toBe(MSG.borderTooBig);
+    expect(validateShape(border, vals(border, ['10', '10', '4.9'])).ok).toBe(true);
+  });
+
+  it('rejects a ring border past the centre', () => {
+    const ring = shapeByKey('ring');
+    expect(formError(validateShape(ring, vals(ring, ['30', '15'])))).toBe(MSG.ringTooBig);
+    expect(validateShape(ring, vals(ring, ['30', '14.9'])).ok).toBe(true);
+  });
+
+  it('rejects three edges that cannot meet', () => {
+    const tri = shapeByKey('triangle-edges');
+    expect(formError(validateShape(tri, vals(tri, ['1', '2', '10'])))).toBe(MSG.triangleImpossible);
+    expect(formError(validateShape(tri, vals(tri, ['1', '2', '3'])))).toBe(MSG.triangleImpossible);
+    expect(validateShape(tri, vals(tri, ['3', '4', '5'])).ok).toBe(true);
+  });
+
+  it('rejects an angle past a full turn', () => {
+    const sector = shapeByKey('sector');
+    expect(formError(validateShape(sector, vals(sector, ['10', '361'])))).toBe(MSG.angleRange);
+    expect(validateShape(sector, vals(sector, ['10', '360'])).ok).toBe(true);
+    expect(validateShape(sector, vals(sector, ['10', '90'])).ok).toBe(true);
+  });
+
+  it('catches an impossible triangle whatever units its edges were measured in', () => {
+    const tri = shapeByKey('triangle-edges');
+    // 1 ft, 2 ft, 30 in: in feet that is 1, 2, 2.5 — a perfectly good triangle.
+    const mixed = vals(tri, ['1', '2', '30'], { units: { d3: 'in' } });
+    expect(validateShape(tri, mixed).ok).toBe(true);
+    // The same numbers all in feet cannot meet.
+    expect(formError(validateShape(tri, vals(tri, ['1', '2', '10'])))).toBe(MSG.triangleImpossible);
+  });
+});
+
+describe('conversion and computation', () => {
+  it('converts each dimension by its OWN unit', () => {
+    const mixed = vals(rect, ['1', '12'], { units: { d1: 'yd', d2: 'in' } });
+    const [a, b] = convertDims(rect, mixed);
+    expect(a).toBeCloseTo(3, 12);
+    expect(b).toBeCloseTo(1, 12);
+    expect(computeShape(rect, mixed).areaSqFt).toBeCloseTo(3, 12);
+  });
+
+  it('converts an angle to radians', () => {
+    const sector = shapeByKey('sector');
+    const [, rad] = convertDims(sector, vals(sector, ['10', '180']));
+    expect(rad).toBeCloseTo(Math.PI, 12);
+  });
+
+  it('reads a radian entry as radians', () => {
+    const sector = shapeByKey('sector');
+    const [, rad] = convertDims(sector, vals(sector, ['10', '2'], { units: { d2: 'rad' } }));
+    expect(rad).toBe(2);
+  });
+
+  it('multiplies by the quantity', () => {
+    const c = computeShape(rect, vals(rect, ['30', '20'], { quantity: '3' }));
+    expect(c.areaSqFt).toBe(600);
+    expect(c.totalSqFt).toBe(1800);
+  });
+
+  it('prices the total in the chosen area unit', () => {
+    // 900 sq ft = 100 sq yd; at $12 a square yard that is $1,200.
+    const c = computeShape(rect, vals(rect, ['30', '30'], { price: '12', priceUnit: 'sqyd' }));
+    expect(c.totalSqFt).toBe(900);
+    expect(c.cost).toBeCloseTo(1200, 8);
+  });
+
+  it('falls back to square feet for an unknown price unit', () => {
+    const c = computeShape(rect, vals(rect, ['10', '10'], { price: '2', priceUnit: 'nonsense' }));
+    expect(c.priceUnit).toBe('sqft');
+    expect(c.cost).toBe(200);
+  });
+
+  it('yields NaN rather than a number from an unusable entry', () => {
+    expect(computeShape(rect, vals(rect, ['', '20'])).areaSqFt).toBeNaN();
+    expect(computeShape(rect, vals(rect, ['abc', '20'])).totalSqFt).toBeNaN();
+  });
+});
+
+describe('the complete-result guard', () => {
+  const good = () => computeShape(rect, vals(rect, ['30', '20']));
+
+  it('passes a result that reconciles with a recompute', () => {
+    expect(completeShapeValue(rect, good())).toBe(600);
+  });
+
+  it('refuses a result belonging to another shape', () => {
+    expect(completeShapeValue(shapeByKey('circle'), good())).toBeNaN();
+  });
+
+  it('refuses a tampered area, total, quantity, price or cost', () => {
+    expect(completeShapeValue(rect, { ...good(), areaSqFt: 999 })).toBeNaN();
+    expect(completeShapeValue(rect, { ...good(), totalSqFt: 999 })).toBeNaN();
+    expect(completeShapeValue(rect, { ...good(), quantity: 2 })).toBeNaN();
+    expect(completeShapeValue(rect, { ...good(), price: 5 })).toBeNaN();
+    expect(completeShapeValue(rect, { ...good(), cost: 5 })).toBeNaN();
+  });
+
+  it('refuses a result whose values no longer produce it', () => {
+    const r = good();
+    expect(completeShapeValue(rect, { ...r, values: vals(rect, ['30', '21']) })).toBeNaN();
+  });
+
+  it('refuses a cross-field impossibility that slipped through', () => {
+    const tri = shapeByKey('triangle-edges');
+    const r = computeShape(tri, vals(tri, ['1', '2', '10']));
+    expect(completeShapeValue(tri, r)).toBeNaN();
+  });
+
+  it('refuses an incomplete entry', () => {
+    expect(completeShapeValue(rect, computeShape(rect, vals(rect, ['', '20'])))).toBeNaN();
+    expect(completeShapeValue(rect, computeShape(rect, vals(rect, ['30', '0'])))).toBeNaN();
+  });
+});
+
+describe('presentation', () => {
+  it('prints the area exactly, in square feet', () => {
+    const p = presentShape(computeShape(rect, vals(rect, ['30', '20'])));
+    expect(p.area).toBe('600');
+    expect(p.areaUnit).toBe('Square Feet');
+    expect(p.a11y).toBe('600 square feet');
+  });
+
+  it('stays silent about the quantity when there is only one area', () => {
+    expect(presentShape(computeShape(rect, vals(rect, ['30', '20']))).quantityNote).toBe('');
+  });
+
+  it('says the per-area figure once there is more than one', () => {
+    const p = presentShape(computeShape(rect, vals(rect, ['30', '20'], { quantity: '3' })));
+    expect(p.area).toBe('1800');
+    expect(p.quantityNote).toBe('600 square feet each, for 3 areas.');
+  });
+
+  it('shows a cost only when a price was given', () => {
+    expect(presentShape(computeShape(rect, vals(rect, ['10', '10']))).cost).toBe('');
+    const priced = presentShape(computeShape(rect, vals(rect, ['10', '10'], { price: '3.5' })));
+    expect(priced.cost).toBe('$350.00');
+    expect(priced.costLabel).toBe('Cost at $3.50 per square foot');
+  });
+
+  it('offers the other four area units, never square feet twice', () => {
+    const p = presentShape(computeShape(rect, vals(rect, ['30', '30'])));
+    expect(p.others.map((o) => o.key)).toEqual(['sqin', 'sqyd', 'sqm', 'acre']);
+    expect(p.others.find((o) => o.key === 'sqyd')!.value).toBe('100');
+  });
+
+  it('never renders NaN, Infinity or undefined', () => {
+    const broken = computeShape(rect, vals(rect, ['', '']));
+    const p = presentShape(broken);
+    const printed = [p.area, p.areaUnit, p.a11y, p.quantityNote, p.cost, p.costLabel, ...p.others.map((o) => o.value)];
+    for (const s of printed) {
+      expect(typeof s).toBe('string');
+      expect(s).not.toMatch(/NaN|Infinity|undefined/);
+    }
+  });
+
+  it('describes the result in one sentence', () => {
+    expect(describeShape(rect, computeShape(rect, vals(rect, ['30', '20'])))).toBe(
+      'Rectangle area: 600 square feet.',
     );
   });
+});
 
-  it('interpretation: appends the estimated cost when a price was provided', () => {
-    const s = interpretSquareFootage(result({ totalSqFt: 360, quantity: 3, areaSqFt: 120, priceProvided: true, pricePerSqFt: 5, cost: 1800 }));
-    expect(s).toContain('At $5.00 per square foot, the estimated cost is $1,800.00.');
+describe('the shared binding, over every shape', () => {
+  it('computes, guards and describes each shape from its own example', () => {
+    for (const spec of SHAPES) {
+      const binding = makeShapeBinding(spec);
+      const values = shapeExampleValues(spec);
+      expect(binding.validate(values).ok).toBe(true);
+      const computed = binding.compute(values);
+      const value = binding.resultValue(computed);
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThan(0);
+      expect(binding.describeResult(computed, { phase: 'first-result' })).toContain(spec.title);
+    }
   });
 
-  it('spokenArea reads square feet', () => {
-    expect(spokenArea(120)).toBe('120 square feet');
-    expect(spokenArea(1200)).toBe('1,200 square feet');
+  it('rejects an all-empty form for every shape', () => {
+    for (const spec of SHAPES) {
+      const empty = vals(spec, spec.fields.map(() => ''));
+      const r = validateShape(spec, empty);
+      expect(r.ok).toBe(false);
+      for (const f of spec.fields) expect(fieldErrors(r)[f.name]).toBe(MSG.required);
+    }
+  });
+
+  it('agrees with an independent recompute for every shape and unit', () => {
+    for (const spec of SHAPES) {
+      for (const unit of ['ft', 'in', 'yd', 'cm', 'm']) {
+        const units: Record<string, string> = {};
+        spec.fields.forEach((f) => (units[f.name] = f.kind === 'angle' ? 'deg' : unit));
+        const values = { ...shapeExampleValues(spec), units };
+        if (!validateShape(spec, values).ok) continue;
+        const c = computeShape(spec, values);
+        const expected = spec.area(convertDims(spec, values)) * 1;
+        expect(c.totalSqFt).toBe(expected);
+        expect(completeShapeValue(spec, c)).toBe(expected);
+      }
+    }
+  });
+
+  it('prices every shape consistently in every area unit', () => {
+    for (const spec of SHAPES) {
+      for (const priceUnit of ['sqft', 'sqin', 'sqyd', 'sqm', 'acre']) {
+        const values = { ...shapeExampleValues(spec), price: '2.5', priceUnit };
+        const c = computeShape(spec, values);
+        expect(c.cost).toBe(fromSqFt(c.totalSqFt, c.priceUnit) * 2.5);
+        expect(presentShape(c).cost).toMatch(/^\$[\d,]+\.\d\d$/);
+      }
+    }
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Unit conversion                                                     */
-/* ------------------------------------------------------------------ */
-
-describe('square-footage-form — convertDimension', () => {
-  it('converts between every unit, preserving the physical length', () => {
-    expect(convertDimension('12', 'ft', 'in')).toBe('144');
-    expect(convertDimension('12', 'ft', 'yd')).toBe('4');
-    expect(convertDimension('12', 'ft', 'm')).toBe('3.6576');
-    expect(convertDimension('144', 'in', 'ft')).toBe('12');
-    expect(convertDimension('4', 'yd', 'ft')).toBe('12');
-    expect(convertDimension('3.6576', 'm', 'ft')).toBe('12');
+describe('example values', () => {
+  it('gives every shape a sound, positive example', () => {
+    for (const spec of SHAPES) {
+      const v = shapeExampleValues(spec);
+      expect(validateShape(spec, v).ok).toBe(true);
+      expect(v.quantity).toBe('1');
+      expect(v.price).toBe('');
+      expect(v.priceUnit).toBe('sqft');
+      for (const f of spec.fields) expect(v.dims[f.name]).not.toBe('');
+    }
   });
 
-  it('leaves empty, non-positive, non-finite and same-unit values untouched (null)', () => {
-    expect(convertDimension('', 'ft', 'm')).toBeNull();
-    expect(convertDimension('0', 'ft', 'm')).toBeNull();
-    expect(convertDimension('-5', 'ft', 'm')).toBeNull();
-    expect(convertDimension('abc', 'ft', 'm')).toBeNull();
-    expect(convertDimension('12', 'ft', 'ft')).toBeNull();
+  it('exports the rectangle example for the fleet-wide check', () => {
+    expect(SQUARE_FOOTAGE_EXAMPLE_VALUES).toEqual(shapeExampleValues(SHAPES[0]));
+    expect(Number.isFinite(squareFootageBinding.resultValue(squareFootageBinding.compute(SQUARE_FOOTAGE_EXAMPLE_VALUES)))).toBe(true);
   });
 
-  it('a full ft → in → yd → m → ft round trip returns the original', () => {
-    let v = '12';
-    v = convertDimension(v, 'ft', 'in')!;
-    v = convertDimension(v, 'in', 'yd')!;
-    v = convertDimension(v, 'yd', 'm')!;
-    v = convertDimension(v, 'm', 'ft')!;
-    expect(Number(v)).toBeCloseTo(12, 6);
-  });
-
-  it('convertValues converts length + width and leaves quantity + price unchanged', () => {
-    const root = stubRoot({ length: '12', width: '6', unit: 'ft', quantity: '2', pricePerSqFt: '5' });
-    squareFootageBinding.convertValues!(root, 'ft', 'in');
-    expect(squareFootageBinding.readValues(root)).toMatchObject({ length: '144', width: '72', quantity: '2', pricePerSqFt: '5' });
-  });
-
-  it('convertValues leaves an empty dimension empty', () => {
-    const root = stubRoot({ length: '12', width: '', unit: 'ft', quantity: '1', pricePerSqFt: '' });
-    squareFootageBinding.convertValues!(root, 'ft', 'yd');
-    expect(squareFootageBinding.readValues(root)).toMatchObject({ length: '4', width: '' });
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* readValues + resetValues (DOM-free stub)                            */
-/* ------------------------------------------------------------------ */
-
-describe('square-footage-form — readValues / resetValues', () => {
-  it('reads all fields incl. the unit select', () => {
-    const root = stubRoot({ length: '10', width: '12', unit: 'yd', quantity: '2', pricePerSqFt: '5' });
-    expect(squareFootageBinding.readValues(root)).toEqual({ length: '10', width: '12', unit: 'yd', quantity: '2', pricePerSqFt: '5' });
-  });
-
-  it('reset clears dimensions + price, restores unit=ft and quantity=1', () => {
-    const root = stubRoot({ length: '10', width: '12', unit: 'm', quantity: '4', pricePerSqFt: '5' });
-    squareFootageBinding.resetValues(root, 'personal');
-    expect(squareFootageBinding.readValues(root)).toEqual({ length: '', width: '', unit: 'ft', quantity: '1', pricePerSqFt: '' });
+  it('formats every example area without a placeholder', () => {
+    for (const spec of SHAPES) {
+      const c = computeShape(spec, shapeExampleValues(spec));
+      expect(formatExactArea(c.totalSqFt)).not.toBe('—');
+    }
   });
 });

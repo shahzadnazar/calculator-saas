@@ -42,19 +42,20 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Calculate simple interest and the total amount for a loan or investment using the classic I = P × r × t formula."
+  rail
+  intro="Work out simple interest and the end balance — or solve back for the principal, the term or the rate, with the arithmetic shown."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-23' }}
+  reviewMetadata={{ reviewedDate: '2026-08-27' }}
 >
   <SimpleInterestCalculator />
 
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter the <strong>principal</strong> — the amount borrowed or invested.</li>
-      <li>Set the annual <strong>rate</strong> as a percentage.</li>
-      <li>Enter the <strong>time</strong> in years (decimals are fine — 0.5 for six months).</li>
-      <li>Press <strong>Calculate</strong> to see the interest and the total value at the end.</li>
+      <li>Choose what you want to work out: <strong>Balance</strong>, <strong>Principal</strong>, <strong>Term</strong> or <strong>Rate</strong>.</li>
+      <li>Fill in the other three. Each one is the answer on its own tab and a question on the rest.</li>
+      <li>Set the <strong>period</strong> beside the rate and the term — a rate quoted per month against a term in years is a real combination, and the calculator normalises both.</li>
+      <li>Press <strong>Calculate</strong> to see the end balance, the interest, and the arithmetic written out.</li>
     </ol>
 
     <h2>What simple interest is</h2>
@@ -64,23 +65,36 @@ const faqs = [
       the balance grows in a straight line. That makes it easy to predict, which is why it turns
       up on many short-term and fixed-term arrangements.
     </p>
+    <p>
+      It is also why every variable here is as easy to solve for as any other. Nothing compounds,
+      so the formula stays linear and rearranges in one step — which is what the four tabs are.
+    </p>
 
     <h2>The formula</h2>
-    <p>The interest is a single multiplication, and the total simply adds it back to the principal:</p>
-    <p><strong>I = P × r × t</strong>, and total = P + I</p>
+    <p>The interest is a single multiplication, and the balance simply adds it back to the principal:</p>
+    <p><strong>I = P × r × t</strong>, and <strong>B = P + I</strong></p>
     <ul>
       <li><strong>I</strong> — the interest earned or owed</li>
       <li><strong>P</strong> — the principal, your starting amount</li>
-      <li><strong>r</strong> — the annual interest rate as a decimal (5% = 0.05)</li>
-      <li><strong>t</strong> — the time in years</li>
+      <li><strong>r</strong> — the interest rate as a decimal (3% = 0.03)</li>
+      <li><strong>t</strong> — the time, in the same unit the rate is quoted per</li>
     </ul>
+    <p>
+      That last point is the one people get wrong. A 0.25% monthly rate over 10 years is not
+      0.25 × 10 — it is 3% a year over 10 years, twelve times as much. Both values are converted
+      to years before anything is multiplied.
+    </p>
 
     <h2>A worked example</h2>
     <p>
-      Borrow <strong>$5,000</strong> at <strong>5%</strong> for <strong>3 years</strong>: the
-      interest is 5,000 × 0.05 × 3 = <strong>$750</strong>, so you repay <strong>$5,750</strong>
-      in total. Because the interest does not compound, it is the same <strong>$250</strong> every
-      year — 5,000 × 0.05 — no matter how long the term runs.
+      Put <strong>$20,000</strong> at <strong>3% a year</strong> for <strong>10 years</strong>.
+      The interest is 20,000 × 0.03 × 10 = <strong>$6,000</strong>, so the balance ends at
+      <strong>$26,000</strong> — <strong>77%</strong> of it the money you started with.
+    </p>
+    <p>
+      Because nothing compounds, it is the same <strong>$600</strong> every single year — 20,000
+      × 0.03 — however long the term runs. That flat step is what the schedule and the
+      straight-line graph are showing.
     </p>
 
     <h2>Simple vs. compound — why the term matters</h2>
@@ -92,13 +106,23 @@ const faqs = [
       savers and the cost of long-term debt.
     </p>
 
-    <h2>Rearranging the formula</h2>
-    <p>Because I = P × r × t links four values, knowing any three gives the fourth:</p>
+    <h2>Rearranging the formula — the four tabs</h2>
+    <p>
+      Because <strong>B = P(1 + r · t)</strong> links four values, knowing any three gives the
+      fourth. Each tab is that same equation solved a different way:
+    </p>
     <ul>
-      <li><strong>Rate:</strong> r = I ÷ (P × t)</li>
-      <li><strong>Principal:</strong> P = I ÷ (r × t)</li>
-      <li><strong>Time:</strong> t = I ÷ (P × r)</li>
+      <li><strong>Balance:</strong> B = P × (1 + r × t)</li>
+      <li><strong>Principal:</strong> P = B ÷ (1 + r × t)</li>
+      <li><strong>Term:</strong> t = (B ÷ P − 1) ÷ r</li>
+      <li><strong>Rate:</strong> r = (B ÷ P − 1) ÷ t</li>
     </ul>
+    <p>
+      Two of those divide, which is why they have answers the others do not: at a 0% rate no term
+      ever reaches a higher balance, and in no time at all no rate gets anywhere. The calculator
+      says so rather than returning a number, and it will not solve a term or a rate from an end
+      balance below the principal — simple interest only ever adds.
+    </p>
 
     <h2>Where simple interest is used</h2>
     <p>

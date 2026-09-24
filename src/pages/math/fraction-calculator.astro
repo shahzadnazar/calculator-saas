@@ -7,9 +7,14 @@ const calc = getCalculator('math', 'fraction-calculator')!;
 
 const faqs = [
   {
+    question: 'Which of these fraction calculators should I use?',
+    answer:
+      'Use the Fraction Calculator to add, subtract, multiply or divide two fractions. Use Mixed Numbers if your values have a whole part, like 2 3/4. Use Simplify to reduce a single fraction to lowest terms, Decimal to Fraction and Fraction to Decimal to convert between the two forms, and the Big Number calculator when the numerators or denominators are too long for the others.',
+  },
+  {
     question: 'How do I add or subtract fractions?',
     answer:
-      'Give the fractions a common denominator, then add or subtract the numerators. For example, 1/2 + 1/3 becomes 3/6 + 2/6 = 5/6. This calculator finds the common denominator and simplifies the result automatically.',
+      'Give the fractions a common denominator, then add or subtract only the numerators. For 2/7 + 3/8 the common denominator is 56, so the sum becomes 16/56 + 21/56 = 37/56. The calculator shows every one of those steps under the answer.',
   },
   {
     question: 'How do I multiply fractions?',
@@ -24,17 +29,22 @@ const faqs = [
   {
     question: 'How do I simplify a fraction?',
     answer:
-      'Divide the numerator and denominator by their greatest common divisor (GCD). For 8/12 the GCD is 4, so it simplifies to 2/3. The calculator simplifies every result for you.',
+      'Divide the numerator and denominator by their greatest common divisor (GCD). For 8/12 the GCD is 4, so it simplifies to 2/3. The Simplify Fractions calculator accepts a whole number in front too, so 2 21/98 reduces to 31/14, or 2 3/14.',
   },
   {
-    question: 'How do I convert between fractions and decimals?',
+    question: 'How do I convert a decimal to a fraction?',
     answer:
-      'To turn a fraction into a decimal, divide the numerator by the denominator (3/4 = 0.75). To turn a decimal into a fraction, write it over its place value and simplify (0.75 = 75/100 = 3/4).',
+      'Write the decimal over the place value of its last digit, then simplify. 1.375 has three decimal places, so it becomes 1375/1000; dividing both by 125 gives 11/8, which is 1 3/8. Going the other way, divide the numerator by the denominator: 2/7 = 0.28571428571429.',
   },
   {
     question: 'What is a mixed number?',
     answer:
-      'A mixed number combines a whole number and a fraction, like 3 1/2. When a result is an improper fraction (numerator larger than denominator), the calculator also shows it as a mixed number.',
+      'A mixed number combines a whole number and a fraction, like 3 1/2. When a result is an improper fraction (numerator larger than denominator), every calculator here also shows it as a mixed number.',
+  },
+  {
+    question: 'Why is there a separate calculator for big numbers?',
+    answer:
+      'Because ordinary arithmetic in a browser loses precision past about sixteen digits, and a fraction answer that is quietly wrong is worse than no answer. The Big Number Fraction Calculator works in exact whole-number arithmetic, so a denominator with thirty-one digits is still exact to the last digit.',
   },
 ];
 ---
@@ -42,24 +52,27 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
+  rail
   reviewMetadata={{ reviewedDate: '2026-08-04' }}
-  intro="Add, subtract, multiply and divide fractions and get the answer as a simplified fraction, a mixed number and a decimal."
+  intro="Six fraction calculators: add, subtract, multiply and divide fractions and mixed numbers, simplify a fraction, convert between fractions and decimals, and work with numerators or denominators too big for an ordinary calculator. In every stacked pair of boxes, the field above the line is the numerator and the field below it is the denominator."
   faqs={faqs}
 >
   <FractionCalculator />
 
   <Fragment slot="content">
-    <h2>How to use this calculator</h2>
+    <h2>Which calculator to use</h2>
     <ol>
-      <li>Enter the <strong>numerator</strong> (top) and <strong>denominator</strong> (bottom) of the first fraction.</li>
-      <li>Choose an operation — add, subtract, multiply or divide.</li>
-      <li>Enter the second fraction and calculate.</li>
-      <li>Read the answer three ways: a fraction in <strong>lowest terms</strong>, a <strong>mixed number</strong>, and a <strong>decimal</strong>. Negative numerators are supported.</li>
+      <li><strong>Fraction Calculator</strong> — two fractions and one operation. Enter the numerator above each line and the denominator below it.</li>
+      <li><strong>Mixed Numbers Calculator</strong> — the same four operations, but typed the way you would write them: <code>2 3/4</code>, <code>-2 3/4</code>, <code>5</code> or <code>3/4</code>.</li>
+      <li><strong>Simplify Fractions Calculator</strong> — reduce one fraction, with an optional whole number in front, to its lowest terms.</li>
+      <li><strong>Decimal to Fraction Calculator</strong> — turn <code>1.375</code> into <code>11/8</code>, or <code>1 3/8</code>.</li>
+      <li><strong>Fraction to Decimal Calculator</strong> — divide a numerator by a denominator to fourteen significant figures.</li>
+      <li><strong>Big Number Fraction Calculator</strong> — the same arithmetic for integers of any length.</li>
     </ol>
 
     <h2>What a fraction is</h2>
     <p>
-      A fraction writes one quantity as parts of a whole: the <strong>numerator</strong> counts the parts you have and the <strong>denominator</strong> says how many equal parts make one whole. So 3/4 means three of the four pieces a unit is cut into. When the numerator is larger than the denominator — like 9/8 — the fraction is <em>improper</em> and represents more than one whole.
+      A fraction writes one quantity as parts of a whole: the <strong>numerator</strong> counts the parts you have and the <strong>denominator</strong> says how many equal parts make one whole. So 3/4 means three of the four pieces a unit is cut into. When the numerator is larger than the denominator — like 9/8 — the fraction is <em>improper</em> and represents more than one whole, and every result here is also shown as a mixed number when it has one.
     </p>
 
     <h2>The four operations, rule by rule</h2>
@@ -69,6 +82,11 @@ const faqs = [
       <li><strong>Divide:</strong> flip the second fraction and multiply by that reciprocal.</li>
     </ul>
 
+    <h2>Reading the calculation steps</h2>
+    <p>
+      Every answer is shown with its working, because the steps are usually what the question was really about. Adding 2/7 and 3/8, for instance, reads: expand each fraction to fifty-sixths, giving 16/56 and 21/56; add the numerators to get (16+21)/56; and that is 37/56, already in lowest terms. Where the combined fraction does reduce, the working shows the division by the greatest common divisor rather than jumping to the answer.
+    </p>
+
     <h2>How the calculator simplifies</h2>
     <p>
       Every result is reduced to lowest terms by dividing the top and bottom by their <strong>greatest common divisor</strong> (GCD). For 6/12 the GCD is 6, so it collapses to 1/2. The sign is always carried on the numerator, so a negative result reads as −3/4 rather than 3/−4, and any improper fraction is also shown as a mixed number.
@@ -76,10 +94,11 @@ const faqs = [
 
     <h2>Worked examples</h2>
     <ul>
-      <li><strong>Add:</strong> 1/2 + 1/3 → cross-multiply to 3/6 + 2/6 = <strong>5/6</strong></li>
-      <li><strong>Subtract:</strong> 3/4 − 1/6 → 18/24 − 4/24 = 14/24, which reduces (GCD 2) to <strong>7/12</strong></li>
-      <li><strong>Multiply:</strong> 2/3 × 3/4 = 6/12 = <strong>1/2</strong></li>
-      <li><strong>Divide:</strong> 3/4 ÷ 2/3 = 3/4 × 3/2 = 9/8 = <strong>1 1/8</strong></li>
+      <li><strong>Add:</strong> 2/7 + 3/8 → 16/56 + 21/56 = <strong>37/56</strong>, or 0.66071428571429</li>
+      <li><strong>Mixed numbers:</strong> −2 3/4 + 3 5/7 → −11/4 + 26/7 = <strong>27/28</strong></li>
+      <li><strong>Simplify:</strong> 2 21/98 → 217/98 = <strong>31/14</strong> = 2 3/14</li>
+      <li><strong>Decimal to fraction:</strong> 1.375 → 1375/1000 = <strong>11/8</strong> = 1 3/8</li>
+      <li><strong>Fraction to decimal:</strong> 2/7 = <strong>0.28571428571429</strong></li>
     </ul>
 
     <h2>Fractions, decimals and mixed numbers</h2>
@@ -92,6 +111,7 @@ const faqs = [
       <li><strong>Adding across the top and bottom.</strong> 1/2 + 1/3 is not 2/5 — you must find a common denominator first.</li>
       <li><strong>Flipping the wrong fraction when dividing.</strong> Take the reciprocal of the <em>second</em> fraction, not the first.</li>
       <li><strong>Stopping before lowest terms.</strong> 6/12 is correct but not simplified; the calculator always reduces it to 1/2.</li>
+      <li><strong>Losing the sign in a mixed number.</strong> In −2 3/4 the minus applies to the whole value, so it is −11/4, not −2 + 3/4.</li>
     </ul>
 
     <p>

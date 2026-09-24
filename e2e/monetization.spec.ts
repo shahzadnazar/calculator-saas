@@ -55,9 +55,9 @@ test('each module kind renders a distinct, correctly-labelled placeholder', asyn
   await expect(region(page, 'module-ad')).toContainText('Advertisement');
   await expect(region(page, 'module-affiliate')).toContainText(/partner links|commission/i);
   await expect(region(page, 'module-sponsored')).toContainText('Sponsored');
-  await expect(region(page, 'module-premium')).toContainText('AllCalculators Plus');
+  await expect(region(page, 'module-premium')).toContainText('BestCalculate Plus');
   await expect(region(page, 'module-embed')).toContainText('Embed this tool');
-  await expect(region(page, 'module-api')).toContainText('AllCalculators API');
+  await expect(region(page, 'module-api')).toContainText('BestCalculate API');
   await expect(region(page, 'module-lead')).toContainText(/quote/i);
   // Distinct module identity is exposed for each.
   await expect(region(page, 'module-sponsored')).toHaveAttribute('data-mon-module', 'sponsored');

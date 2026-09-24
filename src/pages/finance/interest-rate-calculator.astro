@@ -14,6 +14,7 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
+  rail
   reviewMetadata={{ reviewedDate: '2026-08-03' }}
   intro="Work out the interest rate implied by a loan's amount, monthly payment and term — useful for comparing offers that only quote a payment."
   faqs={faqs}
@@ -81,8 +82,9 @@ const faqs = [
     <p>
       Once you know the implied rate, you can compare a financing offer against a straightforward
       loan. Model the alternatives with the <a href="/finance/loan-calculator">loan calculator</a>
-      and the <a href="/finance/payment-calculator">payment calculator</a>. This is general
-      educational information, not financial advice.
+      and the <a href="/finance/payment-calculator">payment calculator</a>, or see how the same
+      rate plays out over the term with the
+      <a href="/finance/amortization-calculator">amortization calculator</a>.
     </p>
   </Fragment>
 </CalculatorLayout>

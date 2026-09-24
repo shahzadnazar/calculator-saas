@@ -4,6 +4,8 @@ import Breadcrumbs from '@components/Breadcrumbs.astro';
 import Icon from '@components/Icon.astro';
 import { CLUSTERS_ORDERED, clusterPath } from '@data/clusters';
 import { breadcrumbSchema, collectionPageSchema } from '@lib/schema';
+import CalculatorSearch from '@components/search/CalculatorSearch.astro';
+import { SEARCH_INDEX_URL } from '@lib/search';
 
 const crumbs = [
   { name: 'Home', path: '/' },
@@ -27,7 +29,7 @@ const jsonLd = [
   path="/topics"
   jsonLd={jsonLd}
 >
-  <div class="wrap py-8">
+  <div class="wrap py-4">
     <Breadcrumbs crumbs={crumbs} />
 
     <header class="mt-5 max-w-3xl">
@@ -36,6 +38,19 @@ const jsonLd = [
         Related calculators, grouped into topic collections. Each hub explains how the tools fit together
         and which one to reach for.
       </p>
+
+      <!-- These pages list a set of calculators or guides, so the way to a named one is a
+           search, not a scroll. Same placement as the task hubs: after the lede that explains
+           the page, immediately above the list it filters — and the SAME combobox the header
+           and home page use, over one index. -->
+      <div class="browse-lede__search">
+        <CalculatorSearch
+          id="topics-search"
+          indexUrl={SEARCH_INDEX_URL}
+          loadStrategy="interaction"
+          placeholder="Search all calculators…"
+        />
+      </div>
     </header>
 
     <section class="mt-10">

@@ -1,84 +1,112 @@
 ---
 /**
- * Pace calculator island (R7C-2E1 — standard-form wave, calculator #12).
+ * Pace island — the reference's three-way solver, on the UNCHANGED standard-form runtime.
  *
- * Task-first, direct-intent, SINGLE-MODE: distance + a composite h:m:s elapsed time
- * → the SELECTED-UNIT pace (dominant) with secondary pace/speed conversions and
- * equivalent finish times. All fields start EMPTY, the result is empty (an
- * instruction, not the legacy 5 km / 25:00 sample), and the visitor presses
- * "Calculate Pace" for the first result. Live-after-first afterwards. All
- * interaction, validation, state, announcement and focus are owned by the shared
- * runtime (UNCHANGED); this island is markup + the pace binding
- * (@lib/calculators/pace-form).
+ * Time, Distance and Pace are one relationship, so this is one form with three targets
+ * rather than three calculators. The visitor picks which one to work out; that box then goes
+ * read-only, because a field cannot be both the question and the answer, and a box you can
+ * still type into after it has been filled in for you is an invitation to contradict
+ * yourself.
  *
- * The km/mi control is the runtime's `[data-unit]` selector — switching it CONVERTS
- * the entered distance in place (via the binding's convertValues). There is no
- * solve-for-time / solve-for-distance mode.
+ * The solved figure is written back INTO its box as well as shown in the panel, so it can be
+ * carried straight into the next sum — solve a pace, then switch to Time and get a race
+ * prediction without retyping anything.
  */
-import { RACE_DISTANCES } from '@lib/calculators/pace-form';
+import {
+  SOLVE_TARGETS,
+  LENGTH_UNITS,
+  RACE_DISTANCES,
+  EQUIVALENT_DISTANCES,
+  DEFAULT_DISTANCE_UNIT,
+  DEFAULT_PACE_UNIT,
+} from '@lib/calculators/pace-form';
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
-import ResultValue from '@components/result/ResultValue.astro';
-import ResultInterpretation from '@components/result/ResultInterpretation.astro';
 import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
 <div class="pace mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-pace>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Pace calculator">
-    <div class="space-y-5">
-      <div data-field="distance">
-        <label class="field-label" for="pc-dist">Distance</label>
-        <div class="flex items-stretch gap-2">
-          <input
-            class="field flex-1"
-            id="pc-dist"
-            name="distance"
-            type="number"
-            min="0"
-            step="0.1"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 5"
-            aria-describedby="pc-distance-error"
-          />
-          <div class="pc-units" role="radiogroup" aria-label="Distance unit">
-            <button type="button" class="unit-btn is-active" data-unit="km" role="radio" aria-checked="true">km</button>
-            <button type="button" class="unit-btn" data-unit="mi" role="radio" aria-checked="false">miles</button>
-          </div>
-        </div>
-        <p class="pc-field-error" id="pc-distance-error" data-error-for="distance" hidden></p>
+  <form class="card p-4" data-form novalidate aria-label="Pace calculator">
+    <fieldset class="pc-solve" data-field="solveFor">
+      <legend class="field-label pc-solve__legend">Calculate</legend>
+      <div class="pc-radios">
+        {SOLVE_TARGETS.map((t, i) => (
+          <label class="pc-radio"><input type="radio" name="solveFor" value={t.value} checked={i === 0} /><span>{t.label}</span></label>
+        ))}
       </div>
+    </fieldset>
 
-      <fieldset class="pc-time" data-field="time">
-        <legend class="field-label">Elapsed time</legend>
-        <div class="grid grid-cols-3 gap-2">
-          <div>
-            <label class="pc-sub-label" for="pc-h">Hours</label>
-            <input class="field text-center" id="pc-h" name="h" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="pc-h-error pc-time-error" />
-          </div>
-          <div>
-            <label class="pc-sub-label" for="pc-m">Minutes</label>
-            <input class="field text-center" id="pc-m" name="m" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="pc-m-error" />
-          </div>
-          <div>
-            <label class="pc-sub-label" for="pc-s">Seconds</label>
-            <input class="field text-center" id="pc-s" name="s" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="pc-s-error" />
-          </div>
+    <div class="pc-row" data-field="time" data-target-row="time">
+      <label class="field-label pc-row__label" for="pc-h">Time</label>
+      <div class="pc-inputs">
+        <div class="pc-pair">
+          <input class="field pc-input" id="pc-h" name="h" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Time, hours" aria-describedby="pc-time-error" />
+          <span class="pc-unit">hh</span>
         </div>
-        <p class="pc-field-error" id="pc-h-error" data-error-for="h" hidden></p>
-        <p class="pc-field-error" id="pc-m-error" data-error-for="m" hidden></p>
-        <p class="pc-field-error" id="pc-s-error" data-error-for="s" hidden></p>
-        <p class="pc-field-error" id="pc-time-error" data-error-for="time" hidden></p>
-      </fieldset>
+        <span class="pc-colon" aria-hidden="true">:</span>
+        <div class="pc-pair">
+          <input class="field pc-input" name="m" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="50" aria-label="Time, minutes" aria-describedby="pc-time-error" />
+          <span class="pc-unit">mm</span>
+        </div>
+        <span class="pc-colon" aria-hidden="true">:</span>
+        <div class="pc-pair">
+          <input class="field pc-input" name="s" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="00" aria-label="Time, seconds" aria-describedby="pc-time-error" />
+          <span class="pc-unit">ss</span>
+        </div>
+      </div>
+    </div>
+    <p class="pc-error" id="pc-time-error" data-error-for="time" hidden></p>
+
+    <div class="pc-row" data-field="distance" data-target-row="distance">
+      <label class="field-label pc-row__label" for="pc-distance">Distance</label>
+      <div class="pc-inputs">
+        <input class="field pc-input pc-input--wide" id="pc-distance" name="distance" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="10" aria-describedby="pc-distance-error" />
+        <select class="field pc-select" name="distanceUnit" aria-label="Distance unit">
+          {LENGTH_UNITS.map((u) => (
+            <option value={u.key} selected={u.key === DEFAULT_DISTANCE_UNIT}>{u.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+    <p class="pc-error" id="pc-distance-error" data-error-for="distance" hidden></p>
+
+    <div class="pc-quick" data-quick>
+      <span class="pc-quick__label">Common distances</span>
+      {RACE_DISTANCES.map((r) => (
+        <button type="button" class="pc-chip" data-race={r.key} data-metres={r.metres}>{r.name}</button>
+      ))}
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Pace</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <div class="pc-row" data-field="pace" data-target-row="pace">
+      <label class="field-label pc-row__label" for="pc-pace-min">Pace</label>
+      <div class="pc-inputs">
+        <div class="pc-pair">
+          <input class="field pc-input" id="pc-pace-min" name="paceMin" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="5" aria-label="Pace, minutes" aria-describedby="pc-pace-error" />
+          <span class="pc-unit">mm</span>
+        </div>
+        <span class="pc-colon" aria-hidden="true">:</span>
+        <div class="pc-pair">
+          <input class="field pc-input" name="paceSec" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="00" aria-label="Pace, seconds" aria-describedby="pc-pace-error" />
+          <span class="pc-unit">ss</span>
+        </div>
+        <span class="pc-per" aria-hidden="true">per</span>
+        <select class="field pc-select pc-select--narrow" name="paceUnit" aria-label="Pace unit">
+          {LENGTH_UNITS.map((u) => (
+            <option value={u.key} selected={u.key === DEFAULT_PACE_UNIT}>{u.paceLabel}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+    <p class="pc-error" id="pc-pace-error" data-error-for="pace" hidden></p>
+
+    <div class="mt-5 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary">Calculate</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
     </div>
     <p class="pc-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
@@ -88,204 +116,384 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     id="pc-result"
     state="empty"
     density="standard"
-    label="Your pace"
-    minHeight="24rem"
+    label="Your pace result"
+    minHeight="20rem"
     placeholderAlignment="center"
   >
-    <EmptyResult message="Enter a distance and elapsed time, then calculate your pace." />
+    <ExampleNotice />
+    <EmptyResult message="Fill in any two of time, distance and pace, then calculate the third." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Estimated pace">
-        <ResultValue value="—" unit="/km" />
+      <ResultSummary label="Pace">
+        <span class="sr-only" data-pace-label>Pace</span>
+        <span aria-hidden="true">
+          <span class="result-value text-4xl" data-pace-value>—</span>&nbsp;<span class="result-unit" data-pace-unit></span>
+        </span>
+        <span class="sr-only" data-pace-a11y></span>
       </ResultSummary>
-      <ResultInterpretation>
-        <span data-pc-interpretation></span>
-      </ResultInterpretation>
 
-      <ResultBreakdown title="Pace and speed">
-        <dl class="pc-metrics">
-          <div><dt data-pc-otherpace-label>—</dt><dd data-pc-otherpace>—</dd></div>
-          <div><dt data-pc-speed1-label>—</dt><dd data-pc-speed1>—</dd></div>
-          <div><dt data-pc-speed2-label>—</dt><dd data-pc-speed2>—</dd></div>
+      <ResultBreakdown title="Time, distance and pace">
+        <dl class="pc-facts">
+          <div class="pc-fact"><dt>Time</dt><dd data-pace-time>—</dd></div>
+          <div class="pc-fact"><dt>Distance</dt><dd data-pace-distance>—</dd></div>
+          <div class="pc-fact"><dt>Pace</dt><dd data-pace-pace>—</dd></div>
         </dl>
-      </ResultBreakdown>
 
-      <ResultBreakdown title="Equivalent finish times at the same pace">
-        <table class="pc-races">
-          <caption class="pc-caption">Equivalent times if you hold this pace for the full distance.</caption>
+        <p class="pc-sub">Same run, other units</p>
+        <dl class="pc-facts">
+          <div class="pc-fact"><dt>Pace</dt><dd data-pace-permi>—</dd></div>
+          <div class="pc-fact"><dt>Pace</dt><dd data-pace-perkm>—</dd></div>
+          <div class="pc-fact"><dt>Speed</dt><dd data-pace-mph>—</dd></div>
+          <div class="pc-fact"><dt>Speed</dt><dd data-pace-kmh>—</dd></div>
+        </dl>
+
+        <p class="pc-sub">Equivalent finish times at this pace</p>
+        <table class="pc-equiv">
           <thead>
-            <tr>
-              <th scope="col">Distance</th>
-              <th scope="col" class="pc-num">Equivalent time</th>
-            </tr>
+            <tr><th scope="col">Distance</th><th scope="col" class="pc-num">Time</th></tr>
           </thead>
           <tbody>
-            {
-              RACE_DISTANCES.map((race, i) => (
-                <tr data-pc-race={i}>
-                  <th scope="row">{race.name}</th>
-                  <td class="pc-num">
-                    <span data-pc-race-time>—</span>
-                  </td>
-                </tr>
-              ))
-            }
+            {EQUIVALENT_DISTANCES.map((race) => (
+              <tr><th scope="row">{race.name}</th><td class="pc-num" data-equiv={race.key}>—</td></tr>
+            ))}
           </tbody>
         </table>
         <p class="pc-note">
-          Assumes the same pace is maintained for the full distance; these are not performance predictions.
+          Equivalent times assume you hold this exact pace the whole way, which nobody does over
+          a long race — treat the longer rows as a ceiling rather than a prediction.
         </p>
       </ResultBreakdown>
     </div>
 
-    <InvalidResult title="Check your details" message="Enter a distance and elapsed time to calculate your pace." />
+    <InvalidResult title="Check your entries" message="Fill in the two boxes the calculator is not working out for you." />
 
     <ResultAnnouncement id="pc-live" />
   </ResultShell>
 </div>
 
 <style>
-  .pc-units {
-    display: inline-flex;
-    border: 1px solid var(--line);
-    border-radius: 0.55rem;
-    padding: 0.125rem;
-    align-items: center;
-  }
-  .unit-btn {
-    padding: 0.35rem 0.7rem;
-    border-radius: 0.45rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--muted);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .unit-btn.is-active {
-    background: var(--color-brand-600);
-    color: #fff;
-  }
-
-  .pc-time {
+  .pc-solve {
     border: 0;
     margin: 0;
-    padding: 0;
-    min-width: 0;
+    padding: 0.3rem 0;
   }
-  .pc-sub-label {
+  .pc-solve__legend {
     display: block;
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: var(--muted);
-    margin-bottom: 0.2rem;
+    margin: 0 0 0.1rem;
+    padding: 0;
+    font-size: 0.86rem;
+  }
+  .pc-radios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+  .pc-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+    font-size: 0.88rem;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .pc-radio input {
+    width: 1.05rem;
+    height: 1.05rem;
+    flex: none;
+    accent-color: var(--color-brand-600);
   }
 
-  .pc-field-error {
-    margin-top: 0.3rem;
+  .pc-row {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+  }
+  .pc-row__label {
+    margin: 0;
+    font-size: 0.86rem;
+  }
+  .pc-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .pc-pair {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  /* Spinner arrows steal about a third of a narrow box, which clipped "48" to "4". These
+     boxes are two digits wide by design, so the arrows go and the digits get the room. */
+  .pc-input {
+    width: 3.4rem;
+    min-height: 2.75rem;
+    padding-inline: 0.35rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .pc-input::-webkit-outer-spin-button,
+  .pc-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .pc-input--wide {
+    width: 5rem;
+    text-align: left;
+  }
+  .pc-select {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 9rem;
+    min-height: 2.75rem;
+    font-size: 0.84rem;
+  }
+  .pc-select--narrow {
+    max-width: 7rem;
+  }
+  .pc-unit {
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .pc-colon {
+    align-self: start;
+    margin-top: 0.6rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .pc-per {
+    align-self: start;
+    margin-top: 0.6rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  /* The box being solved for is the answer, not a question. */
+  .pc-row.is-target .pc-input,
+  .pc-row.is-target .pc-input--wide {
+    background: var(--subtle);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  .pc-row.is-target .pc-row__label::after {
+    content: ' (calculated)';
+    font-weight: 400;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .pc-quick {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0 0.4rem;
+  }
+  .pc-quick__label {
+    font-size: 0.76rem;
+    color: var(--muted);
+    margin-right: 0.15rem;
+  }
+  .pc-chip {
+    /* A race preset is a tap target like any other. */
+    min-height: 2.75rem;
+    padding: 0 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--card);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .pc-chip:hover {
+    border-color: var(--color-brand-600);
+    color: var(--color-brand-700);
+  }
+
+  .pc-error {
+    margin: 0.1rem 0 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .pc-field-error {
+    :root:not([data-theme='light']) .pc-error {
       color: #fca5a5;
     }
   }
-  :root[data-theme='dark'] .pc-field-error {
+  :root[data-theme='dark'] .pc-error {
     color: #fca5a5;
   }
-
   .pc-live-note {
-    margin-top: 0.75rem;
+    margin-top: 0.7rem;
     font-size: 0.8rem;
     color: var(--muted);
   }
 
-  /* Secondary pace + speed */
-  .pc-metrics {
-    margin: 0;
+  /* Result ---------------------------------------------------------- */
+  .pc-facts {
     display: grid;
-    gap: 0.25rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem 1rem;
+    margin: 0 0 0.8rem;
   }
-  .pc-metrics > div {
+  .pc-fact {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.3rem 0;
+    gap: 0.5rem;
     border-bottom: 1px solid var(--line);
-    font-size: 0.9rem;
+    padding-bottom: 0.25rem;
   }
-  .pc-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
-  .pc-metrics dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    color: var(--heading);
-    font-weight: 700;
-    white-space: nowrap;
-  }
-
-  /* Equivalent finish times */
-  .pc-races {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-  }
-  .pc-caption {
-    caption-side: top;
-    text-align: left;
-    margin-bottom: 0.4rem;
-    font-size: 0.8rem;
+  .pc-fact dt {
+    font-size: 0.76rem;
     color: var(--muted);
   }
-  .pc-races th,
-  .pc-races td {
-    padding: 0.4rem 0.4rem;
+  .pc-fact dd {
+    margin: 0;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--heading);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .pc-sub {
+    margin: 0 0 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .pc-equiv {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+  }
+  .pc-equiv th,
+  .pc-equiv td {
+    padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
     text-align: left;
   }
-  .pc-races thead th {
-    font-size: 0.7rem;
+  .pc-equiv thead th {
+    font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--muted);
     font-weight: 700;
   }
-  .pc-races tbody th {
-    font-weight: 600;
+  .pc-equiv tbody th {
+    font-weight: 500;
     color: var(--fg);
-    text-align: left;
   }
   .pc-num {
     text-align: right;
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-    color: var(--heading);
-    font-weight: 700;
   }
-  .pc-races thead th.pc-num {
-    color: var(--muted);
+  .pc-equiv tbody td {
     font-weight: 700;
+    color: var(--heading);
   }
   .pc-note {
     margin: 0.7rem 0 0;
-    font-size: 0.8rem;
-    line-height: 1.45;
+    font-size: 0.78rem;
+    line-height: 1.5;
     color: var(--muted);
+  }
+
+  @media (max-width: 30rem) {
+    .pc-facts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 26rem) {
+    .pc-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.25rem;
+    }
   }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { paceBinding } from '@lib/calculators/pace-form';
+  import {
+    paceBinding,
+    writeSolvedField,
+    completePaceValue,
+    computePaceValues,
+    lengthUnit,
+    PACE_EXAMPLE_VALUES,
+  } from '@lib/calculators/pace-form';
 
-  document.querySelectorAll<HTMLElement>('[data-pace]').forEach((root) =>
+  document.querySelectorAll<HTMLElement>('[data-pace]').forEach((root) => {
     mountFormCalculator(root, paceBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate Pace',
-    }),
-  );
+      example: { values: PACE_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
+    });
+
+    /**
+     * The box being solved for is the answer: lock it, mark it, and clear whatever was left
+     * in it, so it can never be read as an input on the next calculation.
+     */
+    const syncTarget = () => {
+      const target = root.querySelector<HTMLInputElement>('[name="solveFor"]:checked')?.value ?? 'pace';
+      root.querySelectorAll<HTMLElement>('[data-target-row]').forEach((row) => {
+        const isTarget = row.dataset.targetRow === target;
+        row.classList.toggle('is-target', isTarget);
+        row.querySelectorAll<HTMLInputElement>('input').forEach((el) => {
+          el.readOnly = isTarget;
+          if (isTarget) el.value = '';
+        });
+        if (isTarget) {
+          const err = root.querySelector<HTMLElement>(`[data-error-for="${row.dataset.field}"]`);
+          if (err) err.hidden = true;
+        }
+      });
+    };
+    root.querySelectorAll<HTMLInputElement>('[name="solveFor"]').forEach((r) =>
+      r.addEventListener('change', syncTarget),
+    );
+    syncTarget();
+
+    // Reset restores the radio silently, so re-derive the locked row from it.
+    root.addEventListener('calculator:reset', syncTarget);
+
+    /** Common distances fill the box AND its unit, so one click is a whole entry. */
+    root.querySelectorAll<HTMLButtonElement>('[data-race]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const metres = Number(chip.dataset.metres);
+        if (!Number.isFinite(metres)) return;
+        const unitEl = root.querySelector<HTMLSelectElement>('[name="distanceUnit"]');
+        const distanceEl = root.querySelector<HTMLInputElement>('[name="distance"]');
+        if (!unitEl || !distanceEl || distanceEl.readOnly) return;
+        const unit = lengthUnit(unitEl.value);
+        if (!unit) return;
+        distanceEl.value = String(Math.round((metres / unit.metres) * 10000) / 10000);
+        distanceEl.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    });
+
+    /**
+     * Write the answer back into its own box after a successful calculation, so it can be
+     * carried into the next one. Done on the shell's state change rather than on submit,
+     * because a live update is a calculation too.
+     */
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    if (shell) {
+      new MutationObserver(() => {
+        if (shell.dataset.resultState !== 'valid') return;
+        const result = computePaceValues(paceBinding.readValues(root));
+        if (Number.isFinite(completePaceValue(result))) writeSolvedField(root, result);
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state', 'data-result-activity'] });
+    }
+  });
 </script>

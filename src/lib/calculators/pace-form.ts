@@ -1,29 +1,29 @@
 /**
- * Pace form binding (R7C-2E1 — standard-form wave, calculator #12).
+ * Pace form binding — the reference's three-way solver, on the UNCHANGED standard-form
+ * runtime.
  *
- * The runtime (@lib/result/form-runtime) is used UNCHANGED. Pace is SINGLE-MODE
- * (distance + elapsed time → pace, speed and equivalent finish times); there is no
- * solve-for-time / solve-for-distance mode. This binding owns the pace specifics:
- * reading a distance + its unit + a composite h:m:s elapsed time, validating them,
- * converting the entered distance when the unit changes, calling the reviewed pure
- * `computePace` / `predictTime`, and rendering the SELECTED-UNIT pace as the dominant
- * result with secondary conversions + equivalent finish times.
+ * The reference asks for Time, Distance and Pace and works out whichever one you leave to
+ * it. That is one form with three targets, not three calculators: the visitor says what they
+ * want by choosing "Calculate", and the box being solved for goes read-only so it cannot be
+ * both an input and an output at once.
  *
- * The pure module is UNCHANGED and frozen by the characterization suite
- * (pace.test.ts). Everything added here is at the VALIDATION / PRESENTATION boundary:
- *   - distance required, finite, > 0;
- *   - h/m/s optional only when empty; if entered, whole and in range (h ≥ 0, m/s
- *     0–59 — 60 is NOT normalised, it is a field error); total elapsed time > 0;
- *   - the distance-unit toggle CONVERTS the entered value (km ↔ mi via KM_PER_MI),
- *     it does not reinterpret the same number as a different physical distance.
+ * All arithmetic is in the reviewed pure `pace.ts`. Field-error MESSAGES stay here per the
+ * R7B.1 policy.
  */
 import {
-  computePace,
-  predictTime,
+  solvePace,
+  equivalentTimes,
+  toSeconds,
+  fromSeconds,
   formatDuration,
+  lengthUnit,
+  LENGTH_UNITS,
   RACE_DISTANCES,
-  type PaceResult,
-  type DistanceUnit,
+  EQUIVALENT_DISTANCES,
+  DEFAULT_DISTANCE_UNIT,
+  DEFAULT_PACE_UNIT,
+  type PaceSolveFor,
+  type PaceSolveResult,
 } from './pace';
 import type {
   FormCalculatorBinding,
@@ -32,236 +32,325 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-/** Miles → kilometres. Mirrors the (unexported) constant in the reviewed pace.ts so
- *  the conversion factor is identical; a fixed physical constant, never re-tuned. */
-const KM_PER_MI = 1.609344;
+export {
+  LENGTH_UNITS,
+  RACE_DISTANCES,
+  EQUIVALENT_DISTANCES,
+  DEFAULT_DISTANCE_UNIT,
+  DEFAULT_PACE_UNIT,
+  formatDuration,
+  lengthUnit,
+};
+export type { PaceSolveFor };
+
+/** The three things the form can work out, in the order it offers them. */
+export const SOLVE_TARGETS: { value: PaceSolveFor; label: string; field: string }[] = [
+  { value: 'pace', label: 'Pace', field: 'pace' },
+  { value: 'time', label: 'Time', field: 'time' },
+  { value: 'distance', label: 'Distance', field: 'distance' },
+];
 
 export interface PaceValues {
-  distance: string;
-  unit: DistanceUnit;
+  solveFor: PaceSolveFor;
+  /* Time — h : m : s */
   h: string;
   m: string;
   s: string;
+  /* Distance */
+  distance: string;
+  distanceUnit: string;
+  /* Pace — mm : ss per unit */
+  paceMin: string;
+  paceSec: string;
+  paceUnit: string;
 }
 
-export interface PaceComputed extends PaceResult {
-  /** The selected distance unit — drives which pace is dominant. */
-  unit: DistanceUnit;
-  distance: number;
-  timeSeconds: number;
-}
+export const MSG = {
+  timeMissing: 'Enter a time.',
+  timeParts: 'Enter hours, minutes and seconds as whole numbers.',
+  timeMinutes: 'Enter minutes from 0 to 59.',
+  timeSeconds: 'Enter seconds from 0 to 59.',
+  timeZero: 'Enter a time greater than zero.',
+  distanceMissing: 'Enter a distance.',
+  distancePositive: 'Enter a distance greater than zero.',
+  paceMissing: 'Enter a pace.',
+  paceParts: 'Enter pace minutes and seconds as whole numbers.',
+  paceSeconds: 'Enter pace seconds from 0 to 59.',
+  paceZero: 'Enter a pace greater than zero.',
+} as const;
 
 /* ------------------------------------------------------------------ */
-/* Parsing + validation (pure)                                         */
+/* Parsing (pure)                                                      */
 /* ------------------------------------------------------------------ */
 
-type PositiveParse = 'empty' | 'nonpositive' | number;
-function parsePositive(raw: string): PositiveParse {
+type Part = 'empty' | 'invalid' | number;
+
+/** A whole, non-negative component; an empty box is distinct from a bad one. */
+function parsePart(raw: string, max?: number): Part {
   const t = raw.trim();
   if (t === '') return 'empty';
   const n = Number(t);
-  if (!Number.isFinite(n) || n <= 0) return 'nonpositive';
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return 'invalid';
+  if (max !== undefined && n > max) return 'invalid';
   return n;
 }
 
-type ComponentParse = 'empty' | 'invalid' | number;
-/** A whole time component in [min, max]; empty is distinct from an invalid entry. */
-function parseComponent(raw: string, min: number, max: number): ComponentParse {
+/** The time boxes as one duration, or why they are not one. */
+export function parseTime(values: Pick<PaceValues, 'h' | 'm' | 's'>): { seconds: number } | { error: string } {
+  const h = parsePart(values.h);
+  const m = parsePart(values.m, 59);
+  const s = parsePart(values.s, 59);
+  if (h === 'empty' && m === 'empty' && s === 'empty') return { error: MSG.timeMissing };
+  if (h === 'invalid') return { error: MSG.timeParts };
+  if (m === 'invalid') return { error: MSG.timeMinutes };
+  if (s === 'invalid') return { error: MSG.timeSeconds };
+  const total = toSeconds(h === 'empty' ? 0 : h, m === 'empty' ? 0 : m, s === 'empty' ? 0 : s);
+  return total > 0 ? { seconds: total } : { error: MSG.timeZero };
+}
+
+/** The pace boxes as seconds per unit, or why they are not. */
+export function parsePace(values: Pick<PaceValues, 'paceMin' | 'paceSec'>): { seconds: number } | { error: string } {
+  const min = parsePart(values.paceMin);
+  const sec = parsePart(values.paceSec, 59);
+  if (min === 'empty' && sec === 'empty') return { error: MSG.paceMissing };
+  if (min === 'invalid') return { error: MSG.paceParts };
+  if (sec === 'invalid') return { error: MSG.paceSeconds };
+  const total = (min === 'empty' ? 0 : min) * 60 + (sec === 'empty' ? 0 : sec);
+  return total > 0 ? { seconds: total } : { error: MSG.paceZero };
+}
+
+export function parseDistance(raw: string): { value: number } | { error: string } {
   const t = raw.trim();
-  if (t === '') return 'empty';
+  if (t === '') return { error: MSG.distanceMissing };
   const n = Number(t);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min || n > max) return 'invalid';
-  return n;
+  if (!Number.isFinite(n) || n <= 0) return { error: MSG.distancePositive };
+  return { value: n };
 }
 
-const componentValue = (p: ComponentParse): number => (typeof p === 'number' ? p : 0);
+/* ------------------------------------------------------------------ */
+/* Validation (pure)                                                   */
+/* ------------------------------------------------------------------ */
 
 /**
- * Validate pace values. Distance is required + positive. h/m/s are optional only when
- * empty; if entered they must be whole and in range (60 is NOT normalised — it is a
- * field error). Total elapsed time must be > 0. Never `Number(value) || 0`.
+ * Only the two boxes the solver READS are required.
+ *
+ * The third is the answer, so demanding it would be asking the visitor for the thing they
+ * came here to be told.
  */
 export function validatePaceValues(values: PaceValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
 
-  const distance = parsePositive(values.distance);
-  if (distance === 'empty') fieldErrors.distance = 'Enter a distance.';
-  else if (distance === 'nonpositive') fieldErrors.distance = 'Enter a distance greater than zero.';
-
-  const h = parseComponent(values.h, 0, Number.MAX_SAFE_INTEGER);
-  if (h === 'invalid') fieldErrors.h = 'Enter whole hours (0 or more).';
-  const m = parseComponent(values.m, 0, 59);
-  if (m === 'invalid') fieldErrors.m = 'Enter whole minutes from 0 to 59.';
-  const s = parseComponent(values.s, 0, 59);
-  if (s === 'invalid') fieldErrors.s = 'Enter whole seconds from 0 to 59.';
-
-  // Total-time check only once each component is individually valid (or empty).
-  if (h !== 'invalid' && m !== 'invalid' && s !== 'invalid') {
-    const total = componentValue(h) * 3600 + componentValue(m) * 60 + componentValue(s);
-    if (total <= 0) fieldErrors.time = 'Enter an elapsed time greater than zero.';
+  if (values.solveFor !== 'time') {
+    const t = parseTime(values);
+    if ('error' in t) fieldErrors.time = t.error;
+  }
+  if (values.solveFor !== 'distance') {
+    const d = parseDistance(values.distance);
+    if ('error' in d) fieldErrors.distance = d.error;
+  }
+  if (values.solveFor !== 'pace') {
+    const p = parsePace(values);
+    if ('error' in p) fieldErrors.pace = p.error;
   }
 
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
 
-/** A usable pace: every metric finite and strictly positive. */
-export function isUsablePace(r: PaceResult): boolean {
-  return [r.secPerKm, r.secPerMi, r.kmh, r.mph].every((v) => Number.isFinite(v) && v > 0);
-}
-
 /* ------------------------------------------------------------------ */
-/* Computation + description (pure)                                    */
+/* Computation (pure)                                                  */
 /* ------------------------------------------------------------------ */
 
-export function computePaceForm(values: PaceValues): PaceComputed {
-  const distance = Number(values.distance);
-  const h = values.h.trim() === '' ? 0 : Number(values.h);
-  const m = values.m.trim() === '' ? 0 : Number(values.m);
-  const s = values.s.trim() === '' ? 0 : Number(values.s);
-  const timeSeconds = h * 3600 + m * 60 + s;
-  const base = computePace({ distance, unit: values.unit, timeSeconds });
-  return { ...base, unit: values.unit, distance, timeSeconds };
+export interface PaceComputed extends PaceSolveResult {
+  solveFor: PaceSolveFor;
+  distanceUnit: string;
+  paceUnit: string;
 }
 
-const unitWord = (u: DistanceUnit): string => (u === 'mi' ? 'mile' : 'kilometre');
-const unitShort = (u: DistanceUnit): string => (u === 'mi' ? '/mi' : '/km');
-/** The seconds of the dominant (selected-unit) pace. */
-const dominantSeconds = (r: PaceComputed): number => (r.unit === 'mi' ? r.secPerMi : r.secPerKm);
-
-/** A pace in spoken form, e.g. "5 minutes", "8 minutes and 3 seconds". */
-export function spokenPace(totalSeconds: number): string {
-  const s = Math.round(totalSeconds);
-  const hours = Math.floor(s / 3600);
-  const mins = Math.floor((s % 3600) / 60);
-  const secs = s % 60;
-  const parts: string[] = [];
-  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
-  if (mins > 0) parts.push(`${mins} minute${mins === 1 ? '' : 's'}`);
-  if (secs > 0) parts.push(`${secs} second${secs === 1 ? '' : 's'}`);
-  if (parts.length === 0) return '0 seconds';
-  if (parts.length === 1) return parts[0];
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+export function computePaceValues(values: PaceValues): PaceComputed {
+  const t = parseTime(values);
+  const d = parseDistance(values.distance);
+  const p = parsePace(values);
+  const solved = solvePace({
+    solveFor: values.solveFor,
+    timeSeconds: 'seconds' in t ? t.seconds : undefined,
+    distance: 'value' in d ? d.value : undefined,
+    distanceUnit: values.distanceUnit,
+    paceSeconds: 'seconds' in p ? p.seconds : undefined,
+    paceUnit: values.paceUnit,
+  });
+  return { ...solved, solveFor: values.solveFor, distanceUnit: values.distanceUnit, paceUnit: values.paceUnit };
 }
 
-/** Concise announcement — the dominant selected-unit pace only. */
+/**
+ * The finiteness sentinel: finite only when all three of time, distance and pace came out,
+ * so a half-solved row can never reach the panel.
+ */
+export function completePaceValue(result: PaceComputed): number {
+  for (const v of [result.timeSeconds, result.distance, result.paceSeconds, result.kmh, result.mph]) {
+    if (!Number.isFinite(v) || v <= 0) return Number.NaN;
+  }
+  return result.paceSeconds;
+}
+
+/** The distance as the box would write it — trimmed, never in exponent notation. */
+export function formatDistance(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '—';
+  const rounded = Math.round(value * 100) / 100;
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(rounded);
+}
+
+/** The dominant figure, whichever the visitor asked for. */
+export function headlineValue(result: PaceComputed): string {
+  if (result.solveFor === 'time') return formatDuration(result.timeSeconds);
+  if (result.solveFor === 'distance') return formatDistance(result.distance);
+  return formatDuration(result.paceSeconds);
+}
+
+export function headlineUnit(result: PaceComputed): string {
+  if (result.solveFor === 'time') return '';
+  if (result.solveFor === 'distance') return lengthUnit(result.distanceUnit)?.label ?? '';
+  return `per ${lengthUnit(result.paceUnit)?.paceLabel ?? ''}`;
+}
+
+export function headlineLabel(result: PaceComputed): string {
+  return SOLVE_TARGETS.find((t) => t.value === result.solveFor)?.label ?? 'Pace';
+}
+
+/** Concise accessible announcement — the solved figure only, never the whole table. */
 export function describePaceResult(result: PaceComputed): string {
-  return `Your pace is ${spokenPace(dominantSeconds(result))} per ${unitWord(result.unit)}.`;
+  if (result.solveFor === 'time') {
+    return `That distance at that pace takes ${formatDuration(result.timeSeconds)}.`;
+  }
+  if (result.solveFor === 'distance') {
+    return `At that pace you cover ${formatDistance(result.distance)} ${lengthUnit(result.distanceUnit)?.label ?? ''}.`;
+  }
+  return `Your pace is ${formatDuration(result.paceSeconds)} per ${lengthUnit(result.paceUnit)?.paceLabel ?? ''}.`;
 }
 
 /* ------------------------------------------------------------------ */
-/* Distance-unit conversion (pure)                                     */
+/* DOM helpers                                                         */
 /* ------------------------------------------------------------------ */
 
-/** Round to 3 dp (stable km↔mi round trip) and drop trailing zeros for display. */
-const toDistanceField = (n: number): string => String(Math.round(n * 1000) / 1000);
+const field = (root: HTMLElement, name: string) =>
+  root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
+const readValue = (root: HTMLElement, name: string) => field(root, name)?.value ?? '';
+const readChecked = (root: HTMLElement, name: string, fallback: string) =>
+  root.querySelector<HTMLInputElement>(`[name="${name}"]:checked`)?.value ?? fallback;
 
-/** Convert a distance value between units. Returns null to leave the field untouched
- *  (empty / non-positive / same unit). */
-export function convertDistance(value: number | null, from: DistanceUnit, to: DistanceUnit): string | null {
-  if (value === null || value <= 0 || from === to) return null;
-  if (from === 'km' && to === 'mi') return toDistanceField(value / KM_PER_MI);
-  if (from === 'mi' && to === 'km') return toDistanceField(value * KM_PER_MI);
-  return null;
-}
+const VALID_TARGETS = new Set<string>(SOLVE_TARGETS.map((t) => t.value));
+const VALID_UNITS = new Set<string>(LENGTH_UNITS.map((u) => u.key));
 
 /* ------------------------------------------------------------------ */
 /* The binding                                                         */
 /* ------------------------------------------------------------------ */
 
-const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
-const numOrNull = (raw: string | undefined): number | null => {
-  if (raw == null) return null;
-  const t = raw.trim();
-  if (t === '') return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-};
-
 export const paceBinding: FormCalculatorBinding<PaceValues, PaceComputed> = {
   readValues(root) {
-    const active = root.querySelector<HTMLElement>('[data-unit].is-active, [data-unit][aria-checked="true"]');
-    const unit: DistanceUnit = active?.dataset.unit === 'mi' ? 'mi' : 'km';
+    const solveFor = readChecked(root, 'solveFor', 'pace');
+    const distanceUnit = readValue(root, 'distanceUnit');
+    const paceUnit = readValue(root, 'paceUnit');
     return {
-      distance: input(root, 'distance')?.value ?? '',
-      unit,
-      h: input(root, 'h')?.value ?? '',
-      m: input(root, 'm')?.value ?? '',
-      s: input(root, 's')?.value ?? '',
+      solveFor: (VALID_TARGETS.has(solveFor) ? solveFor : 'pace') as PaceSolveFor,
+      h: readValue(root, 'h'),
+      m: readValue(root, 'm'),
+      s: readValue(root, 's'),
+      distance: readValue(root, 'distance'),
+      distanceUnit: VALID_UNITS.has(distanceUnit) ? distanceUnit : DEFAULT_DISTANCE_UNIT,
+      paceMin: readValue(root, 'paceMin'),
+      paceSec: readValue(root, 'paceSec'),
+      paceUnit: VALID_UNITS.has(paceUnit) ? paceUnit : DEFAULT_PACE_UNIT,
     };
   },
 
   validate: validatePaceValues,
 
-  compute: computePaceForm,
+  compute: computePaceValues,
 
-  /** Guarded primary magnitude — the pace per km (finite, > 0 when usable). */
-  resultValue(result) {
-    return isUsablePace(result) ? result.secPerKm : NaN;
-  },
+  resultValue: completePaceValue,
 
   describeResult: describePaceResult,
 
   renderResult(result, context: FormRenderContext) {
     const scope = context.result;
-    const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
-    const unit = result.unit;
-    const dominant = dominantSeconds(result);
-    const other = unit === 'mi' ? result.secPerKm : result.secPerMi;
-
-    // Primary: the selected-unit pace (dominant).
-    const valueEl = q('[data-result-when~="valid"] [data-result-value]');
-    const unitEl = q('[data-result-when~="valid"] [data-result-unit]');
-    const a11yEl = q('[data-result-when~="valid"] [data-result-value-a11y]');
-    if (valueEl) valueEl.textContent = formatDuration(dominant);
-    if (unitEl) unitEl.textContent = unitShort(unit);
-    if (a11yEl) a11yEl.textContent = `${spokenPace(dominant)} per ${unitWord(unit)}`;
-
-    const interp = q('[data-pc-interpretation]');
-    if (interp) interp.textContent = `That's ${spokenPace(dominant)} per ${unitWord(unit)}.`;
-
-    // Secondary: the other-unit pace + both speeds (subordinate to the dominant pace).
-    const opLabel = q('[data-pc-otherpace-label]');
-    if (opLabel) opLabel.textContent = unit === 'mi' ? 'Pace per kilometre' : 'Pace per mile';
-    const op = q('[data-pc-otherpace]');
-    if (op) op.textContent = `${formatDuration(other)} ${unit === 'mi' ? '/km' : '/mi'}`;
-
-    const kmh = `${result.kmh.toFixed(1)} km/h`;
-    const mph = `${result.mph.toFixed(1)} mph`;
-    const setSpeed = (n: number, label: string, value: string) => {
-      const l = q(`[data-pc-speed${n}-label]`);
-      const v = q(`[data-pc-speed${n}]`);
-      if (l) l.textContent = label;
-      if (v) v.textContent = value;
+    const set = (sel: string, text: string) => {
+      const el = scope.querySelector<HTMLElement>(sel);
+      if (el) el.textContent = text;
     };
-    if (unit === 'mi') {
-      setSpeed(1, 'Speed (mph)', mph);
-      setSpeed(2, 'Speed (km/h)', kmh);
-    } else {
-      setSpeed(1, 'Speed (km/h)', kmh);
-      setSpeed(2, 'Speed (mph)', mph);
-    }
 
-    // Equivalent finish times (absolute — from pace per km, independent of unit).
-    RACE_DISTANCES.forEach((race, i) => {
-      const cell = scope.querySelector<HTMLElement>(`[data-pc-race="${i}"] [data-pc-race-time]`);
-      if (cell) cell.textContent = formatDuration(predictTime(result.secPerKm, race.km));
-    });
+    set('[data-pace-label]', headlineLabel(result));
+    set('[data-pace-value]', headlineValue(result));
+    set('[data-pace-unit]', headlineUnit(result));
+    set('[data-pace-a11y]', describePaceResult(result));
+
+    // All three, so the two that were entered are echoed beside the one that was worked out.
+    set('[data-pace-time]', formatDuration(result.timeSeconds));
+    set(
+      '[data-pace-distance]',
+      `${formatDistance(result.distance)} ${lengthUnit(result.distanceUnit)?.label ?? ''}`,
+    );
+    set(
+      '[data-pace-pace]',
+      `${formatDuration(result.paceSeconds)} per ${lengthUnit(result.paceUnit)?.paceLabel ?? ''}`,
+    );
+
+    set('[data-pace-permi]', `${formatDuration(result.secPerMi)} / mile`);
+    set('[data-pace-perkm]', `${formatDuration(result.secPerKm)} / km`);
+    set('[data-pace-mph]', `${result.mph.toFixed(2)} mph`);
+    set('[data-pace-kmh]', `${result.kmh.toFixed(2)} km/h`);
+
+    for (const row of equivalentTimes(result)) {
+      set(`[data-equiv="${row.race.key}"]`, formatDuration(row.seconds));
+    }
   },
 
   resetValues(root, _mode: ResetMode) {
-    // The runtime restores the default unit (km); Pace holds no module state.
-    for (const name of ['distance', 'h', 'm', 's']) {
-      const el = input(root, name);
+    for (const name of ['h', 'm', 's', 'distance', 'paceMin', 'paceSec']) {
+      const el = field(root, name);
       if (el) el.value = '';
     }
-  },
-
-  convertValues(root, fromUnit, toUnit) {
-    const distEl = input(root, 'distance');
-    if (!distEl) return;
-    const converted = convertDistance(numOrNull(distEl.value), fromUnit as DistanceUnit, toUnit as DistanceUnit);
-    if (converted !== null) distEl.value = converted; // empty / non-positive left untouched
+    const dUnit = field(root, 'distanceUnit');
+    if (dUnit) dUnit.value = DEFAULT_DISTANCE_UNIT;
+    const pUnit = field(root, 'paceUnit');
+    if (pUnit) pUnit.value = DEFAULT_PACE_UNIT;
+    root.querySelectorAll<HTMLInputElement>('[name="solveFor"]').forEach((el) => {
+      el.checked = el.value === 'pace';
+    });
   },
 };
 
-export { RACE_DISTANCES };
+/** Fill the solved box back into the form, so the visitor can carry it into the next sum. */
+export function writeSolvedField(root: HTMLElement, result: PaceComputed): void {
+  const set = (name: string, value: string) => {
+    const el = field(root, name);
+    if (el) el.value = value;
+  };
+  if (result.solveFor === 'time') {
+    const { h, m, s } = fromSeconds(result.timeSeconds);
+    set('h', String(h));
+    set('m', String(m));
+    set('s', String(s));
+  } else if (result.solveFor === 'distance') {
+    set('distance', String(Math.round(result.distance * 100) / 100));
+  } else {
+    const { h, m, s } = fromSeconds(result.paceSeconds);
+    set('paceMin', String(h * 60 + m));
+    set('paceSec', String(s));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/** A 10K in 50 minutes — a round, recognisable run, not anybody's real one. */
+export const PACE_EXAMPLE_VALUES: PaceValues = {
+  solveFor: 'pace',
+  h: '0',
+  m: '50',
+  s: '0',
+  distance: '10',
+  distanceUnit: 'km',
+  paceMin: '',
+  paceSec: '',
+  paceUnit: 'km',
+};

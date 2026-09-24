@@ -32,6 +32,16 @@ const faqs = [
       'A common guideline is about 20% down on a new car and 10% on a used one. A larger down payment lowers the monthly payment and total interest, and helps you avoid owing more than the car is worth as it depreciates.',
   },
   {
+    question: 'Do cash incentives reduce the sales tax?',
+    answer:
+      'Usually not. Most states charge sales tax on the price before manufacturer rebates and dealer cash, so a $2,000 rebate lowers what you finance by $2,000 but leaves the tax bill unchanged. This calculator follows that rule: an incentive reduces the amount financed and the total cost, never the sales tax. A handful of states do tax the post-rebate price — check your own DMV if it matters to your budget.',
+  },
+  {
+    question: 'What does the amortization schedule show?',
+    answer:
+      'How each payment splits between interest and principal, and what you still owe afterwards. Early payments are mostly interest because interest is charged on the balance, which is at its largest; as the balance falls the same fixed payment retires more principal each month. Switch between the annual view for the shape of the loan and the monthly view for every payment, where a divider closes each year.',
+  },
+  {
     question: 'What is a good interest rate for a car loan?',
     answer:
       'Rates depend heavily on your credit score and whether the car is new or used (used-car loans usually cost more). Because dealers may mark up the rate, it is worth getting a pre-approval from a bank or credit union to compare against.',
@@ -42,13 +52,34 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Estimate your monthly car payment including down payment, trade-in, sales tax and fees — and see the total cost of financing."
+  rail
+  intro="Estimate your monthly car payment from the price, term, rate, rebates, down payment, trade-in, sales tax and fees — with the full amortization schedule."
   faqs={faqs}
   reviewMetadata={{ reviewedDate: '2026-07-25' }}
 >
   <AutoLoanCalculator />
 
   <Fragment slot="content">
+    <h2>Reading the result</h2>
+    <p>
+      The dominant figure is the monthly payment. Underneath it, <strong>total loan amount</strong> is
+      what you actually borrow after your down payment, trade-in and any rebates; <strong>upfront
+      payment</strong> is what you hand over on the day, which includes sales tax and fees unless you
+      tick "Include taxes and fees in loan". <strong>Total cost</strong> adds the price, the interest,
+      the tax and the fees together — the number worth comparing between deals.
+    </p>
+    <p>
+      The <strong>loan breakdown</strong> shows how much of everything you repay is principal and how
+      much is interest. On a $40,000 loan over 5 years at 5%, interest is about 12% of the total; push
+      the term to 7 years and that share climbs sharply, which is the clearest argument for the
+      shortest term you can afford.
+    </p>
+    <p>
+      The <strong>amortization schedule</strong> shows every payment. The chart above it plots the
+      falling balance against the interest and the total you have paid so far, all in dollars on one
+      axis, so you can see the moment the loan crosses from mostly-interest to mostly-principal.
+    </p>
+
     <h2>How to use this calculator</h2>
     <ol>
       <li>Enter the <strong>vehicle price</strong>, the <strong>loan term</strong> in months, the annual <strong>interest rate</strong> and your <strong>down payment</strong>.</li>

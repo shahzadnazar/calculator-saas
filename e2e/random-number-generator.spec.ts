@@ -1,325 +1,313 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Random Number Generator — R18B2 task-first migration (bounded Math singleton, the last
- * Math legacy). Wraps the UNCHANGED randomIntegers (crypto-strength, inclusive integer
- * range, optional unique) via its OWN random-number-form.ts binding on the UNCHANGED
- * generator runtime (the Password Generator lane). Task-first: settings are prefilled
- * (1/100/5/repeats-allowed) but the OUTPUT starts EMPTY on the server AND after hydration
- * (the legacy island auto-generated on load). Explicit "Generate Numbers"; a settings
- * change marks the output STALE (kept visible) — NO live regeneration. Reset returns to
- * empty. No Copy. Randomness is asserted by PROPERTIES (count / range / integer /
- * uniqueness), never exact values, and never "the next generation must differ".
+ * Random numbers — the reference's TWO generators: a simple one returning a single integer of any
+ * size, and the Comprehensive Version returning one or many integers or decimals to a chosen
+ * precision. Each keeps its own settings, button and output, and each puts its output in the same
+ * row as its settings.
+ *
+ * Beyond the usual doctrine checks this suite is security-minded, as the password generator is:
+ * the draw happens in the browser, and nothing generated reaches storage, the URL, the network,
+ * the console or the live region.
  */
 const ROUTE = '/math/random-number-generator';
-const EMBED = '/embed/math/random-number-generator';
 
-const shell = (page: Page) => page.locator('#rng-result');
-const list = (page: Page) => page.locator('#rng-result [data-rng-list]');
-const chips = (page: Page) => page.locator('#rng-result [data-rng-list] .rng-chip');
-const meta = (page: Page) => page.locator('#rng-result [data-rng-meta]');
-const capped = (page: Page) => page.locator('#rng-result [data-rng-capped]');
-const staleNote = (page: Page) => page.locator('#rng-result [data-stale-note]');
-const live = (page: Page) => page.locator('#rng-live');
-const generate = (page: Page) => page.locator('[data-form] button[type="submit"]'); // label relabels after first gen
-const region = (page: Page, when: string) => page.locator(`#rng-result [data-result-when~="${when}"]`);
+const simple = (page: Page) => page.locator('[data-rng-simple]');
+const full = (page: Page) => page.locator('[data-rng-full]');
+const simpleShell = (page: Page) => page.locator('#rng-simple-result');
+const fullShell = (page: Page) => page.locator('#rng-full-result');
+const simpleOut = (page: Page) => simple(page).locator('[data-generator-output]');
+const fullOut = (page: Page) => full(page).locator('[data-generator-output]');
+const simpleGo = (page: Page) => page.locator('[data-rng-simple-submit]');
+const fullGo = (page: Page) => page.locator('[data-rng-full-submit]');
 
-const setMin = (page: Page, v: string) => page.locator('[name="min"]').fill(v);
-const setMax = (page: Page, v: string) => page.locator('[name="max"]').fill(v);
-const setCount = (page: Page, v: string) => page.locator('[name="count"]').fill(v);
-const setUnique = (page: Page, on: boolean) =>
-  on ? page.locator('[name="unique"]').check() : page.locator('[name="unique"]').uncheck();
+const readSimple = (page: Page) => simpleOut(page).inputValue();
+const readFull = async (page: Page) => (await fullOut(page).inputValue()).split('\n');
 
-type Cfg = { min?: string; max?: string; count?: string; unique?: boolean };
-const gen = async (page: Page, c: Cfg = {}) => {
-  if (c.min !== undefined) await setMin(page, c.min);
-  if (c.max !== undefined) await setMax(page, c.max);
-  if (c.count !== undefined) await setCount(page, c.count);
-  if (c.unique !== undefined) await setUnique(page, c.unique);
-  await generate(page).click();
-};
-const numbers = async (page: Page): Promise<number[]> =>
-  (await chips(page).allTextContents()).map(Number);
+async function setFull(page: Page, values: Record<string, string>) {
+  for (const [name, value] of Object.entries(values)) {
+    if (name === 'type') await full(page).locator(`input[name="type"][value="${value}"]`).check();
+    else await full(page).locator(`[name="${name}"]`).fill(value);
+  }
+}
 
-test.describe('rng: task-first', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  });
-
-  /* ---- SSR / hydration parity ---- */
-
-  test('the server-rendered output is empty and the hydrated output is still empty — no numbers before Generate', async ({ page }) => {
-    const raw = await (await page.request.get(ROUTE)).text();
-    const server = await page.evaluate((html) => {
-      const d = new DOMParser().parseFromString(html, 'text/html');
-      return {
-        state: d.querySelector('#rng-result')?.getAttribute('data-result-state') ?? null,
-        chips: d.querySelectorAll('#rng-result [data-rng-list] .rng-chip').length,
-      };
-    }, raw);
-    await page.goto(ROUTE, { waitUntil: 'networkidle' });
-    expect(server.state).toBe('empty');
-    expect(server.chips).toBe(0);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(chips(page)).toHaveCount(0);
-  });
-
-  /* ---- initial state ---- */
-
-  test('loads with prefilled settings, no output, no announcement', async ({ page }) => {
-    await expect(page.locator('[name="min"]')).toHaveValue('1');
-    await expect(page.locator('[name="max"]')).toHaveValue('100');
-    await expect(page.locator('[name="count"]')).toHaveValue('5');
-    await expect(page.locator('[name="unique"]')).not.toBeChecked();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
-    await expect(live(page)).toHaveText('');
-  });
-
-  test('changing a setting does not generate (no output before Generate)', async ({ page }) => {
-    await setMin(page, '5');
-    await setCount(page, '9');
-    await setUnique(page, true);
-    await page.waitForTimeout(150);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(chips(page)).toHaveCount(0);
-  });
-
-  /* ---- generation (property assertions, never exact values) ---- */
-
-  test('Generate produces the requested count of in-range integers + metadata + announcement', async ({ page }) => {
-    await gen(page, { min: '1', max: '100', count: '5' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(chips(page)).toHaveCount(5);
-    const ns = await numbers(page);
-    expect(ns.every((n) => Number.isInteger(n) && n >= 1 && n <= 100)).toBe(true);
-    await expect(meta(page)).toHaveText('5 numbers from 1 to 100 · repeats allowed');
-    await expect(live(page)).toHaveText('Generated 5 random numbers.');
-    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
-  });
-
-  test('a single number uses singular grammar', async ({ page }) => {
-    await gen(page, { count: '1' });
-    await expect(chips(page)).toHaveCount(1);
-    await expect(live(page)).toHaveText('Generated 1 random number.');
-  });
-
-  test('a negative range yields negative integers', async ({ page }) => {
-    await gen(page, { min: '-10', max: '-1', count: '8' });
-    const ns = await numbers(page);
-    expect(ns.length).toBe(8);
-    expect(ns.every((n) => n >= -10 && n <= -1)).toBe(true);
-  });
-
-  test('a range crossing zero spans both signs', async ({ page }) => {
-    await gen(page, { min: '-5', max: '5', count: '40' });
-    const ns = await numbers(page);
-    expect(ns.every((n) => n >= -5 && n <= 5)).toBe(true);
-  });
-
-  test('min == max is a fixed value', async ({ page }) => {
-    await gen(page, { min: '7', max: '7', count: '3' });
-    expect(await numbers(page)).toEqual([7, 7, 7]);
-  });
-
-  test('unique mode yields distinct values', async ({ page }) => {
-    await gen(page, { min: '1', max: '30', count: '15', unique: true });
-    const ns = await numbers(page);
-    expect(ns.length).toBe(15);
-    expect(new Set(ns).size).toBe(15);
-  });
-
-  test('unique exhaustion preserves the source cap and explains the shortfall', async ({ page }) => {
-    await gen(page, { min: '1', max: '5', count: '20', unique: true });
-    const ns = await numbers(page);
-    expect(ns.length).toBe(5); // capped at the range size
-    expect(new Set(ns).size).toBe(5);
-    await expect(capped(page)).toBeVisible();
-    await expect(capped(page)).toContainText('Only 5 unique whole numbers');
-    await expect(live(page)).toHaveText('Generated 5 random numbers.');
-  });
-
-  test('a second generation stays valid (no inequality asserted)', async ({ page }) => {
-    await gen(page, { min: '1', max: '100', count: '6' });
-    await expect(chips(page)).toHaveCount(6);
-    await generate(page).click(); // "Generate New Numbers"
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(chips(page)).toHaveCount(6);
-    const ns = await numbers(page);
-    expect(ns.every((n) => Number.isInteger(n) && n >= 1 && n <= 100)).toBe(true);
-  });
-
-  /* ---- validation ---- */
-
-  test('min greater than max is rejected with a form-level error (no silent swap)', async ({ page }) => {
-    await gen(page, { min: '100', max: '1' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('#rng-result [data-result-invalid-message]')).toContainText('minimum must be less than or equal to the maximum');
-  });
-
-  test('an empty minimum is rejected, associated with its field, and focused', async ({ page }) => {
-    await setMin(page, '');
-    await generate(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="min"]')).toHaveText('Enter a minimum.');
-    await expect(page.locator('[name="min"]')).toHaveAttribute('aria-invalid', 'true');
-    await expect(page.locator('[name="min"]')).toBeFocused();
-  });
-
-  test('a decimal bound is rejected (integer-only)', async ({ page }) => {
-    await gen(page, { min: '1.5' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="min"]')).toHaveText('Enter the minimum as a whole number.');
-  });
-
-  test('a count outside 1–1000 is rejected', async ({ page }) => {
-    await gen(page, { count: '0' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="count"]')).toContainText('between 1 and 1000');
-  });
-
-  /* ---- stale on settings change (no live regeneration) ---- */
-
-  test('changing a setting after generating marks the output stale (kept visible, not regenerated)', async ({ page }) => {
-    await gen(page, { min: '1', max: '100', count: '5' });
-    await expect(chips(page)).toHaveCount(5);
-    await setCount(page, '10'); // settings change → stale, NOT a regeneration
-    await expect(shell(page)).toHaveAttribute('data-stale', 'true');
-    await expect(staleNote(page)).toBeVisible();
-    await expect(chips(page)).toHaveCount(5); // still the old output
-    await generate(page).click(); // now apply
-    await expect(shell(page)).toHaveAttribute('data-stale', 'false');
-    await expect(chips(page)).toHaveCount(10);
-  });
-
-  /* ---- reset ---- */
-
-  test('reset clears the output, restores defaults, and empties the announcement', async ({ page }) => {
-    await gen(page, { min: '5', max: '50', count: '8', unique: true });
-    await expect(chips(page)).toHaveCount(8);
-    await page.click('[data-reset]');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
-    await expect(page.locator('[name="min"]')).toHaveValue('1');
-    await expect(page.locator('[name="max"]')).toHaveValue('100');
-    await expect(page.locator('[name="count"]')).toHaveValue('5');
-    await expect(page.locator('[name="unique"]')).not.toBeChecked();
-    await expect(live(page)).toHaveText('');
-  });
-
-  /* ---- keyboard / responsive / theme / embed / monetization ---- */
-
-  test('keyboard submission works from the count field', async ({ page }) => {
-    await setCount(page, '4');
-    await page.locator('[name="count"]').press('Enter');
-    await expect(chips(page)).toHaveCount(4);
-  });
-
-  test('desktop shows the generated numbers within the first viewport at 1366×768', async ({ page }) => {
-    await page.setViewportSize({ width: 1366, height: 768 });
-    await gen(page, { count: '5' });
-    await expect(list(page)).toBeInViewport();
-  });
-
-  test('mobile does not overflow horizontally', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-    await gen(page, { min: '1', max: '1000', count: '30' });
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow).toBeLessThanOrEqual(1);
-  });
-
-  test('renders in dark scheme', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await gen(page, { count: '5' });
-    await expect(list(page)).toBeVisible();
-  });
-
-  test('the generated embed mounts the same island (empty SSR, no auto-gen, then a valid generation)', async ({ page }) => {
-    await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#rng-result')).toHaveAttribute('data-result-state', 'empty');
-    await expect(page.locator('#rng-result [data-rng-list] .rng-chip')).toHaveCount(0);
-    await page.locator('[name="count"]').fill('7');
-    await page.waitForTimeout(150);
-    await expect(page.locator('#rng-result')).toHaveAttribute('data-result-state', 'empty'); // no auto-gen
-    await page.locator('[data-form] button[type="submit"]').click();
-    await expect(page.locator('#rng-result')).toHaveAttribute('data-result-state', 'valid');
-    await expect(page.locator('#rng-result [data-rng-list] .rng-chip')).toHaveCount(7);
-  });
-
-  test('the live page carries no monetization output', async ({ page }) => {
-    await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-    expect(await page.content()).not.toContain('data-mon-');
-  });
+test.beforeEach(async ({ page }) => {
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
-/* -------------------- same-document two-instance isolation -------------------- */
+/* ---- Two separate generators -------------------------------------------- */
 
-test.describe('rng: same-document instance isolation', () => {
-  const FIXTURE = 'http://localhost:4399/__rng-two-instance-fixture';
+test('offers both generators, each with its own settings, button and output', async ({ page }) => {
+  await expect(simple(page)).toHaveCount(1);
+  await expect(full(page)).toHaveCount(1);
+  await expect(page.locator('#rng-simple-heading')).toHaveText('Random Number Generator');
+  await expect(page.locator('#rng-full-heading')).toHaveText('Comprehensive Version');
+  await expect(simpleGo(page)).toHaveText('Generate');
+  await expect(fullGo(page)).toHaveText('Generate');
+});
 
-  async function mountTwo(page: Page) {
-    const raw = await (await page.request.get('http://localhost:4399/math/random-number-generator')).text();
-    const parts = await page.evaluate((html) => {
-      const d = new DOMParser().parseFromString(html, 'text/html');
-      const root = d.querySelector('[data-rng]');
-      const links = [...d.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.getAttribute('href'));
-      const script = [...d.querySelectorAll('script[type="module"][src]')]
-        .map((s) => s.getAttribute('src'))
-        .find((src) => /RandomNumberGenerator/.test(src ?? ''));
-      return { rootHTML: root?.outerHTML ?? '', links, script };
-    }, raw);
-    const doc =
-      `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
-      parts.links.map((h) => `<link rel="stylesheet" href="${h}">`).join('') +
-      `</head><body><div id="inst-a">${parts.rootHTML}</div><div id="inst-b">${parts.rootHTML}</div>` +
-      `<script type="module" src="${parts.script}"></script></body></html>`;
-    await page.route('**/__rng-two-instance-fixture', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: doc }));
-    await page.goto(FIXTURE, { waitUntil: 'networkidle' });
-    await expect(page.locator('#inst-a [data-rng]')).toHaveCount(1);
-    await expect(page.locator('#inst-b [data-rng]')).toHaveCount(1);
+test('loads with the reference defaults and no output generated', async ({ page }) => {
+  await expect(simple(page).locator('[name="lower"]')).toHaveValue('1');
+  await expect(simple(page).locator('[name="upper"]')).toHaveValue('100');
+  await expect(full(page).locator('[name="lower"]')).toHaveValue('0.2');
+  await expect(full(page).locator('[name="upper"]')).toHaveValue('112.5');
+  await expect(full(page).locator('[name="count"]')).toHaveValue('1');
+  await expect(full(page).locator('[name="precision"]')).toHaveValue('50');
+  await expect(full(page).locator('input[name="type"][value="decimal"]')).toBeChecked();
+
+  // A labelled worked example, drawn in the browser — never the visitor's own draw.
+  await expect(simpleShell(page)).toHaveAttribute('data-result-state', 'example');
+  await expect(fullShell(page)).toHaveAttribute('data-result-state', 'example');
+  await expect(page.locator('[data-result-when~="example"]').first()).toContainText(/not your calculation/i);
+  await page.waitForTimeout(300);
+  await expect(simpleShell(page)).toHaveAttribute('data-result-state', 'example'); // nothing auto-generated for them
+  await expect(page.locator('#rng-simple-live')).toHaveText(''); // and never announced
+});
+
+test('generating in one leaves the other untouched', async ({ page }) => {
+  await simpleGo(page).click();
+  await expect(simpleShell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(fullShell(page)).toHaveAttribute('data-result-state', 'example');
+});
+
+test('each output sits in the same row as its own settings on a wide screen', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await simpleGo(page).click();
+  const form = (await simple(page).locator('form').boundingBox())!;
+  const result = (await simpleShell(page).boundingBox())!;
+  expect(result.x).toBeGreaterThan(form.x + form.width - 2);
+});
+
+/* ---- The simple generator ------------------------------------------------ */
+
+test('draws one integer inside the inclusive range', async ({ page }) => {
+  await simpleGo(page).click();
+  await expect(simpleShell(page)).toHaveAttribute('data-result-state', 'valid');
+  const value = await readSimple(page);
+  expect(value).toMatch(/^\d+$/);
+  expect(Number(value)).toBeGreaterThanOrEqual(1);
+  expect(Number(value)).toBeLessThanOrEqual(100);
+});
+
+test('reaches both ends of a two-value range over repeated draws', async ({ page }) => {
+  await simple(page).locator('[name="lower"]').fill('0');
+  await simple(page).locator('[name="upper"]').fill('1');
+  const seen = new Set<string>();
+  for (let i = 0; i < 40 && seen.size < 2; i += 1) {
+    await simpleGo(page).click();
+    seen.add(await readSimple(page));
   }
+  expect([...seen].sort()).toEqual(['0', '1']);
+});
 
-  test('two instances have no duplicate ids and every reference resolves in its own instance', async ({ page }) => {
-    await mountTwo(page);
-    const duplicates = await page.evaluate(() => {
-      const counts: Record<string, number> = {};
-      for (const el of document.querySelectorAll('[id]')) counts[el.id] = (counts[el.id] || 0) + 1;
-      return Object.entries(counts).filter(([, n]) => n > 1).map(([id]) => id);
-    });
-    expect(duplicates).toEqual([]);
-    const ok = await page.evaluate(() => {
-      for (const scope of ['#inst-a', '#inst-b']) {
-        const root = document.querySelector(scope)!;
-        for (const el of root.querySelectorAll('[aria-describedby]')) {
-          const refs = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
-          for (const id of refs) {
-            const t = document.getElementById(id);
-            if (!t || !t.closest(scope)) return false;
-          }
-        }
-      }
-      return true;
-    });
-    expect(ok).toBe(true);
-  });
+test('handles an integer far past what ordinary arithmetic can hold', async ({ page }) => {
+  await simple(page).locator('[name="lower"]').fill('1' + '0'.repeat(200));
+  await simple(page).locator('[name="upper"]').fill('9'.repeat(201));
+  await simpleGo(page).click();
+  const value = await readSimple(page);
+  expect(value).toMatch(/^\d+$/);
+  expect(value.length).toBe(201);
+  expect(BigInt(value)).toBeGreaterThanOrEqual(BigInt('1' + '0'.repeat(200)));
+});
 
-  test('generating and resetting one instance never touches the other', async ({ page }) => {
-    await mountTwo(page);
-    const A = (sel: string) => page.locator(`#inst-a ${sel}`);
-    const B = (sel: string) => page.locator(`#inst-b ${sel}`);
-    await A('[name="count"]').fill('4');
-    await A('[data-form] button[type="submit"]').click();
-    await expect(A('[data-rng-list] .rng-chip')).toHaveCount(4);
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+test('refuses a decimal limit, because this version draws an integer', async ({ page }) => {
+  await simple(page).locator('[name="lower"]').fill('1.5');
+  await simpleGo(page).click();
+  await expect(simpleShell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(simple(page).locator('[data-error-for="lower"]')).toHaveText('Enter a whole number.');
+});
 
-    await B('[name="count"]').fill('9');
-    await B('[data-form] button[type="submit"]').click();
-    await expect(B('[data-rng-list] .rng-chip')).toHaveCount(9);
-    await expect(A('[data-rng-list] .rng-chip')).toHaveCount(4); // A preserved
+/* ---- Copy and Regenerate ------------------------------------------------- */
 
-    await A('[data-reset]').click();
-    await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
-    await expect(B('[data-rng-list] .rng-chip')).toHaveCount(9); // B unaffected by A's reset
-  });
+test('Regenerate draws again from the same settings, without touching them', async ({ page }) => {
+  await simple(page).locator('[name="lower"]').fill('1');
+  await simple(page).locator('[name="upper"]').fill('1000000');
+  await simpleGo(page).click();
+  const first = await readSimple(page);
+  await simple(page).locator('[data-regenerate]').click();
+  await expect(simpleShell(page)).toHaveAttribute('data-result-state', 'valid');
+  const second = await readSimple(page);
+  expect(second).toMatch(/^\d+$/);
+  expect(second).not.toBe(first); // a million values makes a repeat vanishingly unlikely
+  await expect(simple(page).locator('[name="upper"]')).toHaveValue('1000000');
+});
+
+test('Copy puts exactly what is on screen on the clipboard, and confirms it', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await simpleGo(page).click();
+  const shown = await readSimple(page);
+  await simple(page).locator('[data-copy]').click();
+  await expect(simple(page).locator('[data-copy-confirm]')).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(shown);
+});
+
+test('a settings change marks the output out of date and disables Copy, keeping it visible', async ({ page }) => {
+  await simpleGo(page).click();
+  const shown = await readSimple(page);
+  await simple(page).locator('[name="upper"]').fill('50');
+  await expect(simple(page).locator('[data-stale-note]')).toBeVisible();
+  await expect(simple(page).locator('[data-copy]')).toBeDisabled();
+  await expect(simpleOut(page)).toHaveValue(shown); // not cleared
+  await expect(simpleShell(page)).toHaveAttribute('data-result-state', 'valid');
+});
+
+test('both outputs carry Copy and Regenerate', async ({ page }) => {
+  for (const scope of [simple, full]) {
+    await expect(scope(page).locator('[data-copy]')).toHaveCount(1);
+    await expect(scope(page).locator('[data-regenerate]')).toHaveCount(1);
+  }
+});
+
+/* ---- The comprehensive generator ----------------------------------------- */
+
+test('draws a decimal with exactly the requested precision, inside the range', async ({ page }) => {
+  await fullGo(page).click();
+  await expect(fullShell(page)).toHaveAttribute('data-result-state', 'valid');
+  const [value] = await readFull(page);
+  expect(value.split('.')[1]).toHaveLength(50);
+  expect(Number(value)).toBeGreaterThanOrEqual(0.2);
+  expect(Number(value)).toBeLessThanOrEqual(112.5);
+  await expect(full(page).locator('[data-rng-count]')).toHaveText('1 number, 50 decimal places');
+});
+
+test('the precision field is only asked for when drawing decimals', async ({ page }) => {
+  await expect(full(page).locator('[data-rng-precision]')).toBeVisible();
+  await full(page).locator('input[name="type"][value="integer"]').check();
+  await expect(full(page).locator('[data-rng-precision]')).toBeHidden();
+  await full(page).locator('input[name="type"][value="decimal"]').check();
+  await expect(full(page).locator('[data-rng-precision]')).toBeVisible();
+});
+
+test('draws many distinct sorted integers — a lottery pick', async ({ page }) => {
+  await setFull(page, { type: 'integer', lower: '1', upper: '49', count: '6' });
+  await full(page).locator('[name="allowDuplicates"]').uncheck();
+  await full(page).locator('[name="sort"]').check();
+  await fullGo(page).click();
+  const values = await readFull(page);
+  expect(values).toHaveLength(6);
+  expect(new Set(values).size).toBe(6);
+  const numbers = values.map(Number);
+  expect([...numbers].sort((a, b) => a - b)).toEqual(numbers);
+  for (const n of numbers) {
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect(n).toBeLessThanOrEqual(49);
+  }
+});
+
+test('refuses to draw more distinct values than the range holds', async ({ page }) => {
+  await setFull(page, { type: 'integer', lower: '1', upper: '5', count: '20' });
+  await full(page).locator('[name="allowDuplicates"]').uncheck();
+  await fullGo(page).click();
+  await expect(fullShell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(full(page).locator('[data-error-for="count"]')).toContainText('distinct');
+
+  // With duplicates allowed the same request is fine.
+  await full(page).locator('[name="allowDuplicates"]').check();
+  await fullGo(page).click();
+  await expect(fullShell(page)).toHaveAttribute('data-result-state', 'valid');
+  expect(await readFull(page)).toHaveLength(20);
+});
+
+test('holds the count and the precision to what the page promises', async ({ page }) => {
+  await setFull(page, { count: '0' });
+  await fullGo(page).click();
+  await expect(full(page).locator('[data-error-for="count"]')).toBeVisible();
+
+  await setFull(page, { count: '1', precision: '1000' });
+  await fullGo(page).click();
+  await expect(full(page).locator('[data-error-for="precision"]')).toHaveText('Enter between 0 and 999 digits.');
+});
+
+test('never renders NaN, Infinity or a raw error', async ({ page }) => {
+  await setFull(page, { type: 'integer', lower: '-10', upper: '10', count: '20' });
+  await fullGo(page).click();
+  await expect(fullShell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(fullShell(page)).not.toContainText(/NaN|Infinity|undefined/);
+});
+
+test('Clear restores the defaults and empties the output', async ({ page }) => {
+  await setFull(page, { type: 'integer', lower: '5', upper: '9', count: '3' });
+  await fullGo(page).click();
+  await full(page).locator('[data-reset]').click();
+  await expect(fullShell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(fullOut(page)).toHaveValue('');
+  await expect(full(page).locator('[name="lower"]')).toHaveValue('0.2');
+  await expect(full(page).locator('[name="count"]')).toHaveValue('1');
+  await expect(full(page).locator('input[name="type"][value="decimal"]')).toBeChecked();
+});
+
+/* ---- Security: the draw stays in the browser ----------------------------- */
+
+test('the announcement says numbers were generated, never what they are', async ({ page }) => {
+  await setFull(page, { type: 'integer', lower: '100000', upper: '999999', count: '5' });
+  await fullGo(page).click();
+  const live = page.locator('#rng-full-live');
+  await expect(live).toHaveText('5 numbers generated.');
+  for (const value of await readFull(page)) {
+    expect(await live.textContent()).not.toContain(value);
+  }
+});
+
+test('nothing generated reaches storage, the URL, the network or the console', async ({ page }) => {
+  const requests: string[] = [];
+  const logs: string[] = [];
+  page.on('request', (r) => requests.push(`${r.url()} ${r.postData() ?? ''}`));
+  page.on('console', (m) => logs.push(m.text()));
+  await page.goto(ROUTE, { waitUntil: 'networkidle' });
+
+  await simple(page).locator('[name="lower"]').fill('1000000000');
+  await simple(page).locator('[name="upper"]').fill('9999999999');
+  await simpleGo(page).click();
+  const value = await readSimple(page);
+  expect(value.length).toBeGreaterThan(0);
+
+  const storage = await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage));
+  expect(storage).not.toContain(value);
+  expect(page.url()).not.toContain(value);
+  expect(requests.some((r) => r.includes(value))).toBe(false);
+  expect(logs.some((l) => l.includes(value))).toBe(false);
+});
+
+test('the server never bakes a number into the page', async ({ page }) => {
+  const html = await (await page.request.get(ROUTE)).text();
+  const outputs = [...html.matchAll(/data-generator-output[^>]*>([\s\S]*?)<\/textarea>/g)];
+  expect(outputs.length).toBe(2); // both generators are present in the server HTML
+  for (const [, contents] of outputs) expect(contents.trim()).toBe('');
+});
+
+/* ---- Workspace / responsive ---------------------------------------------- */
+
+test('desktop first viewport shows H1, the settings and the action', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(simpleGo(page)).toBeInViewport();
+});
+
+test('mobile stacks settings then output, with no horizontal overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  const settingsY = (await simple(page).locator('[name="lower"]').boundingBox())!.y;
+  const buttonY = (await simpleGo(page).boundingBox())!.y;
+  const outputY = (await simpleShell(page).boundingBox())!.y;
+  expect(buttonY).toBeGreaterThan(settingsY);
+  expect(outputY).toBeGreaterThan(buttonY);
+  await fullGo(page).click();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test('each generator has exactly one live region', async ({ page }) => {
+  // Scoped to the tool column, as triangle and statistics already do: the side
+  // rail's search combobox has its own status region, which is that widget's,
+  // not a calculator's.
+  await expect(page.locator('.tool-shell__core [aria-live]')).toHaveCount(2);
+});
+
+test('the live page carries no monetization output', async ({ page }) => {
+  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
+  expect(await page.content()).not.toContain('data-mon-');
 });

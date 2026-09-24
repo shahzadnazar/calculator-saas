@@ -35,3 +35,53 @@ export function calculateHours(
     decimalHours: Math.round((total / 60) * 100) / 100,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Hours between two dates                                             */
+/* ------------------------------------------------------------------ */
+
+export interface InstantSpan {
+  /** Absolute minutes between the two instants. */
+  totalMinutes: number;
+  /** Which way round the pair was given — never used to swap the figures. */
+  direction: 'after' | 'before' | 'same';
+  /** The same span as whole hours plus the leftover minutes. */
+  hours: number;
+  minutes: number;
+  /** And again as days plus the leftover hours and minutes, for spans over a day. */
+  days: number;
+  hoursOfDay: number;
+  decimalHours: number;
+}
+
+/**
+ * The span between two instants given as whole minutes since an epoch.
+ *
+ * Order-independent: a reversed pair is a valid span whose direction is reported rather than
+ * silently swapped, the same contract the date calculator uses. Minutes rather than milliseconds
+ * because the inputs are wall-clock times to the minute, and it keeps every figure an integer.
+ */
+export function spanBetweenInstants(startMin: number, endMin: number): InstantSpan {
+  if (!Number.isFinite(startMin) || !Number.isFinite(endMin)) {
+    return {
+      totalMinutes: Number.NaN,
+      direction: 'same',
+      hours: Number.NaN,
+      minutes: Number.NaN,
+      days: Number.NaN,
+      hoursOfDay: Number.NaN,
+      decimalHours: Number.NaN,
+    };
+  }
+  const diff = Math.round(endMin) - Math.round(startMin);
+  const totalMinutes = Math.abs(diff);
+  return {
+    totalMinutes,
+    direction: diff === 0 ? 'same' : diff > 0 ? 'after' : 'before',
+    hours: Math.floor(totalMinutes / 60),
+    minutes: totalMinutes % 60,
+    days: Math.floor(totalMinutes / (24 * 60)),
+    hoursOfDay: Math.floor((totalMinutes % (24 * 60)) / 60),
+    decimalHours: Math.round((totalMinutes / 60) * 100) / 100,
+  };
+}

@@ -9,12 +9,12 @@
 
 .calc-shell {
   width: 100%;
-  max-width: 30rem;
+  max-width: 44rem;
   margin-inline: auto;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 1rem;
-  padding: 0.9rem;
+  padding: 0.4rem;
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 12px 32px -20px rgb(15 23 42 / 0.28);
 }
 
@@ -25,9 +25,14 @@
   justify-content: space-between;
   gap: 0.5rem;
   min-height: 2.25rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.45rem;
 }
-.calc-angle.is-hidden { visibility: hidden; } /* reserve space → no layout shift */
+
+.calc-angle.is-hidden {
+  visibility: hidden;
+}
+
+/* reserve space → no layout shift */
 
 /* Segmented control (generalized `.unit-btn`/`.mode-btn`). */
 .seg {
@@ -38,6 +43,7 @@
   border: 1px solid var(--line);
   border-radius: 0.6rem;
 }
+
 .seg-btn {
   border: 0;
   background: transparent;
@@ -45,11 +51,13 @@
   font-weight: 600;
   font-size: 0.85rem;
   padding: 0.4rem 0.85rem;
-  min-height: 2rem;
+  /* Deg/Rad is a tap target, not a caption. */
+  min-height: 2.75rem;
   border-radius: 0.45rem;
   cursor: pointer;
   transition: background-color 0.12s ease, color 0.12s ease;
 }
+
 .seg-btn.is-active {
   background: var(--card);
   color: var(--heading);
@@ -61,14 +69,16 @@
   background: var(--subtle);
   border: 1px solid var(--line);
   border-radius: 0.75rem;
-  padding: 0.7rem 1rem 0.75rem;
-  margin-bottom: 0.75rem;
+  padding: 0.4rem 0.45rem 0.45rem;
+  margin-bottom: 0.45rem;
 }
+
 .calc-display-top {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
+
 .calc-sub {
   flex: 1;
   min-width: 0;
@@ -80,26 +90,34 @@
   overflow-x: auto;
   white-space: nowrap;
 }
+
 .calc-back {
   flex: none;
   display: grid;
   place-items: center;
   width: 2.75rem;
-  height: 2.75rem; /* ≥44px target, keyboard-accessible */
+  height: 2.75rem;
+  /* ≥44px target, keyboard-accessible */
   border: 0;
   background: transparent;
   color: var(--muted);
   border-radius: 0.5rem;
   cursor: pointer;
-  opacity: 0.6; /* restrained: no filled box, does not compete with the result */
+  opacity: 0.6;
+  /* restrained: no filled box, does not compete with the result */
   transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
 }
+
 .calc-back:hover {
   opacity: 1;
   color: var(--heading);
   background: color-mix(in srgb, var(--muted) 12%, transparent);
 }
-.calc-back:focus-visible { opacity: 1; }
+
+.calc-back:focus-visible {
+  opacity: 1;
+}
+
 .calc-main {
   text-align: right;
   color: var(--heading);
@@ -110,37 +128,61 @@
   overflow-x: auto;
   white-space: nowrap;
 }
+
 .calc-display[data-display-state='error'] .calc-main {
   color: var(--color-danger);
   font-size: 1.15rem;
   font-weight: 600;
 }
 
+.calc-keypads:has(.sci-panel:not([hidden])) {
+  grid-template-columns: 5fr 4fr;
+}
+
 /* Keypads. Basic renders in both modes; the Scientific panel sits above it. */
-.calc-keypads > [hidden] { display: none; }
+.calc-keypads {
+  display: grid;
+  gap: 0.5rem;
+  align-items: start;
+}
+
 .sci-panel {
   --sci-gap: 0.4rem;
-  margin-bottom: 0.6rem;
-  padding-bottom: 0.65rem;
-  border-bottom: 1px solid var(--line); /* subtle divider from the Basic keypad */
+  min-width: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
-.keypad { display: grid; gap: 0.5rem; }
-.keypad--basic { grid-template-columns: repeat(4, 1fr); }
-.keypad--sci-fn { grid-template-columns: repeat(5, 1fr); gap: var(--sci-gap); }
-/* Final control row (mod, Ans, EXP, 1/x) centered; keys match one grid cell. */
+
+.keypad {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.keypad--basic {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.keypad--sci-fn {
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--sci-gap);
+}
+
 .keypad--sci-fn-final {
   display: flex;
   justify-content: center;
   gap: var(--sci-gap);
   margin-top: var(--sci-gap);
 }
+
 .keypad--sci-fn-final .calc-key {
   flex: 0 0 calc((100% - 4 * var(--sci-gap)) / 5);
 }
 
 .calc-key {
-  min-height: 3rem;
-  min-width: 44px; /* accessible target */
+  min-height: 2.75rem;
+  min-width: 44px;
+  /* accessible target */
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
@@ -152,52 +194,119 @@
   cursor: pointer;
   transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
 }
-.calc-key:hover { border-color: var(--color-brand-300); }
-.calc-key:active { transform: translateY(1px); }
+
+.calc-key:hover {
+  border-color: var(--color-brand-300);
+}
+
+.calc-key:active {
+  transform: translateY(1px);
+}
 
 /* Semantic colors. */
-.calc-key--util { /* ± and % — neutral utility, NOT green */
+.calc-key--util {
+  /* ± and % — neutral utility, NOT green */
   background: var(--subtle);
   color: var(--heading);
 }
-.calc-key--op { /* operators — blue-tinted */
+
+.calc-key--op {
+  /* operators — blue-tinted */
   color: var(--color-brand-700);
   background: color-mix(in srgb, var(--color-brand-500) 10%, var(--card));
 }
-.calc-key--danger { color: var(--color-danger); font-weight: 700; } /* AC */
-.calc-key--primary { /* equals — solid primary blue */
+
+.calc-key--danger {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* AC */
+.calc-key--primary {
+  /* equals — solid primary blue */
   background: var(--color-brand-600);
   color: #fff;
   border-color: transparent;
   box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.16);
 }
-.calc-key--primary:hover { background: var(--color-brand-700); border-color: transparent; }
-.calc-key--fn { /* scientific functions */
+
+.calc-key--primary:hover {
+  background: var(--color-brand-700);
+  border-color: transparent;
+}
+
+.calc-key--fn {
+  /* scientific functions */
   background: var(--subtle);
   color: var(--fg);
   font-size: 0.9rem;
   font-weight: 600;
 }
+
 .keypad--sci-fn .calc-key,
-.keypad--sci-fn-final .calc-key { min-height: 2.7rem; }
+.keypad--sci-fn-final .calc-key {
+  /* 2.7rem came to 43px — one pixel under the target floor .calc-key sets. */
+  min-height: 2.75rem;
+}
 
 /* Compact (homepage) variant — ~8–12% shorter, targets stay ≥44px. */
-.calc-shell[data-size='compact'] { padding: 0.7rem; }
-.calc-shell[data-size='compact'] .calc-top { min-height: 2rem; margin-bottom: 0.55rem; }
-.calc-shell[data-size='compact'] .calc-display { padding: 0.55rem 0.85rem 0.6rem; margin-bottom: 0.55rem; }
-.calc-shell[data-size='compact'] .keypad { gap: 0.4rem; }
-.calc-shell[data-size='compact'] .calc-key { min-height: 2.75rem; } /* 44px */
-.calc-shell[data-size='compact'] .calc-main { font-size: 1.85rem; }
+.calc-shell[data-size='compact'] {
+  padding: 0.7rem;
+}
+
+.calc-shell[data-size='compact'] .calc-top {
+  min-height: 2rem;
+  margin-bottom: 0.55rem;
+}
+
+.calc-shell[data-size='compact'] .calc-display {
+  padding: 0.55rem 0.85rem 0.6rem;
+  margin-bottom: 0.55rem;
+}
+
+.calc-shell[data-size='compact'] .keypad {
+  gap: 0.4rem;
+}
+
+.calc-shell[data-size='compact'] .calc-key {
+  min-height: 2.75rem;
+}
+
+/* 44px */
+.calc-shell[data-size='compact'] .calc-main {
+  font-size: 1.85rem;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .calc-key, .calc-back, .seg-btn { transition: none; }
+
+  .calc-key,
+  .calc-back,
+  .seg-btn {
+    transition: none;
+  }
 }
 
 @media (max-width: 480px) {
-  .calc-shell { max-width: 100%; padding: 0.75rem; }
-  .calc-main { font-size: 1.75rem; }
-  .calc-key { min-height: 3.1rem; }
-  .sci-panel { --sci-gap: 0.3rem; }
+  .calc-shell {
+    max-width: 100%;
+    padding: 0.75rem;
+  }
+
+  .calc-main {
+    font-size: 1.75rem;
+  }
+
+  .calc-key {
+    min-height: 3.1rem;
+  }
+
+  .sci-panel {
+    --sci-gap: 0.3rem;
+  }
+
   .keypad--sci-fn .calc-key,
-  .keypad--sci-fn-final .calc-key { min-height: 2.7rem; font-size: 0.82rem; }
+  .keypad--sci-fn-final .calc-key {
+    min-height: 2.75rem;
+    font-size: 0.82rem;
+  }
 }

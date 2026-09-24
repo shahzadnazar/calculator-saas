@@ -55,7 +55,7 @@ test.describe('conversion: task-first', () => {
     expect(server.dominant).toBe('—'); // no baked-in conversion
     expect(server.category).toBe('length');
     expect(server.value).toBe('1'); // the neutral converter value
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -63,10 +63,12 @@ test.describe('conversion: task-first', () => {
   test('loads with value 1, default units, empty result and no announcement', async ({ page }) => {
     await expect(page.locator('[name="category"]')).toHaveValue('length');
     await expect(page.locator('[name="value"]')).toHaveValue('1');
-    await expect(page.locator('[name="from"]')).toHaveValue('mm');
-    await expect(page.locator('[name="to"]')).toHaveValue('cm');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    // The pair people come for, not the first two units listed.
+    await expect(page.locator('[name="from"]')).toHaveValue('m');
+    await expect(page.locator('[name="to"]')).toHaveValue('ft');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -81,10 +83,10 @@ test.describe('conversion: task-first', () => {
 
   test('changing category rebuilds the From/To unit options', async ({ page }) => {
     await page.locator('[name="category"]').selectOption('mass');
-    await expect(page.locator('[name="from"]')).toHaveValue('mg'); // deterministic default units[0]
-    await expect(page.locator('[name="to"]')).toHaveValue('g'); // units[1]
+    await expect(page.locator('[name="from"]')).toHaveValue('kg'); // the category's own default pair
+    await expect(page.locator('[name="to"]')).toHaveValue('lb');
     const fromOpts = await page.locator('[name="from"] option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-    expect(fromOpts).toEqual(['mg', 'g', 'kg', 't', 'oz', 'lb', 'st']); // only mass units
+    expect(fromOpts).toEqual(['mg', 'g', 'kg', 't', 'oz', 'lb', 'st', 'ton_us', 'ton_uk']); // only mass units
   });
 
   /* ---- conversions (independent fixtures) ---- */
@@ -92,15 +94,15 @@ test.describe('conversion: task-first', () => {
   test('length: 1 km → mi (dominant value, unit caption, equation, announcement)', async ({ page }) => {
     await doConvert(page, { value: '1', from: 'km', to: 'mi' });
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(dominant(page)).toHaveText('0.621371');
+    await expect(dominant(page)).toHaveText('0.6213711922');
     await expect(unit(page)).toHaveText('Miles');
-    await expect(equation(page)).toHaveText('1 Kilometres = 0.621371 Miles');
-    await expect(live(page)).toHaveText('Converted value: 0.621371 Miles.');
+    await expect(equation(page)).toHaveText('1 Kilometres = 0.6213711922 Miles');
+    await expect(live(page)).toHaveText('Converted value: 0.6213711922 Miles.');
   });
 
   test('mass: 1 kg → lb', async ({ page }) => {
     await doConvert(page, { category: 'mass', value: '1', from: 'kg', to: 'lb' });
-    await expect(dominant(page)).toHaveText('2.204624');
+    await expect(dominant(page)).toHaveText('2.204622622');
     await expect(unit(page)).toHaveText('Pounds');
   });
 
@@ -118,7 +120,7 @@ test.describe('conversion: task-first', () => {
 
   test('a positive decimal converts proportionally (2.5 kg → lb)', async ({ page }) => {
     await doConvert(page, { category: 'mass', value: '2.5', from: 'kg', to: 'lb' });
-    await expect(dominant(page)).toHaveText('5.511561');
+    await expect(dominant(page)).toHaveText('5.511556555');
   });
 
   /* ---- special affine category: temperature ---- */
@@ -159,13 +161,13 @@ test.describe('conversion: task-first', () => {
     await expect(dominant(page)).toHaveText('1,000');
   });
 
-  test('after the first result, changing category recomputes with the preserved value (1 mg → g = 0.001)', async ({ page }) => {
+  test('after the first result, changing category recomputes with the preserved value (1 kg → lb)', async ({ page }) => {
     await doConvert(page, { value: '1', from: 'km', to: 'mi' });
-    await page.locator('[name="category"]').selectOption('mass'); // fillUnits → mg → g; value 1 preserved
+    await page.locator('[name="category"]').selectOption('mass'); // fillUnits → kg → lb; value 1 preserved
     await page.waitForTimeout(DEBOUNCE);
     await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(dominant(page)).toHaveText('0.001');
-    await expect(unit(page)).toHaveText('Grams');
+    await expect(dominant(page)).toHaveText('2.204622622');
+    await expect(unit(page)).toHaveText('Pounds');
   });
 
   /* ---- reset ---- */
@@ -176,8 +178,9 @@ test.describe('conversion: task-first', () => {
     await page.locator('[data-reset]').click();
     await expect(page.locator('[name="category"]')).toHaveValue('length');
     await expect(page.locator('[name="value"]')).toHaveValue('1');
-    await expect(page.locator('[name="from"]')).toHaveValue('mm');
-    await expect(page.locator('[name="to"]')).toHaveValue('cm');
+    // The pair people come for, not the first two units listed.
+    await expect(page.locator('[name="from"]')).toHaveValue('m');
+    await expect(page.locator('[name="to"]')).toHaveValue('ft');
     await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
     await expect(live(page)).toHaveText('');
   });
@@ -220,9 +223,9 @@ test.describe('conversion: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, then a conversion)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
     await doConvert(page, { value: '1', from: 'km', to: 'mi' });
-    await expect(dominant(page)).toHaveText('0.621371');
+    await expect(dominant(page)).toHaveText('0.6213711922');
   });
 
   test('the live page carries no monetization output', async ({ page }) => {
@@ -293,10 +296,71 @@ test.describe('conversion: same-document instance isolation', () => {
       await A('button[type="submit"]').click();
     };
     await convertA();
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('0.621371');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('0.6213711922');
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await A('[data-reset]').click();
     await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
+  });
+});
+
+test.describe('conversion: the whole category at once', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  });
+
+  test('lists every unit of the category beneath the answer', async ({ page }) => {
+    await doConvert(page, { category: 'volume', value: '1', from: 'cup', to: 'ml' });
+    const rows = page.locator('[data-cv-all] .cv-row');
+    // Volume carries the US set and the imperial set.
+    await expect(rows).toHaveCount(14);
+    await expect(rows.filter({ hasText: 'Tablespoons' })).toContainText('16');
+    await expect(rows.filter({ hasText: 'Teaspoons' })).toContainText('48');
+  });
+
+  test('marks the unit asked for so the headline answer can be found in the list', async ({ page }) => {
+    await doConvert(page, { category: 'length', value: '1', from: 'm', to: 'ft' });
+    const target = page.locator('[data-cv-all] .cv-row--target');
+    await expect(target).toHaveCount(1);
+    await expect(target).toContainText('Feet');
+    await expect(target).toContainText('3.280839895');
+  });
+
+  test('names the category it is listing', async ({ page }) => {
+    await doConvert(page, { category: 'mass', value: '1', from: 'kg', to: 'lb' });
+    await expect(page.locator('[data-cv-category]')).toHaveText('weight / mass');
+  });
+
+  test('keeps a tiny conversion readable instead of showing zero', async ({ page }) => {
+    await doConvert(page, { category: 'data', value: '1', from: 'B', to: 'GB' });
+    await expect(dominant(page)).toHaveText('0.000000001');
+  });
+
+  test('answers the definitional identities exactly', async ({ page }) => {
+    for (const [category, value, from, to, want] of [
+      ['volume', '1', 'cup', 'tbsp', '16'],
+      ['volume', '1', 'gal', 'floz', '128'],
+      ['mass', '1', 'st', 'lb', '14'],
+      ['area', '1', 'ac', 'ft2', '43,560'],
+      ['data', '1', 'TiB', 'B', '1,099,511,627,776'],
+    ] as const) {
+      await doConvert(page, { category, value, from, to });
+      await expect(dominant(page)).toHaveText(want);
+    }
+  });
+
+  test('the swap button exchanges the two units', async ({ page }) => {
+    await doConvert(page, { category: 'length', value: '1', from: 'km', to: 'mi' });
+    await page.locator('[data-cv-swap]').click();
+    await expect(page.locator('[name="from"]')).toHaveValue('mi');
+    await expect(page.locator('[name="to"]')).toHaveValue('km');
+    await expect(dominant(page)).toHaveText('1.609344');
+  });
+
+  test('offers the imperial volumes a British visitor needs', async ({ page }) => {
+    await doConvert(page, { category: 'volume', value: '1', from: 'pt_uk', to: 'ml' });
+    await expect(dominant(page)).toHaveText('568.26125');
+    await doConvert(page, { category: 'volume', value: '1', from: 'pt', to: 'ml' });
+    await expect(dominant(page)).toHaveText('473.176473');
   });
 });

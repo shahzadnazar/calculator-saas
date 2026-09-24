@@ -1,357 +1,683 @@
 ---
 /**
- * Calorie / TDEE calculator island (R7C-2B — standard-form wave, calculator #4).
+ * Calorie island — the reference's fields, its "+ Settings" disclosure and its guideline
+ * report, on the UNCHANGED standard-form runtime.
  *
- * Task-first, direct-intent: personal fields start EMPTY, the result is empty (an
- * instruction, no sample calories), and the visitor presses "Calculate Calorie
- * Needs" for the first result. Live-after-first afterwards. All interaction,
- * validation, state, announcement and focus are owned by the shared runtime
- * (UNCHANGED); this island is markup + the calorie binding
- * (@lib/calculators/calorie-form).
+ * Three tabs, two of which are unit systems; "Other Units" opens the shared five-category
+ * `UnitConverterPanel` above the calculator and leaves the selected system alone.
  *
- * Sex is a native fieldset/legend radio group; Metric/Imperial is the runtime's
- * `[data-unit]` selector; Activity and Goal are structural `<select>`s that feed
- * live-after-first like any field. The PRIMARY result is the SELECTED goal's daily
- * target (a value the reviewed `calculateCalories` already returns — no new
- * number); Maintenance (TDEE) and BMR are accurately-labelled secondary
- * references, and the full goal set is an accessible comparison with the selected
- * goal highlighted + named.
+ * The result is not one number. It is a guideline table: maintain weight at 100%, three
+ * rates of loss below it, and — behind a disclosure, because fewer people want it — three
+ * rates of gain above. Each row carries its calories, its rate in the visitor's own units,
+ * and its share of maintenance. Under that sit two zigzag weeks that average to the same
+ * weekly total.
+ *
+ * The doctor warning is shown ONLY when the extreme rate actually falls below the minimum,
+ * because a warning that is always on stops being read.
  */
-import { ACTIVITY_LEVELS, CALORIE_GOALS, DEFAULT_ACTIVITY, DEFAULT_GOAL_KEY } from '@lib/calculators/calorie-form';
+import {
+  ACTIVITY_BANDS,
+  ACTIVITY_BAND_NOTES,
+  DEFAULT_ACTIVITY,
+  BMR_FORMULAS,
+  BMR_AGE_MIN,
+  BMR_AGE_MAX,
+} from '@lib/calculators/calorie-form';
+import { CALORIE_GOAL_ROWS, WEEKDAYS, zigzagSchedules } from '@lib/calculators/calorie';
+import UnitConverterPanel from '@components/calc/UnitConverterPanel.astro';
 import ResultShell from '@components/result/ResultShell.astro';
-import ResultSummary from '@components/result/ResultSummary.astro';
-import ResultValue from '@components/result/ResultValue.astro';
-import ResultInterpretation from '@components/result/ResultInterpretation.astro';
 import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+
+const UNIT_TABS = [
+  { value: 'imperial', label: 'US Units' },
+  { value: 'metric', label: 'Metric Units' },
+];
+
+const LOSS_ROWS = CALORIE_GOAL_ROWS.filter((r) => r.direction !== 'gain');
+const GAIN_ROWS = CALORIE_GOAL_ROWS.filter((r) => r.direction === 'gain');
+/** Titles only — the numbers are filled at runtime by the binding. */
+const ZIGZAG = zigzagSchedules(0).map((s) => ({ key: s.key, title: s.title }));
 ---
 
-<div class="calorie mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-calorie>
-  <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Calorie calculator">
-    <div class="flex flex-wrap gap-3">
-      <fieldset class="seg-group">
-        <legend class="sr-only">Sex</legend>
-        <label class="seg"><input type="radio" name="sex" value="male" checked /><span>Male</span></label>
-        <label class="seg"><input type="radio" name="sex" value="female" /><span>Female</span></label>
-      </fieldset>
-      <div class="inline-flex rounded-lg border p-0.5" role="radiogroup" aria-label="Unit system" style="border-color: var(--line)">
-        <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
-        <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial (US)</button>
-      </div>
-    </div>
+<div class="calwrap mx-auto w-full max-w-4xl" data-calorie>
+  <UnitConverterPanel id="cal-converter" />
 
-    <div class="mt-5 space-y-4">
-      <div data-field="age">
-        <label class="field-label" for="cal-age">Age</label>
-        <div class="flex">
-          <input class="field rounded-r-none" id="cal-age" name="age" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="cal-age-error" />
-          <span class="field-affix rounded-r-lg border-l-0">years</span>
-        </div>
-        <p class="cal-field-error" id="cal-age-error" data-error-for="age" hidden></p>
-      </div>
-
-      <!-- Metric -->
-      <div class="grid gap-4 sm:grid-cols-2" data-group="metric">
-        <div data-field="heightCm">
-          <label class="field-label" for="cal-height-cm">Height</label>
-          <div class="flex">
-            <input class="field rounded-r-none" id="cal-height-cm" name="heightCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 180" aria-describedby="cal-heightCm-error" />
-            <span class="field-affix rounded-r-lg border-l-0">cm</span>
+  <div class="calcalc grid gap-6 md:grid-cols-2 md:items-start">
+    <!-- Inputs -->
+    <div>
+      <form class="card p-4" data-form novalidate aria-label="Calorie calculator">
+        <div class="cal-tabs">
+          <div class="cal-tabs__systems" role="radiogroup" aria-label="Unit system">
+            {UNIT_TABS.map((t, i) => (
+              <button type="button" class:list={['cal-tab', i === 0 && 'is-active']} data-unit={t.value} role="radio" aria-checked={i === 0 ? 'true' : 'false'}>
+                {t.label}
+              </button>
+            ))}
           </div>
-          <p class="cal-field-error" id="cal-heightCm-error" data-error-for="heightCm" hidden></p>
+          <button type="button" class="cal-tab cal-tab--toggle" data-converter-toggle aria-expanded="false" aria-controls="cal-converter">
+            Other Units
+          </button>
         </div>
-        <div data-field="weightKg">
-          <label class="field-label" for="cal-weight-kg">Weight</label>
-          <div class="flex">
-            <input class="field rounded-r-none" id="cal-weight-kg" name="weightKg" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 80" aria-describedby="cal-weightKg-error" />
-            <span class="field-affix rounded-r-lg border-l-0">kg</span>
-          </div>
-          <p class="cal-field-error" id="cal-weightKg-error" data-error-for="weightKg" hidden></p>
-        </div>
-      </div>
 
-      <!-- Imperial -->
-      <div class="space-y-4" data-group="imperial" hidden>
-        <div data-field="height">
-          <label class="field-label" for="cal-height-ft">Height</label>
-          <div class="grid grid-cols-2 gap-3">
-            <div class="flex">
-              <input class="field rounded-r-none" id="cal-height-ft" name="heightFt" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="5" aria-label="Height, feet" aria-describedby="cal-height-error" />
-              <span class="field-affix rounded-r-lg border-l-0">ft</span>
-            </div>
-            <div class="flex">
-              <input class="field rounded-r-none" id="cal-height-in" name="heightIn" type="number" min="0" max="11" step="1" inputmode="numeric" autocomplete="off" placeholder="11" aria-label="Height, inches" aria-describedby="cal-height-error" />
-              <span class="field-affix rounded-r-lg border-l-0">in</span>
+        <div class="cal-row" data-field="age">
+          <label class="field-label cal-row__label" for="cal-age">Age</label>
+          <div class="cal-inputs">
+            <input class="field cal-input" id="cal-age" name="age" type="number" min={BMR_AGE_MIN} max={BMR_AGE_MAX} step="1" inputmode="numeric" autocomplete="off" placeholder="25" aria-describedby="cal-age-error" />
+            <span class="cal-hint">ages {BMR_AGE_MIN} - {BMR_AGE_MAX}</span>
+          </div>
+        </div>
+        <p class="cal-error" id="cal-age-error" data-error-for="age" hidden></p>
+
+        <fieldset class="cal-row cal-row--radios" data-field="sex">
+          <legend class="field-label cal-row__label">Gender</legend>
+          <div class="cal-radios">
+            <label class="cal-radio"><input type="radio" name="sex" value="male" checked /><span>male</span></label>
+            <label class="cal-radio"><input type="radio" name="sex" value="female" /><span>female</span></label>
+          </div>
+        </fieldset>
+
+        <!-- US height + weight -->
+        <div data-group="imperial">
+          <div class="cal-row" data-field="height">
+            <label class="field-label cal-row__label" for="cal-ft">Height</label>
+            <div class="cal-inputs">
+              <div class="cal-pair">
+                <input class="field cal-input" id="cal-ft" name="heightFt" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="5" aria-label="Height, feet" aria-describedby="cal-height-error" />
+                <span class="cal-unit">feet</span>
+              </div>
+              <div class="cal-pair">
+                <input class="field cal-input" id="cal-in" name="heightIn" type="number" min="0" max="11" step="1" inputmode="numeric" autocomplete="off" placeholder="10" aria-label="Height, inches" aria-describedby="cal-height-error" />
+                <span class="cal-unit">inches</span>
+              </div>
             </div>
           </div>
-          <p class="cal-field-error" id="cal-height-error" data-error-for="height" hidden></p>
-        </div>
-        <div data-field="weightLb">
-          <label class="field-label" for="cal-weight-lb">Weight</label>
-          <div class="flex">
-            <input class="field rounded-r-none" id="cal-weight-lb" name="weightLb" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 176" aria-describedby="cal-weightLb-error" />
-            <span class="field-affix rounded-r-lg border-l-0">lb</span>
-          </div>
-          <p class="cal-field-error" id="cal-weightLb-error" data-error-for="weightLb" hidden></p>
-        </div>
-      </div>
+          <p class="cal-error" id="cal-height-error" data-error-for="height" hidden></p>
 
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label class="field-label" for="cal-activity">Activity level</label>
-          <select class="field" id="cal-activity" name="activity">
-            {ACTIVITY_LEVELS.map((a) => (
-              <option value={a.value} selected={a.value === DEFAULT_ACTIVITY}>{a.label}</option>
+          <div class="cal-row" data-field="weightLb">
+            <label class="field-label cal-row__label" for="cal-lb">Weight</label>
+            <div class="cal-inputs">
+              <div class="cal-pair">
+                <input class="field cal-input cal-input--wide" id="cal-lb" name="weightLb" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="165" aria-describedby="cal-weightLb-error" />
+                <span class="cal-unit">pounds</span>
+              </div>
+            </div>
+          </div>
+          <p class="cal-error" id="cal-weightLb-error" data-error-for="weightLb" hidden></p>
+        </div>
+
+        <!-- Metric height + weight -->
+        <div data-group="metric" hidden>
+          <div class="cal-row" data-field="heightCm">
+            <label class="field-label cal-row__label" for="cal-cm">Height</label>
+            <div class="cal-inputs">
+              <div class="cal-pair">
+                <input class="field cal-input cal-input--wide" id="cal-cm" name="heightCm" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="180" aria-describedby="cal-heightCm-error" />
+                <span class="cal-unit">cm</span>
+              </div>
+            </div>
+          </div>
+          <p class="cal-error" id="cal-heightCm-error" data-error-for="heightCm" hidden></p>
+
+          <div class="cal-row" data-field="weightKg">
+            <label class="field-label cal-row__label" for="cal-kg">Weight</label>
+            <div class="cal-inputs">
+              <div class="cal-pair">
+                <input class="field cal-input cal-input--wide" id="cal-kg" name="weightKg" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="65" aria-describedby="cal-weightKg-error" />
+                <span class="cal-unit">kg</span>
+              </div>
+            </div>
+          </div>
+          <p class="cal-error" id="cal-weightKg-error" data-error-for="weightKg" hidden></p>
+        </div>
+
+        <div class="cal-row cal-row--activity" data-field="activity">
+          <label class="field-label cal-row__label" for="cal-activity">Activity</label>
+          <select class="field cal-select" id="cal-activity" name="activity" aria-describedby="cal-activity-error">
+            {ACTIVITY_BANDS.map((b) => (
+              <option value={b.value} selected={b.value === DEFAULT_ACTIVITY}>{b.selectLabel}</option>
             ))}
           </select>
         </div>
-        <div>
-          <label class="field-label" for="cal-goal">Goal</label>
-          <select class="field" id="cal-goal" name="goalKey">
-            {CALORIE_GOALS.map((g) => (
-              <option value={g.key} selected={g.key === DEFAULT_GOAL_KEY}>{g.label}</option>
-            ))}
-          </select>
+        <p class="cal-error" id="cal-activity-error" data-error-for="activity" hidden></p>
+
+        <button type="button" class="cal-settings-toggle" data-settings-toggle aria-expanded="false" aria-controls="cal-settings">
+          <span class="cal-settings-toggle__sign" aria-hidden="true">+</span> Settings
+        </button>
+
+        <div class="cal-settings" id="cal-settings" data-settings hidden>
+          <fieldset class="cal-set" data-field="formula">
+            <legend class="cal-set__legend">BMR estimation formula</legend>
+            <div class="cal-set__options">
+              {BMR_FORMULAS.map((f, i) => (
+                <label class="cal-radio"><input type="radio" name="formula" value={f.value} checked={i === 0} /><span>{f.label}</span></label>
+              ))}
+            </div>
+          </fieldset>
+
+          <div class="cal-set" data-field="bodyFatPct" data-bodyfat hidden>
+            <label class="cal-set__legend" for="cal-bf">Body fat percentage</label>
+            <div class="cal-inputs">
+              <div class="cal-pair">
+                <input class="field cal-input" id="cal-bf" name="bodyFatPct" type="number" min="0" max="99.9" step="0.1" inputmode="decimal" autocomplete="off" placeholder="20" aria-describedby="cal-bodyFatPct-error" />
+                <span class="cal-unit">%</span>
+              </div>
+              <span class="cal-hint">Katch-McArdle works from lean mass</span>
+            </div>
+            <p class="cal-error" id="cal-bodyFatPct-error" data-error-for="bodyFatPct" hidden></p>
+          </div>
         </div>
-      </div>
+
+        <div class="mt-5 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary">Calculate</button>
+          <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+        </div>
+        <p class="cal-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ul class="cal-notes">
+        {ACTIVITY_BAND_NOTES.map((n) => <li>{n}</li>)}
+      </ul>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Calorie Needs</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
-    </div>
-    <p class="cal-live-note" data-live-note hidden>Changes update automatically.</p>
-  </form>
+    <!-- Result -->
+    <ResultShell
+      id="cal-result"
+      state="empty"
+      density="standard"
+      label="Your daily calorie result"
+      minHeight="20rem"
+      placeholderAlignment="center"
+    >
+      <ExampleNotice />
+      <EmptyResult message="Enter your age, gender, height, weight and activity level, then calculate." />
 
-  <!-- Result -->
-  <ResultShell
-    id="cal-result"
-    state="empty"
-    density="standard"
-    label="Your calorie result"
-    minHeight="28rem"
-    placeholderAlignment="center"
-  >
-    <EmptyResult message="Enter your details, then calculate your estimated daily calorie needs." />
-
-    <div data-result-when="valid">
-      <ResultSummary label="Estimated daily calorie target">
-        <ResultValue value="—" unit="kcal/day" />
-      </ResultSummary>
-      <p class="cal-goal">For <strong data-cal-goal-label>—</strong></p>
-      <ResultInterpretation>
-        <span data-cal-interpretation></span>
-      </ResultInterpretation>
-
-      <dl class="cal-baseline">
-        <div><dt>Maintenance (TDEE)</dt><dd><span data-cal-maintenance>—</span> kcal/day</dd></div>
-        <div><dt>BMR (at rest)</dt><dd><span data-cal-bmr>—</span> kcal/day</dd></div>
-      </dl>
-
-      <ResultBreakdown title="Daily calories by goal">
-        <table class="cal-goals">
-          <thead>
-            <tr><th scope="col">Goal</th><th scope="col" class="cal-num">Calories/day</th></tr>
-          </thead>
-          <tbody>
-            {CALORIE_GOALS.map((g) => (
-              <tr data-cal-row={g.key}>
-                <th scope="row">{g.label}<span class="sr-only" data-cal-own></span></th>
-                <td class="cal-num"><span data-cal-goalval>—</span><span class="sr-only" data-cal-goalnote></span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p class="cal-note">
-          Mifflin-St Jeor BMR × activity (TDEE); loss/gain goals adjust it by ±250 or ±500 kcal/day. A general estimate, not medical or dietary advice.
+      <div data-result-when="valid">
+        <p class="cal-lede">
+          The results show a number of daily calorie estimates that can be used as a guideline
+          for how many calories to consume each day to maintain, lose, or gain weight.
         </p>
-      </ResultBreakdown>
-    </div>
 
-    <InvalidResult title="Check your details" message="Enter your age, height and weight to estimate your daily calorie needs." />
+        <ul class="cal-goals">
+          {LOSS_ROWS.map((row) => (
+            <li class:list={['cal-goal', row.key === 'maintain' && 'cal-goal--primary']} data-goal={row.key}>
+              <div class="cal-goal__name">
+                <span class="cal-goal__label">{row.label}</span>
+                {row.rateMetric && <span class="cal-goal__rate" data-goal-rate>{row.rateImperial}</span>}
+              </div>
+              <div class="cal-goal__figure">
+                <span class="cal-goal__calories" data-goal-calories>—</span>
+                <span class="cal-goal__percent" data-goal-percent>—</span>
+                <span class="cal-goal__unit">Calories/day</span>
+              </div>
+            </li>
+          ))}
+        </ul>
 
-    <ResultAnnouncement id="cal-live" />
-  </ResultShell>
+        <p class="cal-warning" data-minimum-warning hidden></p>
+
+        <button type="button" class="cal-gain-toggle" data-gain-toggle aria-expanded="false" aria-controls="cal-gain">
+          Show info for weight gain
+        </button>
+        <ul class="cal-goals" id="cal-gain" data-gain hidden>
+          {GAIN_ROWS.map((row) => (
+            <li class="cal-goal" data-goal={row.key}>
+              <div class="cal-goal__name">
+                <span class="cal-goal__label">{row.label}</span>
+                <span class="cal-goal__rate" data-goal-rate>{row.rateImperial}</span>
+              </div>
+              <div class="cal-goal__figure">
+                <span class="cal-goal__calories" data-goal-calories>—</span>
+                <span class="cal-goal__percent" data-goal-percent>—</span>
+                <span class="cal-goal__unit">Calories/day</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <ResultBreakdown title="Zigzag calorie cycling">
+          <p class="cal-zig-lede">
+            Eating the same amount every day is not the only way to hit a weekly target. A zigzag
+            week alternates higher and lower days around your maintenance figure, which some
+            people find easier to stick to. Both weeks below come to the same total.
+          </p>
+          {ZIGZAG.map((schedule) => (
+            <table class="cal-zigzag" data-zigzag={schedule.key}>
+              <caption class="cal-zigzag__caption">{schedule.title}</caption>
+              <thead>
+                <tr><th scope="col">Day</th><th scope="col" class="cal-num">Calories</th></tr>
+              </thead>
+              <tbody>
+                {WEEKDAYS.map((day) => (
+                  <tr><th scope="row">{day}</th><td class="cal-num" data-zigzag-day={day}>—</td></tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr><th scope="row">Week total</th><td class="cal-num" data-zigzag-total>—</td></tr>
+              </tfoot>
+            </table>
+          ))}
+        </ResultBreakdown>
+      </div>
+
+      <InvalidResult title="Check your entries" message="Enter your age, height, weight and activity level to estimate your daily calories." />
+
+      <ResultAnnouncement id="cal-live" />
+    </ResultShell>
+  </div>
 </div>
 
 <style>
-  .seg-group {
-    display: inline-flex;
+  .cal-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.9rem;
+  }
+  .cal-tabs__systems {
+    display: flex;
+    gap: 0.3rem;
+  }
+  .cal-tab {
+    min-height: 2.75rem;
+    padding: 0 0.9rem;
     border: 1px solid var(--line);
-    border-radius: 0.55rem;
-    padding: 0.125rem;
-  }
-  .seg {
-    position: relative;
-    display: inline-flex;
-  }
-  .seg input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    cursor: pointer;
-  }
-  .seg span {
-    padding: 0.35rem 0.9rem;
-    border-radius: 0.45rem;
+    border-radius: 0.5rem;
+    background: var(--card);
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--muted);
+    color: var(--fg);
+    cursor: pointer;
   }
-  .seg:has(input:checked) span {
+  .cal-tab.is-active {
+    border-color: var(--color-brand-600);
     background: var(--color-brand-600);
     color: #fff;
   }
-  .seg:has(input:focus-visible) span {
+  .cal-tab:focus-visible {
     outline: 2px solid var(--color-brand-600);
     outline-offset: 2px;
   }
+  .cal-tab--toggle[aria-expanded='true'] {
+    border-color: var(--color-brand-600);
+    color: var(--color-brand-700);
+  }
 
-  .unit-btn {
-    padding: 0.35rem 0.9rem;
-    border-radius: 0.45rem;
-    font-size: 0.85rem;
-    font-weight: 600;
+  .cal-row {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+    border: 0;
+    margin: 0;
+  }
+  .cal-row--activity {
+    align-items: center;
+  }
+  .cal-row__label {
+    margin: 0;
+    font-size: 0.86rem;
+  }
+  .cal-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .cal-pair {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .cal-input {
+    width: 5rem;
+    min-height: 2.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-input--wide {
+    width: 7rem;
+  }
+  .cal-select {
+    width: 100%;
+    min-height: 2.75rem;
+    font-size: 0.84rem;
+  }
+  .cal-unit,
+  .cal-hint {
+    font-size: 0.8rem;
     color: var(--muted);
+  }
+  .cal-radios {
+    display: flex;
+    gap: 0.9rem;
+  }
+  .cal-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+    font-size: 0.88rem;
+    color: var(--fg);
     cursor: pointer;
   }
-  .unit-btn.is-active {
-    background: var(--color-brand-600);
-    color: #fff;
+  .cal-radio input {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: var(--color-brand-600);
   }
-
-  .cal-field-error {
-    margin-top: 0.3rem;
+  .cal-error {
+    margin: 0.1rem 0 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .cal-field-error {
+    :root:not([data-theme='light']) .cal-error {
       color: #fca5a5;
     }
   }
-  :root[data-theme='dark'] .cal-field-error {
+  :root[data-theme='dark'] .cal-error {
     color: #fca5a5;
   }
-
   .cal-live-note {
-    margin-top: 0.75rem;
+    margin-top: 0.7rem;
     font-size: 0.8rem;
     color: var(--muted);
   }
-
-  .cal-goal {
-    margin: 0.5rem 0 0;
-    font-size: 1rem;
-    color: var(--fg);
-  }
-  .cal-goal strong {
-    color: var(--heading);
-    font-weight: 700;
+  .cal-notes {
+    margin: 0.7rem 0 0;
+    padding: 0 0 0 1.1rem;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--muted);
   }
 
-  /* Secondary references: maintenance + BMR, subordinate to the target. */
-  .cal-baseline {
-    margin: 0.9rem 0 0;
-    display: grid;
-    gap: 0.25rem;
-  }
-  .cal-baseline > div {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.9rem;
-  }
-  .cal-baseline dt {
-    color: var(--fg);
+  .cal-settings-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 2.75rem;
+    margin-top: 0.2rem;
+    font-size: 0.86rem;
     font-weight: 600;
+    color: var(--color-brand-700);
+    cursor: pointer;
   }
-  .cal-baseline dd {
+  .cal-settings-toggle__sign {
+    font-size: 1rem;
+    line-height: 1;
+  }
+  :root[data-theme='dark'] .cal-settings-toggle,
+  :root[data-theme='dark'] .cal-gain-toggle {
+    color: var(--color-brand-300);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .cal-settings-toggle,
+    :root:not([data-theme='light']) .cal-gain-toggle {
+      color: var(--color-brand-300);
+    }
+  }
+  .cal-settings {
+    margin-top: 0.4rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    background: var(--subtle);
+  }
+  .cal-set {
+    border: 0;
     margin: 0;
-    font-variant-numeric: tabular-nums;
-    color: var(--heading);
-    white-space: nowrap;
+    padding: 0;
   }
-  .cal-baseline dd span {
+  .cal-set + .cal-set {
+    margin-top: 0.6rem;
+  }
+  .cal-set__legend {
+    display: block;
+    padding: 0;
+    font-size: 0.8rem;
     font-weight: 700;
+    color: var(--heading);
+  }
+  .cal-set__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
   }
 
-  /* Goal comparison table */
+  /* Result ---------------------------------------------------------- */
+  .cal-lede {
+    margin: 0 0 0.8rem;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
   .cal-goals {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.4rem;
+  }
+  .cal-goal {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+  }
+  .cal-goal--primary {
+    border-color: var(--color-brand-600);
+    background: var(--subtle);
+  }
+  .cal-goal__name {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .cal-goal__label {
+    display: block;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--heading);
+  }
+  .cal-goal__rate {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--muted);
+  }
+  .cal-goal__figure {
+    flex: none;
+    text-align: right;
+    line-height: 1.15;
+  }
+  .cal-goal__calories {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--heading);
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-goal--primary .cal-goal__calories {
+    color: var(--color-brand-700);
+  }
+  :root[data-theme='dark'] .cal-goal--primary .cal-goal__calories {
+    color: var(--color-brand-300);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .cal-goal--primary .cal-goal__calories {
+      color: var(--color-brand-300);
+    }
+  }
+  .cal-goal__percent {
+    margin-left: 0.3rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .cal-goal__unit {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .cal-warning {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+  .cal-gain-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--color-brand-700);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .cal-zig-lede {
+    margin: 0 0 0.7rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .cal-zigzag {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.84rem;
   }
-  .cal-goals th,
-  .cal-goals td {
-    padding: 0.4rem 0.4rem;
+  .cal-zigzag + .cal-zigzag {
+    margin-top: 1rem;
+  }
+  .cal-zigzag__caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--heading);
+    padding-bottom: 0.3rem;
+  }
+  .cal-zigzag th,
+  .cal-zigzag td {
+    padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
     text-align: left;
   }
-  .cal-goals thead th {
+  .cal-zigzag thead th {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--muted);
     font-weight: 700;
   }
-  .cal-goals tbody th {
-    font-weight: 600;
+  .cal-zigzag tbody th {
+    font-weight: 500;
     color: var(--fg);
+  }
+  .cal-zigzag tfoot th,
+  .cal-zigzag tfoot td {
+    border-bottom: 0;
+    font-weight: 700;
+    color: var(--heading);
   }
   .cal-num {
     text-align: right;
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+  }
+  .cal-zigzag tbody td {
+    font-weight: 700;
     color: var(--heading);
-    font-weight: 700;
   }
-  .cal-goals thead th.cal-num {
-    color: var(--muted);
-    font-weight: 700;
-  }
-  .cal-goals tbody tr[aria-current='true'] {
-    background: color-mix(in srgb, var(--color-brand-500) 10%, transparent);
-  }
-  .cal-goals tbody tr[aria-current='true'] th,
-  .cal-goals tbody tr[aria-current='true'] td {
-    color: var(--color-brand-700);
-  }
-  :root[data-theme='dark'] .cal-goals tbody tr[aria-current='true'] th,
-  :root[data-theme='dark'] .cal-goals tbody tr[aria-current='true'] td {
-    color: var(--color-brand-300);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .cal-goals tbody tr[aria-current='true'] th,
-    :root:not([data-theme='light']) .cal-goals tbody tr[aria-current='true'] td {
-      color: var(--color-brand-300);
+
+  @media (max-width: 26rem) {
+    .cal-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.25rem;
     }
-  }
-  .cal-note {
-    margin: 0.7rem 0 0;
-    font-size: 0.8rem;
-    line-height: 1.45;
-    color: var(--muted);
   }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { calorieBinding } from '@lib/calculators/calorie-form';
+  import { mountUnitConverterPanel } from '@lib/calculators/unit-converter-panel';
+  import {
+    calorieBinding,
+    CALORIE_EXAMPLE_VALUES,
+    needsBodyFat,
+    type BmrFormula,
+  } from '@lib/calculators/calorie-form';
 
-  document.querySelectorAll<HTMLElement>('[data-calorie]').forEach((root) =>
+  document.querySelectorAll<HTMLElement>('[data-calorie]').forEach((root) => {
     mountFormCalculator(root, calorieBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate Calorie Needs',
-    }),
-  );
+      example: { values: CALORIE_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
+    });
+
+    mountUnitConverterPanel(root);
+
+    // "+ Settings" — a plain disclosure, closed on load.
+    const settings = root.querySelector<HTMLElement>('[data-settings]');
+    const settingsToggle = root.querySelector<HTMLButtonElement>('[data-settings-toggle]');
+    const sign = settingsToggle?.querySelector<HTMLElement>('.cal-settings-toggle__sign');
+    if (settings && settingsToggle) {
+      settingsToggle.addEventListener('click', () => {
+        const open = settings.hidden;
+        settings.hidden = !open;
+        settingsToggle.setAttribute('aria-expanded', String(open));
+        if (sign) sign.textContent = open ? '−' : '+';
+      });
+    }
+
+    // "Show info for weight gain" — the rarer half of the report, on request.
+    const gain = root.querySelector<HTMLElement>('[data-gain]');
+    const gainToggle = root.querySelector<HTMLButtonElement>('[data-gain-toggle]');
+    if (gain && gainToggle) {
+      gainToggle.addEventListener('click', () => {
+        const open = gain.hidden;
+        gain.hidden = !open;
+        gainToggle.setAttribute('aria-expanded', String(open));
+        gainToggle.textContent = open ? 'Hide info for weight gain' : 'Show info for weight gain';
+      });
+    }
+
+    /** Only Katch-McArdle reads a body-fat percentage, so only it asks for one. */
+    const bodyFatRow = root.querySelector<HTMLElement>('[data-bodyfat]');
+    const bodyFat = root.querySelector<HTMLInputElement>('[name="bodyFatPct"]');
+    const syncBodyFat = () => {
+      const formula = (root.querySelector<HTMLInputElement>('[name="formula"]:checked')?.value ??
+        'mifflin') as BmrFormula;
+      const wanted = needsBodyFat(formula);
+      if (bodyFatRow) bodyFatRow.hidden = !wanted;
+      if (!wanted) {
+        if (bodyFat) bodyFat.value = '';
+        const err = root.querySelector<HTMLElement>('[data-error-for="bodyFatPct"]');
+        if (err) err.hidden = true;
+      }
+    };
+    root.querySelectorAll<HTMLInputElement>('[name="formula"]').forEach((r) =>
+      r.addEventListener('change', syncBodyFat),
+    );
+    syncBodyFat();
+
+    // Reset restores the radios silently, so re-derive what depends on them.
+    root.addEventListener('calculator:reset', syncBodyFat);
+
+    // A required box behind a closed Settings panel is a dead end; open it first.
+    root.querySelector<HTMLFormElement>('[data-form]')?.addEventListener(
+      'submit',
+      () => {
+        if (!settings || !settingsToggle || !settings.hidden) return;
+        if (!bodyFatRow || bodyFatRow.hidden) return;
+        settings.hidden = false;
+        settingsToggle.setAttribute('aria-expanded', 'true');
+        if (sign) sign.textContent = '−';
+      },
+      true,
+    );
+  });
 </script>

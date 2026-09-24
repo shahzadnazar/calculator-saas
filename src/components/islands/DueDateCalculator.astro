@@ -1,47 +1,120 @@
 ---
 /**
- * Due Date island (R14B1 — Gestational pilot, 1 of 2; task-first migration).
+ * Due Date island — the reference's four dating methods, on the UNCHANGED standard-form
+ * runtime.
  *
- * The fleet's FIRST date-input migration. Task-first: the LMP starts EMPTY, the
- * result is empty, and the visitor presses "Calculate Due Date" for the first
- * result; live-after-first thereafter. Compute, validation, state, announcement
- * and focus are owned by the shared runtime + the due-date binding
- * (@lib/calculators/due-date-form), which wraps the UNCHANGED dueDateFromLMP /
- * gestationalAge and the shared date primitives. The complete-result guard lives
- * in the binding's resultValue (a NaN sentinel → the runtime's default finite
- * gate on the due-date timestamp) — there is NO isUsableResult.
+ * The visitor says how they are dating the pregnancy and only that method's fields appear.
+ * The fields a method does not use leave the form and are emptied, so nothing invisible can
+ * reach a result — and each route is a different amount of guesswork, which the panel says
+ * rather than presenting four estimates as equally certain.
  *
- * The dominant result is the estimated due date (a clock-free function of the
- * LMP). "How far along" + trimester are secondary and render only while the
- * pregnancy is ongoing; a past-due date shows a neutral "has passed" note without
- * unbounded progress. A future LMP is rejected (the picker max is capped at the
- * visitor's local today client-side AND the binding validates independently).
+ * All four resolve to a last menstrual period, from which the due date is 280 days; the
+ * arithmetic lives in the reviewed pure `due-date.ts`.
  *
- * The medical disclaimer lives INSIDE this island (not only on the page), so the
- * generated embed carries it too — exactly one instance, visible without
- * interaction, outside the result live region.
+ * The medical disclaimer lives INSIDE this island, so the generated embed carries it too —
+ * exactly one instance, visible without interaction, outside the result live region.
  */
+import { DATING_METHODS, EMBRYO_AGES, CYCLE_MIN, CYCLE_MAX, REFERENCE_CYCLE_DAYS } from '@lib/calculators/due-date-form';
+import { milestones } from '@lib/calculators/due-date';
 import ResultShell from '@components/result/ResultShell.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+
+/** Row labels are static; only the dates change at runtime. */
+const MILESTONE_ROWS = milestones(new Date(0)).map((m) => ({ key: m.key, label: m.label }));
+
+/** How much each route can be trusted — said out loud rather than implied. */
+const METHOD_NOTES: Record<string, string> = {
+  lmp: 'Naegele’s rule: 280 days after the first day of your last period. Reliable when your cycles are regular.',
+  conception: 'Counts 266 days from conception — the same rule, started two weeks later.',
+  ultrasound: 'The most reliable route early on, because the scan measures the pregnancy rather than estimating it.',
+  ivf: 'The most precise of the four: the embryo’s age on transfer day is known exactly, not estimated.',
+};
 ---
 
 <div class="duedate mx-auto w-full max-w-4xl" data-duedate>
-  <div class="grid gap-6 md:grid-cols-2 md:items-start">
+  <!-- The result carries the dominant date and a 3-column timeline, so it gets the wider
+       half; the form's fields are narrow and had slack to give. -->
+  <div class="grid gap-6 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:items-start">
     <!-- Input -->
-    <form class="card p-5 sm:p-6" data-form novalidate aria-label="Due date calculator">
-      <label class="field-label" for="dd-lmp">First day of your last period (LMP)</label>
-      <input
-        class="field mt-1"
-        id="dd-lmp"
-        name="lmp"
-        type="date"
-        autocomplete="off"
-        aria-describedby="dd-help dd-lmp-error"
-      />
-      <p class="dd-field-error" id="dd-lmp-error" data-error-for="lmp" hidden></p>
-      <p class="dd-help" id="dd-help">Uses Naegele's rule: the due date is 280 days (40 weeks) after the LMP.</p>
+    <form class="card p-4" data-form novalidate aria-label="Due date calculator">
+      <fieldset class="dd-methods" data-field="method">
+        <legend class="field-label dd-methods__legend">Calculate based on</legend>
+        <div class="dd-radios">
+          {DATING_METHODS.map((m, i) => (
+            <label class="dd-radio"><input type="radio" name="method" value={m.value} checked={i === 0} /><span>{m.label}</span></label>
+          ))}
+        </div>
+      </fieldset>
+
+      <!-- Last Period -->
+      <div data-method-group="lmp">
+        <div class="dd-row" data-field="lmp">
+          <label class="field-label dd-row__label" for="dd-lmp">First day of your last period</label>
+          <input class="field dd-date" id="dd-lmp" name="lmp" type="date" autocomplete="off" aria-describedby="dd-lmp-error" />
+        </div>
+        <p class="dd-error" id="dd-lmp-error" data-error-for="lmp" hidden></p>
+
+        <div class="dd-row" data-field="cycleDays">
+          <label class="field-label dd-row__label" for="dd-cycle">Average length of your cycles</label>
+          <div class="dd-inputs">
+            <input class="field dd-num" id="dd-cycle" name="cycleDays" type="number" min={CYCLE_MIN} max={CYCLE_MAX} step="1" inputmode="numeric" autocomplete="off" placeholder={String(REFERENCE_CYCLE_DAYS)} aria-describedby="dd-cycleDays-error" />
+            <span class="dd-unit">days (optional)</span>
+          </div>
+        </div>
+        <p class="dd-error" id="dd-cycleDays-error" data-error-for="cycleDays" hidden></p>
+      </div>
+
+      <!-- Conception Date -->
+      <div data-method-group="conception" hidden>
+        <div class="dd-row" data-field="conception">
+          <label class="field-label dd-row__label" for="dd-conception">Conception date</label>
+          <input class="field dd-date" id="dd-conception" name="conception" type="date" autocomplete="off" aria-describedby="dd-conception-error" />
+        </div>
+        <p class="dd-error" id="dd-conception-error" data-error-for="conception" hidden></p>
+      </div>
+
+      <!-- Ultrasound -->
+      <div data-method-group="ultrasound" hidden>
+        <div class="dd-row" data-field="scanDate">
+          <label class="field-label dd-row__label" for="dd-scan">Date of the ultrasound</label>
+          <input class="field dd-date" id="dd-scan" name="scanDate" type="date" autocomplete="off" aria-describedby="dd-scanDate-error" />
+        </div>
+        <p class="dd-error" id="dd-scanDate-error" data-error-for="scanDate" hidden></p>
+
+        <div class="dd-row" data-field="scanAge">
+          <label class="field-label dd-row__label" for="dd-scan-weeks">Length of pregnancy at that time</label>
+          <div class="dd-inputs">
+            <input class="field dd-num" id="dd-scan-weeks" name="scanWeeks" type="number" min="0" max="42" step="1" inputmode="numeric" autocomplete="off" placeholder="12" aria-label="Scan weeks" aria-describedby="dd-scanAge-error" />
+            <span class="dd-unit">weeks</span>
+            <input class="field dd-num" name="scanDays" type="number" min="0" max="6" step="1" inputmode="numeric" autocomplete="off" placeholder="3" aria-label="Scan days" aria-describedby="dd-scanAge-error" />
+            <span class="dd-unit">days</span>
+          </div>
+        </div>
+        <p class="dd-error" id="dd-scanAge-error" data-error-for="scanAge" hidden></p>
+      </div>
+
+      <!-- IVF Transfer Date -->
+      <div data-method-group="ivf" hidden>
+        <div class="dd-row" data-field="transferDate">
+          <label class="field-label dd-row__label" for="dd-transfer">IVF transfer date</label>
+          <input class="field dd-date" id="dd-transfer" name="transferDate" type="date" autocomplete="off" aria-describedby="dd-transferDate-error" />
+        </div>
+        <p class="dd-error" id="dd-transferDate-error" data-error-for="transferDate" hidden></p>
+
+        <div class="dd-row" data-field="embryoAge">
+          <label class="field-label dd-row__label" for="dd-embryo">Embryo age at transfer</label>
+          <select class="field dd-select" id="dd-embryo" name="embryoAge">
+            {EMBRYO_AGES.map((e) => (
+              <option value={e.value} selected={e.value === 5}>{e.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <p class="dd-help" data-dd-method-note>{METHOD_NOTES.lmp}</p>
 
       <div class="mt-5 flex items-center gap-3">
         <button type="submit" class="btn btn-primary" data-dd-submit>Calculate Due Date</button>
@@ -52,19 +125,38 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     <!-- Result -->
     <ResultShell id="dd-result" state="empty" density="standard" label="Due date result" minHeight="14rem">
-      <EmptyResult message="Enter the first day of your last period and calculate your estimated due date." />
+      <ExampleNotice />
+      <EmptyResult message="Choose how you are dating the pregnancy, fill in that method's dates, and calculate." />
 
-      <div data-result-when="valid" class="text-center">
-        <p class="result-label">Estimated due date</p>
-        <p class="dd-due-value" data-dd-due data-result-value>—</p>
-        <div class="dd-secondary mt-5 grid grid-cols-2 gap-4 border-t pt-4" style="border-color: var(--line)">
-          <div><p class="dd-stat" data-dd-along>—</p><p class="dd-sub">how far along</p></div>
-          <div><p class="dd-stat" data-dd-trimester>—</p><p class="dd-sub">trimester</p></div>
+      <div data-result-when="valid">
+        <div class="text-center">
+          <p class="result-label">Estimated due date</p>
+          <p class="dd-due-value" data-dd-due data-result-value>—</p>
+          <div class="dd-secondary mt-5 grid grid-cols-2 gap-4 border-t pt-4" style="border-color: var(--line)">
+            <div><p class="dd-stat" data-dd-along>—</p><p class="dd-sub">how far along</p></div>
+            <div><p class="dd-stat" data-dd-trimester>—</p><p class="dd-sub">trimester</p></div>
+          </div>
+          <p class="dd-interpretation" data-dd-interpretation></p>
         </div>
-        <p class="dd-interpretation" data-dd-interpretation></p>
+
+        <table class="dd-timeline">
+          <caption class="dd-timeline__caption">Your pregnancy timeline</caption>
+          <thead>
+            <tr><th scope="col">Milestone</th><th scope="col">Date</th><th scope="col" class="dd-num">Gestational age</th></tr>
+          </thead>
+          <tbody>
+            {MILESTONE_ROWS.map((row) => (
+              <tr data-milestone={row.key}>
+                <th scope="row">{row.label}</th>
+                <td data-milestone-date>—</td>
+                <td class="dd-num" data-milestone-week>—</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      <InvalidResult title="Check the date" message="Enter the first day of your last menstrual period." />
+      <InvalidResult title="Check the dates" message="Fill in the dates the method you chose asks for." />
 
       <ResultAnnouncement id="dd-live" />
     </ResultShell>
@@ -76,25 +168,151 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 </div>
 
 <style>
-  .dd-field-error {
+  .dd-methods {
+    border: 0;
+    margin: 0 0 0.4rem;
+    padding: 0;
+  }
+  .dd-methods__legend {
+    display: block;
+    margin: 0 0 0.1rem;
+    padding: 0;
+    font-size: 0.86rem;
+  }
+  /* A tidy 2×2 at the workspace's column width instead of a ragged 3 + 1. */
+  .dd-radios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 0.1rem 0.9rem;
+  }
+  .dd-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+    font-size: 0.86rem;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .dd-radio input {
+    width: 1.05rem;
+    height: 1.05rem;
+    flex: none;
+    accent-color: var(--color-brand-600);
+  }
+
+  .dd-row {
+    padding: 0.3rem 0;
+  }
+  .dd-row__label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.86rem;
+  }
+  .dd-date {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+  .dd-select {
+    min-height: 2.75rem;
+    font-size: 0.86rem;
+  }
+  .dd-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .dd-num {
+    width: 4.5rem;
+    min-height: 2.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .dd-unit {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .dd-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .dd-field-error { color: #fca5a5; }
+    :root:not([data-theme='light']) .dd-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .dd-field-error { color: #fca5a5; }
+  :root[data-theme='dark'] .dd-error { color: #fca5a5; }
 
   .dd-help { margin-top: 0.75rem; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
   .dd-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
-  .dd-due-value { margin-top: 0.25rem; font-size: 1.5rem; line-height: 1.2; font-weight: 800; color: var(--heading); }
-  @media (min-width: 640px) { .dd-due-value { font-size: 1.875rem; } }
-  .dd-stat { font-size: 1.5rem; font-weight: 700; color: var(--heading); }
+  /* The longest date this renders is "Wednesday, September 30, 2027". Scale it to the
+     column rather than let it orphan the year onto a line of its own; balance the wrap
+     for the narrow viewports where it still has to break. */
+  .dd-due-value {
+    margin-top: 0.25rem;
+    font-size: clamp(1.1875rem, 1.6vw + 0.5rem, 1.625rem);
+    line-height: 1.2;
+    font-weight: 800;
+    color: var(--heading);
+    text-wrap: balance;
+  }
+  .dd-stat { font-size: 1.375rem; font-weight: 700; color: var(--heading); }
   .dd-sub { font-size: 0.75rem; color: var(--muted); }
   .dd-interpretation { margin: 0.9rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+
+  .dd-timeline {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.1rem;
+    font-size: 0.82rem;
+  }
+  .dd-timeline__caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.35rem;
+  }
+  .dd-timeline th,
+  .dd-timeline td {
+    padding: 0.3rem 0.6rem 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  .dd-timeline th:last-child,
+  .dd-timeline td:last-child {
+    padding-right: 0;
+  }
+  .dd-timeline thead th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .dd-timeline tbody th {
+    font-weight: 500;
+    color: var(--fg);
+    padding-right: 0.5rem;
+  }
+  /* nowrap belongs to the VALUES, not the header: "Gestational age" held the column
+     open on narrow screens and pushed the dates onto two lines. */
+  .dd-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .dd-timeline td {
+    white-space: nowrap;
+  }
+  .dd-timeline tbody td {
+    font-weight: 600;
+    color: var(--heading);
+  }
 
   .dd-disclaimer {
     margin-top: 1.25rem;
@@ -107,36 +325,78 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { dueDateBinding, todayISO } from '@lib/calculators/due-date-form';
+  import { dueDateBinding, dueDateExampleValues, todayISO } from '@lib/calculators/due-date-form';
+
+  const METHOD_NOTES: Record<string, string> = {
+    lmp: 'Naegele’s rule: 280 days after the first day of your last period. Reliable when your cycles are regular.',
+    conception: 'Counts 266 days from conception — the same rule, started two weeks later.',
+    ultrasound: 'The most reliable route early on, because the scan measures the pregnancy rather than estimating it.',
+    ivf: 'The most precise of the four: the embryo’s age on transfer day is known exactly, not estimated.',
+  };
 
   document.querySelectorAll<HTMLElement>('[data-duedate]').forEach((root) => {
-    // Cap the picker at the visitor's local today so a future LMP can't be
-    // selected; the binding rejects a future LMP independently (§3).
-    const input = root.querySelector<HTMLInputElement>('#dd-lmp');
-    if (input) input.max = todayISO();
-
     mountFormCalculator(root, dueDateBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: dueDateExampleValues() },
       calculateButtonLabel: 'Calculate Due Date',
     });
 
-    // Clear the stale result whenever the shell leaves the valid state (an invalid
-    // live edit, or Reset), so no stale due date lingers behind the hidden valid
-    // region. Presentation only — the runtime still owns state + announcement.
+    /**
+     * No date in this calculator can be in the future, so cap every picker at the visitor's
+     * own today. The binding validates independently — this only saves them the round trip.
+     */
+    const today = todayISO();
+    root.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach((el) => {
+      el.max = today;
+    });
+
+    /**
+     * Only the chosen method's fields are on screen, and the ones that leave are emptied —
+     * a date the visitor typed under one method must never reach a result computed under
+     * another.
+     */
+    const note = root.querySelector<HTMLElement>('[data-dd-method-note]');
+    const syncMethod = () => {
+      const method = root.querySelector<HTMLInputElement>('[name="method"]:checked')?.value ?? 'lmp';
+      root.querySelectorAll<HTMLElement>('[data-method-group]').forEach((group) => {
+        const wanted = group.dataset.methodGroup === method;
+        group.hidden = !wanted;
+        if (wanted) return;
+        group.querySelectorAll<HTMLInputElement>('input').forEach((el) => {
+          el.value = '';
+        });
+        group.querySelectorAll<HTMLElement>('[data-field]').forEach((row) => {
+          const err = root.querySelector<HTMLElement>(`[data-error-for="${row.dataset.field}"]`);
+          if (err) err.hidden = true;
+        });
+      });
+      if (note) note.textContent = METHOD_NOTES[method] ?? '';
+    };
+    root.querySelectorAll<HTMLInputElement>('[name="method"]').forEach((r) =>
+      r.addEventListener('change', syncMethod),
+    );
+    syncMethod();
+
+    // Reset restores the radio silently, so re-derive which fields are on screen.
+    root.addEventListener('calculator:reset', syncMethod);
+
+    /**
+     * Clear the stale result whenever the shell leaves the valid state (an invalid live
+     * edit, or Reset), so no stale due date or timeline lingers behind the hidden valid
+     * region. Presentation only — the runtime still owns state, focus and announcement.
+     */
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     if (shell) {
       const clear = () => {
-        ['[data-dd-due]', '[data-dd-along]', '[data-dd-trimester]'].forEach((sel) => {
-          const el = root.querySelector<HTMLElement>(sel);
-          if (el) el.textContent = '—';
+        root.querySelectorAll<HTMLElement>('[data-dd-due], [data-dd-along], [data-dd-trimester], [data-milestone-date], [data-milestone-week]').forEach((el) => {
+          el.textContent = '—';
         });
         const interp = root.querySelector<HTMLElement>('[data-dd-interpretation]');
         if (interp) interp.textContent = '';
       };
-      const observer = new MutationObserver(() => {
+      new MutationObserver(() => {
         if (shell.dataset.resultState !== 'valid') clear();
-      });
-      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
   });
 </script>

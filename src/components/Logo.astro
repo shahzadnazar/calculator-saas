@@ -1,46 +1,92 @@
 ---
 /**
- * Brand mark + wordmark. Inline SVG so it is crisp at any size, themeable via
- * currentColor, and adds zero network requests.
+ * Brand mark + wordmark. The mark is inline SVG so it is crisp at any size and adds zero
+ * network requests; its geometry and colours come from `scripts/brand-mark.mjs`, the same
+ * definition the favicon, the app icons and the OG cards are generated from.
+ *
+ * Rendered at build time, so the `readFileSync` of the design tokens behind it never reaches
+ * the browser.
  */
-import { SITE } from '@config/site';
+import { SITE, wordmarkParts } from '@config/site';
+import { brandMarkSvg } from '../../scripts/brand-mark.mjs';
 
 interface Props {
   /** Render only the glyph (no wordmark), e.g. for compact contexts. */
   markOnly?: boolean;
+  /** Stack the tagline under the wordmark, as the full lockup does. */
+  tagline?: boolean;
   class?: string;
 }
-const { markOnly = false, class: className = '' } = Astro.props;
+const { markOnly = false, tagline = false, class: className = '' } = Astro.props;
+const { lead, tail } = wordmarkParts();
+
+// SVG gradient ids are document-global, so two marks on one page would repaint each other
+// unless every instance carries its own suffix.
+const markId = `-${Math.random().toString(36).slice(2, 8)}`;
 ---
 
-<span class={`inline-flex items-center gap-2 ${className}`}>
-  <svg
-    width="32"
-    height="32"
-    viewBox="0 0 32 32"
-    fill="none"
-    aria-hidden="true"
-    class="shrink-0"
-  >
-    <rect width="32" height="32" rx="7.5" fill="var(--color-brand-600)" />
-    <!-- Subtle top sheen for depth (premium, no gradient id needed). -->
-    <path d="M0 7.5A7.5 7.5 0 0 1 7.5 0h17A7.5 7.5 0 0 1 32 7.5V13H0Z" fill="#fff" fill-opacity="0.08" />
-    <rect x="6" y="5.5" width="20" height="7" rx="2" fill="#fff" fill-opacity="0.95" />
-    <g fill="#fff">
-      <rect x="6" y="16" width="5.5" height="5.5" rx="1.5" />
-      <rect x="13.25" y="16" width="5.5" height="5.5" rx="1.5" />
-      <rect x="6" y="23.25" width="5.5" height="3.75" rx="1.5" />
-      <rect x="13.25" y="23.25" width="5.5" height="3.75" rx="1.5" />
-    </g>
-    <!-- Distinctive accent "operator" key spanning the right column. -->
-    <rect x="20.5" y="16" width="5.5" height="11" rx="1.8" fill="var(--color-accent-400)" />
-  </svg>
+<span class={`brand-lockup ${className}`}>
+  <span class="brand-mark shrink-0" set:html={brandMarkSvg({ id: markId })} />
   {
     !markOnly && (
-      <span class="text-lg font-extrabold tracking-tight" style="color: var(--heading)">
-        All<span style="color: var(--color-brand-600)">Calculators</span>
+      <span class="brand-text">
+        <span class="brand-word text-lg font-extrabold tracking-tight" style="color: var(--heading)">
+          {lead}<span style="color: var(--color-brand-600)">{tail}</span>
+        </span>
+        {tagline && <span class="brand-tagline">{SITE.tagline}</span>}
       </span>
     )
   }
   <span class="sr-only">{SITE.name}</span>
 </span>
+
+<style>
+  .brand-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  /* The mark ships without width/height so it scales to whatever a caller sets here.
+     2.2rem rather than 2rem because the square fills 29 of the 32 viewBox units — the rest is
+     the room the corner dot needs — so the glyph lands at the same optical size as before. */
+  .brand-mark {
+    display: inline-flex;
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+  .brand-mark :global(svg) {
+    width: 100%;
+    height: 100%;
+  }
+
+  .brand-text {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+  }
+  .brand-word {
+    line-height: 1.05;
+  }
+
+  /* Set the way the lockup sets it: lowercase and letter-spaced, so the wording can change in
+     the config without the styling following it. */
+  .brand-tagline {
+    margin-top: 0.1rem;
+    font-size: 0.62rem;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.11em;
+    text-transform: lowercase;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+
+  /* A narrow header has no room for a second line; the mark and wordmark carry it there. */
+  @media (max-width: 30rem) {
+    .brand-tagline {
+      display: none;
+    }
+  }
+</style>

@@ -4,41 +4,41 @@ import AreaCalculator from '@components/islands/AreaCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('math', 'area-calculator')!;
 const faqs = [
-  { question: 'How do I calculate the area of a shape?', answer: 'It depends on the shape. A rectangle is length × width; a triangle is ½ × base × height; a circle is π × radius². Choose your shape above and enter its dimensions — the calculator applies the right formula automatically.' },
+  { question: 'How do I calculate the area of a shape?', answer: 'It depends on the shape. A rectangle is length × width; a circle is π × radius²; a triangle from three sides uses Heron\'s formula. Each shape above is its own calculator — use the one that matches what you are measuring, and it shows the formula and the working alongside the answer.' },
   { question: 'How do I find the area of a circle?', answer: 'Area = π × r², where r is the radius (half the diameter). For a circle with radius 5, the area is π × 25 ≈ 78.54 square units. If you only know the diameter, halve it first to get the radius.' },
-  { question: 'How do I find the area of a triangle?', answer: 'The standard formula is ½ × base × height, where the height is measured perpendicular to the base. A triangle with a base of 6 and height of 4 has an area of ½ × 6 × 4 = 12. If you know the three sides instead, the triangle calculator uses Heron\'s formula.' },
+  { question: 'How do I find the area of a triangle?', answer: 'The triangle calculator above works from the three side lengths using Heron\'s formula: take s = (a + b + c) ÷ 2, then the area is √(s(s − a)(s − b)(s − c)). A 3-4-5 triangle gives s = 6 and an area of 6. If you know a base and its perpendicular height instead, the area is simply ½ × base × height.' },
   { question: 'What is the area of a rectangle?', answer: 'Length × width. A room 8 units long and 5 wide is 8 × 5 = 40 square units. A square is the special case where length and width are equal, so its area is side².' },
-  { question: 'What units does the area come out in?', answer: 'Enter all measurements in the same unit; the area is in that unit squared. Select a unit label (cm, m, in, ft, yd) to match your measurements.' },
+  { question: 'What units does the area come out in?', answer: 'Every measurement has its own unit, so you can mix feet and inches freely. Each one is converted into the unit of the first field, and the area is reported in that unit squared — enter a length in metres first and the answer is in square metres.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate the area of a rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse — just pick the shape and enter its dimensions." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Calculate the area of a rectangle, triangle, trapezoid, circle, sector, ellipse or parallelogram — each its own calculator, showing the formula and the working." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <AreaCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Choose your <strong>shape</strong> — rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse.</li>
-      <li>Enter the dimensions the shape asks for, all in the <strong>same unit</strong>.</li>
-      <li>Read the area, which comes out in that unit <strong>squared</strong>.</li>
-      <li>Pick a unit label (cm, m, in, ft, yd) so the result is written as square centimetres, square feet and so on.</li>
+      <li>Find the <strong>shape</strong> that matches what you are measuring — each one above is its own calculator, so an answer stays on screen while you work out the next.</li>
+      <li>Enter each <strong>measurement</strong> and choose the unit beside it. Every measurement carries its own unit, so a length in feet beside a width in inches is fine.</li>
+      <li>Press that shape's <strong>Calculate</strong> button.</li>
+      <li>Read the area, reported in the unit of the first field <strong>squared</strong>, with the formula and the substituted numbers shown above it.</li>
     </ol>
 
     <h2>Area formulas for every shape</h2>
-    <p>Each shape has its own formula, but they all return a result in square units. These are the seven the calculator handles:</p>
+    <p>Each shape has its own formula, but they all return a result in square units. These are the seven the calculator handles, in the order they appear above:</p>
     <table>
       <thead>
         <tr><th>Shape</th><th>Formula</th><th>Example</th></tr>
       </thead>
       <tbody>
         <tr><td>Rectangle</td><td>length × width</td><td>8 × 5 = 40</td></tr>
-        <tr><td>Square</td><td>side<sup>2</sup></td><td>4<sup>2</sup> = 16</td></tr>
-        <tr><td>Triangle</td><td>½ × base × height</td><td>½ × 6 × 4 = 12</td></tr>
+        <tr><td>Triangle</td><td>√(s(s − a)(s − b)(s − c)), s = (a + b + c) ÷ 2</td><td>sides 3, 4, 5 → 6</td></tr>
+        <tr><td>Trapezoid</td><td>½ × (b<sub>1</sub> + b<sub>2</sub>) × height</td><td>½ × (6 + 4) × 3 = 15</td></tr>
         <tr><td>Circle</td><td>π × radius<sup>2</sup></td><td>π × 5<sup>2</sup> ≈ 78.54</td></tr>
-        <tr><td>Trapezoid</td><td>½ × (a + b) × height</td><td>½ × (6 + 4) × 3 = 15</td></tr>
-        <tr><td>Parallelogram</td><td>base × height</td><td>6 × 4 = 24</td></tr>
+        <tr><td>Sector</td><td>(angle ÷ 360) × π × radius<sup>2</sup></td><td>90° of r 5 ≈ 19.63</td></tr>
         <tr><td>Ellipse</td><td>π × a × b</td><td>π × 5 × 3 ≈ 47.12</td></tr>
+        <tr><td>Parallelogram</td><td>base × height</td><td>6 × 4 = 24</td></tr>
       </tbody>
     </table>
-    <p>For the triangle, <em>height</em> is the perpendicular distance from the base to the opposite corner, not the slanted side. For the ellipse, <em>a</em> and <em>b</em> are the two semi-axes — the distances from the centre to the edge along each direction.</p>
+    <p>The triangle works from its three <em>edges</em>, so no angle or height is needed — measure the three sides and Heron's formula does the rest. For the parallelogram, <em>height</em> is the perpendicular distance between the two parallel sides, not the slanted edge. For the ellipse, <em>a</em> and <em>b</em> are the two semi-axes — the distances from the centre to the edge along each direction. A square is just a rectangle with equal sides, so use the rectangle for one.</p>
 
     <h2>A worked example</h2>
     <p>
@@ -47,7 +47,7 @@ const faqs = [
 
     <h2>Why area is always in squared units</h2>
     <p>
-      Area measures a two-dimensional surface, so it multiplies one length by another and the units multiply too. Measure in metres and the area is in square metres; measure in feet and it is in square feet. This is also why you must convert to a single unit <em>before</em> calculating — mixing feet and inches in the same shape gives a meaningless number.
+      Area measures a two-dimensional surface, so it multiplies one length by another and the units multiply too. Measure in metres and the area is in square metres; measure in feet and it is in square feet. Every measurement must reach the formula in the <em>same</em> unit, since multiplying feet by inches gives a meaningless number — the calculator converts each one into the unit of the first field for you, and says so when your units differ.
     </p>
 
     <h2>Measuring an irregular space</h2>
@@ -58,8 +58,8 @@ const faqs = [
     <h2>Common mistakes to avoid</h2>
     <ul>
       <li><strong>Using diameter instead of radius</strong> in a circle. The formula needs the radius; the diameter is twice too big and quadruples the area.</li>
-      <li><strong>Using a slanted side as the height</strong> of a triangle or parallelogram. Height is always measured at a right angle to the base.</li>
-      <li><strong>Mixing units.</strong> Convert everything to one unit before you calculate, not after.</li>
+      <li><strong>Using a slanted side as the height</strong> of a parallelogram or trapezoid. Height is always measured at a right angle to the base.</li>
+      <li><strong>Forgetting which unit the answer is in.</strong> It follows the <em>first</em> field, so entering a radius in feet gives square feet even if a later measurement was in inches.</li>
     </ul>
 
     <p>

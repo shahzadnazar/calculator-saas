@@ -1,31 +1,24 @@
 ---
 /**
- * Date calculator island (R18C2 — task-first; everyday date/duration; standard-form runtime
- * UNCHANGED).
+ * Date calculator island — the reference's TWO independent calculators, stacked.
  *
- * ONE public route, ONE island, TWO calculator-owned STRUCTURAL modes on the UNCHANGED standard-form
- * runtime + the Date binding (@lib/calculators/date-form), which wraps the UNCHANGED
- * diffDates / addDays / toISODateUTC (frozen by date-duration.test.ts → the R18C0-repaired
- * calculateAge) and the UNCHANGED parseISODateUTC. The mode is a plain <select name="mode"> the
- * runtime recomputes on (exactly like Area's shape selector) — NOT a new runtime mode; NO generic
- * date runtime, shared Age/Date binding or civil-date form abstraction.
+ * They are two separate tools on one page, not one tool behind a task switcher: each has its own
+ * form, its own primary action and its own result, so a visitor can see what both do without
+ * choosing first, and the answer to one stays on screen while they use the other.
  *
- * Task-first, summary-first: every date field starts EMPTY (the legacy island auto-calculated a
- * 2020→2025 / +90-day example on load; the source never used TODAY, so nothing prefills — SSR ==
- * hydrated empty), and the visitor presses Calculate for the first result (live-after-first).
- *   • DIFFERENCE: the DOMINANT result is the calendar breakdown (years / months / days); total days
- *     and weeks are supporting, and a direction sentence distinguishes a reverse pair. A same-date
- *     pair is a valid 0y 0m 0d.
- *   • ADD / SUBTRACT: the DOMINANT result is the resulting date; the original date + operation +
- *     magnitude are supporting. Add vs Subtract is a structural selector; the magnitude is a whole,
- *     non-negative day count.
- * NO isUsableResult — each mode's complete-result guard lives in the binding's resultValue (a finite
- * scalar). The island owns mode-group visibility (show + enable the active mode, hide + disable the
- * rest, so inactive fields never parse, validate, receive errors or take focus) and the primary
- * button label; the binding shows only the active mode's result panel.
+ *   1. DAYS BETWEEN TWO DATES — the span between a start and an end date, optionally counting the
+ *      end day, and optionally in business days.
+ *   2. ADD TO OR SUBTRACT FROM A DATE — a date shifted by years, months, weeks and days, or by
+ *      business days.
  *
- * Static ids are namespaced per-instance WHEN more than one Date calculator shares a document
- * (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
+ * Both run on the UNCHANGED standard-form runtime, one mount per root, on the same date-form
+ * binding: each root carries a fixed hidden `mode`, so the binding validates and computes exactly
+ * one task and can never be switched into the other. Every field starts EMPTY and the visitor
+ * presses that calculator's own button for its first result, then live-after-first. Each guard
+ * lives in the binding's `resultValue`; there is no `isUsableResult`.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Date page shares a document (the
+ * R16B2.1 discipline), so an embed gallery has no duplicate ids.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
@@ -35,112 +28,196 @@ import ResultInterpretation from '@components/result/ResultInterpretation.astro'
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
-<div class="datecalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-date>
-  <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Date calculator">
-    <div data-field="mode">
-      <label class="field-label" for="dc-mode">Task</label>
-      <select class="field mt-1" id="dc-mode" name="mode" data-dc-mode>
-        <option value="diff" selected>Days between two dates</option>
-        <option value="add">Add or subtract days</option>
-      </select>
-    </div>
+<div class="datepage mx-auto w-full max-w-4xl" data-datepage>
+  <!-- ============================================================ -->
+  <!-- 1. Days Between Two Dates                                     -->
+  <!-- ============================================================ -->
+  <section class="dp-calc" data-date data-dc-mode="diff" aria-labelledby="dcd-heading">
+    <h2 class="dp-title" id="dcd-heading">Days Between Two Dates</h2>
+    <p class="dp-lede">Find how long it is from one date to another.</p>
 
-    <!-- DIFFERENCE mode -->
-    <div class="dc-group mt-4 space-y-3" data-dc-group="diff">
-      <div data-field="from">
-        <label class="field-label" for="dc-from">Start date</label>
-        <input class="field mt-1" id="dc-from" name="from" type="date" autocomplete="off" aria-describedby="dc-from-error" />
-        <p class="dc-error" id="dc-from-error" data-error-for="from" hidden></p>
-      </div>
-      <div data-field="to">
-        <label class="field-label" for="dc-to">End date</label>
-        <input class="field mt-1" id="dc-to" name="to" type="date" autocomplete="off" aria-describedby="dc-to-error" />
-        <p class="dc-error" id="dc-to-error" data-error-for="to" hidden></p>
-      </div>
-    </div>
+    <div class="grid gap-6 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:items-start">
+      <form class="card p-4" data-form novalidate aria-label="Days between two dates">
+        <input type="hidden" name="mode" value="diff" />
 
-    <!-- ADD / SUBTRACT mode -->
-    <div class="dc-group mt-4 space-y-3" data-dc-group="add" hidden>
-      <div data-field="start">
-        <label class="field-label" for="dc-start">Start date</label>
-        <input class="field mt-1" id="dc-start" name="start" type="date" autocomplete="off" disabled aria-describedby="dc-start-error" />
-        <p class="dc-error" id="dc-start-error" data-error-for="start" hidden></p>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="field-label" for="dc-op">Operation</label>
-          <select class="field mt-1" id="dc-op" name="op" disabled>
+        <div class="space-y-3">
+          <div data-field="from">
+            <label class="field-label" for="dcd-from">Start date</label>
+            <input class="field mt-1" id="dcd-from" name="from" type="date" autocomplete="off" aria-describedby="dcd-from-error" />
+            <p class="dc-error" id="dcd-from-error" data-error-for="from" hidden></p>
+          </div>
+          <div data-field="to">
+            <label class="field-label" for="dcd-to">End date</label>
+            <input class="field mt-1" id="dcd-to" name="to" type="date" autocomplete="off" aria-describedby="dcd-to-error" />
+            <p class="dc-error" id="dcd-to-error" data-error-for="to" hidden></p>
+          </div>
+          <label class="dc-check"><input type="checkbox" name="includeEnd" /><span>Include the end day (add 1 day)</span></label>
+        </div>
+
+        <div class="dc-settings mt-2">
+          <label class="dc-check"><input type="checkbox" name="businessOnly" data-dc-business /><span>Count business days only (Monday to Friday)</span></label>
+          <label class="dc-check dc-check--nested" data-dc-holiday-row data-disabled><input type="checkbox" name="excludeHolidays" disabled /><span>Also skip US federal holidays</span></label>
+        </div>
+
+        <div class="mt-5 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary" data-dc-submit>Calculate Difference</button>
+          <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+        </div>
+        <p class="dc-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ResultShell id="dcd-result" state="empty" density="standard" label="Date difference result" minHeight="16rem" placeholderAlignment="center">
+        <ExampleNotice />
+        <EmptyResult message="Enter a start date and an end date to see how long it is between them." />
+
+        <div data-result-when="valid">
+          <div data-dc-panel="diff">
+            <ResultSummary label="Difference">
+              <ResultValue value="—" size="text-3xl" />
+            </ResultSummary>
+
+            <ResultBreakdown title="In other units">
+              <dl class="dc-metrics">
+                <div data-dc-row="breakdown" hidden><dt>Years, months, days</dt><dd data-dc-breakdown>—</dd></div>
+                <div><dt>Total days</dt><dd data-dc-total-days>—</dd></div>
+                <div><dt>Weeks and days</dt><dd data-dc-total-weeks>—</dd></div>
+                <div data-dc-row="business"><dt>Business days</dt><dd data-dc-business-days>—</dd></div>
+              </dl>
+            </ResultBreakdown>
+
+            <ResultInterpretation>
+              <span data-dc-diff-interpretation></span>
+            </ResultInterpretation>
+
+            <details class="dc-alt">
+              <summary class="dc-alt__summary">The same span in other time units</summary>
+              <dl class="dc-metrics dc-metrics--alt">
+                <div data-dc-unit="seconds"><dt>Seconds</dt><dd data-dc-unit-value>—</dd></div>
+                <div data-dc-unit="minutes"><dt>Minutes</dt><dd data-dc-unit-value>—</dd></div>
+                <div data-dc-unit="hours"><dt>Hours</dt><dd data-dc-unit-value>—</dd></div>
+                <div data-dc-unit="days"><dt>Days</dt><dd data-dc-unit-value>—</dd></div>
+                <div data-dc-unit="weeks"><dt>Weeks and days</dt><dd data-dc-unit-value>—</dd></div>
+                <div data-dc-unit="year-pct"><dt>Of a common year (365 days)</dt><dd data-dc-unit-value>—</dd></div>
+              </dl>
+            </details>
+          </div>
+        </div>
+
+        <InvalidResult title="Check your dates" message="Enter a start date and an end date." />
+
+        <ResultAnnouncement id="dcd-live" />
+      </ResultShell>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 2. Add to or Subtract from a Date                             -->
+  <!-- ============================================================ -->
+  <section class="dp-calc" data-date data-dc-mode="add" aria-labelledby="dca-heading">
+    <h2 class="dp-title" id="dca-heading">Add to or Subtract from a Date</h2>
+    <p class="dp-lede">Move a date forward or back by years, months, weeks and days.</p>
+
+    <div class="grid gap-6 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:items-start">
+      <form class="card p-4" data-form novalidate aria-label="Add to or subtract from a date">
+        <input type="hidden" name="mode" value="add" />
+
+        <div data-field="start">
+          <label class="field-label" for="dca-start">Start date</label>
+          <input class="field mt-1" id="dca-start" name="start" type="date" autocomplete="off" aria-describedby="dca-start-error" />
+          <p class="dc-error" id="dca-start-error" data-error-for="start" hidden></p>
+        </div>
+
+        <div class="mt-3">
+          <label class="field-label" for="dca-op">Operation</label>
+          <select class="field mt-1" id="dca-op" name="op">
             <option value="add" selected>Add</option>
             <option value="sub">Subtract</option>
           </select>
         </div>
-        <div data-field="days">
-          <label class="field-label" for="dc-days">Days</label>
-          <input class="field mt-1" id="dc-days" name="days" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" disabled aria-describedby="dc-days-error" />
-          <p class="dc-error" id="dc-days-error" data-error-for="days" hidden></p>
+
+        <div class="mt-3" data-field="amount">
+          <span class="field-label" id="dca-amount-label">Amount</span>
+          <div class="dc-amount mt-1">
+            <label class="dc-amount__box"><input class="field" id="dca-years" name="years" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="dca-amount-error" /><span>Years</span></label>
+            <label class="dc-amount__box"><input class="field" id="dca-months" name="months" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="dca-amount-error" /><span>Months</span></label>
+            <label class="dc-amount__box"><input class="field" id="dca-weeks" name="weeks" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="dca-amount-error" /><span>Weeks</span></label>
+            <label class="dc-amount__box"><input class="field" id="dca-days" name="days" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="dca-amount-error" /><span>Days</span></label>
+          </div>
+          <p class="dc-error" id="dca-amount-error" data-error-for="amount" hidden></p>
         </div>
-      </div>
+
+        <div class="dc-settings mt-4">
+          <label class="dc-check"><input type="checkbox" name="businessOnly" data-dc-business /><span>Count business days only (Monday to Friday)</span></label>
+          <label class="dc-check dc-check--nested" data-dc-holiday-row data-disabled><input type="checkbox" name="excludeHolidays" disabled /><span>Also skip US federal holidays</span></label>
+          <p class="dc-settings__note" data-dc-business-note hidden>Business-day mode counts working days, so the amount goes in the Days box.</p>
+        </div>
+
+        <div class="mt-5 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary" data-dc-submit>Calculate Date</button>
+          <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+        </div>
+        <p class="dc-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ResultShell id="dca-result" state="empty" density="standard" label="Resulting date" minHeight="16rem" placeholderAlignment="center">
+        <ExampleNotice />
+        <EmptyResult message="Enter a start date and how much time to add or subtract." />
+
+        <div data-result-when="valid">
+          <div data-dc-panel="add">
+            <ResultSummary label="Resulting date">
+              <ResultValue value="—" size="text-3xl" />
+            </ResultSummary>
+
+            <ResultBreakdown title="How it was reached">
+              <dl class="dc-metrics">
+                <div><dt>From</dt><dd data-dc-add-from>—</dd></div>
+                <div><dt>Amount</dt><dd data-dc-add-amount>—</dd></div>
+              </dl>
+            </ResultBreakdown>
+
+            <ResultInterpretation>
+              <span data-dc-add-interpretation></span>
+            </ResultInterpretation>
+          </div>
+        </div>
+
+        <InvalidResult title="Check your entries" message="Enter a start date and how much to add or subtract." />
+
+        <ResultAnnouncement id="dca-live" />
+      </ResultShell>
     </div>
-
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-dc-submit>Calculate Difference</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
-    </div>
-    <p class="dc-live-note" data-live-note hidden>Changes update automatically.</p>
-  </form>
-
-  <!-- Result -->
-  <ResultShell id="dc-result" state="empty" density="standard" label="Date result" minHeight="16rem" placeholderAlignment="center">
-    <EmptyResult message="Choose a task and enter your dates to calculate." />
-
-    <div data-result-when="valid">
-      <!-- DIFFERENCE result -->
-      <div data-dc-panel="diff">
-        <ResultSummary label="Difference">
-          <ResultValue value="—" size="text-3xl" />
-        </ResultSummary>
-
-        <ResultBreakdown title="In other units">
-          <dl class="dc-metrics">
-            <div><dt>Total days</dt><dd data-dc-total-days>—</dd></div>
-            <div><dt>Total weeks</dt><dd data-dc-total-weeks>—</dd></div>
-          </dl>
-        </ResultBreakdown>
-
-        <ResultInterpretation>
-          <span data-dc-diff-interpretation></span>
-        </ResultInterpretation>
-      </div>
-
-      <!-- ADD / SUBTRACT result -->
-      <div data-dc-panel="add" hidden>
-        <ResultSummary label="Resulting date">
-          <ResultValue value="—" size="text-3xl" />
-        </ResultSummary>
-
-        <ResultInterpretation>
-          <span data-dc-add-interpretation></span>
-        </ResultInterpretation>
-      </div>
-    </div>
-
-    <InvalidResult
-      title="Check your entries"
-      message="Enter valid dates — and, for add or subtract, a whole number of days — for the selected task."
-    />
-
-    <ResultAnnouncement id="dc-live" />
-  </ResultShell>
+  </section>
 </div>
 
 <style>
+  .dp-calc + .dp-calc {
+    margin-top: 2.25rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1.5rem;
+  }
+  .dp-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--heading);
+  }
+  .dp-lede {
+    margin: 0.15rem 0 0.75rem;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
   .dc-error {
-    margin: 0.3rem 0 0;
-    font-size: 0.78rem;
+    margin: 0.25rem 0 0;
+    font-size: 0.8rem;
     font-weight: 600;
+    line-height: 1.3;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
@@ -181,19 +258,114 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     font-variant-numeric: tabular-nums;
     color: var(--heading);
     font-weight: 700;
-    white-space: nowrap;
+    text-align: right;
+  }
+  .dc-metrics--alt > div {
+    font-size: 0.86rem;
+  }
+
+  /* The resulting date is a full weekday string — the longest is "Wednesday, September 30, 2027".
+     Scale it to the column rather than let it orphan the year. `:global` because the value element
+     belongs to the ResultValue component, so a scoped selector would never match it. */
+  .datepage :global(#dca-result [data-result-value]) {
+    font-size: clamp(1.1875rem, 1.6vw + 0.5rem, 1.625rem);
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .dc-check {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.75rem;
+    font-size: 0.86rem;
+    line-height: 1.35;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .dc-check input {
+    width: 1.05rem;
+    height: 1.05rem;
+    flex: none;
+    accent-color: var(--color-brand-600);
+  }
+  .dc-check--nested {
+    padding-left: 1.5rem;
+  }
+  /* Never colour alone: a disabled refinement is dimmed AND its control is disabled. */
+  .dc-check--nested[data-disabled] {
+    opacity: 0.55;
+    cursor: default;
+  }
+  .dc-settings {
+    border-top: 1px solid var(--line);
+    padding-top: 0.5rem;
+  }
+  .dc-settings__note {
+    margin: 0.1rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  .dc-amount {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+  /* Business-day mode leaves one box; a quarter-width control reads as a leftover. */
+  .dc-amount[data-single] {
+    grid-template-columns: minmax(0, 8rem);
+  }
+  .dc-amount__box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+  .dc-amount__box input {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    /* The spinners steal width from a 4-across row and clip the digits. */
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  .dc-amount__box input::-webkit-outer-spin-button,
+  .dc-amount__box input::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+  .dc-amount__box span {
+    font-size: 0.72rem;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  .dc-alt {
+    margin-top: 1rem;
+    border-top: 1px solid var(--line);
+    padding-top: 0.6rem;
+  }
+  .dc-alt__summary {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--fg);
+    cursor: pointer;
+    min-height: 2.25rem;
+    display: flex;
+    align-items: center;
   }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { dateBinding, DEFAULT_MODE } from '@lib/calculators/date-form';
+  import { dateBinding, dateExampleValues } from '@lib/calculators/date-form';
 
-  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
-
-  // When more than one Date calculator shares a document (e.g. an embed gallery), the server-static
-  // ids (the mode select, both modes' fields + error slots, the result shell, the live region)
-  // collide. Namespace THIS root's ids and repoint its in-root references so associations stay
+  // When more than one Date page shares a document (e.g. an embed gallery), the server-static ids
+  // collide. Namespace THIS page's ids and repoint its in-page references so associations stay
   // instance-local; a lone instance is left untouched. The runtime targets fields by [name] /
   // [data-*], never these ids.
   function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
@@ -218,66 +390,91 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     repoint('aria-controls');
   }
 
-  const SUBMIT_LABEL: Record<string, string> = {
-    diff: 'Calculate Difference',
-    add: 'Calculate Date',
-  };
+  const pages = document.querySelectorAll<HTMLElement>('[data-datepage]');
+  pages.forEach((page, i) => {
+    if (pages.length > 1) uniquifyStaticIds(page, `d${i + 1}`);
 
-  document.querySelectorAll<HTMLElement>('[data-date]').forEach((root) => {
-    if (document.querySelectorAll('[data-date]').length > 1) uniquifyStaticIds(root, `d${++ns}`);
+    // Two independent mounts. Each root carries its own fixed hidden `mode`, so neither can be
+    // switched into the other's task and neither clears or recalculates the other.
+    page.querySelectorAll<HTMLElement>('[data-date]').forEach((root) => {
+      const mode = root.dataset.dcMode === 'add' ? 'add' : 'diff';
+      mountFormCalculator(root, dateBinding, {
+        recalculationMode: 'live-after-first',
+        example: { values: { ...dateExampleValues(), mode } },
+        calculateButtonLabel: mode === 'add' ? 'Calculate Date' : 'Calculate Difference',
+      });
 
-    mountFormCalculator(root, dateBinding, {
-      recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate',
-    });
+      /**
+       * The holiday option only means something once business days are on, so it follows that
+       * checkbox: enabled with it, disabled and cleared without it. In the add/subtract
+       * calculator, business days are a count of working days, so the calendar boxes step aside
+       * rather than silently being ignored — a note says why.
+       */
+      const businessBox = root.querySelector<HTMLInputElement>('[data-dc-business]');
+      const holidayRow = root.querySelector<HTMLElement>('[data-dc-holiday-row]');
+      const holidayBox = holidayRow?.querySelector<HTMLInputElement>('input');
+      const businessNote = root.querySelector<HTMLElement>('[data-dc-business-note]');
+      const calendarBoxes = ['years', 'months', 'weeks'].map((n) =>
+        root.querySelector<HTMLInputElement>(`[name="${n}"]`),
+      );
+      const amountGrid = root.querySelector<HTMLElement>('.dc-amount');
 
-    const modeSel = root.querySelector<HTMLSelectElement>('[data-dc-mode]');
-    const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-dc-group]'));
-    const submit = root.querySelector<HTMLElement>('[data-dc-submit]');
-    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
-
-    // The island owns conditional-field visibility: show + enable only the active mode's group; hide
-    // + DISABLE every other mode's controls so they never parse, validate, receive errors or take
-    // focus. Values in the inactive (disabled) controls are retained so switching back restores the
-    // visitor's work. The primary button label follows the active task.
-    const applyModeVisibility = () => {
-      const active = modeSel?.value ?? DEFAULT_MODE;
-      for (const g of groups) {
-        const on = g.dataset.dcGroup === active;
-        g.hidden = !on;
-        g.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select').forEach((el) => {
-          el.disabled = !on;
-        });
-      }
-      if (submit) submit.textContent = SUBMIT_LABEL[active] ?? 'Calculate';
-    };
-
-    modeSel?.addEventListener('change', applyModeVisibility);
-    applyModeVisibility();
-
-    // Clear the stale result panels whenever the shell leaves the valid state (an invalid live edit,
-    // a mode switch to an empty mode, or Reset), so no stale result lingers behind the hidden valid
-    // region. On Reset the runtime restores mode → diff and clears every field (binding); re-sync the
-    // island-owned visibility + button label when the shell returns to `empty`. Presentation only.
-    if (shell) {
-      const clearPanels = () => {
-        ['[data-dc-total-days]', '[data-dc-total-weeks]'].forEach((sel) => {
-          const el = root.querySelector<HTMLElement>(sel);
-          if (el) el.textContent = '—';
-        });
-        root.querySelectorAll<HTMLElement>('[data-dc-panel] [data-result-value], [data-dc-panel] [data-result-value-a11y]').forEach((el) => {
-          el.textContent = '—';
-        });
-        ['[data-dc-diff-interpretation]', '[data-dc-add-interpretation]'].forEach((sel) => {
-          const el = root.querySelector<HTMLElement>(sel);
-          if (el) el.textContent = '';
-        });
+      const applyBusinessState = () => {
+        const on = !!businessBox?.checked;
+        if (holidayBox) {
+          holidayBox.disabled = !on;
+          if (!on) holidayBox.checked = false;
+        }
+        if (holidayRow) {
+          if (on) holidayRow.removeAttribute('data-disabled');
+          else holidayRow.setAttribute('data-disabled', '');
+        }
+        const single = on && mode === 'add';
+        if (businessNote) businessNote.hidden = !single;
+        for (const box of calendarBoxes) {
+          if (!box) continue;
+          box.disabled = single;
+          if (single) box.value = '';
+          const wrapper = box.closest<HTMLElement>('.dc-amount__box');
+          if (wrapper) wrapper.hidden = single;
+        }
+        if (amountGrid) {
+          if (single) amountGrid.setAttribute('data-single', '');
+          else amountGrid.removeAttribute('data-single');
+        }
       };
-      new MutationObserver(() => {
-        const state = shell.dataset.resultState;
-        if (state !== 'valid') clearPanels();
-        if (state === 'empty') applyModeVisibility();
-      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
-    }
+
+      businessBox?.addEventListener('change', applyBusinessState);
+      root.addEventListener('calculator:reset', applyBusinessState);
+      applyBusinessState();
+
+      /**
+       * Clear the stale result whenever this calculator's shell leaves the valid state (an
+       * invalid live edit, or Reset), so no stale figure lingers behind the hidden valid region.
+       * Presentation only — the runtime still owns state, focus and announcement.
+       */
+      const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+      if (shell) {
+        const clear = () => {
+          root
+            .querySelectorAll<HTMLElement>(
+              '[data-dc-total-days], [data-dc-total-weeks], [data-dc-business-days], [data-dc-breakdown], [data-dc-add-from], [data-dc-add-amount], [data-dc-unit-value]',
+            )
+            .forEach((el) => {
+              el.textContent = '—';
+            });
+          root.querySelectorAll<HTMLElement>('[data-result-value]').forEach((el) => {
+            el.textContent = '—';
+          });
+          ['[data-dc-diff-interpretation]', '[data-dc-add-interpretation]'].forEach((sel) => {
+            const el = root.querySelector<HTMLElement>(sel);
+            if (el) el.textContent = '';
+          });
+        };
+        new MutationObserver(() => {
+          if (shell.dataset.resultState !== 'valid') clear();
+        }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
+      }
+    });
   });
 </script>

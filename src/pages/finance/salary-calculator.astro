@@ -4,92 +4,101 @@ import SalaryCalculator from '@components/islands/SalaryCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'salary-calculator')!;
 const faqs = [
-  { question: 'How do I convert an hourly wage to an annual salary?', answer: 'Multiply your hourly rate by the hours you work per week, then by the weeks you work per year. For example, $25/hour × 40 hours × 52 weeks = $52,000 per year. This calculator does it in every direction.' },
-  { question: 'How do I convert an annual salary to an hourly rate?', answer: 'Divide the annual salary by the hours you work in a year. At a standard 40 hours a week for 52 weeks (2,080 hours), a $60,000 salary is 60,000 ÷ 2,080 ≈ $28.85 per hour.' },
-  { question: 'What is an annual salary?', answer: 'Annual salary is your total pay for a year of work, usually quoted before tax (gross). It is a fixed figure for salaried roles, whereas hourly workers earn their rate times the hours actually worked.' },
-  { question: 'How many work hours are in a year?', answer: 'A common full-time assumption is 2,080 hours (40 hours × 52 weeks). Adjust the hours-per-week and weeks-per-year fields to match your actual schedule, including unpaid time off.' },
-  { question: 'What is the difference between gross and net salary?', answer: 'Gross salary is your pay before deductions; net (take-home) pay is what lands in your account after income tax, payroll taxes and any benefits or retirement contributions. These figures are gross.' },
-  { question: 'Is this gross or net pay?', answer: 'These figures are gross (before tax). To estimate what you keep, use the income tax calculator.' },
+  { question: 'How do I convert an hourly wage to an annual salary?', answer: 'Multiply the hourly rate by the hours you work per week, then by 52 weeks. At $50 an hour over 40 hours that is $104,000 a year before any time off is taken into account. This calculator does it in every direction, and shows the figure again with holidays and vacation days accounted for.' },
+  { question: 'What is the difference between the unadjusted and adjusted columns?', answer: 'The unadjusted column ignores time off: it spreads your rate across all 260 weekdays of the year. The adjusted column subtracts your holidays and vacation days first, so it reflects the days you are actually paid for. At $50 an hour with 10 holidays and 15 vacation days, the year is $104,000 unadjusted and $94,000 adjusted.' },
+  { question: 'Which column applies to me?', answer: 'If you are paid by the hour or the day, the adjusted column is closer to reality, because a day not worked is a day not paid. If you are on a fixed salary, the salary you were quoted is already the adjusted figure — your pay does not drop in a week containing a public holiday.' },
+  { question: 'Why does entering an annual salary change the hourly rate?', answer: 'Because a quoted salary already covers your time off. To find the rate behind it the calculator divides by the days you actually work, not by every weekday — so a $94,000 salary with 25 days off works out at the same $50 an hour that produced it.' },
+  { question: 'How many work hours are in a year?', answer: 'The common full-time assumption is 2,080 hours: 40 hours a week across 52 weeks, or 260 weekdays of 8 hours. Change hours per week and days per week to match your own schedule — a 37.5-hour week lands on a very different hourly figure.' },
+  { question: 'What is the difference between bi-weekly and semi-monthly pay?', answer: 'Bi-weekly means every two weeks, which is 26 paychecks a year. Semi-monthly means twice a month, which is only 24. The semi-monthly check is therefore the larger of the two for the same salary, which is why both rows appear separately.' },
+  { question: 'Is this gross or net pay?', answer: 'Gross — before income tax, payroll taxes, retirement contributions or benefits are deducted. To estimate what you actually keep, use the income tax calculator.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Convert pay between hourly, daily, weekly, biweekly, monthly and annual figures — enter any one and see them all." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-10' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Enter your pay at any one frequency and see every other, both ignoring time off and with your holidays and vacation days accounted for." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-10' }}>
   <SalaryCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter a <strong>pay amount</strong> — any single figure you already know.</li>
-      <li>Choose the <strong>period</strong> that amount is quoted in: per hour, day, week, biweekly, month or year.</li>
-      <li>Adjust the schedule assumptions — <strong>hours per week</strong>, <strong>days per week</strong> and <strong>weeks per year</strong> — to match how you actually work (the defaults are 40, 5 and 52).</li>
-      <li>Press <strong>Convert</strong> to fill in every other equivalent at once.</li>
+      <li>Enter a <strong>salary amount</strong> — any single figure you already know.</li>
+      <li>Choose the <strong>period</strong> it is quoted in: per hour, day, week, bi-week, semi-month, month, quarter or year.</li>
+      <li>Set your working year: <strong>hours per week</strong>, <strong>days per week</strong>,
+        <strong>holidays per year</strong> and <strong>vacation days per year</strong>. The defaults
+        are 40, 5, 10 and 15.</li>
+      <li>Press <strong>Calculate</strong> to fill in all eight frequencies, twice over.</li>
     </ol>
 
-    <h2>How the conversion works</h2>
+    <h2>The two columns, and why they differ</h2>
     <p>
-      Job offers arrive in different units — one hourly, one annual, one monthly — which makes
-      them hard to compare. The tool solves this by first turning whatever you enter into a single
-      <strong>annual</strong> figure, then dividing that annual total back down into every other
-      period. Fixing everything to the yearly total is what keeps the six figures consistent with
-      one another.
+      The same job can be described by two different annual numbers, and the difference between
+      them is time off. The <strong>unadjusted</strong> column spreads your pay across every
+      weekday in the year. The <strong>adjusted</strong> column takes your holidays and vacation
+      days out first, leaving only the days you are actually paid for.
+    </p>
+    <p>
+      Which one matters depends on how you are paid. Paid by the hour, a day not worked is a day
+      not earned, so the adjusted column is the honest one. On a fixed salary, your pay does not
+      shrink in a week containing a public holiday — the salary you were quoted <em>is</em> the
+      adjusted figure, and the unadjusted column tells you what that salary is worth per day of
+      work.
+    </p>
+    <p>
+      That is also why the calculator reads your entry differently depending on the period you
+      choose. An <strong>hourly or daily</strong> amount is pay for time worked, so it is taken as
+      unadjusted. Any <strong>longer period</strong> is a salary that already covers your time off,
+      so it is taken as adjusted.
     </p>
 
-    <h2>The 2,080-hour year</h2>
+    <h2>The arithmetic</h2>
     <p>
-      A standard full-time year is <strong>40 hours × 52 weeks = 2,080 hours</strong>, and the two
-      headline conversions follow directly from it:
+      Everything is built on 52 weeks a year. Your days per week set the length of the working
+      year, and your time off sets how much of it you are paid for:
     </p>
     <ul>
-      <li><strong>Hourly → annual:</strong> rate × hours per week × weeks per year. A $25/hour job at 40 × 52 is $52,000/year.</li>
-      <li><strong>Annual → hourly:</strong> salary ÷ yearly hours. A $60,000 salary ÷ 2,080 ≈ $28.85/hour.</li>
-      <li><strong>Monthly:</strong> annual ÷ 12. <strong>Weekly:</strong> annual ÷ weeks per year. <strong>Daily:</strong> the weekly figure ÷ days per week.</li>
+      <li><strong>Weekdays in a year</strong> = 52 × days per week. On a five-day week, 260.</li>
+      <li><strong>Days actually worked</strong> = weekdays − holidays − vacation days. With 10 and 15, that is 235.</li>
+      <li><strong>Unadjusted annual</strong> = daily rate × 260. <strong>Adjusted annual</strong> = daily rate × 235.</li>
+      <li>Every other row divides its own column's annual figure: ÷ 4 for quarterly, ÷ 12 monthly,
+        ÷ 24 semi-monthly, ÷ 26 bi-weekly, ÷ 52 weekly.</li>
     </ul>
     <p>
-      Because those middle steps depend on your hours, days and weeks, changing the schedule
-      changes the hourly and daily figures even when the annual salary stays the same.
+      Both columns divide by the same 260 weekdays for their daily and hourly rows. That is
+      deliberate: the adjusted daily rate answers "what does an average day of the year earn me",
+      which only means anything spread across the whole year. Dividing by 235 instead would simply
+      hand back the unadjusted rate you started from.
     </p>
 
     <h2>A worked example</h2>
     <p>
-      Take a <strong>$25/hour</strong> job on the default 40 hours, 5 days, 52 weeks. The annual
-      figure is 25 × 40 × 52 = <strong>$52,000</strong>. Dividing that back down gives
-      <strong>$4,333.33</strong> a month, <strong>$2,000</strong> biweekly, <strong>$1,000</strong>
-      a week, and <strong>$200</strong> a day — and, closing the loop, $1,000 ÷ 40 hours brings you
-      right back to $25 an hour.
+      Take <strong>$50 an hour</strong>, 40 hours across 5 days, with 10 holidays and 15 vacation
+      days. A day is 8 hours, so <strong>$400</strong>. The year holds 260 weekdays, of which you
+      work 235.
+    </p>
+    <p>
+      Unadjusted, that is 400 × 260 = <strong>$104,000</strong> — $8,667 a month, $4,000 bi-weekly,
+      $2,000 a week. Adjusted, it is 400 × 235 = <strong>$94,000</strong> — $7,833 a month, $3,615
+      bi-weekly, $1,808 a week, and an effective <strong>$45.19</strong> an hour once the 25 unpaid
+      days are spread back across the year. The $4.81 gap between $50 and $45.19 is exactly what
+      the time off costs you.
     </p>
 
-    <h2>Quick salary-to-hourly reference</h2>
-    <table>
-      <thead>
-        <tr><th>Annual salary</th><th>Hourly (40 hrs/week)</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>$30,000</td><td>$14.42</td></tr>
-        <tr><td>$40,000</td><td>$19.23</td></tr>
-        <tr><td>$50,000</td><td>$24.04</td></tr>
-        <tr><td>$60,000</td><td>$28.85</td></tr>
-        <tr><td>$75,000</td><td>$36.06</td></tr>
-        <tr><td>$100,000</td><td>$48.08</td></tr>
-      </tbody>
-    </table>
-
-    <h2>Biweekly vs. semimonthly vs. monthly</h2>
+    <h2>Bi-weekly vs. semi-monthly vs. monthly</h2>
     <p>
-      Watch the paycheck period carefully, because "twice a month" and "every two weeks" are not
-      the same. This tool's <strong>biweekly</strong> figure divides the annual salary by 26 — the
-      26 paychecks you receive when paid every two weeks. A <strong>semimonthly</strong> schedule
-      (the 1st and 15th, say) pays only 24 times a year, so each of those checks is larger, and a
-      <strong>monthly</strong> salary divides by 12. On $52,000 that is $2,000 biweekly, about
-      $2,166.67 semimonthly, and $4,333.33 monthly.
+      "Twice a month" and "every two weeks" are not the same thing. <strong>Bi-weekly</strong>
+      divides by 26, the number of paychecks in a year when you are paid fortnightly.
+      <strong>Semi-monthly</strong> (the 1st and 15th, say) pays only 24 times, so each check is
+      larger. <strong>Monthly</strong> divides by 12. On the $94,000 adjusted figure above, that is
+      $3,615, $3,917 and $7,833 respectively — three different numbers describing one salary.
     </p>
 
     <h2>Match it to your real schedule</h2>
     <p>
-      The conversion is only as accurate as its assumptions. Adjust hours per week, days per week
-      and weeks worked per year to reflect overtime, part-time hours or unpaid leave — someone
-      working 37.5 hours over 48 paid weeks lands on a very different hourly figure than the 2,080
-      default. Every figure here is <strong>gross</strong> pay, before income tax, payroll tax or
-      benefits are deducted.
+      The result is only as good as its assumptions. Change hours per week for overtime or
+      part-time work, days per week for a compressed or six-day week, and the two time-off fields
+      to whatever your contract actually gives you. Unpaid leave belongs in the vacation field too
+      — as far as the arithmetic is concerned, an unpaid day and an unused vacation day cost the
+      same.
     </p>
     <p>
+      Every figure here is <strong>gross</strong> pay, before income tax, payroll tax or benefits.
       To estimate what you actually keep, try the <a href="/finance/income-tax-calculator">income
       tax calculator</a>; to add up time actually worked, see the
       <a href="/everyday/hours-calculator">hours calculator</a>. These are gross figures for

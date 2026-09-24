@@ -11,6 +11,17 @@ export interface AgeResult {
   totalDays: number;
   totalWeeks: number;
   totalMonths: number;
+  /** Days left over after the whole weeks — the "+ 4 days" in "1,836 + 4 days". */
+  totalWeeksRemainderDays: number;
+  /**
+   * Elapsed time in smaller units. Age is a CIVIL-DATE span (UTC midnight to UTC
+   * midnight), so these are exact multiples of `totalDays` — no DST or
+   * time-of-day component enters the calculation, and the day/week/month figures
+   * above are untouched by their presence.
+   */
+  totalHours: number;
+  totalMinutes: number;
+  totalSeconds: number;
   nextBirthdayInDays: number;
 }
 
@@ -53,6 +64,10 @@ export function calculateAge(birth: Date, at: Date): AgeResult {
     totalDays: 0,
     totalWeeks: 0,
     totalMonths: 0,
+    totalWeeksRemainderDays: 0,
+    totalHours: 0,
+    totalMinutes: 0,
+    totalSeconds: 0,
     nextBirthdayInDays: 0,
   };
   if (birth.getTime() > at.getTime()) return invalid;
@@ -95,6 +110,10 @@ export function calculateAge(birth: Date, at: Date): AgeResult {
     totalDays,
     totalWeeks: Math.floor(totalDays / 7),
     totalMonths,
+    totalWeeksRemainderDays: totalDays % 7,
+    totalHours: totalDays * 24,
+    totalMinutes: totalDays * 24 * 60,
+    totalSeconds: totalDays * 24 * 60 * 60,
     nextBirthdayInDays,
   };
 }

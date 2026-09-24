@@ -11,6 +11,7 @@
  * real provider or consent vendor is integrated, and consent defaults to denied.
  */
 import { AFFILIATE } from '@config/monetization';
+import { SITE } from '@config/site';
 
 /* ------------------------------------------------------------------ */
 /* Contracts                                                           */
@@ -144,11 +145,11 @@ export function disclosureLabel(kind: RevenueModuleKind): string {
     case 'sponsored':
       return 'Sponsored';
     case 'premium':
-      return 'AllCalculators Plus'; // internal product — labelled, never "independent recommendation"
+      return `${SITE.name} Plus`; // internal product — labelled, never "independent recommendation"
     case 'embed':
       return 'Embed this tool';
     case 'api':
-      return 'AllCalculators API';
+      return `${SITE.name} API`;
     case 'lead':
       return 'Get a quote';
   }

@@ -1,26 +1,39 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Protein calculator — R7C-1 standard-form wave (calculator #2). Body weight +
- * goal personal tool with a DOMINANT daily-protein target for the SELECTED goal
- * and a SECONDARY per-goal comparison table. Covers the doctrine end-to-end + the
- * result policy: one honest figure (the formula returns a single value per goal,
- * not a range), a real comparison table with headers, the selected goal
- * highlighted, and a concise primary-only announcement.
+ * Protein — the reference's fields, its "+ Settings" disclosure and its two-basis report.
+ *
+ * Three tabs, two of which are unit systems; the third opens the shared five-category
+ * converter above the calculator. The report answers on grams per kilogram of body weight
+ * AND on a share of the visitor's own daily Calories — the second is why the form asks for
+ * height, activity and an equation at all.
  */
 const ROUTE = '/health/protein-calculator';
 const DEBOUNCE = 300;
 
 const shell = (page: Page) => page.locator('#pr-result');
-const primary = (page: Page) => page.locator('#pr-result [data-result-value]');
+const rda = (page: Page) => page.locator('#pr-result [data-protein-rda]');
+const basis = (page: Page, key: string) => page.locator(`#pr-result [data-basis="${key}"] [data-basis-grams]`);
 const liveRegion = (page: Page) => page.locator('#pr-live');
 const submit = (page: Page) => page.locator('form[data-form] button[type="submit"]');
 const region = (page: Page, when: string) => page.locator(`#pr-result [data-result-when~="${when}"]`);
-const gramsCell = (page: Page, key: string) => page.locator(`#pr-result [data-pr-grams="${key}"]`);
-const row = (page: Page, key: string) => page.locator(`#pr-result [data-pr-row="${key}"]`);
 
-const calcMetric = async (page: Page, kg = '75') => {
-  await page.fill('[name="weightKg"]', kg);
+/** The reference's case: 25, male, 5 ft 10 in, 160 lb, Light (1.375). */
+const calcUs = async (page: Page, over: Partial<Record<string, string>> = {}) => {
+  await page.fill('[name="age"]', over.age ?? '25');
+  await page.fill('[name="heightFt"]', over.heightFt ?? '5');
+  await page.fill('[name="heightIn"]', over.heightIn ?? '10');
+  await page.fill('[name="weightLb"]', over.weightLb ?? '160');
+  await page.selectOption('[name="activity"]', over.activity ?? '1.375');
+  await submit(page).click();
+};
+
+const calcMetric = async (page: Page) => {
+  await page.click('[data-unit="metric"]');
+  await page.fill('[name="age"]', '25');
+  await page.fill('[name="heightCm"]', '180');
+  await page.fill('[name="weightKg"]', '60');
+  await page.selectOption('[name="activity"]', '1.375');
   await submit(page).click();
 };
 
@@ -28,162 +41,274 @@ test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
-/* ---- Initial state ------------------------------------------------------ */
+/* ---- The reference's anatomy ------------------------------------------- */
 
-test('loads empty: weight blank, goal defaulted, result empty, Calculate visible, no announcement', async ({ page }) => {
-  await expect(page.locator('[name="weightKg"]')).toHaveValue('');
-  await expect(page.locator('[name="goalKey"]')).toHaveValue('active'); // sensible default, not prefilled data
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
-  await expect(submit(page)).toHaveText('Calculate Protein Needs');
-  await expect(page.locator('[data-live-note]')).toBeHidden();
-  await expect(liveRegion(page)).toHaveText('');
-  // No COMPUTED grams on load: the primary + every goal cell hold the dash (the
-  // static g/kg factor scale in the reserved-but-hidden valid region is not output).
-  await expect(primary(page)).toHaveText('—');
-  await expect(gramsCell(page, 'active')).toHaveText('—');
+test.describe('the reference fields', () => {
+  test('three tabs, in the reference’s order, opening on US Units', async ({ page }) => {
+    const labels = await page.locator('.pr-tabs button').allTextContents();
+    expect(labels.map((l) => l.trim())).toEqual(['US Units', 'Metric Units', 'Other Units']);
+    await expect(page.locator('[data-unit="imperial"]')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('asks for age, gender, height, weight and activity, with Settings closed', async ({ page }) => {
+    const form = page.locator('form[data-form]');
+    await expect(form.getByText('Age', { exact: true })).toBeVisible();
+    await expect(form.getByText('ages 18 - 80')).toBeVisible();
+    await expect(form.getByText('Gender', { exact: true })).toBeVisible();
+    await expect(form.getByText('Activity', { exact: true })).toBeVisible();
+    await expect(page.locator('[name="weightLb"]')).toBeVisible();
+    await expect(page.locator('[name="weightKg"]')).toBeHidden();
+    await expect(page.locator('[data-settings]')).toBeHidden();
+  });
+
+  test('the activity select offers the six shared bands', async ({ page }) => {
+    const options = await page.locator('[name="activity"] option').allTextContents();
+    expect(options).toEqual([
+      'Sedentary: little or no exercise',
+      'Light: exercise 1-3 times/week',
+      'Moderate: exercise 4-5 times/week',
+      'Active: daily exercise or intense exercise 3-4 times/week',
+      'Very Active: intense exercise 6-7 times/week',
+      'Extra Active: very intense exercise daily, or physical job',
+    ]);
+  });
+
+  test('prints the three exercise definitions under the calculator', async ({ page }) => {
+    const notes = page.locator('.pr-notes li');
+    await expect(notes).toHaveCount(3);
+    await expect(notes.first()).toHaveText('Exercise: 15-30 minutes of elevated heart rate activity.');
+  });
+
+  test('loads with empty personal fields and a labelled example result', async ({ page }) => {
+    for (const name of ['age', 'heightFt', 'heightIn', 'weightLb', 'bodyFatPct']) {
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+    }
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    await expect(region(page, 'empty')).toBeHidden();
+    await expect(liveRegion(page)).toHaveText('');
+  });
+
+  test('does not calculate automatically before the first submission', async ({ page }) => {
+    await page.fill('[name="age"]', '25');
+    await page.fill('[name="weightLb"]', '160');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  });
 });
 
-test('does not calculate automatically before the first submission', async ({ page }) => {
-  await page.fill('[name="weightKg"]', '75');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(liveRegion(page)).toHaveText('');
+/* ---- The report --------------------------------------------------------- */
+
+test.describe('the two bases', () => {
+  test('US: 25, male, 5 ft 10 in, 160 lb, Light', async ({ page }) => {
+    await calcUs(page);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(rda(page)).toHaveText('58');
+    await expect(basis(page, 'rda')).toHaveText('58 grams/day');
+    await expect(basis(page, 'range')).toHaveText('58 - 131 grams/day');
+    await expect(basis(page, 'highly-active')).toHaveText('131 - 145 grams/day');
+    await expect(basis(page, 'amdr')).toHaveText('59 - 207 grams/day');
+    await expect(page.locator('[data-protein-calories]')).toHaveText('2,361');
+    await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
+  });
+
+  test('Metric: the same person at 180 cm, 60 kg', async ({ page }) => {
+    await calcMetric(page);
+    await expect(rda(page)).toHaveText('48');
+    await expect(basis(page, 'range')).toHaveText('48 - 108 grams/day');
+    await expect(basis(page, 'highly-active')).toHaveText('108 - 120 grams/day');
+    await expect(basis(page, 'amdr')).toHaveText('55 - 193 grams/day');
+    await expect(page.locator('[data-protein-calories]')).toHaveText('2,207');
+  });
+
+  test('names each basis and its rate', async ({ page }) => {
+    await calcUs(page);
+    const table = page.locator('#pr-result table.pr-bases');
+    await expect(table.locator('tbody th[scope="row"]')).toHaveText([
+      'Recommended dietary allowance',
+      'Recommended range',
+      'Highly active',
+      'Share of your daily Calories',
+    ]);
+    await expect(table.locator('.pr-rate')).toHaveText([
+      '0.8 g/kg',
+      '0.8 - 1.8 g/kg',
+      '1.8 - 2 g/kg',
+      '10 - 35% of Calories',
+    ]);
+  });
+
+  test('activity moves the calorie row and leaves the weight rows alone', async ({ page }) => {
+    await calcUs(page);
+    const before = await basis(page, 'amdr').textContent();
+    await page.selectOption('[name="activity"]', '1.9');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(rda(page)).toHaveText('58');
+    await expect(basis(page, 'range')).toHaveText('58 - 131 grams/day');
+    await expect(basis(page, 'amdr')).not.toHaveText(before!);
+    await expect(page.locator('[data-protein-calories]')).toHaveText('3,262'); // 1717 × 1.9
+  });
+
+  test('the RDA is visually dominant over the table cells', async ({ page }) => {
+    await calcUs(page);
+    const head = await rda(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    const cell = await basis(page, 'rda').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(head).toBeGreaterThan(cell * 1.5);
+    await expect(page.locator('[data-live-note]')).toBeVisible();
+  });
 });
 
-/* ---- Valid result: dominant primary + secondary goal comparison --------- */
+/* ---- Settings ----------------------------------------------------------- */
 
-test('valid metric result shows the selected goal target and every goal estimate', async ({ page }) => {
-  await calcMetric(page, '75'); // default goal = active (1.2 g/kg)
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('90'); // 75 × 1.2
-  await expect(gramsCell(page, 'sedentary')).toHaveText('60 g'); // 75 × 0.8
-  await expect(gramsCell(page, 'active')).toHaveText('90 g');
-  await expect(gramsCell(page, 'endurance')).toHaveText('105 g'); // 75 × 1.4
-  await expect(gramsCell(page, 'strength')).toHaveText('135 g'); // 75 × 1.8
-  await expect(gramsCell(page, 'cutting')).toHaveText('165 g'); // 75 × 2.2
-  // The primary figure is visually DOMINANT over the comparison cells.
-  const primarySize = await primary(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  const cellSize = await gramsCell(page, 'active').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(primarySize).toBeGreaterThan(cellSize * 1.5);
-  await expect(page.locator('[data-live-note]')).toBeVisible();
+test.describe('+ Settings', () => {
+  const open = async (page: Page) => {
+    await page.locator('[data-settings-toggle]').click();
+    await expect(page.locator('[data-settings]')).toBeVisible();
+  };
+
+  test('offers the three equations and hides the body-fat box until it is needed', async ({ page }) => {
+    await open(page);
+    await expect(page.locator('[name="formula"]')).toHaveCount(3);
+    await expect(page.locator('[data-bodyfat]')).toBeHidden();
+    await page.locator('[name="formula"][value="katch-mcardle"]').check();
+    await expect(page.locator('[data-bodyfat]')).toBeVisible();
+  });
+
+  test('the equation moves the calorie row but never the weight rows', async ({ page }) => {
+    await calcUs(page);
+    await open(page);
+    await page.locator('[name="formula"][value="harris-benedict"]').check();
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(rda(page)).toHaveText('58');
+    await expect(basis(page, 'range')).toHaveText('58 - 131 grams/day');
+    await expect(page.locator('[data-protein-calories]')).toHaveText('2,436'); // the unrounded Harris-Benedict BMR × 1.375
+  });
+
+  test('Katch-McArdle without a body fat percentage asks rather than guessing', async ({ page }) => {
+    await open(page);
+    await page.locator('[name="formula"][value="katch-mcardle"]').check();
+    await calcUs(page);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(page.locator('[data-error-for="bodyFatPct"]')).toContainText('body fat percentage');
+  });
+
+  test('a required body-fat box behind a closed Settings panel is reopened', async ({ page }) => {
+    await open(page);
+    await page.locator('[name="formula"][value="katch-mcardle"]').check();
+    await page.locator('[data-settings-toggle]').click();
+    await expect(page.locator('[data-settings]')).toBeHidden();
+    await calcUs(page);
+    await expect(page.locator('[data-settings]')).toBeVisible();
+    await expect(page.locator('[name="bodyFatPct"]')).toBeFocused();
+  });
+
+  test('leaving Katch-McArdle empties the body-fat box it hides', async ({ page }) => {
+    await open(page);
+    await page.locator('[name="formula"][value="katch-mcardle"]').check();
+    await page.fill('[name="bodyFatPct"]', '20');
+    await page.locator('[name="formula"][value="mifflin"]').check();
+    await expect(page.locator('[data-bodyfat]')).toBeHidden();
+    await expect(page.locator('[name="bodyFatPct"]')).toHaveValue('');
+  });
 });
 
-test('the interpretation names the selected goal and its g/kg factor', async ({ page }) => {
-  await calcMetric(page, '75');
-  await expect(page.locator('#pr-result [data-pr-interpretation]')).toHaveText(
-    'Based on active / general fitness at 1.2 g per kg of body weight.',
-  );
-});
+/* ---- Validation --------------------------------------------------------- */
 
-test('the selected goal is highlighted, and only that row', async ({ page }) => {
-  await calcMetric(page, '75');
-  await expect(row(page, 'active')).toHaveAttribute('aria-current', 'true');
-  for (const key of ['sedentary', 'endurance', 'strength', 'cutting']) {
-    await expect(row(page, key)).not.toHaveAttribute('aria-current', 'true');
-  }
-});
-
-test('the goal comparison is an accessible table with column + row headers', async ({ page }) => {
-  await calcMetric(page, '75');
-  const table = page.locator('#pr-result table.pr-goals');
-  await expect(table.locator('thead th[scope="col"]')).toHaveCount(3); // Goal / Target / Protein/day
-  await expect(table.locator('tbody th[scope="row"]')).toHaveCount(5); // one per goal
-});
-
-test('valid imperial result still reports grams from the converted weight', async ({ page }) => {
-  await page.click('[data-unit="imperial"]');
-  await page.fill('[name="weightLb"]', '176'); // ≈ 79.83 kg × 1.2 ≈ 96
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('96');
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-});
-
-/* ---- Changing the goal (protein-specific live behaviour) ---------------- */
-
-test('changing the goal after the first calc re-targets the primary and the highlight', async ({ page }) => {
-  await calcMetric(page, '75');
-  await expect(primary(page)).toHaveText('90');
-  await page.selectOption('[name="goalKey"]', 'strength');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(primary(page)).toHaveText('135'); // 75 × 1.8
-  await expect(row(page, 'strength')).toHaveAttribute('aria-current', 'true');
-  await expect(row(page, 'active')).not.toHaveAttribute('aria-current', 'true');
-});
-
-/* ---- Validation, focus, aria ------------------------------------------- */
-
-test('an empty submission focuses the weight field and associates the error', async ({ page }) => {
+test('an empty submission focuses the first invalid field and associates the error', async ({ page }) => {
   await submit(page).click();
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  const weight = page.locator('[name="weightKg"]');
-  await expect(weight).toBeFocused();
-  await expect(weight).toHaveAttribute('aria-invalid', 'true');
-  const errId = await weight.getAttribute('aria-describedby');
-  await expect(page.locator(`#${errId}`)).toHaveText('Enter your body weight.');
+  const age = page.locator('[name="age"]');
+  await expect(age).toBeFocused();
+  await expect(age).toHaveAttribute('aria-invalid', 'true');
+  const errId = await age.getAttribute('aria-describedby');
+  await expect(page.locator(`#${errId}`)).toHaveText('Enter your age.');
 });
 
-test('a zero weight is rejected, never treated as zero grams', async ({ page }) => {
-  await page.fill('[name="weightKg"]', '0');
-  await submit(page).click();
+test('the calculator is for adults: 17 is an input error, 18 is not', async ({ page }) => {
+  await calcUs(page, { age: '17' });
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(page.locator('[data-error-for="weightKg"]')).toHaveText('Enter a weight greater than zero.');
+  await expect(page.locator('[data-error-for="age"]')).toHaveText('Enter an age from 18 to 80.');
+  await page.fill('[name="age"]', '18');
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
 });
 
-/* ---- Live-after-first + focus ------------------------------------------ */
+test('a zero weight is rejected with distinct guidance and no NaN', async ({ page }) => {
+  await calcUs(page, { weightLb: '0' });
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(page.locator('[data-error-for="weightLb"]')).toHaveText('Enter a weight greater than zero.');
+  await expect(shell(page)).not.toContainText(/NaN/);
+});
+
+test('US height rejects 12+ inches without normalizing', async ({ page }) => {
+  await calcUs(page, { heightIn: '13' });
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(page.locator('[data-error-for="height"]')).toHaveText('Enter inches from 0 to 11.');
+});
+
+/* ---- Live-after-first + units ------------------------------------------- */
 
 test('updates automatically after the first success, without moving focus', async ({ page }) => {
-  await calcMetric(page, '75');
-  await expect(primary(page)).toHaveText('90');
-  const w = page.locator('[name="weightKg"]');
-  await w.focus();
-  await w.fill('80');
+  await calcUs(page);
+  const lb = page.locator('[name="weightLb"]');
+  await lb.focus();
+  await lb.fill('200');
   await page.waitForTimeout(DEBOUNCE);
-  await expect(primary(page)).toHaveText('96'); // 80 × 1.2
-  await expect(w).toBeFocused();
+  await expect(rda(page)).toHaveText('73'); // 90.7 kg × 0.8
+  await expect(lb).toBeFocused();
 });
 
-/* ---- Unit switching ---------------------------------------------------- */
-
-test('switching units converts the weight and does not count as the first calc', async ({ page }) => {
-  await page.fill('[name="weightKg"]', '80');
-  await page.click('[data-unit="imperial"]');
-  await expect(page.locator('[name="weightLb"]')).toHaveValue('176.4'); // 80 kg → lb, rounded to 0.1
+test('switching units converts height and weight rather than clearing them', async ({ page }) => {
+  await page.fill('[name="heightFt"]', '5');
+  await page.fill('[name="heightIn"]', '10');
+  await page.fill('[name="weightLb"]', '160');
+  await page.click('[data-unit="metric"]');
+  await expect(page.locator('[name="heightCm"]')).toHaveValue('177.8');
+  await expect(page.locator('[name="weightKg"]')).toHaveValue('72.6');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
 });
 
-/* ---- Reset -------------------------------------------------------------- */
+test('Other Units opens the shared converter above the calculator, leaving the system alone', async ({ page }) => {
+  const panel = page.locator('[data-converter]');
+  await expect(panel).toBeHidden();
+  await page.getByRole('button', { name: 'Other Units' }).click();
+  await expect(panel).toBeVisible();
+  const cats = await page.locator('[data-conv-cat]').allTextContents();
+  expect(cats.map((c) => c.trim())).toEqual(['Length', 'Temperature', 'Area', 'Volume', 'Weight']);
+  await expect(page.locator('[data-unit="imperial"]')).toHaveAttribute('aria-checked', 'true');
+  const panelTop = (await panel.boundingBox())!.y;
+  const formTop = (await page.locator('form[data-form]').boundingBox())!.y;
+  expect(panelTop).toBeLessThan(formTop);
+});
 
-test('reset clears weight, restores the default goal + Metric, returns to empty', async ({ page }) => {
-  await calcMetric(page, '75');
-  await page.selectOption('[name="goalKey"]', 'cutting');
-  await page.click('[data-unit="imperial"]');
+/* ---- Reset + announcement ----------------------------------------------- */
+
+test('Clear empties every field and restores male, Moderate and Mifflin-St Jeor', async ({ page }) => {
+  await calcUs(page);
+  await page.check('[name="sex"][value="female"]');
   await page.waitForTimeout(DEBOUNCE);
   await page.click('[data-reset]');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(page.locator('[name="weightKg"]')).toHaveValue('');
-  await expect(page.locator('[name="goalKey"]')).toHaveValue('active');
-  await expect(page.locator('[data-live-note]')).toBeHidden();
+  for (const name of ['age', 'heightFt', 'heightIn', 'weightLb']) {
+    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+  }
+  await expect(page.locator('[name="sex"][value="male"]')).toBeChecked();
+  await expect(page.locator('[name="activity"]')).toHaveValue('1.465');
+  await expect(page.locator('[name="formula"][value="mifflin"]')).toBeChecked();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(page.locator('[data-unit="metric"]')).toHaveAttribute('aria-checked', 'true');
 });
 
-/* ---- Announcement ------------------------------------------------------- */
-
-test('announces the daily target concisely, never the goal table', async ({ page }) => {
-  await calcMetric(page, '75');
-  await expect(liveRegion(page)).toHaveText('Your estimated daily protein target is about 90 grams per day.');
-  await expect(liveRegion(page)).not.toContainText(/sedentary|endurance|strength|cutting|g\/kg/i);
+test('announces the recommended allowance only, never the whole table', async ({ page }) => {
+  await calcUs(page);
+  await expect(liveRegion(page)).toHaveText('You need at least 58 grams of protein a day.');
+  await expect(liveRegion(page)).not.toContainText(/131|207|Calories/);
 });
 
-/* ---- Responsive / theme / embed / monetization ------------------------- */
+/* ---- Responsive / theme / embed / monetization -------------------------- */
 
 test('desktop shows the result within the first viewport at 1366×768', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
-  await calcMetric(page, '75');
-  await expect(primary(page)).toBeInViewport();
+  await calcUs(page);
+  await expect(rda(page)).toBeInViewport();
 });
 
 test('mobile stacks inputs → action → result and does not overflow', async ({ page }) => {
@@ -192,34 +317,49 @@ test('mobile stacks inputs → action → result and does not overflow', async (
   const formBox = (await page.locator('form[data-form]').boundingBox())!;
   const resultTop = (await shell(page).boundingBox())!.y;
   expect(resultTop).toBeGreaterThanOrEqual(formBox.y + formBox.height - 1);
-  await calcMetric(page, '75');
-  await expect(primary(page)).toHaveText('90');
+  await calcUs(page);
+  await expect(rda(page)).toHaveText('58');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
 test('renders in dark scheme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
-  await calcMetric(page, '75');
-  await expect(primary(page)).toBeVisible();
+  await calcUs(page);
+  await expect(rda(page)).toBeVisible();
 });
 
 test('the embed route mounts the same interactive island', async ({ page }) => {
   await page.goto('/embed/health/protein-calculator', { waitUntil: 'domcontentloaded' });
-  await page.fill('[name="weightKg"]', '75');
+  await page.fill('[name="age"]', '25');
+  await page.fill('[name="heightFt"]', '5');
+  await page.fill('[name="heightIn"]', '10');
+  await page.fill('[name="weightLb"]', '160');
   await page.locator('form[data-form] button[type="submit"]').click();
-  await expect(page.locator('#pr-result [data-result-value]')).toHaveText('90');
+  await expect(page.locator('#pr-result [data-protein-rda]')).toHaveText('58');
 });
 
-test('the guide that embeds the island renders the migrated task-first tool', async ({ page }) => {
+test('the guide that embeds the island renders the task-first tool', async ({ page }) => {
   await page.goto('/guides/how-much-protein-do-you-need', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#pr-result')).toHaveAttribute('data-result-state', 'empty'); // empty, not a prefilled result
-  await page.fill('[name="weightKg"]', '75');
+  await expect(page.locator('#pr-result')).toHaveAttribute('data-result-state', 'example');
+  await page.fill('[name="age"]', '25');
+  await page.fill('[name="heightFt"]', '5');
+  await page.fill('[name="heightIn"]', '10');
+  await page.fill('[name="weightLb"]', '160');
   await page.locator('form[data-form] button[type="submit"]').click();
-  await expect(page.locator('#pr-result [data-result-value]')).toHaveText('90');
+  await expect(page.locator('#pr-result [data-protein-rda]')).toHaveText('58');
 });
 
 test('the live page carries no monetization output', async ({ page }) => {
   await expect(page.locator('[data-mon-region]')).toHaveCount(0);
   expect(await page.content()).not.toContain('data-mon-');
+});
+
+test('Clear from Katch-McArdle hides the body-fat box again, not just the radio', async ({ page }) => {
+  await page.locator('[data-settings-toggle]').click();
+  await page.locator('[name="formula"][value="katch-mcardle"]').check();
+  await expect(page.locator('[data-bodyfat]')).toBeVisible();
+  await page.click('[data-reset]');
+  await expect(page.locator('[name="formula"][value="mifflin"]')).toBeChecked();
+  await expect(page.locator('[data-bodyfat]')).toBeHidden();
 });

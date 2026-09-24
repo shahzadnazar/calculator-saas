@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { calculateRetirement } from './retirement';
+import {
+  calculateRetirement,
+  calculateMoneyLasts,
+  sustainableWithdrawal,
+  MAX_LASTS_MONTHS,
+} from './retirement';
 import { calculateCompoundInterest } from './compound-interest';
 
 /**
@@ -213,5 +218,159 @@ describe('retirement — no upper age cap in the pure source (R18B3.1)', () => {
     expect(r.yearsToRetirement).toBe(5);
     expect(r.nestEgg).toBe(ci.futureValue);
     expect(r.totalContributions).toBe(ci.totalContributions);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* How long can your money last — the boundary, in detail              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * This is the mode where a wrong answer is worst: telling someone their money
+ * never runs out when it does. Withdrawals come out at the START of the month
+ * and the remainder earns for that month, so the balance holds at
+ * `d = B·rm/(1+rm)` — NOT at `B·rm`, which is the end-of-month answer and the
+ * more generous of the two. The band between them is small in percentage terms
+ * and enormous in consequence, so it is pinned here from both sides.
+ */
+describe('money lasts — the sustainable-withdrawal boundary', () => {
+  const POT = 600000;
+  const RATE = 6;
+  const rm = RATE / 100 / 12;
+
+  it('the hold point is B·rm/(1+rm), and it is BELOW the naive B·rm', () => {
+    const hold = sustainableWithdrawal(POT, RATE);
+    expect(hold).toBeCloseTo((POT * rm) / (1 + rm), 9);
+    expect(hold).toBeCloseTo(2985.0746, 3);
+    expect(hold).toBeLessThan(POT * rm); // the naive threshold would over-promise
+  });
+  it('is zero when there is nothing to draw on, or nothing being earned', () => {
+    expect(sustainableWithdrawal(0, RATE)).toBe(0);
+    expect(sustainableWithdrawal(POT, 0)).toBe(0);
+    expect(sustainableWithdrawal(-1, RATE)).toBe(0);
+  });
+
+  it('AT the hold point the balance holds and the money never runs out', () => {
+    const r = calculateMoneyLasts({ amount: POT, monthlyWithdrawal: sustainableWithdrawal(POT, RATE), annualReturnPct: RATE });
+    expect(r.neverRunsOut).toBe(true);
+    expect(r.reachedLimit).toBe(true);
+    expect(r.endingBalance).toBeCloseTo(POT, 0);
+  });
+  it('BELOW the hold point the balance grows, and it never runs out', () => {
+    const r = calculateMoneyLasts({ amount: POT, monthlyWithdrawal: 2000, annualReturnPct: RATE });
+    expect(r.neverRunsOut).toBe(true);
+    expect(r.endingBalance).toBeGreaterThan(POT);
+  });
+
+  it('JUST ABOVE the hold point the balance falls — never promised as permanent', () => {
+    // Every one of these sits inside the band the naive B·rm threshold would have
+    // called sustainable. None of them is.
+    for (const draw of [2986, 2990, 2995, 3000]) {
+      const r = calculateMoneyLasts({ amount: POT, monthlyWithdrawal: draw, annualReturnPct: RATE });
+      expect(r.neverRunsOut).toBe(false);
+      expect(r.endingBalance).toBeLessThan(POT);
+    }
+  });
+  it('...and two of those actually empty the account inside the projection', () => {
+    expect(calculateMoneyLasts({ amount: POT, monthlyWithdrawal: 2995, annualReturnPct: RATE }).months).toBe(1145);
+    expect(calculateMoneyLasts({ amount: POT, monthlyWithdrawal: 3000, annualReturnPct: RATE }).months).toBe(1064);
+    for (const draw of [2995, 3000]) {
+      const r = calculateMoneyLasts({ amount: POT, monthlyWithdrawal: draw, annualReturnPct: RATE });
+      expect(r.reachedLimit).toBe(false);
+      expect(r.endingBalance).toBeLessThanOrEqual(0.01);
+    }
+  });
+  it('a pot still shrinking at the cap is reported by duration, not as permanent', () => {
+    const r = calculateMoneyLasts({ amount: POT, monthlyWithdrawal: 2990, annualReturnPct: RATE });
+    expect(r.reachedLimit).toBe(true);
+    expect(r.neverRunsOut).toBe(false); // the distinction that keeps the claim honest
+    expect(r.months).toBe(MAX_LASTS_MONTHS);
+  });
+});
+
+describe('money lasts — ordinary and edge cases', () => {
+  it('reproduces the reference case', () => {
+    const r = calculateMoneyLasts({ amount: 600000, monthlyWithdrawal: 5000, annualReturnPct: 6 });
+    expect(r.months).toBe(183);
+    expect(r.years).toBe(15);
+    expect(r.remainingMonths).toBe(3);
+    expect(r.neverRunsOut).toBe(false);
+    expect(r.reachedLimit).toBe(false);
+  });
+  it('the parts always reconstruct the whole', () => {
+    for (const draw of [1000, 2500, 5000, 20000]) {
+      const r = calculateMoneyLasts({ amount: 600000, monthlyWithdrawal: draw, annualReturnPct: 6 });
+      expect(r.years * 12 + r.remainingMonths).toBe(r.months);
+      expect(r.months).toBeLessThanOrEqual(MAX_LASTS_MONTHS);
+      expect(Number.isInteger(r.months)).toBe(true);
+    }
+  });
+  it('the total withdrawn is SUMMED, never assumed from the month count', () => {
+    // The final month pays out only what is left, so the total is below draw × months.
+    const r = calculateMoneyLasts({ amount: 600000, monthlyWithdrawal: 5000, annualReturnPct: 6 });
+    expect(r.totalWithdrawn).toBeLessThanOrEqual(5000 * r.months);
+    expect(r.totalWithdrawn).toBeGreaterThan(5000 * (r.months - 1));
+    expect(r.totalWithdrawn).toBeCloseTo(911128.18, 2);
+  });
+  it('a 0% return is simple division, rounded up for the part-month', () => {
+    expect(calculateMoneyLasts({ amount: 600000, monthlyWithdrawal: 5000, annualReturnPct: 0 }).months).toBe(120);
+    expect(calculateMoneyLasts({ amount: 10000, monthlyWithdrawal: 3000, annualReturnPct: 0 }).months).toBe(4);
+    const partial = calculateMoneyLasts({ amount: 10000, monthlyWithdrawal: 3000, annualReturnPct: 0 });
+    expect(partial.totalWithdrawn).toBeCloseTo(10000, 6); // never pays out more than there was
+    expect(partial.neverRunsOut).toBe(false);
+  });
+  it('a withdrawal larger than the pot empties it in one month', () => {
+    const r = calculateMoneyLasts({ amount: 1000, monthlyWithdrawal: 5000, annualReturnPct: 6 });
+    expect(r.months).toBe(1);
+    expect(r.totalWithdrawn).toBe(1000);
+    expect(r.endingBalance).toBe(0);
+  });
+  it('an empty pot lasts no time at all, and claims nothing', () => {
+    const r = calculateMoneyLasts({ amount: 0, monthlyWithdrawal: 5000, annualReturnPct: 6 });
+    expect(r.months).toBe(0);
+    expect(r.totalWithdrawn).toBe(0);
+    expect(r.neverRunsOut).toBe(false);
+    expect(r.reachedLimit).toBe(false);
+  });
+  it('a zero withdrawal never depletes the pot and never claims a payout', () => {
+    const r = calculateMoneyLasts({ amount: 600000, monthlyWithdrawal: 0, annualReturnPct: 6 });
+    expect(r.totalWithdrawn).toBe(0);
+    expect(r.neverRunsOut).toBe(true);
+    expect(r.reachedLimit).toBe(true);
+  });
+  it('the yearly series tracks the balance and stops with it', () => {
+    const r = calculateMoneyLasts({ amount: 600000, monthlyWithdrawal: 5000, annualReturnPct: 6 });
+    expect(r.series.length).toBe(Math.floor(r.months / 12));
+    for (let i = 1; i < r.series.length; i++) {
+      expect(r.series[i].balance).toBeLessThan(r.series[i - 1].balance);
+      expect(r.series[i].balance).toBeGreaterThanOrEqual(0);
+    }
+  });
+  it('a higher withdrawal never lasts longer than a lower one', () => {
+    let previous = Number.POSITIVE_INFINITY;
+    for (const draw of [2000, 3000, 4000, 5000, 8000, 20000]) {
+      const months = calculateMoneyLasts({ amount: 600000, monthlyWithdrawal: draw, annualReturnPct: 6 }).months;
+      expect(months).toBeLessThanOrEqual(previous);
+      previous = months;
+    }
+  });
+  it('a higher return never lasts shorter than a lower one', () => {
+    let previous = 0;
+    for (const rate of [0, 2, 4, 6, 8]) {
+      const months = calculateMoneyLasts({ amount: 600000, monthlyWithdrawal: 5000, annualReturnPct: rate }).months;
+      expect(months).toBeGreaterThanOrEqual(previous);
+      previous = months;
+    }
+  });
+  it('never loops beyond the cap, whatever it is given', () => {
+    for (const input of [
+      { amount: 1e12, monthlyWithdrawal: 1, annualReturnPct: 20 },
+      { amount: 600000, monthlyWithdrawal: 0.01, annualReturnPct: 0 },
+      { amount: 600000, monthlyWithdrawal: 1, annualReturnPct: 0 },
+    ]) {
+      const r = calculateMoneyLasts(input);
+      expect(r.months).toBeLessThanOrEqual(MAX_LASTS_MONTHS);
+      expect(Number.isFinite(r.totalWithdrawn)).toBe(true);
+    }
   });
 });

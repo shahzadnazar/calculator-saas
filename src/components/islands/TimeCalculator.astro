@@ -1,21 +1,22 @@
 ---
 /**
- * Time calculator island (R17B3 — bounded Everyday singleton; task-first).
+ * Time calculator island — the reference's THREE independent calculators, stacked.
  *
- * A single form on the UNCHANGED standard-form runtime + the Time binding (@lib/calculators/time-form),
- * which wraps the UNCHANGED toSeconds / combineDurations / breakdownDuration. Two duration operands
- * (A / B), each in days / hours / minutes / seconds, combined by a native Add / Subtract radio group.
- * All fields start EMPTY (the legacy island prefilled 2:30:00 / 1:45:00 and auto-calculated a baked-in
- * SSR result — which also DIVERGED from the hydrated client on the total-seconds formatting, 15300 vs
- * 15,300). This task-first island renders ONE deterministic empty state on the server AND after
- * hydration: no precomputed result, no flash — the visitor presses "Calculate Time" for the first
- * result, then live-after-first. The DOMINANT result is the SIGNED normalized duration; total seconds
- * is the secondary. A subtraction MAY be negative (shown with a "−"); equal operands are a valid 0.
- * NO isUsableResult — the guard lives in the binding's resultValue (a signed finite sentinel → the
- * default finite gate). No runtime change; NO generic time / duration / clock / timespan abstraction.
+ * They are three separate tools on one page, not one tool behind a mode switch: each has its own
+ * form, its own primary action and its own result, so a visitor can see what all three do without
+ * choosing first, and the answer to one stays on screen while they use another.
  *
- * Static ids are namespaced per-instance WHEN more than one Time calculator shares a document (the
- * R16B2.1 discipline), so an embed gallery has no duplicate ids and every association stays instance-local.
+ *   1. TIME CALCULATOR — add or subtract two durations in days / hours / minutes / seconds.
+ *   2. ADD OR SUBTRACT TIME FROM A DATE — a starting date and clock time, shifted by a duration.
+ *   3. TIME EXPRESSION — one box that evaluates "1d 2h 3m 4s + 4h 5s - 2030s".
+ *
+ * All three run on the UNCHANGED standard-form runtime, one mount per root, with their own
+ * bindings in @lib/calculators/time-form wrapping the reviewed pure engine. Every field starts
+ * EMPTY and the visitor presses that calculator's own button for its first result, then
+ * live-after-first. Each guard lives in its binding's `resultValue`; none uses `isUsableResult`.
+ *
+ * Static ids are namespaced per-instance WHEN more than one Time page shares a document (the
+ * R16B2.1 discipline), so an embed gallery has no duplicate ids.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
@@ -25,98 +26,299 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 
 const UNITS = ['days', 'hours', 'minutes', 'seconds'] as const;
-const operand = (side: 'a' | 'b', legend: string) => ({ side, legend });
-const groups = [operand('a', 'First duration'), operand('b', 'Second duration')];
+const groups = [
+  { side: 'a', legend: 'First duration' },
+  { side: 'b', legend: 'Second duration' },
+] as const;
 ---
 
-<div class="timecalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-timecalc>
-  <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Time calculator">
-    <div class="space-y-4">
-      {groups.map(({ side, legend }, i) => (
-        <>
-          <fieldset>
-            <legend class="field-label">{legend}</legend>
-            <div class="grid grid-cols-4 gap-2">
-              {UNITS.map((u) => (
-                <div data-field={`${side}_${u}`}>
-                  <input
-                    class="field text-center"
-                    id={`tc-${side}-${u}`}
-                    name={`${side}_${u}`}
-                    type="number"
-                    min="0"
-                    step="any"
-                    inputmode="decimal"
-                    autocomplete="off"
-                    aria-label={`${legend} ${u}`}
-                    aria-describedby={`tc-${side}-${u}-error`}
-                  />
-                  <p class="tc-unit">{u}</p>
-                  <p class="tc-field-error" id={`tc-${side}-${u}-error`} data-error-for={`${side}_${u}`} hidden></p>
+<div class="timepage mx-auto w-full max-w-4xl" data-timepage>
+  <!-- ============================================================ -->
+  <!-- 1. Time Calculator                                            -->
+  <!-- ============================================================ -->
+  <section class="tp-calc" data-timecalc aria-labelledby="tc-heading">
+    <h2 class="tp-title" id="tc-heading">Time Calculator</h2>
+    <p class="tp-lede">Add or subtract two lengths of time.</p>
+
+    <div class="grid gap-6 md:grid-cols-2 md:items-start">
+      <form class="card p-4" data-form novalidate aria-label="Time calculator">
+        <div class="space-y-4">
+          {groups.map(({ side, legend }, i) => (
+            <>
+              <fieldset>
+                <legend class="field-label">{legend}</legend>
+                <div class="grid grid-cols-4 gap-2">
+                  {UNITS.map((u) => (
+                    <div data-field={`${side}_${u}`}>
+                      <input
+                        class="field text-center"
+                        id={`tc-${side}-${u}`}
+                        name={`${side}_${u}`}
+                        type="number"
+                        min="0"
+                        step="any"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        aria-label={`${legend} ${u}`}
+                        aria-describedby={`tc-${side}-${u}-error`}
+                      />
+                      <p class="tc-unit">{u}</p>
+                      <p class="tc-field-error" id={`tc-${side}-${u}-error`} data-error-for={`${side}_${u}`} hidden></p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </fieldset>
+              </fieldset>
 
-          {i === 0 && (
-            <fieldset class="tc-op">
-              <legend class="field-label">Operation</legend>
-              <div class="tc-op-row">
-                <label class="tc-op-choice">
-                  <input type="radio" name="tc_op" value="add" checked />
-                  <span>Add (+)</span>
-                </label>
-                <label class="tc-op-choice">
-                  <input type="radio" name="tc_op" value="subtract" />
-                  <span>Subtract (−)</span>
-                </label>
+              {i === 0 && (
+                <fieldset class="tc-op">
+                  <legend class="field-label">Operation</legend>
+                  <div class="tc-op-row">
+                    <label class="tc-op-choice">
+                      <input type="radio" name="tc_op" value="add" checked />
+                      <span>Add (+)</span>
+                    </label>
+                    <label class="tc-op-choice">
+                      <input type="radio" name="tc_op" value="subtract" />
+                      <span>Subtract (−)</span>
+                    </label>
+                  </div>
+                </fieldset>
+              )}
+            </>
+          ))}
+        </div>
+
+        <div class="mt-6 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary">Calculate Time</button>
+          <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+        </div>
+        <p class="tc-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ResultShell id="tc-result" state="empty" density="standard" label="Time result" minHeight="16rem" placeholderAlignment="center">
+        <ExampleNotice />
+        <EmptyResult message="Enter two durations, choose add or subtract, then calculate the result." />
+
+        <div data-result-when="valid">
+          <ResultSummary label="Calculated time">
+            <ResultValue value="—" size="text-3xl" />
+          </ResultSummary>
+          <ResultInterpretation>
+            <span data-tc-interpretation></span>
+          </ResultInterpretation>
+          <p class="tc-rounded" data-tc-rounded hidden></p>
+
+          <ResultBreakdown title="In seconds">
+            <dl class="tc-metrics">
+              <div><dt>Total seconds</dt><dd data-tc-total>—</dd></div>
+            </dl>
+          </ResultBreakdown>
+        </div>
+
+        <InvalidResult
+          title="Check your entries"
+          message="Enter at least one duration value (numbers, 0 or more) to calculate."
+        />
+
+        <ResultAnnouncement id="tc-live" />
+      </ResultShell>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 2. Add or Subtract Time from a Date                           -->
+  <!-- ============================================================ -->
+  <section class="tp-calc" data-timedate aria-labelledby="dt-heading">
+    <h2 class="tp-title" id="dt-heading">Add or Subtract Time from a Date</h2>
+    <p class="tp-lede">Start from a date and time, then move forward or back.</p>
+
+    <div class="grid gap-6 md:grid-cols-2 md:items-start">
+      <form class="card p-4" data-form novalidate aria-label="Add or subtract time from a date">
+        <div class="grid grid-cols-2 gap-3">
+          <div data-field="date">
+            <label class="field-label" for="dt-date">Start date</label>
+            <input class="field mt-1" id="dt-date" name="dt_date" type="date" autocomplete="off" aria-describedby="dt-date-error" />
+            <p class="tc-field-error" id="dt-date-error" data-error-for="date" hidden></p>
+          </div>
+          <div data-field="time">
+            <label class="field-label" for="dt-time">Start time</label>
+            <input class="field mt-1" id="dt-time" name="dt_time" type="time" step="1" autocomplete="off" aria-describedby="dt-time-error" />
+            <p class="tc-field-error" id="dt-time-error" data-error-for="time" hidden></p>
+          </div>
+        </div>
+
+        <fieldset class="tc-op mt-4">
+          <legend class="field-label">Operation</legend>
+          <div class="tc-op-row">
+            <label class="tc-op-choice">
+              <input type="radio" name="dt_op" value="add" checked />
+              <span>Add (+)</span>
+            </label>
+            <label class="tc-op-choice">
+              <input type="radio" name="dt_op" value="subtract" />
+              <span>Subtract (−)</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="mt-4" data-field="dt_amount">
+          <span class="field-label" id="dt-amount-label">Amount</span>
+          <div class="grid grid-cols-4 gap-2 mt-1">
+            {UNITS.map((u) => (
+              <div data-field={`dt_${u}`}>
+                <input
+                  class="field text-center"
+                  id={`dt-${u}`}
+                  name={`dt_${u}`}
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  aria-label={`Amount ${u}`}
+                  aria-describedby={`dt-${u}-error`}
+                />
+                <p class="tc-unit">{u}</p>
+                <p class="tc-field-error" id={`dt-${u}-error`} data-error-for={`dt_${u}`} hidden></p>
               </div>
-            </fieldset>
-          )}
-        </>
-      ))}
+            ))}
+          </div>
+          <p class="tc-field-error" id="dt-amount-error" data-error-for="dt_amount" hidden></p>
+        </div>
+
+        <div class="mt-6 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary">Calculate Date and Time</button>
+          <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+        </div>
+        <p class="tc-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ResultShell id="dt-result" state="empty" density="standard" label="Resulting date and time" minHeight="16rem" placeholderAlignment="center">
+        <ExampleNotice />
+        <EmptyResult message="Enter a start date and time, then how much time to add or subtract." />
+
+        <div data-result-when="valid">
+          <ResultSummary label="Resulting date">
+            <ResultValue value="—" size="text-3xl" />
+          </ResultSummary>
+          <p class="dt-clock" data-dt-time>—</p>
+
+          <ResultBreakdown title="How it was reached">
+            <dl class="tc-metrics">
+              <div><dt>From</dt><dd data-dt-from>—</dd></div>
+              <div><dt>Amount</dt><dd data-dt-amount>—</dd></div>
+              <div><dt>Days crossed</dt><dd data-dt-days>—</dd></div>
+            </dl>
+          </ResultBreakdown>
+
+          <ResultInterpretation>
+            <span data-dt-interpretation></span>
+          </ResultInterpretation>
+        </div>
+
+        <InvalidResult title="Check your entries" message="Enter a start date and time and how much to add or subtract." />
+
+        <ResultAnnouncement id="dt-live" />
+      </ResultShell>
     </div>
+  </section>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Time</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+  <!-- ============================================================ -->
+  <!-- 3. Time expression                                            -->
+  <!-- ============================================================ -->
+  <section class="tp-calc" data-timeexpr aria-labelledby="ex-heading">
+    <h2 class="tp-title" id="ex-heading">Time Expression Calculator</h2>
+    <p class="tp-lede">Add and subtract several times at once by writing them out.</p>
+
+    <div class="grid gap-6 md:grid-cols-2 md:items-start">
+      <form class="card p-4" data-form novalidate aria-label="Time expression calculator">
+        <div data-field="expression">
+          <label class="field-label" for="ex-input">Expression</label>
+          <input
+            class="field mt-1 ex-input"
+            id="ex-input"
+            name="expression"
+            type="text"
+            inputmode="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="1d 2h 3m 4s + 4h 5s - 2030s"
+            aria-describedby="ex-help ex-input-error"
+          />
+          <p class="tc-field-error" id="ex-input-error" data-error-for="expression" hidden></p>
+        </div>
+        <p class="tp-help" id="ex-help">
+          Put a unit after every value — <strong>d</strong> days, <strong>h</strong> hours,
+          <strong>m</strong> minutes, <strong>s</strong> seconds — and join them with + or −.
+        </p>
+
+        <div class="mt-6 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary">Calculate Expression</button>
+          <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+        </div>
+        <p class="tc-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ResultShell id="ex-result" state="empty" density="standard" label="Expression result" minHeight="14rem" placeholderAlignment="center">
+        <ExampleNotice />
+        <EmptyResult message="Write an expression such as 1d 2h 3m 4s + 4h 5s and calculate it." />
+
+        <div data-result-when="valid">
+          <ResultSummary label="Result">
+            <ResultValue value="—" size="text-3xl" />
+          </ResultSummary>
+
+          <ResultBreakdown title="In other forms">
+            <dl class="tc-metrics">
+              <div><dt>In words</dt><dd data-ex-spoken>—</dd></div>
+              <div><dt>Total seconds</dt><dd data-ex-total>—</dd></div>
+              <div><dt>Clock time (hh:mm:ss)</dt><dd data-ex-clock>—</dd></div>
+            </dl>
+          </ResultBreakdown>
+        </div>
+
+        <InvalidResult title="Check the expression" message="Every value needs a unit — d, h, m or s — joined by + or −." />
+
+        <ResultAnnouncement id="ex-live" />
+      </ResultShell>
     </div>
-    <p class="tc-live-note" data-live-note hidden>Changes update automatically.</p>
-  </form>
-
-  <!-- Result -->
-  <ResultShell id="tc-result" state="empty" density="standard" label="Time result" minHeight="16rem" placeholderAlignment="center">
-    <EmptyResult message="Enter two durations, choose add or subtract, then calculate the result." />
-
-    <div data-result-when="valid">
-      <ResultSummary label="Calculated time">
-        <ResultValue value="—" size="text-3xl" />
-      </ResultSummary>
-      <ResultInterpretation>
-        <span data-tc-interpretation></span>
-      </ResultInterpretation>
-      <p class="tc-rounded" data-tc-rounded hidden></p>
-
-      <ResultBreakdown title="In seconds">
-        <dl class="tc-metrics">
-          <div><dt>Total seconds</dt><dd data-tc-total>—</dd></div>
-        </dl>
-      </ResultBreakdown>
-    </div>
-
-    <InvalidResult
-      title="Check your entries"
-      message="Enter at least one duration value (numbers, 0 or more) to calculate."
-    />
-
-    <ResultAnnouncement id="tc-live" />
-  </ResultShell>
+  </section>
 </div>
 
 <style>
+  .tp-calc + .tp-calc {
+    margin-top: 2.25rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1.5rem;
+  }
+  .tp-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--heading);
+  }
+  .tp-lede {
+    margin: 0.15rem 0 0.75rem;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .tp-help {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .ex-input {
+    width: 100%;
+    min-height: 2.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
   .tc-unit {
     margin: 0.25rem 0 0;
     text-align: center;
@@ -152,6 +354,7 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+    min-height: 2.75rem;
     font-weight: 600;
     cursor: pointer;
   }
@@ -165,6 +368,32 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
     margin-top: 0.75rem;
     font-size: 0.8rem;
     color: var(--muted);
+  }
+  .dt-clock {
+    margin: 0.2rem 0 0;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-brand-700);
+    font-variant-numeric: tabular-nums;
+  }
+  :root[data-theme='dark'] .dt-clock {
+    color: var(--color-brand-200);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .dt-clock {
+      color: var(--color-brand-200);
+    }
+  }
+
+  /* The resulting date is a full weekday string; scale it to its column rather than let it
+     orphan the year. `:global` because the value belongs to the ResultValue component. */
+  .timepage :global([data-result-when~='valid'] [data-result-value]) {
+    text-wrap: balance;
+  }
+  .timepage :global(#dt-result [data-result-when~='valid'] [data-result-value]) {
+    font-size: clamp(1.1875rem, 1.5vw + 0.5rem, 1.5rem);
+    line-height: 1.2;
   }
 
   .tc-metrics {
@@ -190,21 +419,25 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
     font-variant-numeric: tabular-nums;
     color: var(--heading);
     font-weight: 700;
-    white-space: nowrap;
+    text-align: right;
   }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { timeBinding } from '@lib/calculators/time-form';
+  import {
+    timeBinding,
+    TIME_EXAMPLE_VALUES,
+    dateTimeBinding,
+    dateTimeExampleValues,
+    expressionBinding,
+    EXPRESSION_EXAMPLE_VALUES,
+  } from '@lib/calculators/time-form';
 
-  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
-
-  // When more than one Time calculator shares a document (e.g. an embed gallery), the server-static
-  // ids (the eight component fields + their error slots, result shell, live region) collide. Namespace
-  // THIS root's ids and repoint its in-root references (aria-describedby, …) so associations stay
-  // instance-local and the document has no duplicate ids; a lone instance is left untouched. The
-  // runtime targets fields by [name] / [data-*], never these ids.
+  // When more than one Time page shares a document (e.g. an embed gallery), the server-static ids
+  // collide. Namespace THIS page's ids and repoint its in-page references (aria-describedby, …) so
+  // associations stay instance-local and the document has no duplicate ids; a lone instance is left
+  // untouched. The runtime targets fields by [name] / [data-*], never these ids.
   function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
     const remap = new Map<string, string>();
     root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
@@ -227,11 +460,37 @@ const groups = [operand('a', 'First duration'), operand('b', 'Second duration')]
     repoint('aria-controls');
   }
 
-  document.querySelectorAll<HTMLElement>('[data-timecalc]').forEach((root) => {
-    if (document.querySelectorAll('[data-timecalc]').length > 1) uniquifyStaticIds(root, `t${++ns}`);
-    mountFormCalculator(root, timeBinding, {
-      recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate Time',
-    });
+  const pages = document.querySelectorAll<HTMLElement>('[data-timepage]');
+  pages.forEach((page, i) => {
+    if (pages.length > 1) uniquifyStaticIds(page, `t${i + 1}`);
+
+    // Three independent mounts: each calculator owns its own state, button and result, so one
+    // never clears or recalculates another.
+    const durations = page.querySelector<HTMLElement>('[data-timecalc]');
+    if (durations) {
+      mountFormCalculator(durations, timeBinding, {
+        recalculationMode: 'live-after-first',
+        example: { values: TIME_EXAMPLE_VALUES },
+        calculateButtonLabel: 'Calculate Time',
+      });
+    }
+
+    const fromDate = page.querySelector<HTMLElement>('[data-timedate]');
+    if (fromDate) {
+      mountFormCalculator(fromDate, dateTimeBinding, {
+        recalculationMode: 'live-after-first',
+        example: { values: dateTimeExampleValues() },
+        calculateButtonLabel: 'Calculate Date and Time',
+      });
+    }
+
+    const expression = page.querySelector<HTMLElement>('[data-timeexpr]');
+    if (expression) {
+      mountFormCalculator(expression, expressionBinding, {
+        recalculationMode: 'live-after-first',
+        example: { values: EXPRESSION_EXAMPLE_VALUES },
+        calculateButtonLabel: 'Calculate Expression',
+      });
+    }
   });
 </script>

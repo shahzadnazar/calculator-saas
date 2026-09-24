@@ -7,34 +7,39 @@ const calc = getCalculator('finance', 'compound-interest-calculator')!;
 
 const faqs = [
   {
+    question: 'What does this calculator do?',
+    answer:
+      'It converts an interest rate from one compounding period to another. 6% compounded monthly and 6.16778% compounded annually grow money at exactly the same speed, so this lets you compare two quoted rates on equal terms. To project what a balance actually becomes over time, use the interest calculator.',
+  },
+  {
+    question: 'What is the difference between APR and APY?',
+    answer:
+      'APR is the nominal rate before compounding is accounted for; APY is what you actually earn or pay in a year once compounding is included. They are the same number only when interest compounds annually. A 6% APR compounded monthly is a 6.16778% APY.',
+  },
+  {
+    question: 'Why do two rates that look different cost the same?',
+    answer:
+      'Because a rate means nothing without the period it compounds on. Interest added sooner starts earning interest of its own, so the more often a rate compounds, the more it earns from the same headline number. Converting both quotes to the same period is the only way to compare them.',
+  },
+  {
+    question: 'How does compounding frequency affect what I earn?',
+    answer:
+      'More often is always more, but with sharply diminishing returns. At 6%, moving from annual to monthly compounding gains you 0.168 percentage points; going all the way from monthly to continuous gains only 0.016 more. Almost all of the benefit is won by monthly.',
+  },
+  {
+    question: 'What is continuous compounding?',
+    answer:
+      'The limit of compounding more and more often — the most any nominal rate can possibly earn. It is a mathematical ceiling used in finance and pricing models rather than something a bank offers, and it sits barely above daily compounding.',
+  },
+  {
     question: 'What is compound interest?',
     answer:
-      'Compound interest is interest earned on both your original principal and on the interest already added. Because interest earns interest, savings grow faster over time — an effect that accelerates the longer you stay invested.',
-  },
-  {
-    question: 'How does compounding frequency affect growth?',
-    answer:
-      'The more often interest is compounded — daily versus monthly versus annually — the more you earn, because interest is added to the balance sooner and starts earning itself. The difference is small at low rates and grows at higher rates and longer horizons.',
-  },
-  {
-    question: 'What does adding regular contributions do?',
-    answer:
-      'Adding a fixed amount each period dramatically increases the final balance, because each contribution also begins compounding. The calculator shows how much of your ending balance came from contributions versus interest.',
+      'Interest earned on both your original principal and on the interest already added. Because interest earns interest, a balance grows faster the longer it is left — the effect this calculator measures the strength of.',
   },
   {
     question: 'What is the rule of 72?',
     answer:
-      'A quick estimate: divide 72 by your annual rate to approximate the years it takes to double your money. At 8%, that is about 9 years. Use the calculator for an exact figure.',
-  },
-  {
-    question: 'How do I calculate compound interest?',
-    answer:
-      'The formula is A = P(1 + r/n)^(nt), where P is the principal, r the annual rate as a decimal, n the times it compounds per year, and t the years. $10,000 at 5% compounded monthly for 10 years grows to about $16,470 — the calculator does this for you and adds any contributions.',
-  },
-  {
-    question: 'What is the difference between simple and compound interest?',
-    answer:
-      'Simple interest is charged only on the original principal, so it grows in a straight line. Compound interest is charged on the principal plus accumulated interest, so it accelerates. Over long horizons the gap is enormous — see the simple interest calculator for the contrast.',
+      'A shortcut for doubling time: divide 72 by the annual rate. At 6% a balance roughly doubles in 12 years. It is an approximation and works best for rates between about 5% and 12% — use the interest calculator for an exact figure.',
   },
 ];
 ---
@@ -42,135 +47,119 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="See how your savings or investments grow with compound interest and regular contributions. Adjust the rate, time and compounding frequency and press Calculate to see the difference compounding makes."
+  rail
+  intro="Convert an interest rate between compounding periods — the only way to compare a rate quoted as APR with one quoted as APY."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-08-10' }}
+  reviewMetadata={{ reviewedDate: '2026-08-27' }}
 >
   <CompoundInterestCalculator />
 
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter your <strong>initial amount</strong> — the lump sum you are starting with (enter 0 if you are starting from nothing).</li>
-      <li>Set the expected <strong>annual interest rate</strong> as a percentage.</li>
-      <li>Choose the number of <strong>years</strong> the money will stay invested.</li>
-      <li>Pick how often interest <strong>compounds</strong> — annually, monthly or daily.</li>
-      <li>Optionally add a <strong>regular contribution</strong> you will make each period.</li>
+      <li>Enter the <strong>interest rate</strong> you have been quoted.</li>
+      <li>Choose the <strong>compounding period</strong> that rate is quoted on — monthly for most cards, daily for many savings accounts.</li>
+      <li>Choose the period you want it <strong>converted to</strong>. Annually gives you the APY.</li>
+      <li>Press <strong>Calculate</strong> to see the equivalent rate, and the ladder below it to see what the same rate earns at every period.</li>
     </ol>
     <p>
-      The calculator returns your future balance and splits it into three parts: the
-      principal you started with, the contributions you added along the way, and the
-      interest those amounts earned. The balance-by-year table shows the growth curve
-      steepening as interest compounds on itself.
+      This converts rates. To work out what a balance actually becomes over time, use the
+      <a href="/finance/interest-calculator">interest calculator</a>.
     </p>
 
-    <h2>What compound interest is</h2>
+    <h2>Why a rate means nothing on its own</h2>
     <p>
-      Compound interest is interest paid on your original money <em>and</em> on the
-      interest it has already earned. <strong>Simple interest</strong> pays only on the
-      original principal, so a balance grows in a straight line. <strong>Compound
-      interest</strong> pays on the growing balance, so each period's interest is slightly
-      larger than the last and the curve bends upward.
+      A quoted rate is only half a fact. The other half is how often it compounds, because
+      interest that is added sooner starts earning interest of its own. That is why
+      <strong>6% compounded monthly</strong> and <strong>6.16778% compounded annually</strong>
+      are the same deal: the first adds 0.5% twelve times, and each addition spends the rest
+      of the year earning too.
     </p>
     <p>
-      Put $1,000 in an account paying 10% and the difference is stark. Simple interest
-      adds a flat $100 every year. Compounded annually, you earn $100 in year one, $110 in
-      year two (you now have $1,100 working for you), then $121 — the gap widens every
-      year and never stops. See the <a href="/finance/simple-interest-calculator">simple
-      interest calculator</a> for the straight-line contrast.
+      Two lenders can quote you different numbers for identical debt, and two banks can quote
+      different numbers for identical returns. Converting both to the same period is the only
+      way to tell which is actually better.
     </p>
 
-    <h2>The compound interest formula</h2>
+    <h2>APR and APY</h2>
     <p>
-      For a one-time deposit with no further contributions, the future value is:
+      <strong>APR</strong> is the nominal rate — the headline, before compounding is counted.
+      <strong>APY</strong> is what a year actually costs or earns once it is. They are the
+      same number only when interest compounds annually; every other period makes the APY
+      higher.
     </p>
-    <p><strong>A = P(1 + r/n)<sup>nt</sup></strong></p>
+    <p>
+      The gap widens with the rate. At 6% compounded monthly the APY is
+      <strong>6.16778%</strong> — about a sixth of a point. On a credit card at
+      <strong>24.99% APR</strong>, the same monthly compounding makes the real annual cost
+      <strong>28.06%</strong>: over three points, and the part of the number nobody advertises.
+    </p>
+
+    <h2>The formula</h2>
+    <p>Every rate reduces to one effective annual rate, and that shared ground is what lets any two periods convert:</p>
+    <p><strong>APY = (1 + r / n)<sup>n</sup> − 1</strong></p>
     <ul>
-      <li><strong>A</strong> — the ending balance (the number you are solving for)</li>
-      <li><strong>P</strong> — the principal, your starting amount</li>
-      <li><strong>r</strong> — the annual interest rate as a decimal (5% = 0.05)</li>
-      <li><strong>n</strong> — how many times interest compounds per year</li>
-      <li><strong>t</strong> — the number of years</li>
+      <li><strong>r</strong> — the nominal rate as a decimal (6% is 0.06)</li>
+      <li><strong>n</strong> — compounding periods per year (12 for monthly, 365 for daily)</li>
     </ul>
     <p>
-      When you add a fixed amount every period, each deposit begins compounding from the
-      day it lands, so the calculator adds the future value of that stream of
-      contributions on top of the balance above. The maths is fiddlier by hand, which is
-      exactly what the tool is for.
+      Going the other way — from an effective rate back to a nominal one at some period — is
+      the same formula rearranged: <strong>r = n × ((1 + APY)<sup>1/n</sup> − 1)</strong>.
+      Continuous compounding is the limit as <em>n</em> grows without bound, where the pair
+      becomes <strong>e<sup>r</sup> − 1</strong> and <strong>ln(1 + APY)</strong>.
     </p>
 
-    <h2>A worked example</h2>
+    <h2>How much compounding frequency is actually worth</h2>
     <p>
-      Say you deposit <strong>$10,000</strong> at a <strong>5%</strong> annual rate,
-      compounded <strong>monthly</strong>, for <strong>10 years</strong>, with no extra
-      contributions. Here <em>P</em> = 10,000, <em>r</em> = 0.05, <em>n</em> = 12 and
-      <em>t</em> = 10, so:
-    </p>
-    <p><strong>A = 10,000 × (1 + 0.05/12)<sup>12 × 10</sup> ≈ $16,470</strong></p>
-    <p>
-      You put in $10,000 and finished with about $16,470 — roughly <strong>$6,470</strong>
-      of interest, without adding a single dollar. Stretch the same deposit to 30 years
-      and it grows to about $44,700: the extra two decades more than triple the interest,
-      because the later years compound on a much bigger balance.
-    </p>
-
-    <h2>How compounding frequency affects growth</h2>
-    <p>
-      More frequent compounding adds interest to your balance sooner, so it starts earning
-      on itself sooner. The effect is real but modest — and it shrinks with each step up in
-      frequency. Using the same $10,000 at 5% for 10 years with no contributions:
+      Less than most people expect, and with sharply diminishing returns. Here is
+      <strong>6%</strong> at every period:
     </p>
     <table>
       <thead>
-        <tr><th>Compounding frequency</th><th>Ending balance</th><th>Interest earned</th></tr>
+        <tr><th>Compounded</th><th>Effective annual rate</th><th>Gained over annual</th></tr>
       </thead>
       <tbody>
-        <tr><td>Annually</td><td>$16,288.95</td><td>$6,288.95</td></tr>
-        <tr><td>Quarterly</td><td>$16,436.19</td><td>$6,436.19</td></tr>
-        <tr><td>Monthly</td><td>$16,470.09</td><td>$6,470.09</td></tr>
-        <tr><td>Daily</td><td>$16,486.65</td><td>$6,486.65</td></tr>
+        <tr><td>Annually</td><td>6.00000%</td><td>—</td></tr>
+        <tr><td>Semi-annually</td><td>6.09000%</td><td>0.090</td></tr>
+        <tr><td>Quarterly</td><td>6.13636%</td><td>0.136</td></tr>
+        <tr><td>Monthly</td><td>6.16778%</td><td>0.168</td></tr>
+        <tr><td>Daily</td><td>6.18313%</td><td>0.183</td></tr>
+        <tr><td>Continuously</td><td>6.18365%</td><td>0.184</td></tr>
       </tbody>
     </table>
     <p>
-      Moving from annual to monthly compounding adds about $181 here; going all the way to
-      daily adds only $17 more. The rate and the time horizon move the needle far more than
-      the compounding frequency does.
+      Monthly compounding captures about <strong>91%</strong> of everything continuous
+      compounding could ever give you. The whole distance from daily to the theoretical
+      ceiling is five thousandths of a percentage point. A bank advertising daily
+      compounding over monthly is advertising almost nothing; the rate itself is what matters.
+    </p>
+    <p>
+      The gap grows with the rate, though. At <strong>20%</strong>, annual compounding earns
+      20% and monthly earns <strong>21.93911%</strong> — nearly two full points. Compounding
+      frequency matters most exactly where the rate already hurts.
     </p>
 
-    <h2>Why starting early beats saving more later</h2>
-    <p>
-      Because interest earns interest, the years at the <em>end</em> of a long horizon do
-      the heaviest lifting — and you only get those years by starting early. An investor
-      who saves modestly through their twenties often ends up ahead of someone who saves
-      far more but doesn't begin until their forties. Time in the market, not the size of
-      any single deposit, is usually the deciding factor.
-    </p>
-    <p>
-      Regular contributions amplify this, because <strong>every deposit starts its own
-      compounding clock</strong>. Add $200 a month to that $10,000 at 5% and you finish the
-      10 years with roughly $47,000 — the contributions total $24,000, and compounding
-      supplies the rest.
-    </p>
-
-    <h2>The rule of 72</h2>
-    <p>
-      For a quick estimate of how long an amount takes to double, divide 72 by the annual
-      rate. At 8% that is about <strong>9 years</strong>; at 6%, about <strong>12
-      years</strong>. It is an approximation — use the calculator for an exact figure — but
-      it is a handy way to sanity-check whether a given rate is doing much for you.
-    </p>
+    <h2>Where you meet each period</h2>
+    <ul>
+      <li><strong>Daily</strong> — most savings accounts and credit-card balances.</li>
+      <li><strong>Monthly</strong> — mortgages, car loans, and the APR quoted on cards.</li>
+      <li><strong>Quarterly / semi-annually</strong> — some bonds and certificates of deposit.</li>
+      <li><strong>Annually</strong> — the APY banks must advertise, and how returns are usually compared.</li>
+      <li><strong>Continuously</strong> — a theoretical ceiling used in pricing models, not a product.</li>
+    </ul>
 
     <h2>Limitations to keep in mind</h2>
     <ul>
-      <li><strong>Constant-rate assumption.</strong> The tool applies one steady rate. Real savings and investment returns fluctuate and can be negative in any given year.</li>
-      <li><strong>Before inflation.</strong> Results are in today's nominal dollars; inflation erodes real buying power over time. Translate a projection with the <a href="/finance/inflation-calculator">inflation calculator</a>.</li>
-      <li><strong>Before tax and fees.</strong> Interest in a taxable account is usually taxed, and investment fees reduce returns — neither is deducted here.</li>
+      <li>This converts a <strong>rate</strong>. It does not project a balance — use the <a href="/finance/interest-calculator">interest calculator</a> for that.</li>
+      <li>It assumes the rate is <strong>fixed</strong>. A variable rate converts the same way, but only for as long as it holds.</li>
+      <li>It ignores <strong>fees</strong>. A quoted APR that includes fees is not a pure compounding rate, and converting it will not isolate them.</li>
+      <li>Tax is not modelled, and it can matter more than compounding frequency ever does.</li>
     </ul>
+
     <p>
-      To model a portfolio with monthly contributions, use the
-      <a href="/finance/investment-calculator">investment calculator</a>; to project
-      compounding all the way to retirement, try the
-      <a href="/finance/retirement-calculator">retirement calculator</a>. This is
+      To project what a balance grows to, use the
+      <a href="/finance/interest-calculator">interest calculator</a>; to plan regular deposits,
+      the <a href="/finance/savings-calculator">savings calculator</a>. This is general
       educational information, not financial advice.
     </p>
   </Fragment>

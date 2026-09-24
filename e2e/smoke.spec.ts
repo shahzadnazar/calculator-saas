@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
  */
 test('homepage renders with a title and one visible H1', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle(/AllCalculators/i);
+  await expect(page).toHaveTitle(/BestCalculate/i);
   await expect(page.locator('h1')).toHaveCount(1);
   await expect(page.locator('h1')).toBeVisible();
 });

@@ -1,165 +1,249 @@
 import { describe, it, expect } from 'vitest';
-import { computeFraction, simplify, type Fraction, type FractionOp } from './fraction';
+import {
+  frac,
+  reduce,
+  gcdBig,
+  applyOp,
+  applyOpRaw,
+  decimalString,
+  fractionText,
+  mixedText,
+  mixedParts,
+  isImproper,
+  combineSteps,
+  simplifySteps,
+  decimalSteps,
+  OP_SYMBOL,
+  type StepLine,
+  type FracToken,
+} from './fraction';
 
-/**
- * Dedicated Fraction characterization (R17B1 Commit 1 — bounded singleton). FREEZES the exact
- * current behaviour of `simplify` and `computeFraction` ahead of the task-first migration; it does
- * NOT change the module. The Fraction binding (fraction-form.ts) layers strict integer parsing,
- * visitor validation and a complete-result guard ON TOP of these unchanged functions — this file
- * pins exactly what it wraps.
- *
- *   simplify(f):  den===0 → {num:NaN, den:NaN} (returns a NaN object; it does NOT throw);
- *                 den<0 → negate both (sign carried on the numerator); reduce by gcd(|num|,|den|)
- *                 (Euclid, returns a||1 so a zero gcd falls back to 1).
- *   computeFraction(a, op, b): cross-multiply per op → simplify → { fraction, decimal (UNROUNDED
- *                 num/den, NaN when den is 0/NaN), mixed }. An unsupported op has NO default branch,
- *                 so `raw` is undefined and simplify(undefined) THROWS (the binding validates the op
- *                 to an exact identifier before calling).
- *
- * The pure source behaviour is pinned even where the visitor-facing binding will reject the same
- * input (zero denominators, division by a zero-valued fraction, unsupported ops).
- */
+/** Steps flattened to text, so a whole working can be asserted line by line. */
+const token = (t: FracToken): string =>
+  t.t === 'text' ? t.v : t.t === 'frac' ? `${t.n}/${t.d}` : `${t.w} ${t.n}/${t.d}`;
+const line = (l: StepLine): string => `${l.lead ? `${l.lead} ` : ''}${l.tokens.map(token).join(' ')}`;
+const render = (lines: StepLine[]): string[] => lines.map(line);
 
-const f = (num: number, den: number): Fraction => ({ num, den });
-
-describe('simplify — reduce + sign-normalise onto the numerator', () => {
-  it('leaves an already-simplified fraction unchanged', () => {
-    expect(simplify(f(2, 3))).toEqual({ num: 2, den: 3 });
+describe('gcdBig / reduce', () => {
+  it('reduces to lowest terms', () => {
+    expect(reduce({ n: 6n, d: 12n })).toEqual({ n: 1n, d: 2n });
+    expect(reduce({ n: 217n, d: 98n })).toEqual({ n: 31n, d: 14n });
   });
 
-  it('reduces by the greatest common divisor', () => {
-    expect(simplify(f(8, 12))).toEqual({ num: 2, den: 3 });
-    expect(simplify(f(100, 25))).toEqual({ num: 4, den: 1 });
+  it('carries the sign on the numerator', () => {
+    expect(reduce({ n: 3n, d: -4n })).toEqual({ n: -3n, d: 4n });
+    expect(reduce({ n: -3n, d: -4n })).toEqual({ n: 3n, d: 4n });
   });
 
-  it('a zero numerator reduces to 0/1', () => {
-    expect(simplify(f(0, 5))).toEqual({ num: 0, den: 1 });
+  it('reduces zero to 0/1 and never divides by a zero gcd', () => {
+    expect(reduce({ n: 0n, d: 5n })).toEqual({ n: 0n, d: 1n });
+    expect(gcdBig(0n, 0n)).toBe(1n);
   });
 
-  it('keeps a positive numerator and denominator positive', () => {
-    expect(simplify(f(3, 4))).toEqual({ num: 3, den: 4 });
-  });
-
-  it('a negative numerator stays on the numerator', () => {
-    expect(simplify(f(-3, 4))).toEqual({ num: -3, den: 4 });
-  });
-
-  it('a negative denominator moves the sign onto the numerator', () => {
-    expect(simplify(f(1, -2))).toEqual({ num: -1, den: 2 });
-    expect(simplify(f(3, -6))).toEqual({ num: -1, den: 2 }); // reduce + sign
-  });
-
-  it('both negative normalises to fully positive', () => {
-    expect(simplify(f(-1, -2))).toEqual({ num: 1, den: 2 });
-    expect(simplify(f(-4, -8))).toEqual({ num: 1, den: 2 });
-  });
-
-  it('an improper fraction stays improper (sign/reduce only, no mixed here)', () => {
-    expect(simplify(f(7, 2))).toEqual({ num: 7, den: 2 });
-  });
-
-  it('a whole-number result reduces to n/1', () => {
-    expect(simplify(f(6, 3))).toEqual({ num: 2, den: 1 });
-  });
-
-  it('a zero denominator returns {num:NaN, den:NaN} — it does NOT throw', () => {
-    const r = simplify(f(1, 0));
-    expect(Number.isNaN(r.num)).toBe(true);
-    expect(Number.isNaN(r.den)).toBe(true);
-  });
-
-  it('is deterministic', () => {
-    expect(simplify(f(8, 12))).toEqual(simplify(f(8, 12)));
+  it('reports a zero denominator rather than producing a fraction', () => {
+    expect(reduce({ n: 1n, d: 0n })).toEqual({ n: 0n, d: 0n });
+    expect(fractionText({ n: 0n, d: 0n })).toBe('—');
   });
 });
 
-describe('computeFraction — the four operations, then simplify', () => {
-  it('adds and simplifies (1/2 + 1/3 = 5/6)', () => {
-    const r = computeFraction(f(1, 2), 'add', f(1, 3));
-    expect(r.fraction).toEqual({ num: 5, den: 6 });
-    expect(r.decimal).toBeCloseTo(5 / 6, 12);
-    expect(r.mixed).toBe('5/6');
+describe('the four operations', () => {
+  it('adds, subtracts, multiplies and divides', () => {
+    expect(applyOp(frac(2n, 7n), 'add', frac(3n, 8n))).toEqual({ n: 37n, d: 56n });
+    expect(applyOp(frac(3n, 4n), 'subtract', frac(1n, 6n))).toEqual({ n: 7n, d: 12n });
+    expect(applyOp(frac(2n, 3n), 'multiply', frac(3n, 4n))).toEqual({ n: 1n, d: 2n });
+    expect(applyOp(frac(3n, 4n), 'divide', frac(2n, 3n))).toEqual({ n: 9n, d: 8n });
   });
 
-  it('subtracts to a negative fraction (1/2 − 3/4 = −1/4)', () => {
-    const r = computeFraction(f(1, 2), 'subtract', f(3, 4));
-    expect(r.fraction).toEqual({ num: -1, den: 4 });
-    expect(r.mixed).toBe('-1/4');
-    expect(r.decimal).toBeCloseTo(-0.25, 12);
+  it('keeps a shared denominator instead of inventing a bigger one', () => {
+    expect(applyOpRaw(frac(1n, 8n), 'add', frac(3n, 8n))).toEqual({ n: 4n, d: 8n });
   });
 
-  it('multiplies and reduces (2/3 × 3/4 = 1/2)', () => {
-    expect(computeFraction(f(2, 3), 'multiply', f(3, 4)).fraction).toEqual({ num: 1, den: 2 });
+  it('handles negatives and a zero result', () => {
+    expect(applyOp(frac(-1n, 2n), 'add', frac(1n, 2n))).toEqual({ n: 0n, d: 1n });
+    expect(applyOp(frac(-11n, 4n), 'add', frac(26n, 7n))).toEqual({ n: 27n, d: 28n });
   });
 
-  it('divides by multiplying by the reciprocal (1/2 ÷ 1/4 = 2/1)', () => {
-    const r = computeFraction(f(1, 2), 'divide', f(1, 4));
-    expect(r.fraction).toEqual({ num: 2, den: 1 });
-    expect(r.mixed).toBe('2');
-    expect(r.decimal).toBe(2);
+  /**
+   * The reason this engine is BigInt. The true denominator here is 999999830000006800, past
+   * Number.MAX_SAFE_INTEGER, and floating-point arithmetic returned a plausible wrong answer.
+   */
+  it('is exact past Number.MAX_SAFE_INTEGER', () => {
+    const sum = applyOp(frac(1n, 999999937n), 'add', frac(1n, 999999893n));
+    expect(sum).toEqual({ n: 1999999830n, d: 999999830000006741n });
+    expect(sum.d).toBeGreaterThan(BigInt(Number.MAX_SAFE_INTEGER));
   });
 
-  it('handles negative operands (−1/2 + 1/2 = 0/1)', () => {
-    const r = computeFraction(f(-1, 2), 'add', f(1, 2));
-    expect(r.fraction).toEqual({ num: 0, den: 1 });
-    expect(r.mixed).toBe('0');
-    expect(r.decimal).toBe(0);
+  /** The reference's own big-number example, digit for digit. */
+  it('reproduces the reference big-number sum', () => {
+    const result = applyOp(frac(1234n, 748892928829n), 'add', frac(33434421132232234333n, 8877277388288288288n));
+    expect(result.n.toString()).toBe('25038801576374168561390767033449');
+    expect(result.d.toString()).toBe('6648130263342672078999418254752');
+    expect(mixedText(result)).toBe('3 5094410786346152324392512269193/6648130263342672078999418254752');
+  });
+});
+
+describe('text forms', () => {
+  it('writes a whole number without a denominator', () => {
+    expect(fractionText(frac(4n, 2n))).toBe('2');
+    expect(fractionText(frac(37n, 56n))).toBe('37/56');
   });
 
-  it('handles improper operands (7/2 + 0/1 = 7/2 → mixed 3 1/2)', () => {
-    const r = computeFraction(f(7, 2), 'add', f(0, 1));
-    expect(r.fraction).toEqual({ num: 7, den: 2 });
-    expect(r.mixed).toBe('3 1/2');
-    expect(r.decimal).toBeCloseTo(3.5, 12);
+  it('gives a mixed reading only when there is one to give', () => {
+    expect(mixedText(frac(37n, 56n))).toBe('');
+    expect(mixedText(frac(11n, 8n))).toBe('1 3/8');
+    expect(mixedText(frac(-11n, 4n))).toBe('-2 3/4');
+    expect(mixedText(frac(4n, 2n))).toBe(''); // a whole number already reads as itself
   });
 
-  it('a result equal to a whole number renders without a denominator (3/4 ÷ 3/4 = 1)', () => {
-    const r = computeFraction(f(3, 4), 'divide', f(3, 4));
-    expect(r.fraction).toEqual({ num: 1, den: 1 });
-    expect(r.mixed).toBe('1');
+  it('splits a mixed number into parts with the sign on the reading', () => {
+    expect(mixedParts(frac(-11n, 4n))).toEqual({ negative: true, whole: 2n, n: 3n, d: 4n });
+    expect(isImproper(frac(11n, 8n))).toBe(true);
+    expect(isImproper(frac(3n, 8n))).toBe(false);
+  });
+});
+
+describe('decimalString — fourteen significant figures, as the reference prints them', () => {
+  it('matches the reference figures exactly', () => {
+    expect(decimalString(frac(37n, 56n))).toBe('0.66071428571429');
+    expect(decimalString(frac(27n, 28n))).toBe('0.96428571428571');
+    expect(decimalString(frac(31n, 14n))).toBe('2.2142857142857');
+    expect(decimalString(frac(2n, 7n))).toBe('0.28571428571429');
   });
 
-  it('a reducible result is fully reduced (2/4 + 2/4 = 1/1)', () => {
-    expect(computeFraction(f(2, 4), 'add', f(2, 4)).fraction).toEqual({ num: 1, den: 1 });
+  it('drops trailing zeros rather than padding to fourteen', () => {
+    expect(decimalString(frac(1n, 2n))).toBe('0.5');
+    expect(decimalString(frac(4n, 2n))).toBe('2');
+    expect(decimalString(frac(0n, 5n))).toBe('0');
   });
 
-  it('an irreducible result is left as-is (1/3 + 1/4 = 7/12)', () => {
-    expect(computeFraction(f(1, 3), 'add', f(1, 4)).fraction).toEqual({ num: 7, den: 12 });
+  it('keeps fourteen figures for a value far below one', () => {
+    expect(decimalString(frac(1n, 700000n))).toBe('0.0000014285714285714');
   });
 
-  it('a negative improper result renders a negative mixed number (−7/2 + 0 = −3 1/2)', () => {
-    const r = computeFraction(f(-7, 2), 'add', f(0, 1));
-    expect(r.fraction).toEqual({ num: -7, den: 2 });
-    expect(r.mixed).toBe('-3 1/2');
+  it('carries the sign', () => {
+    expect(decimalString(frac(-1n, 8n))).toBe('-0.125');
   });
 
-  it('the decimal is the UNROUNDED num/den float, reconciling exactly', () => {
-    const r = computeFraction(f(1, 3), 'add', f(0, 1));
-    expect(r.fraction).toEqual({ num: 1, den: 3 });
-    expect(r.decimal).toBe(1 / 3); // no rounding in the source
+  it('stays exact for a fraction no float could hold', () => {
+    expect(decimalString(frac(1n, 999999830000006741n))).toBe('0.00000000000000000100000017');
   });
 
-  it('division by a zero-valued second fraction yields {NaN,NaN}, decimal NaN, mixed "—"', () => {
-    const r = computeFraction(f(1, 2), 'divide', f(0, 5));
-    expect(Number.isNaN(r.fraction.num)).toBe(true);
-    expect(Number.isNaN(r.fraction.den)).toBe(true);
-    expect(Number.isNaN(r.decimal)).toBe(true);
-    expect(r.mixed).toBe('—');
+  it('never renders a zero denominator as a number', () => {
+    expect(decimalString({ n: 1n, d: 0n })).toBe('—');
+  });
+});
+
+describe('combineSteps — the working the reference shows', () => {
+  it('reproduces 2/7 + 3/8 line for line', () => {
+    expect(render(combineSteps(frac(2n, 7n), 'add', frac(3n, 8n)))).toEqual([
+      '2/7 + 3/8',
+      '= 2 × 8/7 × 8 + 3 × 7/8 × 7',
+      '= 16/56 + 21/56',
+      '= 16+21/56',
+      '= 37/56',
+    ]);
   });
 
-  it('a zero denominator in an operand propagates to {NaN,NaN} (1/0 + 1/2)', () => {
-    const r = computeFraction(f(1, 0), 'add', f(1, 2));
-    expect(Number.isNaN(r.fraction.num)).toBe(true);
-    expect(Number.isNaN(r.fraction.den)).toBe(true);
-    expect(r.mixed).toBe('—');
+  it('reproduces the mixed-number sum after conversion', () => {
+    expect(render(combineSteps(frac(-11n, 4n), 'add', frac(26n, 7n)))).toEqual([
+      '-11/4 + 26/7',
+      '= -11 × 7/4 × 7 + 26 × 4/7 × 4',
+      '= -77/28 + 104/28',
+      '= -77+104/28',
+      '= 27/28',
+    ]);
   });
 
-  it('an unsupported operation THROWS (no default branch → simplify(undefined))', () => {
-    expect(() => computeFraction(f(1, 2), 'power' as unknown as FractionOp, f(1, 3))).toThrow();
+  it('skips the common-denominator step when the denominators already match', () => {
+    expect(render(combineSteps(frac(1n, 8n), 'add', frac(3n, 8n)))).toEqual([
+      '1/8 + 3/8',
+      '= 1+3/8',
+      '= 4/8',
+      '= 4 ÷ 4/8 ÷ 4',
+      '= 1/2',
+    ]);
   });
 
-  it('is deterministic', () => {
-    const args = [f(3, 8), 'multiply' as FractionOp, f(2, 9)] as const;
-    expect(computeFraction(...args)).toEqual(computeFraction(...args));
+  it('multiplies straight across and then reduces', () => {
+    expect(render(combineSteps(frac(2n, 3n), 'multiply', frac(3n, 4n)))).toEqual([
+      '2/3 × 3/4',
+      '= 2 × 3/3 × 4',
+      '= 6/12',
+      '= 6 ÷ 6/12 ÷ 6',
+      '= 1/2',
+    ]);
+  });
+
+  it('shows division as multiplication by the reciprocal, then the mixed reading', () => {
+    expect(render(combineSteps(frac(3n, 4n), 'divide', frac(2n, 3n)))).toEqual([
+      '3/4 ÷ 2/3',
+      '= 3/4 × 3/2',
+      '= 3 × 3/4 × 2',
+      '= 9/8',
+      '= 1 1/8',
+    ]);
+  });
+
+  it('compacts the working for big numbers, as the reference does', () => {
+    const steps = render(combineSteps(frac(1234n, 748892928829n), 'add', frac(33434421132232234333n, 8877277388288288288n), true));
+    expect(steps).toEqual([
+      '1234/748892928829 + 33434421132232234333/8877277388288288288',
+      '= 3 5094410786346152324392512269193/6648130263342672078999418254752',
+    ]);
+  });
+
+  it('uses the operation symbols the reference uses', () => {
+    expect(OP_SYMBOL).toEqual({ add: '+', subtract: '−', multiply: '×', divide: '÷' });
+  });
+});
+
+describe('simplifySteps — the working the reference shows', () => {
+  it('reproduces 2 21/98 line for line', () => {
+    expect(render(simplifySteps(2n, 21n, 98n))).toEqual([
+      '2 21/98',
+      '= 217/98',
+      '= 217 ÷ 7/98 ÷ 7',
+      '= 31/14',
+      '= 2 3/14',
+    ]);
+  });
+
+  it('starts from the fraction when there is no whole part', () => {
+    expect(render(simplifySteps(0n, 6n, 12n))).toEqual(['6/12', '= 6 ÷ 6/12 ÷ 6', '= 1/2']);
+  });
+
+  it('says nothing more when the fraction is already in lowest terms', () => {
+    expect(render(simplifySteps(0n, 3n, 8n))).toEqual(['3/8']);
+  });
+
+  it('keeps the sign on the whole reading', () => {
+    expect(render(simplifySteps(-2n, 3n, 4n))).toEqual(['-2 3/4', '= -11/4', '= -2 3/4']);
+  });
+});
+
+describe('decimalSteps — the working the reference shows', () => {
+  it('reproduces 1.375 line for line', () => {
+    expect(render(decimalSteps('1.375', '1', '375'))).toEqual([
+      '1.375',
+      '= 1.375 × 1000/1 × 1000',
+      '= 1375/1000',
+      '= 1375 ÷ 125/1000 ÷ 125',
+      '= 11/8',
+      '= 1 3/8',
+    ]);
+  });
+
+  it('handles a whole number with no decimal part', () => {
+    expect(render(decimalSteps('4', '4', ''))).toEqual(['4', '= 4/1']);
+  });
+
+  it('handles a negative decimal', () => {
+    expect(render(decimalSteps('-0.25', '0', '25'))).toEqual([
+      '-0.25',
+      '= -0.25 × 100/1 × 100',
+      '= -25/100',
+      '= -25 ÷ 25/100 ÷ 25',
+      '= -1/4',
+    ]);
   });
 });

@@ -10,6 +10,7 @@ import {
   isValidInches,
   classifyImperialHeight,
   round1,
+  classifyAge,
 } from './body-measurements';
 
 /**
@@ -76,5 +77,29 @@ describe('classifyImperialHeight (message-free, BMI-accepted semantics)', () => 
   it('checks inches before feet before total (order stability)', () => {
     // Both inches-bad and feet-bad → inches wins (checked first).
     expect(classifyImperialHeight('5.5', '12')).toBe('inches-out-of-range');
+  });
+});
+
+describe('classifyAge (shared by every calculator that asks for one)', () => {
+  it('accepts a whole number of years inside the span', () => {
+    expect(classifyAge('25', 18, 80)).toBe('ok');
+    expect(classifyAge(' 18 ', 18, 80)).toBe('ok');
+    expect(classifyAge('80', 18, 80)).toBe('ok');
+  });
+
+  it('separates the three ways an age can be wrong', () => {
+    expect(classifyAge('', 18, 80)).toBe('empty');
+    expect(classifyAge('   ', 18, 80)).toBe('empty');
+    expect(classifyAge('25.5', 18, 80)).toBe('not-whole');
+    expect(classifyAge('x', 18, 80)).toBe('not-whole');
+    expect(classifyAge('17', 18, 80)).toBe('out-of-range');
+    expect(classifyAge('81', 18, 80)).toBe('out-of-range');
+  });
+
+  it('leaves the span to the caller, because the span is a product decision', () => {
+    // 15 is fine for BMR and calories, and too young for protein.
+    expect(classifyAge('15', 15, 80)).toBe('ok');
+    expect(classifyAge('15', 18, 80)).toBe('out-of-range');
+    expect(classifyAge('2', 2, 80)).toBe('ok');
   });
 });

@@ -6,6 +6,8 @@ import {
   firstInvalidToken,
   statCells,
   modeText,
+  sortedText,
+  formatStat,
   interpretStats,
   describeStatsResult,
   statisticsBinding,
@@ -212,6 +214,80 @@ describe('statistics binding — result cells', () => {
     expect(modeText([4])).toBe('4');
     expect(modeText([1, 2])).toBe('1, 2');
     expect(modeText([])).toBe('No mode');
+  });
+
+  it('says how many times the mode appeared, as the reference does', () => {
+    expect(modeText([23], 3)).toBe('23, appeared 3 times');
+    expect(modeText([4], 1)).toBe('4, appeared 1 time');
+    expect(modeText([1, 2], 2)).toBe('1, 2, each appeared 2 times');
+    expect(modeText([], 0)).toBe('No mode');
+  });
+
+  it('lists the sorted data, and summarises a set too long to print', () => {
+    expect(sortedText([2, 10, 21, 23, 23, 23, 38, 38])).toBe('2, 10, 21, 23, 23, 23, 38, 38');
+    expect(sortedText([])).toBe('');
+    const long = Array.from({ length: 205 }, (_, i) => i + 1);
+    expect(sortedText(long).endsWith('… and 5 more')).toBe(true);
+  });
+
+  it('says the geometric mean is undefined rather than printing a meaningless number', () => {
+    expect(cell(calculateStats([0, 4, 9]), 'gm')).toBe('Not defined for zero or negative values');
+    expect(cell(calculateStats([-2, 4, 9]), 'gm')).toBe('Not defined for zero or negative values');
+    expect(cell(calculateStats([1, 3, 9]), 'gm')).toBe('3');
+  });
+});
+
+/**
+ * The reference's own worked example, cell by cell — this is what a visitor checking our answer
+ * against theirs actually compares.
+ */
+describe('statistics binding — the reference result table', () => {
+  const s = calculateStats([10, 2, 38, 23, 38, 23, 21, 23]);
+  const expected: Record<string, string> = {
+    count: '8',
+    sum: '178',
+    mean: '22.25',
+    median: '23',
+    mode: '23, appeared 3 times',
+    max: '38',
+    min: '2',
+    range: '36',
+    gm: '17.119851726053',
+    popSD: '11.508149286484',
+    popVar: '132.4375',
+    sampleSD: '12.302729081677',
+    sampleVar: '151.35714285714',
+    sorted: '2, 10, 21, 23, 23, 23, 38, 38',
+  };
+
+  for (const [key, text] of Object.entries(expected)) {
+    it(`renders ${key} exactly as the reference prints it`, () => {
+      expect(cell(s, key)).toBe(text);
+    });
+  }
+});
+
+describe('statistics binding — precision', () => {
+  it('carries fourteen significant figures, so a checked digit matches', () => {
+    expect(formatStat(151.35714285714286)).toBe('151.35714285714');
+    expect(formatStat(11.508149286484063)).toBe('11.508149286484');
+  });
+
+  it('drops trailing zeros rather than padding', () => {
+    expect(formatStat(22.25)).toBe('22.25');
+    expect(formatStat(36)).toBe('36');
+    expect(formatStat(0)).toBe('0');
+  });
+
+  it('never puts a non-finite value on the page', () => {
+    expect(formatStat(Number.NaN)).toBe('—');
+    expect(formatStat(Number.POSITIVE_INFINITY)).toBe('—');
+  });
+
+  it('keeps a SENTENCE readable at four decimals, unlike the table', () => {
+    const r = computeStats({ primary: 'sd', raw: '2,4,6,8' });
+    expect(interpretStats(r)).toContain('2.582');
+    expect(interpretStats(r)).not.toContain('2.5819888974716');
   });
 });
 

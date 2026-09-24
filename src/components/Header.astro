@@ -1,94 +1,203 @@
 ---
 /**
- * Site header: brand, task-first navigation (derived from the task registry)
- * and a theme toggle. The primary nav leads with what visitors want to DO, not
- * the tool taxonomy — that lives in the footer as a secondary "browse by type"
- * view. The nav is a horizontally-scrollable row on small screens — robust, no
- * hamburger JS, and works with JavaScript disabled.
+ * Site header — Plum / Rose / Apricot visual treatment.
+ *
+ * Navigation remains task-first and works without JavaScript.
+ * The visual system uses:
+ *   Plum    → structure, brand, primary navigation
+ *   Rose    → active states
+ *   Apricot → subtle attention accents
  */
 import Logo from '@components/Logo.astro';
 import Icon from '@components/Icon.astro';
-import { TASK_GROUPS_ORDERED, taskPath } from '@data/tasks';
+import { TASK_GROUPS_ORDERED, taskPath, getTaskGroupForCalculator } from '@data/tasks';
+import { CATEGORIES, getCalculator } from '@data/calculators';
+import { SITE } from '@config/site';
 
-const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
-const isActive = (path: string) => currentPath === path || currentPath.startsWith(path + '/');
+// The build emits file-style URLs (`format: 'file'`), so `Astro.url.pathname` arrives as
+// "/finance/mortgage-calculator.html". Normalise the extension away — without this nothing in the
+// nav ever matched and the active state was dead on every page.
+const currentPath =
+  Astro.url.pathname
+    .replace(/\/index\.html$/, '/')
+    .replace(/\.html$/, '')
+    .replace(/\/$/, '') || '/';
+
+const isActive = (path: string) =>
+  currentPath === path || currentPath.startsWith(path + '/');
+
+/**
+ * Which task group the visitor is currently inside.
+ *
+ * The nav leads with tasks, but most visits land on a CALCULATOR (/<category>/<slug>), whose URL
+ * never starts with /tasks/ — so path matching alone left every nav item unhighlighted on the pages
+ * people actually use. Resolve the calculator through the registry instead and light up the group
+ * that owns it, so the nav always answers "where am I".
+ */
+const calcMatch = currentPath.match(/^\/([a-z-]+)\/([a-z0-9-]+)$/);
+const activeGroupSlug = (() => {
+  if (!calcMatch) return undefined;
+  const [, category, slug] = calcMatch;
+  if (!CATEGORIES.some((c) => c.slug === category)) return undefined;
+  if (!getCalculator(category, slug)) return undefined;
+  return getTaskGroupForCalculator(category, slug)?.slug;
+})();
+
+/** A nav item is current for its own /tasks/ URL, or for a calculator that belongs to it. */
+const isGroupActive = (group: { slug: string }) =>
+  isActive(taskPath(group)) || group.slug === activeGroupSlug;
 ---
 
-<header
-  class="sticky top-0 z-50 border-b"
-  style="background: color-mix(in srgb, var(--card) 88%, transparent); border-color: var(--line); backdrop-filter: saturate(180%) blur(8px);"
->
-  <div class="wrap flex h-16 items-center justify-between gap-4">
-    <a href="/" class="flex items-center" aria-label="AllCalculators home">
-      <Logo />
+<header class="site-header sticky top-0 z-50">
+  <div class="site-header-inner wrap">
+
+    <!-- Brand -->
+    <a
+      href="/"
+      class="site-brand"
+      aria-label={`${SITE.name} home`}
+    >
+      <span class="site-brand-mark">
+        <Logo tagline />
+      </span>
+
     </a>
 
-    <nav aria-label="Calculators by task" class="min-w-0 flex-1">
-      <ul class="flex items-center gap-1 overflow-x-auto md:justify-center [scrollbar-width:none] [-ms-overflow-style:none]">
+    <!-- Main navigation -->
+    <nav
+      aria-label="Calculators by task"
+      class="site-nav min-w-0 flex-1"
+    >
+      <ul class="site-nav-list">
+
+        <!-- All calculators -->
+        <li class="shrink-0">
+          <a
+            href="/calculators"
+            class:list={[
+              'site-nav-all',
+              { 'is-active': isActive('/calculators') },
+            ]}
+            aria-current={isActive('/calculators') ? 'page' : undefined}
+            aria-label="View all calculators"
+          >
+            <span class="site-nav-all-icon"><Icon name="layout-grid" size={12} /></span>
+            <span>All</span>
+          </a>
+        </li>
+
         {
-          TASK_GROUPS_ORDERED.map((group) => (
-            <li class="shrink-0">
-              <a
-                href={taskPath(group)}
-                class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold transition-colors"
-                style={
-                  isActive(taskPath(group))
-                    ? 'color: var(--color-brand-700); background: var(--color-brand-50)'
-                    : 'color: var(--fg)'
-                }
-                aria-current={isActive(taskPath(group)) ? 'page' : undefined}
-                title={group.question}
-              >
-                <Icon name={group.icon} size={16} />
-                <span>{group.shortName}</span>
-              </a>
-            </li>
-          ))
+          TASK_GROUPS_ORDERED.map((group) => {
+            const active = isGroupActive(group);
+
+            return (
+              <li class="shrink-0">
+                <a
+                  href={taskPath(group)}
+                  class:list={[
+                    'site-nav-link',
+                    { 'is-active': active },
+                  ]}
+                  aria-current={active ? 'page' : undefined}
+                  title={group.question}
+                >
+                  <span class="site-nav-icon">
+                    <Icon name={group.icon} size={16} />
+                  </span>
+
+                  <span>{group.shortName}</span>
+
+                  {active && (
+                    <span
+                      class="site-nav-active-dot"
+                      aria-hidden="true"
+                    />
+                  )}
+                </a>
+              </li>
+            );
+          })
         }
       </ul>
     </nav>
 
-    <div class="flex shrink-0 items-center gap-1">
+    <!-- Right controls -->
+    <div class="site-header-actions">
+
+      <!-- Guides -->
       <a
         href="/guides"
-        class="hidden rounded-lg px-3 py-2 text-sm font-semibold lg:inline-flex"
-        style={isActive('/guides') ? 'color: var(--color-brand-700)' : 'color: var(--fg)'}>Guides</a
+        class:list={[
+          'site-guides',
+          { 'is-active': isActive('/guides') },
+        ]}
+        aria-current={isActive('/guides') ? 'page' : undefined}
       >
-      <a
-        href="/calculators"
-        class="hidden rounded-lg px-3 py-2 text-sm font-semibold lg:inline-flex"
-        style="color: var(--fg)">All</a
-      >
+        <span>Guides</span>
+        <span class="site-guides-arrow" aria-hidden="true">↗</span>
+      </a>
+
+      <!-- Theme -->
       <button
         type="button"
         id="theme-toggle"
-        class="inline-flex h-9 w-9 items-center justify-center rounded-lg border"
-        style="border-color: var(--line); color: var(--fg)"
+        class="theme-toggle"
         aria-label="Toggle color theme"
       >
-        <svg class="h-5 w-5" data-theme-icon="light" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <circle cx="12" cy="12" r="4"></circle>
-          <path stroke-linecap="round" d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path>
-        </svg>
-        <svg class="h-5 w-5" data-theme-icon="dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
-        </svg>
+        <span class="theme-toggle-icon">
+          <svg
+            class="h-4 w-4"
+            data-theme-icon="light"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="4"></circle>
+            <path
+              stroke-linecap="round"
+              d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"
+            ></path>
+          </svg>
+
+          <svg
+            class="h-4 w-4"
+            data-theme-icon="dark"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"
+            ></path>
+          </svg>
+        </span>
       </button>
     </div>
   </div>
 </header>
 
 <script>
-  // Theme toggle: cycles light/dark and persists the choice. The initial theme
-  // is applied pre-paint by an inline script in the layout to avoid any flash.
   const btn = document.getElementById('theme-toggle');
+
   btn?.addEventListener('click', () => {
     const root = document.documentElement;
+
     const current =
       root.getAttribute('data-theme') ||
-      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      (window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light');
+
     const next = current === 'dark' ? 'light' : 'dark';
+
     root.setAttribute('data-theme', next);
+
     try {
       localStorage.setItem('theme', next);
     } catch {
@@ -96,3 +205,458 @@ const isActive = (path: string) => currentPath === path || currentPath.startsWit
     }
   });
 </script>
+
+<style>
+  /* ==========================================================================
+     Header — Plum / Rose / Apricot
+     ========================================================================== */
+
+  .site-header {
+    position: sticky;
+    top: 0;
+
+  border-bottom: 1px solid var(--line);
+
+    background: color-mix(
+      in srgb,
+      var(--card) 91%,
+      transparent
+    );
+
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+  }
+
+  .site-header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--color-accent-500) 50%,
+      transparent 100%
+    );
+
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  .site-header-inner {
+    min-height: 4rem;
+
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  /* --------------------------------------------------------------------------
+     Brand
+     -------------------------------------------------------------------------- */
+
+  .site-brand {
+    position: relative;
+
+    display: inline-flex;
+    align-items: center;
+
+    flex-shrink: 0;
+
+    color: var(--heading);
+    text-decoration: none;
+
+    transition:
+      transform 0.18s ease,
+      opacity 0.18s ease;
+  }
+
+  .site-brand:hover {
+    transform: translateY(-1px);
+    opacity: 0.94;
+  }
+
+  .site-brand-mark {
+    display: flex;
+    align-items: center;
+  }
+
+
+  /* --------------------------------------------------------------------------
+     Navigation
+     -------------------------------------------------------------------------- */
+
+  .site-nav-list {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 0.25rem;
+
+    overflow-x: auto;
+
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    padding: 0.3rem 0;
+  }
+
+  .site-nav-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .site-nav-link,
+  .site-nav-all {
+    position: relative;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-height: 2.35rem;
+
+    gap: 0.45rem;
+
+    padding: 0.5rem 0.7rem;
+
+    border-radius: 0.7rem;
+
+    color: var(--fg);
+    text-decoration: none;
+
+    font-size: 0.8125rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+
+    white-space: nowrap;
+
+    transition:
+      color 0.16s ease,
+      background-color 0.16s ease,
+      transform 0.16s ease;
+  }
+
+/* Normal navigation hover */
+
+.site-nav-link:hover {
+  color: var(--color-brand-600);
+  background: var(--header-hover);
+  transform: translateY(-1px);
+}
+
+.site-nav-link:hover .site-nav-icon {
+  color: var(--color-accent-500);
+}
+
+/* Active navigation item */
+
+.site-nav-link.is-active {
+  color: var(--color-brand-600);
+  background: var(--header-active);
+
+  box-shadow: inset 0 0 0 1px
+    color-mix(
+      in srgb,
+      var(--color-brand-500) 14%,
+      transparent
+    );
+}
+
+.site-nav-link.is-active .site-nav-icon {
+  color: var(--color-brand-500);
+}
+
+  .site-nav-active-dot {
+    width: 4px;
+    height: 4px;
+
+    margin-left: 0.05rem;
+
+    border-radius: 999px;
+
+    background: var(--color-brand-600);
+  }
+
+  /* --------------------------------------------------------------------------
+     All calculators — deliberately different from normal nav
+     -------------------------------------------------------------------------- */
+
+  .site-nav-all {
+    gap: 0.4rem;
+
+    padding-inline: 0.75rem;
+
+    color: var(--color-brand-700);
+
+  border: 1px solid #e7e1ec !important;
+
+    background: color-mix(
+      in srgb,
+      var(--color-brand-50) 75%,
+      var(--card)
+    );
+  }
+
+  .site-nav-all:hover {
+    color: #fff;
+
+    border-color: var(--color-brand-600);
+
+    background: var(--color-brand-600);
+
+    transform: translateY(-1px);
+
+    box-shadow:
+      0 4px 12px color-mix(
+        in srgb,
+        var(--color-brand-600) 22%,
+        transparent
+      );
+  }
+
+  .site-nav-all.is-active {
+    color: #fff;
+    border-color: var(--color-brand-700);
+    background: var(--color-brand-700);
+  }
+
+  /* A grid of panes, not a plus: this entry browses everything, it does not add anything. */
+  .site-nav-all-icon {
+    display: grid;
+    place-items: center;
+
+    width: 1.15rem;
+    height: 1.15rem;
+
+    border-radius: 0.3rem;
+
+    line-height: 0;
+
+    color: var(--color-mark-key-to);
+
+    background: color-mix(
+      in srgb,
+      var(--color-mark-key-from) 22%,
+      transparent
+    );
+  }
+
+  .site-nav-all:hover .site-nav-all-icon {
+    color: #fff;
+    background: var(--color-mark-key-to);
+  }
+
+  .site-nav-all.is-active .site-nav-all-icon {
+    color: var(--color-brand-700);
+    background: #ede9fe !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     Right-side controls
+     -------------------------------------------------------------------------- */
+
+  .site-header-actions {
+    display: flex;
+    align-items: center;
+
+    gap: 0.4rem;
+
+    flex-shrink: 0;
+  }
+
+  /* Guides */
+
+  .site-guides {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+
+    padding: 0.5rem 0.65rem;
+
+    border-radius: 0.65rem;
+
+    color: var(--fg);
+    text-decoration: none;
+
+    font-size: 0.8125rem;
+    font-weight: 650;
+
+    transition:
+      color 0.16s ease,
+      background-color 0.16s ease;
+  }
+
+  .site-guides:hover {
+    color: var(--color-brand-700);
+
+    background: color-mix(
+      in srgb,
+      var(--color-brand-100) 55%,
+      transparent
+    );
+  }
+
+  .site-guides.is-active {
+    color: var(--color-brand-700);
+  }
+
+  .site-guides-arrow {
+    font-size: 0.85rem;
+    opacity: 0.7;
+
+    transition:
+      transform 0.16s ease,
+      opacity 0.16s ease;
+  }
+
+  .site-guides:hover .site-guides-arrow {
+    transform: translate(1px, -1px);
+    opacity: 1;
+  }
+
+  /* --------------------------------------------------------------------------
+     Theme toggle
+     -------------------------------------------------------------------------- */
+
+  .theme-toggle {
+    position: relative;
+
+    display: inline-grid;
+    place-items: center;
+
+    width: 2.35rem;
+    height: 2.35rem;
+
+    padding: 0;
+
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+
+    color: var(--heading);
+    background: var(--card);
+
+    cursor: pointer;
+
+    transition:
+      color 0.16s ease,
+      border-color 0.16s ease,
+      background-color 0.16s ease,
+      transform 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  .theme-toggle:hover {
+    color: var(--color-brand-700);
+
+    border-color: var(--color-brand-300);
+
+    background: var(--color-brand-50);
+
+    transform: translateY(-1px);
+
+    box-shadow:
+      0 4px 12px color-mix(
+        in srgb,
+        var(--color-brand-700) 12%,
+        transparent
+      );
+  }
+
+  .theme-toggle:active {
+    transform: translateY(0);
+  }
+
+  .theme-toggle-icon {
+    display: grid;
+    place-items: center;
+  }
+
+  /* --------------------------------------------------------------------------
+     Mobile
+     -------------------------------------------------------------------------- */
+
+  @media (max-width: 1023px) {
+    .site-header-inner {
+      gap: 0.65rem;
+    }
+
+    .site-nav-list {
+      justify-content: flex-start;
+    }
+
+    .site-guides {
+      display: none;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .site-header-inner {
+      min-height: 3.75rem;
+      gap: 0.5rem;
+    }
+
+    .site-brand {
+      transform: scale(0.92);
+      transform-origin: left center;
+    }
+
+    .site-nav-link,
+    .site-nav-all {
+      min-height: 2.2rem;
+      padding: 0.45rem 0.6rem;
+      font-size: 0.75rem;
+    }
+
+    .site-nav-link {
+      gap: 0.35rem;
+    }
+
+    .site-header-actions {
+      gap: 0.25rem;
+    }
+
+    .theme-toggle {
+      width: 2.2rem;
+      height: 2.2rem;
+    }
+  }
+
+
+
+  /* --------------------------------------------------------------------------
+   Dark-mode navigation interactions
+   -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .site-nav-link:hover {
+    color: #d8b4fe;
+    background: #2a1b3b;
+  }
+
+  :root:not([data-theme="light"]) .site-nav-link:hover .site-nav-icon {
+    color: #67e8f9;
+  }
+
+  :root:not([data-theme="light"]) .site-nav-link.is-active {
+    color: #e9d5ff;
+    background: #342149;
+  }
+}
+
+:global(:root[data-theme="dark"]) .site-nav-link:hover {
+  color: #d8b4fe;
+  background: #2a1b3b;
+}
+
+:global(:root[data-theme="dark"]) .site-nav-link:hover .site-nav-icon {
+  color: #67e8f9;
+}
+
+:global(:root[data-theme="dark"]) .site-nav-link.is-active {
+  color: #e9d5ff;
+  background: #342149;
+}
+</style>

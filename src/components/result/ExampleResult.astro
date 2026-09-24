@@ -4,19 +4,40 @@
  * never the visitor's own computed answer. The "Example" badge is real text (not
  * decoration), so screen-reader users are told this is illustrative. Shown only
  * while the shell's state is `example`.
+ *
+ * `dismissLabel` opts the example into being the calculator's INITIAL result
+ * state: it renders the one action that hands the panel back to the visitor.
+ * The button carries `data-example-dismiss`, which the shared form/equation
+ * runtimes wire to their `dismissExample` trigger — there is no per-island
+ * script. Omitting the prop renders no action, so a purely illustrative example
+ * (guides, /dev/result) is unchanged.
  */
 export interface Props {
   label?: string;
+  /** Renders the "start with my values" action when set. */
+  dismissLabel?: string;
+  /** Sentence explaining that these are sample numbers, above the figures. */
+  caption?: string;
   class?: string;
 }
-const { label = 'Example', class: className = '' } = Astro.props;
+const { label = 'Example', dismissLabel, caption, class: className = '' } = Astro.props;
 ---
 
 <div class:list={['result-example', className]} data-result-when="example">
   <p class="result-example__badge">
     <span aria-hidden="true">◦</span>{label}
   </p>
+  {caption && <p class="result-example__caption">{caption}</p>}
   <div class="result-example__body">
     <slot />
   </div>
+  {
+    dismissLabel && (
+      <div class="result-example__actions">
+        <button type="button" class="result-example__action" data-example-dismiss>
+          {dismissLabel}
+        </button>
+      </div>
+    )
+  }
 </div>

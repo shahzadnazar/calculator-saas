@@ -1,0 +1,97 @@
+---
+/**
+ * CalculatorRail — the desktop side column beside a calculator.
+ *
+ * Three things, in this order:
+ *   1. An EMPTY reserved area for a future display ad. No border, no background,
+ *      no label — just the space, held open so enabling a network later cannot
+ *      shift the page. `MonetizationRegion` renders into it when (and only when)
+ *      `MONETIZATION_CONFIG` is deliberately enabled; with the shipped config
+ *      (all off) it renders nothing and the space stays blank.
+ *   2. The SAME search combobox the home page hero uses — one index, one ranking
+ *      engine, one set of behaviours, not a second implementation.
+ *   3. Plain text links to related calculators and reference tables, with
+ *      anything newly added riding at the top of the related list, styled
+ *      identically to the rest.
+ *
+ * The rail is a SIBLING of the tool and comes AFTER it in DOM order, so screen
+ * readers and small screens reach the calculator first. Below ~1040px of
+ * container it stops being a column and becomes a row underneath.
+ */
+import CalculatorSearch from '@components/search/CalculatorSearch.astro';
+import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
+import { SEARCH_INDEX_URL } from '@lib/search';
+import { getRelatedCalculators, getNewCalculators, calculatorPath, type Calculator } from '@data/calculators';
+import { getReferencesForCalculator, referencePath } from '@data/reference';
+import { SITE } from '@config/site';
+
+interface Props {
+  calculator: Calculator;
+  /** How many related calculators to list. */
+  limit?: number;
+}
+const { calculator, limit = 12 } = Astro.props;
+
+const related = getRelatedCalculators(calculator, limit);
+// Newest first, at the top of the related list — a new calculator is otherwise unreachable
+// from a page in another category, because the list is registry order within a category.
+// Rendered exactly like every other entry, with no badge: the position is the promotion, and
+// a label would date the moment it stopped being news. Excludes the page you are already on.
+const fresh = getNewCalculators(calculator);
+
+/**
+ * How much taller the fold-critical block is because of the new entries.
+ *
+ * They ride at the TOP OF THE RELATED LIST rather than in a section of their own. A separate
+ * section would cost its heading and the rail's grid gap on top of the link — 76px for one
+ * entry — and at 1366x650 the ad slot is already at its 140px floor and cannot yield that, so
+ * the related links would fall off the first screen. One extra list item costs 25px, which
+ * the slot can absorb.
+ *
+ * The ad slot's desktop height is "whatever is left after the things that must stay on the
+ * first screen" (see `.tool-rail__slot` in global.css), computed from a fixed budget for the
+ * search box, a heading and five links; this adds to that budget. 25px = one link's line box.
+ */
+const railExtraPx = 25 * fresh.length;
+const references = getReferencesForCalculator(calculator.category, calculator.slug);
+---
+
+<aside class="tool-rail" aria-label={`More from ${SITE.name}`} style={railExtraPx ? `--tool-rail-extra: ${railExtraPx}px` : undefined}>
+  <div class="tool-rail__slot"><MonetizationRegion placement="calculator-sidebar" allowSidebar={true} pageSlug={calculator.slug} category={calculator.category} /></div>
+
+  <CalculatorSearch
+    id={`rail-search-${calculator.slug}`}
+    indexUrl={SEARCH_INDEX_URL}
+    loadStrategy="interaction"
+    placeholder="Search: mortgage, BMI, scientific, percentage…"
+  />
+
+  {
+    (fresh.length > 0 || related.length > 0) && (
+      <nav class="tool-rail__links" aria-label="Related calculators">
+        <p class="tool-rail__heading">Related calculators</p>
+        <ul>
+          {fresh.map((c) => (
+            <li><a href={calculatorPath(c)}>{c.title}</a></li>
+          ))}
+          {related.map((c) => (
+            <li><a href={calculatorPath(c)}>{c.title}</a></li>
+          ))}
+        </ul>
+      </nav>
+    )
+  }
+
+  {
+    references.length > 0 && (
+      <nav class="tool-rail__links" aria-label="Reference tables">
+        <p class="tool-rail__heading">Reference tables</p>
+        <ul>
+          {references.map((r) => (
+            <li><a href={referencePath(r)}>{r.shortName}</a></li>
+          ))}
+        </ul>
+      </nav>
+    )
+  }
+</aside>

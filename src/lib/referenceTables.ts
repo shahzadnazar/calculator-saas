@@ -153,9 +153,11 @@ export function getReferenceTable(slug: string): ReferenceTableData | null {
       const ages = Array.from({ length: 11 }, (_, i) => 20 + i * 5);
       return {
         maxWidth: '56rem',
-        headers: ['Age', 'Max HR', 'Fat burn (60–70%)', 'Aerobic (70–80%)', 'Anaerobic (80–90%)'],
+        // No resting heart rate here: a table has no single visitor to take one from, so
+        // these are percentages of MAXIMUM heart rate, and the headers say so.
+        headers: ['Age', 'Max HR', 'Light (60–70%)', 'Moderate (70–80%)', 'Hard (80–90%)'],
         rows: ages.map((age) => {
-          const r = calculateTargetHeartRate(age);
+          const r = calculateTargetHeartRate({ age });
           const z = (i: number) => `${r.zones[i].low}–${r.zones[i].high}`;
           return [String(age), `${r.maxHr} bpm`, z(1), z(2), z(3)];
         }),

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateLoan } from './loan';
+import { calculateLoan, calculateExtendedLoan, effectiveAnnualRate, periodicRate } from './loan';
 
 /**
  * Characterization of the calculateLoan wrapper (R11B1) — the engine behind the Amortization
@@ -170,5 +170,198 @@ describe('loan calculator — R15B1 expanded characterization', () => {
     expect(r.schedule.reduce((s, x) => s + x.interest, 0)).toBeCloseTo(r.totalInterest, 6);
     expect(r.totalPaid).toBeCloseTo(15250.75 + r.totalInterest, 6);
     expect(r.schedule[35].balance).toBeCloseTo(0, 6);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Extended loan modes                                                 */
+/* ------------------------------------------------------------------ */
+
+const usd = (n: number) =>
+  `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+describe('calculateExtendedLoan — pinned against the published reference figures', () => {
+  it('Amortized: $100,000 / 10y / 6% Monthly(APR) / Every Month', () => {
+    const r = calculateExtendedLoan({ mode: 'amortized', amount: 100000, annualInterestRate: 6, termYears: 10, termMonths: 0, compoundKey: 'monthly', paybackKey: 'month' });
+    expect(usd(r.primary)).toBe('$1,110.21');
+    expect(usd(r.totalPaid)).toBe('$133,224.60');
+    expect(usd(r.totalInterest)).toBe('$33,224.60');
+  });
+
+  it('Deferred: $100,000 / 10y / 6% Annually(APY)', () => {
+    const r = calculateExtendedLoan({ mode: 'deferred', amount: 100000, annualInterestRate: 6, termYears: 10, termMonths: 0, compoundKey: 'annually', paybackKey: 'month' });
+    expect(usd(r.primary)).toBe('$179,084.77');
+    expect(usd(r.totalInterest)).toBe('$79,084.77');
+  });
+
+  it('Bond: $100,000 due / 10y / 6% Annually(APY)', () => {
+    const r = calculateExtendedLoan({ mode: 'bond', amount: 100000, annualInterestRate: 6, termYears: 10, termMonths: 0, compoundKey: 'annually', paybackKey: 'month' });
+    expect(usd(r.primary)).toBe('$55,839.48');
+    expect(usd(r.totalInterest)).toBe('$44,160.52');
+  });
+
+  it('Deferred ANNUAL schedule matches the screenshot row for row', () => {
+    const r = calculateExtendedLoan({ mode: 'deferred', amount: 100000, annualInterestRate: 6, termYears: 10, termMonths: 0, compoundKey: 'annually', paybackKey: 'month' });
+    const want = [
+      ['$100,000.00', '$6,000.00', '$106,000.00'],
+      ['$106,000.00', '$6,360.00', '$112,360.00'],
+      ['$112,360.00', '$6,741.60', '$119,101.60'],
+      ['$119,101.60', '$7,146.10', '$126,247.70'],
+      ['$126,247.70', '$7,574.86', '$133,822.56'],
+      ['$133,822.56', '$8,029.35', '$141,851.91'],
+      ['$141,851.91', '$8,511.11', '$150,363.03'],
+      ['$150,363.03', '$9,021.78', '$159,384.81'],
+      ['$159,384.81', '$9,563.09', '$168,947.90'],
+      ['$168,947.90', '$10,136.87', '$179,084.77'],
+    ];
+    expect(r.yearlySchedule).toHaveLength(10);
+    r.yearlySchedule.forEach((row, i) => {
+      const got = [usd(row.beginning), usd(row.interest), usd(row.ending)];
+      expect(got).toEqual(want[i]);
+    });
+  });
+
+  it('Deferred MONTHLY schedule matches the screenshot row for row', () => {
+    const r = calculateExtendedLoan({ mode: 'deferred', amount: 100000, annualInterestRate: 6, termYears: 10, termMonths: 0, compoundKey: 'annually', paybackKey: 'month' });
+    const want = [
+      ['$100,000.00', '$486.76', '$100,486.76'],
+      ['$100,486.76', '$489.12', '$100,975.88'],
+      ['$100,975.88', '$491.51', '$101,467.38'],
+      ['$101,467.38', '$493.90', '$101,961.28'],
+      ['$101,961.28', '$496.30', '$102,457.58'],
+      ['$102,457.58', '$498.72', '$102,956.30'],
+      ['$102,956.30', '$501.15', '$103,457.45'],
+      ['$103,457.45', '$503.58', '$103,961.03'],
+      ['$103,961.03', '$506.04', '$104,467.07'],
+      ['$104,467.07', '$508.50', '$104,975.57'],
+      ['$104,975.57', '$510.97', '$105,486.54'],
+      ['$105,486.54', '$513.46', '$106,000.00'],
+      ['$106,000.00', '$515.96', '$106,515.96'],
+    ];
+    want.forEach((w, i) => {
+      const row = r.monthlySchedule[i];
+      const got = [usd(row.beginning), usd(row.interest), usd(row.ending)];
+      expect(got).toEqual(w);
+    });
+  });
+});
+
+describe('the Compound select genuinely changes the answer', () => {
+  const at = (compoundKey: string) =>
+    calculateExtendedLoan({
+      mode: 'deferred', amount: 100000, annualInterestRate: 6,
+      termYears: 10, termMonths: 0, compoundKey, paybackKey: 'month',
+    }).primary;
+
+  it('normalises a quoted rate to one effective annual rate', () => {
+    expect(effectiveAnnualRate(6, 1)).toBeCloseTo(0.06, 12);           // APY is already effective
+    expect(effectiveAnnualRate(6, 12)).toBeCloseTo(0.0616778119, 9);   // 6% APR compounded monthly
+    expect(effectiveAnnualRate(6, Infinity)).toBeCloseTo(Math.exp(0.06) - 1, 12); // continuous
+  });
+
+  it('grows the maturity value as compounding gets more frequent', () => {
+    const annual = at('annually');
+    const monthly = at('monthly');
+    const daily = at('daily');
+    const continuous = at('continuously');
+    expect(monthly).toBeGreaterThan(annual);
+    expect(daily).toBeGreaterThan(monthly);
+    expect(continuous).toBeGreaterThan(daily);
+  });
+
+  it('inverts itself: periodicRate compounded back gives the effective annual rate', () => {
+    for (const perYear of [1, 2, 4, 12, 26, 52, 365]) {
+      const ear = effectiveAnnualRate(7.5, 12);
+      const i = periodicRate(ear, perYear);
+      expect(Math.pow(1 + i, perYear) - 1).toBeCloseTo(ear, 12);
+    }
+  });
+});
+
+describe('the payback frequency drives the amortized schedule', () => {
+  const at = (paybackKey: string) =>
+    calculateExtendedLoan({
+      mode: 'amortized', amount: 100000, annualInterestRate: 6,
+      termYears: 10, termMonths: 0, compoundKey: 'monthly', paybackKey,
+    });
+
+  it('gives one row per payment period, not per month', () => {
+    expect(at('month').paymentCount).toBe(120);
+    expect(at('quarter').paymentCount).toBe(40);
+    expect(at('halfyear').paymentCount).toBe(20);
+    expect(at('year').paymentCount).toBe(10);
+  });
+
+  it('costs about the same in total however often you pay', () => {
+    // Same effective rate, same term — the totals differ only by payment timing.
+    const monthly = at('month').totalPaid;
+    for (const key of ['quarter', 'halfyear', 'year']) {
+      expect(at(key).totalPaid / monthly).toBeGreaterThan(0.97);
+      expect(at(key).totalPaid / monthly).toBeLessThan(1.06);
+    }
+  });
+
+  it('always repays the balance to zero', () => {
+    for (const key of ['month', 'quarter', 'halfyear', 'year']) {
+      const r = at(key);
+      expect(r.monthlySchedule[r.monthlySchedule.length - 1].ending).toBeCloseTo(0, 6);
+    }
+  });
+});
+
+describe('extra term months are part of the term', () => {
+  const base = { mode: 'amortized' as const, amount: 100000, annualInterestRate: 6, compoundKey: 'monthly', paybackKey: 'month' };
+  it('10y 6m is 126 payments, between 10y and 11y', () => {
+    expect(calculateExtendedLoan({ ...base, termYears: 10, termMonths: 6 }).paymentCount).toBe(126);
+    const ten = calculateExtendedLoan({ ...base, termYears: 10, termMonths: 0 }).primary;
+    const half = calculateExtendedLoan({ ...base, termYears: 10, termMonths: 6 }).primary;
+    const eleven = calculateExtendedLoan({ ...base, termYears: 11, termMonths: 0 }).primary;
+    expect(half).toBeLessThan(ten);
+    expect(half).toBeGreaterThan(eleven); // a longer term means a smaller payment
+  });
+});
+
+describe('the guard never lets an unusable result through', () => {
+  const base = { mode: 'amortized' as const, amount: 100000, annualInterestRate: 6, termYears: 10, termMonths: 0, compoundKey: 'monthly', paybackKey: 'month' };
+
+  it('marks a zero amount or a zero term invalid rather than returning NaN figures', () => {
+    for (const bad of [{ amount: 0 }, { termYears: 0, termMonths: 0 }]) {
+      const r = calculateExtendedLoan({ ...base, ...bad });
+      expect(r.valid).toBe(false);
+      expect(r.monthlySchedule).toEqual([]);
+    }
+  });
+
+  it('handles a 0% loan as a straight repayment of principal', () => {
+    const r = calculateExtendedLoan({ ...base, annualInterestRate: 0 });
+    expect(r.valid).toBe(true);
+    expect(r.totalInterest).toBeCloseTo(0, 6);
+    expect(r.primary).toBeCloseTo(100000 / 120, 6);
+  });
+
+  it('a bond and a deferred loan are exact inverses of each other', () => {
+    const deferred = calculateExtendedLoan({ ...base, mode: 'deferred', compoundKey: 'annually' });
+    const bond = calculateExtendedLoan({ ...base, mode: 'bond', amount: deferred.primary, compoundKey: 'annually' });
+    expect(bond.primary).toBeCloseTo(100000, 6); // back to the original principal
+  });
+
+  it('every schedule row reconciles: beginning + interest === ending', () => {
+    for (const mode of ['amortized', 'deferred', 'bond'] as const) {
+      const r = calculateExtendedLoan({ ...base, mode, compoundKey: 'annually' });
+      for (const row of r.monthlySchedule) {
+        const paid = mode === 'amortized' ? row.beginning + row.interest - row.ending : 0;
+        expect(row.beginning + row.interest - paid).toBeCloseTo(row.ending, 6);
+      }
+    }
+  });
+
+  it('the yearly view sums exactly to the monthly view', () => {
+    const r = calculateExtendedLoan({ ...base, mode: 'deferred', compoundKey: 'annually' });
+    const monthlyInterest = r.monthlySchedule.reduce((s, x) => s + x.interest, 0);
+    const yearlyInterest = r.yearlySchedule.reduce((s, x) => s + x.interest, 0);
+    expect(yearlyInterest).toBeCloseTo(monthlyInterest, 6);
+    expect(r.yearlySchedule[r.yearlySchedule.length - 1].ending).toBeCloseTo(
+      r.monthlySchedule[r.monthlySchedule.length - 1].ending, 6,
+    );
   });
 });

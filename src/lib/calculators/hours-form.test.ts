@@ -164,13 +164,13 @@ describe('hours binding — presentation + announcement', () => {
     expect(p.primary).toBe('8h 0m');
     expect(p.a11y).toBe('8 hours');
     expect(p.decimal).toBe('8');
-    expect(p.interpretation).toBe('09:00 to 17:30, minus a 30-minute break.');
+    expect(p.interpretation).toBe('9:00 AM to 5:30 PM, minus a 30-minute break.');
   });
 
   it('an overnight result notes the midnight crossing', () => {
     const p = presentHours(computeHours(V({ start: '22:00', end: '06:00', breakMin: '0' })));
     expect(p.primary).toBe('8h 0m');
-    expect(p.interpretation).toBe('22:00 to 06:00, crossing midnight.');
+    expect(p.interpretation).toBe('10:00 PM to 6:00 AM, crossing midnight.');
   });
 
   it('a fractional result formats hours + minutes + decimal (8h 15m, 8.25)', () => {
@@ -185,7 +185,7 @@ describe('hours binding — presentation + announcement', () => {
     expect(p.primary).toBe('7h 29.5m');
     expect(p.a11y).toBe('7 hours 29.5 minutes');
     expect(p.decimal).toBe('7.49');
-    expect(p.interpretation).toBe('09:00 to 17:00, minus a 30.5-minute break.');
+    expect(p.interpretation).toBe('9:00 AM to 5:00 PM, minus a 30.5-minute break.');
   });
 
   it('a zero result from equal times, and from a break covering the interval, explain themselves', () => {

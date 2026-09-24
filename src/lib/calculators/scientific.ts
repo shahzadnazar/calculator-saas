@@ -278,8 +278,17 @@ function evalRPN(rpn: Token[], mode: AngleMode): number {
           case '+': stack.push(a + b); break;
           case '-': stack.push(a - b); break;
           case '*': stack.push(a * b); break;
-          case '/': stack.push(a / b); break;
-          case '%': stack.push(a % b); break;
+          // Division by zero is named at the point it happens. Letting it fall through as
+          // Infinity made the engine report EVERY non-finite result as divide-by-zero,
+          // including a plain overflow like 999^999.
+          case '/':
+            if (b === 0) throw new CalculatorError('__divzero__');
+            stack.push(a / b);
+            break;
+          case '%':
+            if (b === 0) throw new CalculatorError('__divzero__');
+            stack.push(a % b);
+            break;
           case '^': stack.push(Math.pow(a, b)); break;
           default: throw new CalculatorError(`Unknown operator: ${tok.value}`);
         }

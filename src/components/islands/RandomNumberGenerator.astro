@@ -1,203 +1,373 @@
 ---
 /**
- * Random number generator island (R18B2 — task-first; bounded Math singleton; random-data
- * generator family, on the UNCHANGED generator runtime).
+ * Random number island — the reference's TWO generators.
  *
- * A settings form on the UNCHANGED generator runtime (@lib/result/generator-runtime) +
- * the RNG binding (@lib/calculators/random-number-form), which wraps the UNCHANGED
- * `randomIntegers` (crypto-strength, inclusive integer range, optional unique). Task-first:
- * the settings are prefilled with sensible defaults (1 / 100 / 5 / repeats-allowed) but the
- * OUTPUT starts EMPTY on the server AND after hydration — no numbers generated on load (the
- * legacy island auto-generated on mount). The visitor presses "Generate Numbers" for the
- * first output; changing a setting afterward marks the shown output STALE (kept visible,
- * with a note) rather than silently regenerating — there is NO live regeneration. Reset
- * returns to the empty pre-generation state. NO Copy (a list of numbers is not a single
- * copyable secret, and the legacy tool had none). Randomness is client-only via the Web
- * Crypto API; the server never bakes random output. NO runtime change; NO generic
- * random-number / numeric-generator / range / list-output / uniqueness abstraction.
+ * The simple one returns a single integer between two limits, of any size. The Comprehensive
+ * Version adds a count, a choice of integers or decimals, and the decimal places to work to. They
+ * are separate generators with their own settings, button and output; each puts its output in the
+ * same row as its settings.
  *
- * Static ids are namespaced per-instance WHEN more than one generator shares a document
- * (the R16B2.1 discipline), so an embed gallery has no duplicate ids and every instance's
- * inputs / unique toggle / output / announcement / reset stay independent.
+ * Both run on the UNCHANGED generator runtime: an explicit Generate, and a settings change that
+ * marks the shown output STALE — kept visible, Copy disabled — rather than silently regenerating.
+ * The output area carries Copy and Regenerate, so a draw you do not like is one click from another
+ * without going back to the settings.
+ *
+ * The draw happens in the browser through the Web Crypto API; the server never bakes a random value
+ * into the page, and nothing generated is announced verbatim, stored or transmitted.
  */
 import ResultShell from '@components/result/ResultShell.astro';
-import ResultSummary from '@components/result/ResultSummary.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { LIMITS } from '@lib/calculators/random-number';
 ---
 
-<div class="rng mx-auto w-full max-w-2xl" data-rng>
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Random number generator settings">
-    <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <div data-field="min">
-        <label class="field-label" for="rng-min">Minimum</label>
-        <input
-          class="field"
-          id="rng-min"
-          name="min"
-          type="number"
-          step="1"
-          value="1"
-          inputmode="numeric"
-          autocomplete="off"
-          aria-describedby="rng-min-error"
-        />
-        <p class="rng-error" id="rng-min-error" data-error-for="min" hidden></p>
-      </div>
-      <div data-field="max">
-        <label class="field-label" for="rng-max">Maximum</label>
-        <input
-          class="field"
-          id="rng-max"
-          name="max"
-          type="number"
-          step="1"
-          value="100"
-          inputmode="numeric"
-          autocomplete="off"
-          aria-describedby="rng-max-error"
-        />
-        <p class="rng-error" id="rng-max-error" data-error-for="max" hidden></p>
-      </div>
-      <div data-field="count">
-        <label class="field-label" for="rng-count">How many</label>
-        <input
-          class="field"
-          id="rng-count"
-          name="count"
-          type="number"
-          step="1"
-          min="1"
-          max="1000"
-          value="5"
-          inputmode="numeric"
-          autocomplete="off"
-          aria-describedby="rng-count-error"
-        />
-        <p class="rng-error" id="rng-count-error" data-error-for="count" hidden></p>
-      </div>
-      <label class="rng-unique">
-        <input type="checkbox" name="unique" /> <span>No repeats</span>
-      </label>
+<div class="rngpage mx-auto w-full max-w-5xl" data-rng-page>
+  <!-- 1 — one integer, any size -->
+  <section class="rng-calc" data-rng-simple aria-labelledby="rng-simple-heading">
+    <h2 class="rng-title" id="rng-simple-heading">Random Number Generator</h2>
+    <p class="rng-lede">
+      One random integer between two limits. It handles very large integers — up to
+      {LIMITS.maxDigits.toLocaleString('en-US')} digits.
+    </p>
+
+    <div class="rng-split">
+      <form class="card rng-card" data-form novalidate aria-label="Random number generator">
+        <div class="rng-field">
+          <label class="field-label rng-field__label" for="rng-lower">Lower Limit</label>
+          <div class="rng-field__control">
+            <input class="field rng-num" id="rng-lower" name="lower" type="text" inputmode="numeric" autocomplete="off" placeholder="1" value="1" aria-describedby="rng-lower-error" />
+            <p class="rng-field-error" id="rng-lower-error" data-error-for="lower" hidden />
+          </div>
+        </div>
+        <div class="rng-field">
+          <label class="field-label rng-field__label" for="rng-upper">Upper Limit</label>
+          <div class="rng-field__control">
+            <input class="field rng-num" id="rng-upper" name="upper" type="text" inputmode="numeric" autocomplete="off" placeholder="100" value="100" aria-describedby="rng-upper-error" />
+            <p class="rng-field-error" id="rng-upper-error" data-error-for="upper" hidden />
+          </div>
+        </div>
+
+        <div class="mt-3 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary" data-rng-simple-submit>Generate</button>
+          <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+        </div>
+      </form>
+
+      <ResultShell id="rng-simple-result" state="empty" density="standard" label="Random number" minHeight="0" class="rng-result">
+        <ExampleNotice />
+        <EmptyResult message="Set the limits, then generate a number." />
+
+        <div data-result-when="valid">
+          <label class="sr-only" for="rng-simple-output">The generated number</label>
+          <textarea class="rng-output" id="rng-simple-output" data-generator-output rows="1" readonly spellcheck="false"></textarea>
+          <p class="rng-count" data-rng-count></p>
+          <p class="rng-stale" data-stale-note hidden>Settings changed. Generate again to apply them.</p>
+          <div class="rng-actions">
+            <button type="button" class="btn btn-secondary rng-action" data-copy>Copy</button>
+            <button type="button" class="btn btn-secondary rng-action" data-regenerate>Regenerate</button>
+            <span class="rng-copied" data-copy-confirm hidden>Copied</span>
+          </div>
+        </div>
+
+        <InvalidResult title="Check the limits" message="Enter whole numbers for both limits." />
+        <ResultAnnouncement id="rng-simple-live" />
+      </ResultShell>
     </div>
+  </section>
 
-    <div class="mt-6 flex flex-wrap items-center gap-3">
-      <button type="submit" class="btn btn-primary">Generate Numbers</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+  <!-- 2 — many numbers, integer or decimal -->
+  <section class="rng-calc" data-rng-full aria-labelledby="rng-full-heading">
+    <h2 class="rng-title" id="rng-full-heading">Comprehensive Version</h2>
+    <p class="rng-lede">
+      One or many random integers or decimals, with up to {LIMITS.maxPrecision} digits of precision.
+    </p>
+
+    <div class="rng-split">
+      <form class="card rng-card" data-form novalidate aria-label="Comprehensive random number generator">
+        <div class="rng-field">
+          <label class="field-label rng-field__label" for="rngc-lower">Lower Limit</label>
+          <div class="rng-field__control">
+            <input class="field rng-num" id="rngc-lower" name="lower" type="text" inputmode="decimal" autocomplete="off" placeholder="0.2" value="0.2" aria-describedby="rngc-lower-error" />
+            <p class="rng-field-error" id="rngc-lower-error" data-error-for="lower" hidden />
+          </div>
+        </div>
+        <div class="rng-field">
+          <label class="field-label rng-field__label" for="rngc-upper">Upper Limit</label>
+          <div class="rng-field__control">
+            <input class="field rng-num" id="rngc-upper" name="upper" type="text" inputmode="decimal" autocomplete="off" placeholder="112.5" value="112.5" aria-describedby="rngc-upper-error" />
+            <p class="rng-field-error" id="rngc-upper-error" data-error-for="upper" hidden />
+          </div>
+        </div>
+        <div class="rng-field">
+          <label class="field-label rng-field__label" for="rngc-count">Generate</label>
+          <div class="rng-field__control">
+            <div class="rng-suffixed">
+              <input class="field rng-num rng-num--short" id="rngc-count" name="count" type="text" inputmode="numeric" autocomplete="off" placeholder="1" value="1" aria-describedby="rngc-count-error" />
+              <span class="rng-suffix">numbers</span>
+            </div>
+            <p class="rng-field-error" id="rngc-count-error" data-error-for="count" hidden />
+          </div>
+        </div>
+
+        <fieldset class="rng-type">
+          <legend class="rng-type__legend">Type of result to generate?</legend>
+          <label class="rng-radio">
+            <input type="radio" name="type" value="integer" />
+            <span>Integer</span>
+          </label>
+          <label class="rng-radio">
+            <input type="radio" name="type" value="decimal" checked />
+            <span>Decimal</span>
+          </label>
+        </fieldset>
+
+        <div class="rng-field" data-rng-precision>
+          <label class="field-label rng-field__label" for="rngc-precision">Precision</label>
+          <div class="rng-field__control">
+            <div class="rng-suffixed">
+              <input class="field rng-num rng-num--short" id="rngc-precision" name="precision" type="text" inputmode="numeric" autocomplete="off" placeholder="50" value="50" aria-describedby="rngc-precision-error" />
+              <span class="rng-suffix">digits</span>
+            </div>
+            <p class="rng-field-error" id="rngc-precision-error" data-error-for="precision" hidden />
+          </div>
+        </div>
+
+        <div class="rng-toggles">
+          <label class="rng-check">
+            <input type="checkbox" name="allowDuplicates" checked />
+            <span>Allow duplicates</span>
+          </label>
+          <label class="rng-check">
+            <input type="checkbox" name="sort" />
+            <span>Sort results</span>
+          </label>
+        </div>
+
+        <div class="mt-3 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary" data-rng-full-submit>Generate</button>
+          <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+        </div>
+      </form>
+
+      <ResultShell id="rng-full-result" state="empty" density="standard" label="Random numbers" minHeight="0" class="rng-result">
+        <ExampleNotice />
+        <EmptyResult message="Set the range and how many you want, then generate." />
+
+        <div data-result-when="valid">
+          <label class="sr-only" for="rng-full-output">The generated numbers</label>
+          <textarea class="rng-output" id="rng-full-output" data-generator-output rows="1" readonly spellcheck="false"></textarea>
+          <p class="rng-count" data-rng-count></p>
+          <p class="rng-stale" data-stale-note hidden>Settings changed. Generate again to apply them.</p>
+          <div class="rng-actions">
+            <button type="button" class="btn btn-secondary rng-action" data-copy>Copy</button>
+            <button type="button" class="btn btn-secondary rng-action" data-regenerate>Regenerate</button>
+            <span class="rng-copied" data-copy-confirm hidden>Copied</span>
+          </div>
+        </div>
+
+        <InvalidResult
+          title="Check the settings"
+          message="Enter numbers for both limits, how many to generate, and the decimal places if you want decimals."
+        />
+        <ResultAnnouncement id="rng-full-live" />
+      </ResultShell>
     </div>
-  </form>
-
-  <ResultShell
-    id="rng-result"
-    class="mt-6"
-    density="standard"
-    minHeight="10rem"
-    placeholderAlignment="center"
-    label="Generated numbers"
-  >
-    <EmptyResult message="Choose a range and how many, then generate your random numbers." />
-
-    <div data-result-when="valid">
-      <ResultSummary label="Generated numbers">
-        <div class="rng-list" data-rng-list></div>
-      </ResultSummary>
-
-      <p class="rng-stale-note" id="rng-stale-note" data-stale-note hidden>Settings changed. Generate again to apply them.</p>
-      <p class="rng-meta" data-rng-meta></p>
-      <p class="rng-capped" data-rng-capped hidden></p>
-    </div>
-
-    <InvalidResult title="Check your settings" message="Enter a whole-number range and how many numbers to generate." />
-
-    <ResultAnnouncement id="rng-live" />
-  </ResultShell>
+  </section>
 </div>
 
 <style>
-  .rng-unique {
-    display: flex;
-    align-items: end;
-    gap: 0.5rem;
-    padding-bottom: 0.5rem;
-    font-size: 0.9rem;
-    font-weight: 600;
+  .rngpage { display: grid; gap: 1.75rem; min-width: 0; }
+  .rng-calc { min-width: 0; }
+  .rng-title {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--heading);
   }
-  .rng-error {
-    margin: 0.3rem 0 0;
-    font-size: 0.8rem;
+  .rng-lede {
+    margin: 0.1rem 0 0.5rem;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--muted);
+    max-width: 68ch;
+  }
+
+  /* Settings and output side by side once there is room for both. */
+  .rng-split {
+    display: grid;
+    gap: 1rem;
+    align-items: start;
+    min-width: 0;
+  }
+  @media (min-width: 58rem) {
+    .rng-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+  .rng-card { padding: 0.85rem; min-width: 0; }
+  .rng-calc :global(.rng-result) { min-width: 0; }
+
+  .rng-field + .rng-field { margin-top: 0.45rem; }
+  .rng-field {
+    display: grid;
+    grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: start;
+  }
+  .rng-field__label { margin: 0; padding-top: 0.7rem; }
+  .rng-field__control { min-width: 0; }
+  .rng-num {
+    min-height: 2.75rem;
+    width: 100%;
+    max-width: 15rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .rng-num--short { max-width: 6rem; }
+  .rng-suffixed { display: flex; align-items: center; gap: 0.4rem; }
+  .rng-suffix { font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
+  @media (max-width: 30rem) {
+    .rng-field { grid-template-columns: minmax(0, 1fr); gap: 0.15rem; }
+    .rng-field__label { padding-top: 0; }
+  }
+
+  .rng-field-error {
+    margin: 0.2rem 0 0;
+    font-size: 0.78rem;
     font-weight: 600;
+    line-height: 1.3;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .rng-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .rng-field-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .rng-error {
-    color: #fca5a5;
-  }
+  :root[data-theme='dark'] .rng-field-error { color: #fca5a5; }
 
-  .rng-list {
+  .rng-type {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.3rem 1rem;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    border: 0;
   }
-  .rng-chip {
-    display: inline-block;
-    padding: 0.3rem 0.7rem;
-    border-radius: 0.5rem;
-    background: var(--subtle);
-    color: var(--heading);
-    font-size: 1.05rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  /* Stale output reads as clearly not-current (with the note; not colour alone). */
-  [data-stale='true'] .rng-list {
-    opacity: 0.5;
-  }
-  .rng-stale-note {
-    margin: 0.75rem 0 0;
-    text-align: center;
-    font-size: 0.85rem;
+  .rng-type__legend {
+    float: left;
+    padding: 0;
+    margin-right: 0.6rem;
+    font-size: 0.88rem;
     font-weight: 600;
-    color: #b45309;
+    color: var(--fg);
+  }
+  .rng-radio,
+  .rng-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .rng-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1.25rem;
+    margin-top: 0.1rem;
+  }
+
+  /* ---- The output ------------------------------------------------ */
+  /* A readonly field rather than a paragraph, so what is on screen is exactly what Copy puts on the
+     clipboard — and so a fifty-digit decimal can be selected with a keyboard. */
+  .rng-output {
+    display: block;
+    width: 100%;
+    border: 0;
+    padding: 0;
+    resize: none;
+    background: transparent;
+    color: var(--heading);
+    font-size: clamp(1.05rem, 3.2vw, 1.45rem);
+    font-weight: 700;
+    line-height: 1.45;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+  }
+  .rng-output:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 3px;
+    border-radius: 0.35rem;
+  }
+  .rng-count {
+    margin: 0.35rem 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .rng-stale {
+    margin: 0.4rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .rng-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+  }
+  /* Brand-tinted rather than plain secondary: these are the two things you do WITH a result, and a
+     white outline button beside a white card read as decoration. Tinted, not solid, so they stay
+     subordinate to Generate. */
+  .rng-calc :global(.rng-action) {
+    min-height: 2.75rem;
+    font-weight: 600;
+    color: var(--color-brand-700);
+    background: color-mix(in srgb, var(--color-brand-500) 12%, var(--card));
+    border-color: color-mix(in srgb, var(--color-brand-500) 35%, var(--line));
+  }
+  .rng-calc :global(.rng-action:hover:not(:disabled)) {
+    background: color-mix(in srgb, var(--color-brand-500) 20%, var(--card));
+    border-color: var(--color-brand-400);
+  }
+  .rng-calc :global(.rng-action:disabled) { opacity: 0.5; cursor: not-allowed; }
+  :root[data-theme='dark'] .rng-calc :global(.rng-action) {
+    color: var(--color-brand-300);
+    background: color-mix(in srgb, var(--color-brand-400) 16%, var(--card));
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .rng-stale-note {
-      color: #fbbf24;
+    :root:not([data-theme='light']) .rng-calc :global(.rng-action) {
+      color: var(--color-brand-300);
+      background: color-mix(in srgb, var(--color-brand-400) 16%, var(--card));
     }
   }
-  :root[data-theme='dark'] .rng-stale-note {
-    color: #fbbf24;
+  .rng-copied {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-brand-700);
   }
-  .rng-meta {
-    margin: 0.75rem 0 0;
-    text-align: center;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
-  .rng-capped {
-    margin: 0.4rem 0 0;
-    text-align: center;
-    font-size: 0.8rem;
-    color: var(--muted);
+  :root[data-theme='dark'] .rng-copied { color: var(--color-brand-400); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .rng-copied { color: var(--color-brand-400); }
   }
 </style>
 
 <script>
   import { mountGeneratorCalculator } from '@lib/result/generator-runtime';
-  import { randomNumberBinding } from '@lib/calculators/random-number-form';
+  import {
+    simpleRngBinding,
+    fullRngBinding,
+    SIMPLE_EXAMPLE_SETTINGS,
+    FULL_EXAMPLE_SETTINGS,
+  } from '@lib/calculators/random-number-form';
 
-  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
-
-  // When more than one generator shares a document (e.g. an embed gallery), the
-  // server-static ids (the three settings fields + their error slots, the result shell,
-  // the stale note, the live region) collide. Namespace THIS root's ids and repoint its
-  // in-root references so associations stay instance-local; a lone instance is left
-  // untouched. The runtime targets fields by [name] / [data-*], never these ids.
+  /**
+   * Namespace this instance's server-STATIC ids and repoint their in-root references, but ONLY when
+   * more than one shares the document. A lone instance keeps the ids the server wrote.
+   */
   function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
     const remap = new Map<string, string>();
     root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
@@ -220,13 +390,49 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     repoint('aria-controls');
   }
 
-  document.querySelectorAll<HTMLElement>('[data-rng]').forEach((root) => {
-    if (document.querySelectorAll('[data-rng]').length > 1) uniquifyStaticIds(root, `rng${++ns}`);
+  /** Regenerate is the Generate button, pressed from where the visitor is already looking. */
+  function wireRegenerate(root: HTMLElement): void {
+    const form = root.querySelector<HTMLFormElement>('form[data-form]');
+    root.querySelector<HTMLButtonElement>('[data-regenerate]')?.addEventListener('click', () => {
+      form?.requestSubmit();
+    });
+  }
 
-    mountGeneratorCalculator(root, randomNumberBinding, {
-      generateButtonLabel: 'Generate Numbers',
-      regenerateButtonLabel: 'Generate New Numbers',
-      liveRegeneration: false,
+  /** Precision only means something for a decimal draw, so it is only asked for then. */
+  function wirePrecision(root: HTMLElement): void {
+    const block = root.querySelector<HTMLElement>('[data-rng-precision]');
+    if (!block) return;
+    const sync = () => {
+      const decimal = root.querySelector<HTMLInputElement>('input[name="type"]:checked')?.value === 'decimal';
+      block.hidden = !decimal;
+    };
+    root.querySelectorAll<HTMLInputElement>('input[name="type"]').forEach((radio) => {
+      radio.addEventListener('change', sync);
+    });
+    sync();
+  }
+
+  const simple = document.querySelectorAll<HTMLElement>('[data-rng-simple]');
+  simple.forEach((root, i) => {
+    if (simple.length > 1) uniquifyStaticIds(root, `s${i + 1}`);
+    wireRegenerate(root);
+    mountGeneratorCalculator(root, simpleRngBinding, {
+      generateButtonLabel: 'Generate',
+      regenerateButtonLabel: 'Generate',
+      example: { settings: SIMPLE_EXAMPLE_SETTINGS },
+      invalidateOutputOnSettingsChange: true,
+    });
+  });
+
+  const full = document.querySelectorAll<HTMLElement>('[data-rng-full]');
+  full.forEach((root, i) => {
+    if (full.length > 1) uniquifyStaticIds(root, `c${i + 1}`);
+    wireRegenerate(root);
+    wirePrecision(root);
+    mountGeneratorCalculator(root, fullRngBinding, {
+      generateButtonLabel: 'Generate',
+      regenerateButtonLabel: 'Generate',
+      example: { settings: FULL_EXAMPLE_SETTINGS },
       invalidateOutputOnSettingsChange: true,
     });
   });

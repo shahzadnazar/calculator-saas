@@ -267,8 +267,8 @@ describe('S0.1 corrections', () => {
     expect(searchIndexVersion(reordered)).toBe(base);
   });
 
-  it('emits exactly 49 live records', () => {
-    expect(RECORDS.length).toBe(49);
+  it('emits exactly 50 live records', () => {
+    expect(RECORDS.length).toBe(50);
     expect(RECORDS.length).toBe(getLiveCalculators().length);
   });
 

@@ -1,0 +1,358 @@
+---
+/**
+ * Finish Time Calculator — the third tool on the pace page.
+ *
+ * Mid-race arithmetic: you are this far in, the clock says this, the race is this long — what
+ * will the clock say at the line if nothing changes? It answers with the finish time, what is
+ * left to run, and how long that will take, because "2:40 still to go" is the number that
+ * actually decides whether you ease off.
+ *
+ * It refuses when the total is not longer than what you have covered, rather than reporting a
+ * finish time already in the past.
+ */
+import { LENGTH_UNITS, RACE_DISTANCES, DEFAULT_DISTANCE_UNIT } from '@lib/calculators/pace';
+---
+
+<section class="ft" data-finish aria-labelledby="ft-title">
+  <h2 class="ft__title" id="ft-title">Finish Time Calculator</h2>
+  <p class="ft__lede">
+    Part way through a race, this estimates your finish time from the distance you have covered
+    and the time on the clock, at the pace you have held so far.
+  </p>
+
+  <form class="card ft__form" data-ft-form novalidate>
+    <div class="ft__row">
+      <label class="field-label ft__label" for="ft-covered">Distance covered</label>
+      <div class="ft__inputs">
+        <input class="field ft__input ft__input--wide" id="ft-covered" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="10" data-ft-covered aria-describedby="ft-error" />
+        <select class="field ft__select" data-ft-unit aria-label="Distance unit">
+          {LENGTH_UNITS.map((u) => (
+            <option value={u.key} selected={u.key === DEFAULT_DISTANCE_UNIT}>{u.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    <div class="ft__row">
+      <label class="field-label ft__label" for="ft-h">Time so far</label>
+      <div class="ft__inputs">
+        <input class="field ft__input" id="ft-h" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0" data-ft-h aria-label="Time so far, hours" aria-describedby="ft-error" />
+        <span class="ft__colon" aria-hidden="true">:</span>
+        <input class="field ft__input" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="50" data-ft-m aria-label="Time so far, minutes" aria-describedby="ft-error" />
+        <span class="ft__colon" aria-hidden="true">:</span>
+        <input class="field ft__input" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" placeholder="00" data-ft-s aria-label="Time so far, seconds" aria-describedby="ft-error" />
+      </div>
+    </div>
+
+    <div class="ft__row">
+      <label class="field-label ft__label" for="ft-total">Total distance</label>
+      <div class="ft__inputs">
+        <input class="field ft__input ft__input--wide" id="ft-total" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="42.195" data-ft-total aria-describedby="ft-error" />
+        <span class="ft__unit" data-ft-total-unit>Miles</span>
+      </div>
+    </div>
+
+    <div class="ft__quick">
+      <span class="ft__quick-label">Common distances</span>
+      {RACE_DISTANCES.map((r) => (
+        <button type="button" class="ft__chip" data-ft-race data-metres={r.metres}>{r.name}</button>
+      ))}
+    </div>
+
+    <p class="ft__error" id="ft-error" data-ft-error hidden></p>
+    <p class="sr-only" role="status" aria-live="polite" data-ft-live></p>
+
+    <div class="ft__actions">
+      <button type="submit" class="btn btn-primary">Calculate</button>
+      <button type="button" class="btn btn-secondary" data-ft-reset>Clear</button>
+    </div>
+  </form>
+
+  <div class="ft__results" data-ft-results hidden>
+    <p class="ft__headline">
+      Projected finish: <strong data-ft-finish>—</strong>
+    </p>
+    <dl class="ft__facts">
+      <div class="ft__fact"><dt>Pace so far</dt><dd data-ft-pace>—</dd></div>
+      <div class="ft__fact"><dt>Distance remaining</dt><dd data-ft-remaining>—</dd></div>
+      <div class="ft__fact"><dt>Time remaining</dt><dd data-ft-remaining-time>—</dd></div>
+    </dl>
+  </div>
+</section>
+
+<style>
+  .ft {
+    margin: 1.5rem auto 0;
+    width: 100%;
+  }
+  .ft__title {
+    margin: 0 0 0.3rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+  .ft__lede {
+    margin: 0 0 0.7rem;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+  .ft__form {
+    padding: 1rem;
+  }
+  .ft__row {
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.25rem 0;
+  }
+  .ft__label {
+    margin: 0;
+    font-size: 0.86rem;
+  }
+  .ft__inputs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .ft__input {
+    width: 3.6rem;
+    min-height: 2.75rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .ft__input--wide {
+    width: 6rem;
+    text-align: left;
+  }
+  .ft__select {
+    min-height: 2.75rem;
+    font-size: 0.84rem;
+  }
+  .ft__colon {
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .ft__unit {
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .ft__quick {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0 0.1rem;
+  }
+  .ft__quick-label {
+    font-size: 0.76rem;
+    color: var(--muted);
+  }
+  .ft__chip {
+    min-height: 2.25rem;
+    padding: 0 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--card);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .ft__chip:hover {
+    border-color: var(--color-brand-600);
+    color: var(--color-brand-700);
+  }
+  .ft__error {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  :root[data-theme='dark'] .ft__error {
+    color: #fca5a5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .ft__error {
+      color: #fca5a5;
+    }
+  }
+  .ft__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+  }
+  .ft__results {
+    margin-top: 0.9rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    background: var(--subtle);
+  }
+  .ft__headline {
+    margin: 0 0 0.6rem;
+    font-size: 0.95rem;
+    color: var(--fg);
+  }
+  .ft__headline strong {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--color-brand-700);
+    font-variant-numeric: tabular-nums;
+  }
+  :root[data-theme='dark'] .ft__headline strong {
+    color: var(--color-brand-300);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .ft__headline strong {
+      color: var(--color-brand-300);
+    }
+  }
+  .ft__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.35rem 1rem;
+    margin: 0;
+  }
+  .ft__fact {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.25rem;
+  }
+  .ft__fact dt {
+    font-size: 0.76rem;
+    color: var(--muted);
+  }
+  .ft__fact dd {
+    margin: 0;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--heading);
+    font-variant-numeric: tabular-nums;
+  }
+  @media (max-width: 26rem) {
+    .ft__row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.2rem;
+    }
+  }
+</style>
+
+<script>
+  import { projectFinish, formatDuration, toSeconds, lengthUnit } from '@lib/calculators/pace';
+
+  const num = (el: HTMLInputElement | null): number => {
+    const t = el?.value.trim() ?? '';
+    if (t === '') return 0;
+    const n = Number(t);
+    return Number.isFinite(n) && n >= 0 ? n : Number.NaN;
+  };
+
+  document.querySelectorAll<HTMLElement>('[data-finish]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-ft-form]');
+    const covered = root.querySelector<HTMLInputElement>('[data-ft-covered]');
+    const total = root.querySelector<HTMLInputElement>('[data-ft-total]');
+    const unitEl = root.querySelector<HTMLSelectElement>('[data-ft-unit]');
+    const totalUnit = root.querySelector<HTMLElement>('[data-ft-total-unit]');
+    const results = root.querySelector<HTMLElement>('[data-ft-results]');
+    const error = root.querySelector<HTMLElement>('[data-ft-error]');
+    const live = root.querySelector<HTMLElement>('[data-ft-live]');
+    if (!form || !covered || !total || !unitEl || !results) return;
+
+    const set = (sel: string, text: string) => {
+      const el = root.querySelector<HTMLElement>(sel);
+      if (el) el.textContent = text;
+    };
+    const fail = (message: string) => {
+      if (error) {
+        error.textContent = message;
+        error.hidden = false;
+      }
+      results.hidden = true;
+      if (live) live.textContent = message;
+    };
+
+    /** Both distances are in the same unit, so the label follows the select. */
+    const syncUnitLabel = () => {
+      const unit = lengthUnit(unitEl.value);
+      if (totalUnit && unit) totalUnit.textContent = unit.label;
+    };
+    syncUnitLabel();
+
+    const run = () => {
+      const unit = lengthUnit(unitEl.value);
+      if (!unit) return;
+      const coveredValue = num(covered);
+      const totalValue = num(total);
+      const seconds = toSeconds(
+        num(root.querySelector<HTMLInputElement>('[data-ft-h]')),
+        num(root.querySelector<HTMLInputElement>('[data-ft-m]')),
+        num(root.querySelector<HTMLInputElement>('[data-ft-s]')),
+      );
+
+      if (!Number.isFinite(coveredValue) || !Number.isFinite(totalValue) || !Number.isFinite(seconds)) {
+        return fail('Every box must be a number, and none can be negative.');
+      }
+      if (coveredValue <= 0) return fail('Enter the distance you have covered.');
+      if (seconds <= 0) return fail('Enter the time on the clock so far.');
+      if (totalValue <= 0) return fail('Enter the total race distance.');
+
+      const projection = projectFinish(coveredValue * unit.metres, seconds, totalValue * unit.metres);
+      if (!projection) {
+        return fail('The total distance has to be longer than the distance you have already covered.');
+      }
+
+      if (error) error.hidden = true;
+      const remaining = projection.remainingMetres / unit.metres;
+      set('[data-ft-finish]', formatDuration(projection.finishSeconds));
+      set('[data-ft-pace]', `${formatDuration(projection.secPerKm)} / km · ${formatDuration(projection.secPerMi)} / mile`);
+      set(
+        '[data-ft-remaining]',
+        `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Math.round(remaining * 100) / 100)} ${unit.label.toLowerCase()}`,
+      );
+      set('[data-ft-remaining-time]', formatDuration(projection.remainingSeconds));
+      results.hidden = false;
+      if (live) {
+        live.textContent = `Projected finish ${formatDuration(projection.finishSeconds)}, with ${formatDuration(projection.remainingSeconds)} still to run.`;
+      }
+    };
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      run();
+    });
+
+    unitEl.addEventListener('change', () => {
+      syncUnitLabel();
+      if (!results.hidden) run();
+    });
+
+    root.querySelectorAll<HTMLButtonElement>('[data-ft-race]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const metres = Number(chip.dataset.metres);
+        const unit = lengthUnit(unitEl.value);
+        if (!Number.isFinite(metres) || !unit) return;
+        total.value = String(Math.round((metres / unit.metres) * 10000) / 10000);
+        if (!results.hidden) run();
+      });
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-ft-reset]')?.addEventListener('click', () => {
+      form.querySelectorAll<HTMLInputElement>('input').forEach((el) => {
+        el.value = '';
+      });
+      unitEl.value = 'mi';
+      syncUnitLabel();
+      results.hidden = true;
+      if (error) error.hidden = true;
+      if (live) live.textContent = '';
+      covered.focus();
+    });
+  });
+</script>

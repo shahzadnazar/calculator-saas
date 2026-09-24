@@ -7,12 +7,17 @@ import {
   interpretationLines,
   autoLoanBinding,
   TERM_OPTIONS,
+  MAX_TERM_MONTHS,
+  TERM_MESSAGE,
+  formatPercent,
   DEFAULT_TERM,
   type AutoLoanValues,
   type AutoLoanComputed,
 } from './auto-loan-form';
 
 const values = (over: Partial<AutoLoanValues> = {}): AutoLoanValues => ({
+  cashIncentives: '',
+  stateCode: '',
   autoPrice: '30000',
   interestRatePct: '5',
   loanTermMonths: '60',
@@ -32,9 +37,10 @@ const rejects = (r: AutoLoanComputed) => Number.isNaN(completeResultValue(r));
 /* ------------------------------------------------------------------ */
 
 describe('auto-loan binding — contract', () => {
-  it('supported terms are 36/48/60/72/84, default 60', () => {
-    expect([...TERM_OPTIONS]).toEqual([36, 48, 60, 72, 84]);
+  it('offers the common terms as suggestions, defaults to 60, and caps at 120 months', () => {
+    expect([...TERM_OPTIONS]).toEqual([24, 36, 48, 60, 72, 84]);
     expect(DEFAULT_TERM).toBe(60);
+    expect(MAX_TERM_MONTHS).toBe(120);
   });
   it('does NOT define isUsableResult (guard lives in resultValue)', () => {
     expect(autoLoanBinding.isUsableResult).toBeUndefined();
@@ -61,9 +67,18 @@ describe('validateAutoLoanValues', () => {
     expect(validateAutoLoanValues(values({ interestRatePct: 'x' })).ok).toBe(false);
     expect(validateAutoLoanValues(values({ interestRatePct: '0' })).ok).toBe(true);
   });
-  it('rejects an unsupported term', () => {
-    expect(validateAutoLoanValues(values({ loanTermMonths: '99' }))).toMatchObject({ ok: false, fieldErrors: { loanTermMonths: 'Choose a loan term.' } });
-    for (const m of TERM_OPTIONS) expect(validateAutoLoanValues(values({ loanTermMonths: String(m) })).ok).toBe(true);
+  it('accepts any whole term in 1..120 — an off-list 54 or 99 months is a real deal', () => {
+    for (const m of ['1', '54', '99', '120', ...TERM_OPTIONS.map(String)]) {
+      expect(validateAutoLoanValues(values({ loanTermMonths: m })).ok).toBe(true);
+    }
+  });
+  it('rejects a blank, fractional, zero or over-cap term with the one range message', () => {
+    for (const bad of ['', '0', '60.5', '121', '-12', 'x']) {
+      expect(validateAutoLoanValues(values({ loanTermMonths: bad }))).toMatchObject({
+        ok: false,
+        fieldErrors: { loanTermMonths: TERM_MESSAGE },
+      });
+    }
   });
   it('treats optional fields: empty and entered 0 are valid; negative / non-finite invalid', () => {
     expect(validateAutoLoanValues(values({ downPayment: '', salesTaxRatePct: '', tradeInValue: '', amountOwedOnTradeIn: '', fees: '' })).ok).toBe(true);
@@ -179,8 +194,10 @@ describe('completeResultValue guard', () => {
   it('rejects a sales tax that does not match price × rate', () => {
     expect(rejects({ ...good(), salesTax: good().salesTax + 500 })).toBe(true);
   });
-  it('rejects an unsupported term', () => {
-    expect(rejects({ ...good(), termMonths: 99 })).toBe(true);
+  it('rejects a term outside 1..120 or a fractional one', () => {
+    for (const bad of [0, 121, 60.5, Number.NaN]) {
+      expect(rejects({ ...good(), termMonths: bad })).toBe(true);
+    }
   });
 });
 
@@ -227,5 +244,102 @@ describe('resetValues', () => {
     } as unknown as HTMLElement;
     autoLoanBinding.resetValues(root, 'personal');
     for (const n of Object.keys(fields)) expect(fields[n].value).toBe('');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Cash incentives, the state selector and the schedule guard          */
+/* ------------------------------------------------------------------ */
+
+describe('auto-loan binding — cash incentives', () => {
+  it('are optional: blank and 0 are valid, negative and garbage are not', () => {
+    expect(validateAutoLoanValues(values({ cashIncentives: '' })).ok).toBe(true);
+    expect(validateAutoLoanValues(values({ cashIncentives: '0' })).ok).toBe(true);
+    expect(validateAutoLoanValues(values({ cashIncentives: '1500' })).ok).toBe(true);
+    for (const bad of ['-1', 'x']) {
+      expect(validateAutoLoanValues(values({ cashIncentives: bad })).ok).toBe(false);
+    }
+  });
+  it('reach the engine and lower the financed amount', () => {
+    const plain = computeAutoLoan(values());
+    const rebate = computeAutoLoan(values({ cashIncentives: '2000' }));
+    expect(rebate.cashIncentives).toBe(2000);
+    expect(rebate.loanAmount).toBe(plain.loanAmount - 2000);
+    expect(rebate.salesTax).toBe(plain.salesTax);
+    expect(Number.isFinite(completeResultValue(rebate))).toBe(true);
+  });
+});
+
+describe('auto-loan binding — the state selector never drives the maths', () => {
+  it('is carried on the values but read by nothing downstream', () => {
+    const withState = computeAutoLoan(values({ stateCode: 'CA', salesTaxRatePct: '7' }));
+    const without = computeAutoLoan(values({ stateCode: '', salesTaxRatePct: '7' }));
+    // Same tax rate → identical tax, whatever the state field says.
+    expect(withState.salesTax).toBe(without.salesTax);
+    expect(withState.monthlyPayment).toBe(without.monthlyPayment);
+  });
+  it('an unknown code is inert rather than an error', () => {
+    expect(validateAutoLoanValues(values({ stateCode: 'ZZ' })).ok).toBe(true);
+  });
+});
+
+describe('auto-loan binding — the schedule must reconcile for a result to render', () => {
+  const good = () => computeAutoLoan(values({ autoPrice: '50000', downPayment: '10000', interestRatePct: '5', loanTermMonths: '60', salesTaxRatePct: '7', fees: '2000' }));
+  const rejects = (r: ReturnType<typeof computeAutoLoan>) => Number.isNaN(completeResultValue(r));
+
+  it('accepts the well-formed reference result', () => {
+    const r = good();
+    expect(r.schedule.length).toBe(60);
+    expect(r.yearlySchedule.length).toBe(5);
+    expect(Number.isFinite(completeResultValue(r))).toBe(true);
+  });
+  it('rejects a missing, truncated or over-long schedule', () => {
+    expect(rejects({ ...good(), schedule: [] })).toBe(true);
+    expect(rejects({ ...good(), schedule: good().schedule.slice(0, 30) })).toBe(true);
+  });
+  it('rejects out-of-order periods', () => {
+    expect(rejects({ ...good(), schedule: [...good().schedule].reverse() })).toBe(true);
+  });
+  it('rejects a row whose payment is not interest + principal', () => {
+    const broken = good().schedule.map((r, i) => (i === 4 ? { ...r, payment: r.payment + 100 } : r));
+    expect(rejects({ ...good(), schedule: broken })).toBe(true);
+  });
+  it('rejects a non-finite or negative figure on any row', () => {
+    for (const patch of [{ interest: Number.NaN }, { principal: -1 }, { balance: -1 }]) {
+      const broken = good().schedule.map((r, i) => (i === 4 ? { ...r, ...patch } : r));
+      expect(rejects({ ...good(), schedule: broken })).toBe(true);
+    }
+  });
+  it('rejects a schedule that does not discharge the loan or close at zero', () => {
+    const short = good().schedule.map((r, i) => (i === 0 ? { ...r, principal: r.principal - 500 } : r));
+    expect(rejects({ ...good(), schedule: short })).toBe(true);
+    const openEnded = good().schedule.map((r, i, a) => (i === a.length - 1 ? { ...r, balance: 500 } : r));
+    expect(rejects({ ...good(), schedule: openEnded })).toBe(true);
+  });
+  it('rejects a yearly collapse of the wrong length or that does not agree with the months', () => {
+    expect(rejects({ ...good(), yearlySchedule: good().yearlySchedule.slice(0, 4) })).toBe(true);
+    const drifted = good().yearlySchedule.map((y, i) => (i === 0 ? { ...y, interest: y.interest + 250 } : y));
+    expect(rejects({ ...good(), yearlySchedule: drifted })).toBe(true);
+  });
+  it('rejects a principal share outside 0..1', () => {
+    expect(rejects({ ...good(), principalShare: 1.2 })).toBe(true);
+    expect(rejects({ ...good(), principalShare: -0.1 })).toBe(true);
+  });
+  it('a ZERO loan is valid precisely because it has no schedule', () => {
+    const none = computeAutoLoan(values({ autoPrice: '20000', downPayment: '25000' }));
+    expect(none.loanAmount).toBe(0);
+    expect(Number.isFinite(completeResultValue(none))).toBe(true);
+    expect(rejects({ ...none, schedule: good().schedule })).toBe(true);
+  });
+});
+
+describe('auto-loan binding — formatPercent', () => {
+  it('reads a 0–1 share as whole percent and clamps anything outside it', () => {
+    expect(formatPercent(0.883)).toBe('88%');
+    expect(formatPercent(0)).toBe('0%');
+    expect(formatPercent(1)).toBe('100%');
+    expect(formatPercent(1.5)).toBe('100%');
+    expect(formatPercent(-1)).toBe('0%');
+    expect(formatPercent(Number.NaN)).toBe('0%');
   });
 });

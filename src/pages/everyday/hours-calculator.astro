@@ -24,7 +24,12 @@ const faqs = [
   {
     question: 'Does it handle overnight shifts?',
     answer:
-      'Yes. If the end time is earlier than the start time, the calculator assumes the shift crossed midnight and counts the hours correctly.',
+      'Yes. In the first calculator, an end time earlier than the start time is taken as the next day, so a 10 PM to 6 AM shift counts as 8 hours. For a span over more than one day, use the second calculator and give each time its own date instead.',
+  },
+  {
+    question: 'How do I find the hours between two dates?',
+    answer:
+      'Use the second calculator, Hours Between Two Dates. Give a date and a time for both the start and the end, and it reports the whole span — 3 days and 9 hours, say — rather than capping it at 24 hours or guessing which day each time falls on.',
   },
   {
     question: 'What are decimal hours?',
@@ -42,19 +47,36 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
+  rail
   reviewMetadata={{ reviewedDate: '2026-08-04' }}
-  intro="Calculate the hours between two times, minus breaks — including overnight shifts. Get the result in hours and minutes and as decimal hours for payroll."
+  intro="Two tools: the hours and minutes between two clock times, and the span between two full dates and times when it runs over more than a day."
   faqs={faqs}
 >
   <HoursCalculator />
 
   <Fragment slot="content">
-    <h2>How to use the hours calculator</h2>
+    <h2>Two calculators on this page</h2>
+    <p>
+      They are separate tools, each with its own button and its own answer, so you can use one
+      without clearing the other.
+    </p>
     <ol>
-      <li>Enter your <strong>start time</strong> and <strong>end time</strong> in 24-hour format.</li>
-      <li>Add any unpaid <strong>break</strong> in minutes (leave it at zero if there is none).</li>
-      <li>Press <strong>Calculate Hours</strong> to see the result in hours-and-minutes and as decimal hours; it updates as you adjust the figures.</li>
+      <li>
+        <strong>Hours Calculator</strong> — the hours and minutes between two clock times. Enter a
+        <strong>start time</strong> and an <strong>end time</strong>, add any unpaid
+        <strong>break</strong> in minutes, and press Calculate Hours. <strong>Now</strong> fills a
+        field with the current time, and <strong>Swap</strong> exchanges the two.
+      </li>
+      <li>
+        <strong>Hours Between Two Dates</strong> — the same question when the span runs over more
+        than a day. Give a <strong>date and a time</strong> for both ends and it reports the whole
+        span, in hours and minutes and also as days.
+      </li>
     </ol>
+    <p>
+      Use the first for a shift, and the second whenever the two times are not on the same day —
+      or when you are not sure they are, since the first one has to assume.
+    </p>
 
     <h2>How the calculation works</h2>
     <p>
@@ -74,10 +96,28 @@ const faqs = [
 
     <h2>Overnight shifts</h2>
     <p>
-      When the end time is earlier than the start time, the calculator assumes the shift crossed
-      midnight and adds a day before subtracting. A shift from <strong>22:00 to 06:00</strong>
-      therefore comes out as a full <strong>8 hours</strong>, not a negative span, so night and
-      swing shifts need no special handling on your part.
+      When the end time is earlier than the start time, the first calculator assumes the shift
+      crossed midnight and adds a day before subtracting. A shift from <strong>22:00 to
+      06:00</strong> therefore comes out as a full <strong>8 hours</strong>, not a negative span,
+      so night and swing shifts need no special handling on your part.
+    </p>
+    <p>
+      That assumption is the limit of a times-only calculation: it can add one day, never two, so
+      the longest span it can report is 24 hours. When the gap is longer than that — a trip, an
+      on-call rotation, a machine left running over a weekend — the second calculator asks which
+      day each time is on and needs no assumption at all.
+    </p>
+
+    <h2>Hours between two dates</h2>
+    <p>
+      Give a date and a time for each end and the span is measured exactly. From
+      <strong>Aug. 29, 2026, 8:30 AM</strong> to <strong>Sept. 1, 2026, 5:30 PM</strong> is
+      <strong>81 hours</strong> — 4,860 minutes, or 3 days and 9 hours. Leap days are counted
+      when they fall inside the span and not when they do not.
+    </p>
+    <p>
+      The pair is order-independent: putting the later instant first still gives the same length,
+      noted as running backwards rather than treated as an error.
     </p>
 
     <h2>What decimal hours are</h2>

@@ -150,24 +150,30 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'finance',
     status: 'live',
     description:
-      'Project how savings and investments grow over time with compound interest and regular contributions.',
-    keywords: ['compound interest calculator', 'investment growth', 'interest compounding'],
+      'Convert an interest rate between compounding periods — APR to APY and back — so two quotes can be compared on equal terms.',
+    keywords: ['compound interest calculator', 'apr to apy', 'apy calculator', 'interest compounding', 'effective annual rate'],
+    aliases: ['apr to apy calculator', 'effective annual rate calculator'],
+    phrases: ['convert apr to apy', 'what is my apy', 'compare interest rates'],
   },
   {
     slug: 'simple-interest-calculator',
     title: 'Simple Interest Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Calculate interest earned or owed using the simple interest formula.',
-    keywords: ['simple interest calculator', 'interest formula'],
+    description:
+      'Calculate simple interest and the end balance, or solve back for the principal, term or rate — with the working shown.',
+    keywords: ['simple interest calculator', 'interest formula', 'I = Prt', 'solve for principal', 'solve for rate'],
+    aliases: ['simple interest formula calculator'],
+    phrases: ['calculate simple interest', 'interest on a loan', 'what rate do I need'],
   },
   {
     slug: 'interest-calculator',
     title: 'Interest Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Compare interest across accounts and contribution schedules.',
-    keywords: ['interest calculator', 'savings interest'],
+    description:
+      'Work out the compound interest and final balance on a lump sum plus regular contributions, allowing for tax and inflation.',
+    keywords: ['interest calculator', 'savings interest', 'compound interest accumulation'],
   },
   {
     slug: 'interest-rate-calculator',
@@ -182,8 +188,9 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Investment Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Model returns on a lump sum or recurring investments over time.',
-    keywords: ['investment calculator', 'return on investment', 'future value'],
+    description:
+      'Project what a starting amount and regular contributions grow to, with the accumulation schedule year by year and month by month.',
+    keywords: ['investment calculator', 'return on investment', 'future value', 'accumulation schedule', 'compound growth'],
     aliases: ['roi calculator'],
     phrases: ['investment growth', 'how my investment grows', 'future value of investment'],
   },
@@ -210,8 +217,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Inflation Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Estimate how inflation or deflation changes future prices and purchasing power over time.',
-    keywords: ['inflation calculator', 'purchasing power'],
+    description: 'Convert an amount between any two months since 1913 with published U.S. CPI data, or project it at a flat rate.',
+    keywords: ['inflation calculator', 'purchasing power', 'cpi calculator', 'consumer price index', 'value of a dollar'],
   },
   {
     slug: 'payment-calculator',
@@ -226,10 +233,10 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Credit Card Payoff Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Calculate how long it will take to pay off a credit card and the interest cost, or find the monthly payment needed to clear it by a target date.',
-    keywords: ['credit card payoff calculator', 'debt payoff'],
-    aliases: ['debt payoff calculator'],
-    phrases: ['pay off credit card', 'credit card debt', 'get out of debt'],
+    description: 'Build a debt-avalanche payoff plan for several credit cards from one monthly budget — when each card clears, what it costs, and what to pay on each card every month.',
+    keywords: ['credit card payoff calculator', 'debt payoff', 'debt avalanche calculator', 'multiple credit cards'],
+    aliases: ['debt payoff calculator', 'debt avalanche calculator', 'credit cards payoff calculator'],
+    phrases: ['pay off credit card', 'credit card debt', 'get out of debt', 'pay off multiple credit cards', 'which card to pay first'],
   },
   {
     slug: 'home-equity-loan-calculator',
@@ -246,8 +253,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Salary Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Convert between hourly, monthly and annual pay.',
-    keywords: ['salary calculator', 'hourly to salary'],
+    description: 'Convert pay between eight frequencies, before and after holidays and vacation days.',
+    keywords: ['salary calculator', 'hourly to salary', 'pay frequency', 'annual salary', 'hourly rate'],
     aliases: ['pay calculator', 'wage calculator'],
     phrases: ['hourly to salary', 'salary to hourly', 'annual salary', 'yearly income'],
   },
@@ -256,16 +263,26 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Sales Tax Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Add or remove sales tax from any amount.',
-    keywords: ['sales tax calculator', 'tax rate'],
+    description: 'Fill in any two of before-tax price, tax rate and after-tax price to get the third.',
+    keywords: ['sales tax calculator', 'reverse sales tax', 'price before tax', 'tax rate from receipt', 'after tax price'],
+  },
+  {
+    slug: 'vat-calculator',
+    title: 'VAT Calculator',
+    category: 'finance',
+    status: 'live',
+    description: 'Fill in any two of VAT rate, net price, gross price and tax amount to get the other two.',
+    keywords: ['vat calculator', 'add vat', 'remove vat', 'reverse vat calculator', 'vat inclusive price', 'net to gross'],
+    aliases: ['value added tax calculator', 'gst calculator'],
+    phrases: ['how much vat do i pay', 'price excluding vat', 'work out vat backwards'],
   },
   {
     slug: 'income-tax-calculator',
     title: 'Income Tax Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Estimate income tax owed based on brackets and deductions.',
-    keywords: ['income tax calculator', 'tax estimate'],
+    description: 'Estimate the refund or amount owed on a 2025 or 2026 federal return, line by line.',
+    keywords: ['income tax calculator', 'federal tax estimate', 'tax refund calculator', 'tax brackets', 'tax return estimator'],
     aliases: ['tax calculator'],
     phrases: ['how much tax will i pay', 'income tax owed'],
   },
@@ -277,7 +294,7 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description:
       'Calculate the tip, total bill, and amount per person when splitting a bill.',
-    keywords: ['tip calculator', 'gratuity calculator', 'split the bill', 'how much to tip'],
+    keywords: ['tip calculator', 'gratuity calculator', 'split the bill', 'tip table', 'shared bill tip'],
     aliases: ['gratuity calculator'],
     phrases: ['tip split', 'split the bill', 'how much to tip', 'restaurant tip'],
   },
@@ -317,8 +334,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Body Fat Calculator',
     category: 'health',
     status: 'live',
-    description: 'Estimate body fat percentage using the U.S. Navy method.',
-    keywords: ['body fat calculator', 'body fat percentage'],
+    description: 'Estimate body fat from tape measurements with the U.S. Navy method, plus mass, category and a BMI estimate.',
+    keywords: ['body fat calculator', 'navy method body fat', 'body fat percentage', 'lean body mass', 'body fat category'],
   },
   {
     slug: 'ideal-weight-calculator',
@@ -615,6 +632,36 @@ export function getRelatedCalculators(self: Calculator, limit = 6): Calculator[]
     (c) => c.category !== self.category && c.slug !== self.slug,
   );
   return [...sameCategory, ...others].slice(0, limit);
+}
+
+/**
+ * Recently added calculators, newest first, as "<category>/<slug>" registry refs.
+ *
+ * A new calculator is invisible to anyone already deep in the site: the rail's related list is
+ * registry order within a category, so the newest entry sits below the fold on its own
+ * category's pages and nowhere at all on the others. This list is the one place that says
+ * "surface these everywhere for a while".
+ *
+ * Keep it SHORT — two or three at most — and drop an entry once it is no longer news. It is
+ * an editorial decision, not a ranking signal: nothing here affects search relevance, and it
+ * is never derived from commercial value.
+ */
+export const NEW_CALCULATOR_REFS: readonly string[] = ['finance/vat-calculator'];
+
+/**
+ * The recently-added calculators as registry entries, live only, never including `self`.
+ * Returns an empty array when there is nothing new to show, so the caller renders nothing.
+ */
+export function getNewCalculators(self?: Pick<Calculator, 'category' | 'slug'>): Calculator[] {
+  return NEW_CALCULATOR_REFS.map((ref) => {
+    const [category, slug] = ref.split('/');
+    return getCalculator(category, slug);
+  }).filter(
+    (c): c is Calculator =>
+      Boolean(c) &&
+      c!.status === 'live' &&
+      !(self && c!.category === self.category && c!.slug === self.slug),
+  );
 }
 
 /** Total counts for use in copy ("X calculators and growing"). */

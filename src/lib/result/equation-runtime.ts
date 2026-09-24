@@ -57,6 +57,13 @@ export interface EquationCalculatorBinding<O, R> {
 export interface EquationCalculatorOptions {
   calculateButtonLabel: string;
   recalculationMode?: RecalculationMode;
+  /**
+   * Opt in to a labelled worked EXAMPLE in this equation's result panel on first
+   * load. `values` are example operands in the binding's own shape; the runtime
+   * computes them and calls `renderResult`, so the example reuses the equation's
+   * OWN result markup. The visitor's operands are never written to.
+   */
+  example?: { values: unknown };
 }
 
 /* ------------------------------------------------------------------ */
@@ -73,7 +80,26 @@ export const INITIAL_EQUATION_STATE: EquationMachineState = {
   hasCalculated: false,
 };
 
-export type EquationTrigger = { kind: 'submit' } | { kind: 'input' } | { kind: 'reset' };
+export type EquationTrigger =
+  | { kind: 'submit' }
+  | { kind: 'input' }
+  | { kind: 'reset' }
+  /**
+   * Render a labelled worked EXAMPLE into this equation's result panel on mount,
+   * computed from example operands the island supplies — never from the visitor's
+   * fields, which stay empty. Per-equation, like every other trigger.
+   */
+  | { kind: 'showExample' }
+  /**
+   * Leave a server-rendered worked example and hand this equation's panel to the
+   * visitor. `action` is the explicit "Start with my values" button (focus moves
+   * to the first operand); `input` is the visitor starting to type, which drops
+   * the example silently without stealing focus mid-keystroke.
+   *
+   * Per-equation, like every other trigger: dismissing one equation's example
+   * never touches its neighbours.
+   */
+  | { kind: 'dismissExample'; source: 'action' | 'input' };
 
 export interface EquationProbe {
   validation: ValidationResult;
@@ -83,7 +109,7 @@ export interface EquationProbe {
 export interface EquationEffects {
   compute: boolean;
   announce: 'value' | 'error' | 'none';
-  focus: 'firstInvalid' | 'revealResult' | 'none';
+  focus: 'firstInvalid' | 'revealResult' | 'firstField' | 'none';
   liveNote: boolean;
   fieldErrors: 'apply' | 'clear' | 'none';
   clearOperands: boolean;
@@ -139,6 +165,61 @@ export function planEquationAction(
           clearOperands: true,
         },
       };
+
+    case 'showExample': {
+      // The example is OURS, not the visitor's: silent, never moves focus, and
+      // never touches their (empty) operands.
+      const usable = probe != null && probe.validation.ok && probe.resultFinite;
+      if (!usable) {
+        // Our own example operands failed. Fall back to the ordinary empty-first
+        // load rather than showing a broken example.
+        return {
+          next: INITIAL_EQUATION_STATE,
+          effects: {
+            compute: false,
+            announce: 'none',
+            focus: 'none',
+            liveNote: false,
+            fieldErrors: 'clear',
+            clearOperands: false,
+          },
+        };
+      }
+      return {
+        next: {
+          status: reduceResult(state.status, { type: 'showExample' }),
+          // An example is NOT the visitor's first calculation — the live gate stays shut.
+          hasCalculated: false,
+        },
+        effects: {
+          compute: true, // renderResult fills this equation's OWN valid region
+          announce: 'none',
+          focus: 'none',
+          liveNote: false,
+          fieldErrors: 'clear',
+          clearOperands: false,
+        },
+      };
+    }
+
+    case 'dismissExample': {
+      // Protection: only the `example` state can be dismissed, so a stray click
+      // can never wipe a real result.
+      if (state.status.state !== 'example') return idle(state, noteAfterCalc(state.hasCalculated));
+      return {
+        next: { status: reduceResult(state.status, { type: 'reset' }), hasCalculated: false },
+        effects: {
+          compute: false,
+          announce: 'none',
+          focus: trigger.source === 'action' ? 'firstField' : 'none',
+          liveNote: false,
+          fieldErrors: 'clear',
+          // The example lives only in the result panel; on the `input` path the
+          // operands hold exactly what the visitor just typed.
+          clearOperands: false,
+        },
+      };
+    }
 
     case 'submit': {
       if (!probe) return idle(state, noteAfterCalc(state.hasCalculated));
@@ -258,7 +339,13 @@ export function mountEquationCalculator<O, R>(
   const resetBtn = root.querySelector<HTMLButtonElement>('[data-reset]');
   const ctx: EquationRenderContext = { root, result: shell };
 
-  let state = INITIAL_EQUATION_STATE;
+  // Opt-in worked example: an equation that server-renders its shell in the
+  // `example` state starts the machine there, so the shared runtime owns the
+  // transition out of it rather than a parallel per-island script.
+  const startsAsExample = shell.dataset.resultState === 'example';
+  let state: EquationMachineState = startsAsExample
+    ? { status: reduceResult(INITIAL_STATUS, { type: 'showExample' }), hasCalculated: false }
+    : INITIAL_EQUATION_STATE;
   let settleTimer = 0;
   let debounceTimer = 0;
   let lastAnnounced = '';
@@ -311,12 +398,29 @@ export function mountEquationCalculator<O, R>(
     }
   };
 
+  /** The first operand a visitor would type into — used only when they explicitly
+   *  ask to start with their own values. */
+  const focusFirstField = () => {
+    const fields = Array.from(
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'),
+    );
+    const target = fields.find(
+      (el) => !el.disabled && el.type !== 'hidden' && el.offsetParent !== null,
+    );
+    target?.focus();
+  };
+
   const run = (trigger: EquationTrigger) => {
     let result: R | null = null;
     let probe: EquationProbe | null = null;
 
-    if (trigger.kind !== 'reset') {
-      const operands = binding.readOperands(root);
+    if (trigger.kind !== 'reset' && trigger.kind !== 'dismissExample') {
+      // The example computes from ITS OWN operands; every other trigger reads the
+      // visitor's fields. This is what keeps the operands empty behind an example.
+      const operands =
+        trigger.kind === 'showExample'
+          ? (options.example!.values as O)
+          : binding.readOperands(root);
       const validation = binding.validate(operands);
       let resultFinite = false;
       if (validation.ok) {
@@ -352,6 +456,7 @@ export function mountEquationCalculator<O, R>(
 
     if (effects.focus === 'firstInvalid') focusFirstInvalidField(root);
     else if (effects.focus === 'revealResult') revealResult(shell, { live: false, focus: true });
+    else if (effects.focus === 'firstField') focusFirstField();
 
     state = plan.next;
   };
@@ -362,15 +467,29 @@ export function mountEquationCalculator<O, R>(
     run({ kind: 'submit' });
   };
   const onInput = () => {
+    // The visitor typing their own operand ends this equation's worked example
+    // immediately — before the live gate, which is closed until the first calc.
+    if (state.status.state === 'example') {
+      window.clearTimeout(debounceTimer);
+      run({ kind: 'dismissExample', source: 'input' });
+      return;
+    }
     if (!isLiveActive(mode, state.hasCalculated)) return;
     window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(() => run({ kind: 'input' }), LIVE_DEBOUNCE_MS);
   };
   const onReset = () => run({ kind: 'reset' });
+  const onDismissExample = () => run({ kind: 'dismissExample', source: 'action' });
 
   form.addEventListener('submit', onSubmit);
   form.addEventListener('input', onInput);
   resetBtn?.addEventListener('click', onReset);
+  const dismissBtns = Array.from(root.querySelectorAll<HTMLElement>('[data-example-dismiss]'));
+  for (const btn of dismissBtns) btn.addEventListener('click', onDismissExample);
+
+  // Render the worked example once, AFTER wiring, so the dismiss action and the
+  // first-keystroke path are already live.
+  if (options.example) run({ kind: 'showExample' });
 
   return {
     destroy() {
@@ -379,6 +498,7 @@ export function mountEquationCalculator<O, R>(
       form.removeEventListener('submit', onSubmit);
       form.removeEventListener('input', onInput);
       resetBtn?.removeEventListener('click', onReset);
+      for (const btn of dismissBtns) btn.removeEventListener('click', onDismissExample);
     },
   };
 }

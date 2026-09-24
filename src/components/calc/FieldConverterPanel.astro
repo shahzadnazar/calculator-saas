@@ -1,0 +1,149 @@
+---
+/**
+ * The per-field "Other Units" converters.
+ *
+ * The variant of the reference's Other Units tab that offers one converter per quantity the
+ * calculator asks for — "Height Converter", "Weight Converter" — rather than a five-category
+ * panel. Same idea, same place (ABOVE the calculator), same rule: opening it never changes
+ * the calculator's own unit system.
+ *
+ * Markup only. `mountFieldConverters` (@lib/calculators/unit-converter-panel) owns the
+ * behaviour and finds every part through the `data-fieldconv*` hooks. The toggle button
+ * lives in the host calculator's tab strip and carries `data-converter-toggle` plus
+ * `aria-controls` pointing at this panel's `id`.
+ */
+import { CATEGORIES } from '@lib/calculators/conversion';
+
+interface Props {
+  /** Panel id — the host's toggle points at this with aria-controls. */
+  id: string;
+  /** One row per quantity: its heading, its conversion category, and its two default units. */
+  rows: { key: string; label: string; category: string; from: string; to: string }[];
+}
+const { id, rows } = Astro.props;
+const unitsFor = (category: string) => CATEGORIES.find((c) => c.key === category)?.units ?? [];
+---
+
+<section class="fconv" id={id} data-converter hidden aria-label="Unit converters">
+  <div class="fconv__head">
+    <p class="fconv__lede">Use the converters below to convert your values to the units accepted by the calculator.</p>
+    <button type="button" class="fconv__close" data-converter-close aria-label="Close the converters">×</button>
+  </div>
+
+  {rows.map((r) => (
+    <div class="fconv__row" data-fieldconv data-fieldconv-category={r.category}>
+      <p class="fconv__label" id={`${id}-${r.key}-label`}>{r.label}:</p>
+      <div class="fconv__controls">
+        <input class="field fconv__value" type="number" step="any" inputmode="decimal" autocomplete="off" data-fieldconv-value aria-labelledby={`${id}-${r.key}-label`} />
+        <select class="field fconv__unit" data-fieldconv-from aria-label={`${r.label}, convert from`}>
+          {unitsFor(r.category).map((u) => (
+            <option value={u.key} selected={u.key === r.from}>{u.label}</option>
+          ))}
+        </select>
+        <span class="fconv__eq" aria-hidden="true">= ?</span>
+        <select class="field fconv__unit" data-fieldconv-to aria-label={`${r.label}, convert to`}>
+          {unitsFor(r.category).map((u) => (
+            <option value={u.key} selected={u.key === r.to}>{u.label}</option>
+          ))}
+        </select>
+        <button type="button" class="fconv__go" data-fieldconv-go>Convert</button>
+      </div>
+      <p class="fconv__out" data-fieldconv-out aria-live="polite"></p>
+    </div>
+  ))}
+</section>
+
+<style>
+  .fconv {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    background: var(--subtle);
+  }
+  .fconv__head {
+    display: flex;
+    align-items: start;
+    gap: 0.75rem;
+    margin-bottom: 0.8rem;
+  }
+  .fconv__lede {
+    margin: 0;
+    font-size: 0.84rem;
+    color: var(--fg);
+  }
+  .fconv__close {
+    margin-left: auto;
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-top: -0.55rem;
+    margin-right: -0.55rem;
+    border-radius: 0.5rem;
+    font-size: 1.35rem;
+    line-height: 1;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .fconv__close:hover {
+    color: var(--heading);
+  }
+  .fconv__row + .fconv__row {
+    margin-top: 0.8rem;
+  }
+  .fconv__label {
+    margin: 0 0 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+  .fconv__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .fconv__value {
+    width: 6rem;
+    min-height: 2.75rem;
+    border-radius: 0.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .fconv__unit {
+    min-height: 2.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.84rem;
+    max-width: 10rem;
+  }
+  .fconv__eq {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .fconv__go {
+    min-height: 2.75rem;
+    padding: 0 0.9rem;
+    border: 1px solid var(--color-brand-600);
+    border-radius: 0.5rem;
+    background: var(--color-brand-600);
+    color: #fff;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .fconv__out {
+    margin: 0.4rem 0 0;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--color-brand-700);
+    min-height: 1.2rem;
+  }
+  :root[data-theme='dark'] .fconv__out {
+    color: var(--color-brand-300);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .fconv__out {
+      color: var(--color-brand-300);
+    }
+  }
+</style>

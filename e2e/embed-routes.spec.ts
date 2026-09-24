@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
@@ -9,7 +9,7 @@ import { resolve } from 'node:path';
  * list from the generated page tree itself — the filesystem truth for "which embed
  * routes exist" — and prove every one serves a 200 static embed with the shared
  * shell, that an unknown slug 404s, and that the one props special case
- * (standard-deviation → StatisticsCalculator primary='sd') renders. Deep behavior is
+ * (standard-deviation → its own StandardDeviationCalculator island) renders. Deep behavior is
  * covered by each calculator's own spec; the embed renders the identical island.
  * (Registry↔manifest↔generated-page coverage is owned by embed-components.test.ts.)
  */
@@ -27,8 +27,16 @@ for (const category of readdirSync(PAGES)) {
   }
 }
 
-test('all 49 generated embed routes serve a 200 static page with the shared shell', async ({ page }) => {
-  expect(routes.length).toBe(49);
+// Every manifest entry must have produced a generated page. Derived rather than a literal,
+// so adding a calculator does not need this spec edited — while a generator that skipped or
+// duplicated a slug still fails here. (Manifest <-> registry is embed-components.test.ts.)
+const MANIFEST_SLUGS = Object.keys(
+  JSON.parse(readFileSync('src/data/embed-components.json', 'utf8')) as Record<string, unknown>,
+);
+
+test('every generated embed route serves a 200 static page with the shared shell', async ({ page }) => {
+  expect(routes.length).toBe(MANIFEST_SLUGS.length);
+  expect([...routes.map((r) => r.slug)].sort()).toEqual([...MANIFEST_SLUGS].sort());
   for (const { url } of routes) {
     const resp = await page.goto(url, { waitUntil: 'domcontentloaded' });
     expect(resp?.status(), `${url} status`).toBe(200);
@@ -43,10 +51,10 @@ test('an unknown embed slug returns 404 (no static page exists)', async ({ page 
   expect(resp?.status()).toBe(404);
 });
 
-test('the standard-deviation embed renders the shared statistics island via the generated primary="sd" prop', async ({ page }) => {
+test('the standard-deviation embed renders its own island', async ({ page }) => {
   await page.goto('/embed/math/standard-deviation-calculator', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('main.embed-main h1')).toContainText('Standard Deviation');
-  // The statistics island mounted (a real interactive control is present).
+  await expect(page.locator('main.embed-main [data-sd]')).toHaveCount(1);
   await expect(page.locator('main.embed-main').locator('input, textarea, button').first()).toBeVisible();
 });
 

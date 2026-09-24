@@ -1,37 +1,51 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Payment calculator — R8B1 standard-form wave (calculator #14; product family
- * MULTI-MODE, on the standard-form runtime + the small isUsableResult extension).
- * Two modes ("Monthly payment" / "Payoff time") swap ONE conditional field; the island
- * hides + disables the inactive one and syncs the action label. Covers the doctrine
- * end-to-end plus the conditional field, the mode-specific dominant, the informational
- * "Never" payoff (a VALID result, not an error), and value preservation across a switch.
+ * Payment calculator — two modes over one loan.
+ *
+ * Fixed term takes a term and reports the monthly payment; Fixed payments takes the
+ * payment and reports how long it takes. Both then show the same enrichment: the
+ * payoff sentence, the two totals, a principal-against-interest ring and the full
+ * schedule on annual or monthly.
+ *
+ * The reference case ($200,000 at 6%) is pinned in both directions — $1,687.71 a
+ * month over 15 years, and 11 years 7 months at $2,000 a month — because they are
+ * the same loan seen from either end.
  */
 const ROUTE = '/finance/payment-calculator';
-const DEBOUNCE = 300;
+const DEBOUNCE = 350;
 
-const shell = (page: Page) => page.locator('#pm-result');
-const primary = (page: Page) => page.locator('#pm-result [data-result-value]');
-const summaryLabel = (page: Page) => page.locator('#pm-result [data-result-summary-label]');
-const detail = (page: Page) => page.locator('#pm-result [data-pm-detail]');
-const liveRegion = (page: Page) => page.locator('#pm-live');
-const submit = (page: Page) => page.locator('[data-pm-submit]');
-const region = (page: Page, when: string) => page.locator(`#pm-result [data-result-when~="${when}"]`);
+const shell = (page: Page) => page.locator('#pay-result');
+const primary = (page: Page) => page.locator('#pay-result [data-result-value]');
+const summaryLabel = (page: Page) => page.locator('#pay-result [data-result-summary-label]');
+const liveRegion = (page: Page) => page.locator('#pay-live');
+const submit = (page: Page) => page.locator('[data-pay-submit]');
+const region = (page: Page, when: string) => page.locator(`#pay-result [data-result-when~="${when}"]`);
+const cell = (page: Page, key: string) => page.locator(`#pay-result [data-pay-${key}]`);
 
-const calcTerm = async (page: Page, principal = '20000', rate = '6', term = '5') => {
+const fillShared = async (page: Page, principal = '200000', rate = '6') => {
   await page.fill('[name="principal"]', principal);
   await page.fill('[name="annualRatePct"]', rate);
-  await page.fill('[name="termYears"]', term);
+};
+
+/** Fixed term: the reference loan over 15 years. */
+const calcTerm = async (page: Page, years = '15') => {
+  await fillShared(page);
+  await page.fill('[name="termYears"]', years);
   await submit(page).click();
 };
 
-const calcPayment = async (page: Page, principal: string, rate: string, payment: string) => {
-  await page.check('[name="mode"][value="payment"]');
-  await page.fill('[name="principal"]', principal);
-  await page.fill('[name="annualRatePct"]', rate);
+/** Fixed payments: the reference loan at a chosen monthly amount. */
+const calcPayment = async (page: Page, payment = '2000') => {
+  await page.locator('[name="mode"][value="payment"]').check();
+  await fillShared(page);
   await page.fill('[name="payment"]', payment);
   await submit(page).click();
+};
+
+const openSchedule = async (page: Page) => {
+  await page.locator('.pay-disclosure__summary').click();
+  await expect(page.locator('[data-pay-schedule]')).toBeVisible();
 };
 
 test.beforeEach(async ({ page }) => {
@@ -40,235 +54,350 @@ test.beforeEach(async ({ page }) => {
 
 /* ---- Initial state ------------------------------------------------------ */
 
-test('loads empty: Monthly-payment mode, blank fields, result empty, Calculate Payment action, no live note', async ({ page }) => {
+test('loads in fixed-term mode with every field empty and a labelled example', async ({ page }) => {
   await expect(page.locator('[name="mode"][value="term"]')).toBeChecked();
-  await expect(page.locator('[name="principal"]')).toHaveValue('');
-  await expect(page.locator('[name="annualRatePct"]')).toHaveValue('');
-  await expect(page.locator('[name="termYears"]')).toHaveValue('');
-  await expect(submit(page)).toHaveText('Calculate Payment');
-  // Term field shown; payment field hidden AND disabled (out of the a11y + submit order).
-  await expect(page.locator('[data-pm-term]')).toBeVisible();
-  await expect(page.locator('[data-pm-payment]')).toBeHidden();
+  for (const name of ['principal', 'annualRatePct', 'termYears', 'payment']) {
+    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+  }
+  await expect(page.locator('[data-pay-term]')).toBeVisible();
+  await expect(page.locator('[data-pay-payment]')).toBeHidden();
   await expect(page.locator('[name="payment"]')).toBeDisabled();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(submit(page)).toHaveText('Calculate Payment');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  await expect(region(page, 'empty')).toBeHidden();
   await expect(page.locator('[data-live-note]')).toBeHidden();
   await expect(liveRegion(page)).toHaveText('');
-  await expect(primary(page)).toHaveText('—');
+});
+
+test('offers the two modes by what is fixed', async ({ page }) => {
+  const form = page.locator('form[data-form]');
+  await expect(form.getByText('What is fixed?', { exact: true })).toBeVisible();
+  await expect(form.getByText('Fixed term', { exact: true })).toBeVisible();
+  await expect(form.getByText('Fixed payments', { exact: true })).toBeVisible();
 });
 
 test('does not calculate before the first submission', async ({ page }) => {
-  await page.fill('[name="principal"]', '20000');
-  await page.fill('[name="annualRatePct"]', '6');
-  await page.fill('[name="termYears"]', '5');
-  await page.waitForTimeout(DEBOUNCE);
+  await fillShared(page);
+  await page.fill('[name="termYears"]', '15');
+  await page.waitForTimeout(DEBOUNCE + 100);
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(liveRegion(page)).toHaveText('');
 });
 
-/* ---- Fixed term (solve for the monthly payment) ------------------------- */
+/* ---- Fixed term --------------------------------------------------------- */
 
-test('valid term result: monthly payment dominant, payment count subordinate', async ({ page }) => {
-  await calcTerm(page, '20000', '6', '5');
+test('fixed term reproduces the reference loan to the cent', async ({ page }) => {
+  await calcTerm(page);
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(summaryLabel(page)).toHaveText('Estimated monthly payment');
-  await expect(primary(page)).toHaveText('$386.66');
-  await expect(detail(page)).toHaveText('60 monthly payments');
-  await expect(liveRegion(page)).toHaveText('Your estimated monthly payment is 386 dollars and 66 cents.');
-});
-
-test('an entered 0% rate is valid (interest-free) and divides principal evenly', async ({ page }) => {
-  await calcTerm(page, '12000', '0', '1');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$1,000.00');
-  await expect(detail(page)).toHaveText('12 monthly payments');
-});
-
-/* ---- Fixed payment (solve for the payoff time) -------------------------- */
-
-test('valid payoff result: payoff time dominant, payment count subordinate', async ({ page }) => {
-  await calcPayment(page, '20000', '0', '500'); // interest-free → exactly 40 months
-  await expect(summaryLabel(page)).toHaveText('Estimated payoff time');
-  await expect(primary(page)).toHaveText('3 years, 4 months');
-  await expect(detail(page)).toHaveText('40 monthly payments');
-  await expect(liveRegion(page)).toHaveText('Your estimated payoff time is 3 years and 4 months.');
-});
-
-test('a payment that never covers the interest is a VALID informational result, not an error', async ({ page }) => {
-  await calcPayment(page, '100000', '12', '500'); // interest is 1,000/mo
-  // Stays VALID — the extension: an impossible payoff is informational, not invalid.
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(summaryLabel(page)).toHaveText('Estimated payoff time');
-  await expect(primary(page)).toHaveText('Never');
-  await expect(detail(page)).toContainText('does not cover the monthly interest');
-  await expect(detail(page)).toContainText('Increase the monthly payment');
-  // No input error styling, no formula language, no NaN / Infinity leaking through.
-  await expect(page.locator('[name="payment"]')).not.toHaveAttribute('aria-invalid', 'true');
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined|log/);
+  await expect(summaryLabel(page)).toHaveText('Monthly payment');
+  await expect(primary(page)).toHaveText('$1,687.71');
+  await expect(cell(page, 'note')).toHaveText(
+    'You will need to pay $1,687.71 every month for 15 years to pay off the debt.',
+  );
+  await expect(cell(page, 'count-label')).toHaveText('Total of 180 payments');
+  await expect(cell(page, 'total')).toHaveText('$303,788.46');
+  await expect(cell(page, 'interest')).toHaveText('$103,788.46');
   await expect(liveRegion(page)).toHaveText(
-    'At this payment amount, the loan will never be paid off because the payment does not cover the monthly interest.',
+    'Your estimated monthly payment is 1687 dollars and 71 cents.',
   );
 });
 
-test('a payment just above the monthly interest is a finite payoff, not "Never"', async ({ page }) => {
-  await calcPayment(page, '100000', '12', '1001'); // just over the 1,000/mo interest
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).not.toHaveText('Never');
-  await expect(detail(page)).toContainText('monthly payments');
+test('draws the principal-against-interest ring with both shares labelled', async ({ page }) => {
+  await calcTerm(page);
+  const figure = page.locator('[data-pay-donut-figure]');
+  await expect(figure).toBeVisible();
+  await expect(page.locator('[data-pay-donut] circle')).toHaveCount(2);
+  await expect(page.locator('[data-pay-donut] text')).toHaveText(['66%', '34%']);
+  await expect(cell(page, 'share-principal')).toHaveText('66%');
+  await expect(cell(page, 'share-interest')).toHaveText('34%');
+  await expect(cell(page, 'share-principal-amt')).toHaveText('$200,000');
+  // Identity is never colour-alone: both slices are named in the legend.
+  await expect(figure).toContainText('Principal');
+  await expect(figure).toContainText('Interest');
+  await expect(page.locator('[data-pay-donut] svg')).toHaveAttribute('aria-label', /\$303,788\.46/);
 });
 
-/* ---- Duration normalization (R8B1.1) ------------------------------------ */
-
-test('a payoff whose residual rounds to 12 shows the carried year, never "12 months"', async ({ page }) => {
-  await calcPayment(page, '11600', '0', '1000'); // interest-free → exactly 11.6 months
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('1 year'); // NOT "0 years, 12 months"
-  await expect(primary(page)).not.toContainText('12 months');
-  await expect(detail(page)).toHaveText('12 monthly payments'); // payment count is unchanged (ceil)
-  await expect(liveRegion(page)).toHaveText('Your estimated payoff time is 1 year.');
+test('the ring labels stay inside the drawing area', async ({ page }) => {
+  await calcTerm(page);
+  const svg = await page.locator('[data-pay-donut] svg').boundingBox();
+  for (const label of await page.locator('[data-pay-donut] text').all()) {
+    const box = await label.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(svg!.x);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(svg!.x + svg!.width);
+  }
 });
 
-test('live recalculation into a year boundary uses normalized wording (display + announcement)', async ({ page }) => {
-  await calcPayment(page, '59500', '0', '2000'); // 29.75 months → "2 years, 6 months"
-  await expect(primary(page)).toHaveText('2 years, 6 months');
-  // Live edit into the carry boundary: 59,500 / 1,000 = 59.5 months → "5 years".
-  await page.fill('[name="payment"]', '1000');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(primary(page)).toHaveText('5 years'); // NOT "4 years, 12 months"
-  await expect(primary(page)).not.toContainText('12 months');
-  await expect(detail(page)).toHaveText('60 monthly payments');
-  await expect(liveRegion(page)).toHaveText('Your estimated payoff time is 5 years.');
+test('the schedule matches the amortization calculator, row for row', async ({ page }) => {
+  await calcTerm(page);
+  await openSchedule(page);
+  const rows = page.locator('[data-pay-rows="yearly"] tr');
+  await expect(rows).toHaveCount(15);
+  // The Extra column belongs to the amortization calculator, not this one.
+  await expect(page.locator('[data-pay-rows="yearly"] td.pay-col-extra').first()).toBeHidden();
+  await expect(rows.nth(0).locator('th, td:visible')).toHaveText([
+    '1', '$11,769.23', '$8,483.33', '$191,516.67',
+  ]);
+  await expect(rows.nth(8).locator('th, td:visible')).toHaveText([
+    '9', '$6,559.25', '$13,693.31', '$101,835.82',
+  ]);
+  await expect(rows.last().locator('td:visible').last()).toHaveText('$0.00');
 });
 
-/* ---- Mode switching + conditional field --------------------------------- */
+test('switching to the monthly view is a view change, not a recalculation', async ({ page }) => {
+  await calcTerm(page);
+  await openSchedule(page);
+  await expect(page.locator('[data-pay-rows="yearly"] tr').first()).toBeVisible();
 
-test('switching mode before the first calc swaps the field + label, does not calculate, preserves entries', async ({ page }) => {
-  await page.fill('[name="principal"]', '20000');
-  await page.fill('[name="annualRatePct"]', '6');
-  await page.fill('[name="termYears"]', '5');
-  await page.check('[name="mode"][value="payment"]');
+  await page.locator('[data-pay-view-radio][value="monthly"]').check();
+  await expect(page.locator('[data-pay-rows="yearly"] tr').first()).toBeHidden();
+  // 180 months plus a divider closing each of the first 14 years.
+  await expect(page.locator('[data-pay-rows="monthly"] tr')).toHaveCount(194);
+  await expect(page.locator('[data-pay-rows="monthly"] .pay-cell--yearend').first()).toHaveText(
+    'End of year 1',
+  );
+  await expect(primary(page)).toHaveText('$1,687.71');
+});
+
+/* ---- Fixed payments ----------------------------------------------------- */
+
+test('fixed payments swaps the term for the monthly amount', async ({ page }) => {
+  await page.locator('[name="mode"][value="payment"]').check();
+  await expect(page.locator('[data-pay-term]')).toBeHidden();
+  await expect(page.locator('[name="termYears"]')).toBeDisabled();
+  await expect(page.locator('[data-pay-payment]')).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate Payoff Time');
-  await expect(page.locator('[data-pm-payment]')).toBeVisible();
-  await expect(page.locator('[name="termYears"]')).toBeDisabled(); // inactive field out of the way
-  await expect(page.locator('[data-pm-term]')).toBeHidden();
-  await expect(page.locator('[name="principal"]')).toHaveValue('20000'); // preserved
-  await expect(page.locator('[name="termYears"]')).toHaveValue('5'); // preserved for switch-back
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty'); // no calc
 });
 
-test('after a result, switching to a mode whose field is empty asks for it live; switching back restores the preserved value', async ({ page }) => {
-  await calcPayment(page, '20000', '6', '400');
+test('fixed payments solves for the time, to the cent', async ({ page }) => {
+  await calcPayment(page);
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  // Switch to term mode — its term field is empty, so live recompute asks for it.
-  await page.check('[name="mode"][value="term"]');
+  await expect(summaryLabel(page)).toHaveText('Payoff time');
+  await expect(primary(page)).toHaveText('11 years, 7 months');
+  await expect(cell(page, 'note')).toHaveText(
+    'You will need to pay $2,000.00 every month for 11 years, 7 months to pay off the debt.',
+  );
+  await expect(cell(page, 'count-label')).toHaveText('Total of 139 payments');
+  await expect(cell(page, 'total')).toHaveText('$277,951.56');
+  await expect(cell(page, 'interest')).toHaveText('$77,951.56');
+  await expect(liveRegion(page)).toHaveText('Your estimated payoff time is 11 years and 7 months.');
+});
+
+test('the last payment is short, and the schedule ends on zero', async ({ page }) => {
+  await calcPayment(page);
+  await openSchedule(page);
+  await page.locator('[data-pay-view-radio][value="monthly"]').check();
+  const rows = page.locator('[data-pay-rows="monthly"] tr');
+  const last = rows.last().locator('td:visible');
+  await expect(last.last()).toHaveText('$0.00');
+  // Interest + principal on the final row is $1,951.56, not the full $2,000.
+  const cells = await last.allTextContents();
+  const money = (s: string) => Number(s.replace(/[$,]/g, ''));
+  expect(money(cells[0]) + money(cells[1])).toBeCloseTo(1951.56, 2);
+});
+
+test('a bigger payment clears the loan sooner', async ({ page }) => {
+  await calcPayment(page, '3000');
+  await expect(primary(page)).not.toHaveText('11 years, 7 months');
+  const label = await cell(page, 'count-label').textContent();
+  expect(Number((label ?? '').match(/\d+/)?.[0])).toBeLessThan(139);
+});
+
+/* ---- The two modes are one loan ----------------------------------------- */
+
+test('paying the fixed-term payment clears the loan in the fixed term', async ({ page }) => {
+  await calcTerm(page);
+  await expect(primary(page)).toHaveText('$1,687.71');
+
+  await page.locator('[name="mode"][value="payment"]').check();
+  await page.fill('[name="payment"]', '1687.71');
   await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(page.locator('[data-error-for="termYears"]')).toHaveText('Enter a loan term.');
-  // Switch back to payment mode — the payment value (400) was preserved → payoff again.
-  await page.check('[name="mode"][value="payment"]');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(page.locator('[name="payment"]')).toHaveValue('400');
+  await expect(primary(page)).toHaveText('15 years');
+
+  // 181, not 180 — and that is the honest answer rather than an off-by-one. The true
+  // payment is $1,687.7135…, so paying the DISPLAYED figure underpays by a fraction of
+  // a cent every month; after fifteen years that residue needs one more, tiny payment.
+  // The headline still reads 15 years because the residue is worth a rounding of days.
+  await expect(cell(page, 'count-label')).toHaveText('Total of 181 payments');
+  await openSchedule(page);
+  await page.locator('[data-pay-view-radio][value="monthly"]').check();
+  const rows = page.locator('[data-pay-rows="monthly"] tr');
+  const finalCells = await rows.last().locator('td:visible').allTextContents();
+  const money = (t: string) => Number(t.replace(/[$,]/g, ''));
+  expect(money(finalCells[0]) + money(finalCells[1])).toBeLessThan(5);
+  expect(money(finalCells[finalCells.length - 1])).toBe(0);
+});
+
+/* ---- The "never" outcome ------------------------------------------------ */
+
+test('a payment below the interest is a valid "Never", not an error', async ({ page }) => {
+  await calcPayment(page, '500'); // interest alone is $1,000 a month
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(summaryLabel(page)).toHaveText('Estimated payoff time');
+  await expect(summaryLabel(page)).toHaveText('Payoff time');
+  await expect(primary(page)).toHaveText('Never');
+  await expect(cell(page, 'note')).toContainText('does not cover the monthly interest');
+  await expect(liveRegion(page)).toContainText('never be paid off');
+  // Nothing below the headline describes a loan that is never repaid.
+  await expect(page.locator('[data-pay-details]')).toBeHidden();
+});
+
+test('raising the payment above the interest turns "Never" into a real answer', async ({ page }) => {
+  await calcPayment(page, '500');
+  await expect(primary(page)).toHaveText('Never');
+  await page.fill('[name="payment"]', '2000');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(primary(page)).toHaveText('11 years, 7 months');
+  await expect(page.locator('[data-pay-details]')).toBeVisible();
 });
 
 /* ---- Validation --------------------------------------------------------- */
 
-test('an empty explicit submission focuses the loan amount and associates the error', async ({ page }) => {
+test('an all-empty submission reports the required fields and focuses the first', async ({ page }) => {
   await submit(page).click();
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  const principal = page.locator('[name="principal"]');
-  await expect(principal).toBeFocused();
-  await expect(principal).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.locator('[data-error-for="principal"]')).toHaveText('Enter a loan amount.');
+  await expect(page.locator('[data-error-for="principal"]')).toBeVisible();
+  await expect(page.locator('[data-error-for="annualRatePct"]')).toBeVisible();
+  await expect(page.locator('[data-error-for="termYears"]')).toBeVisible();
+  await expect(page.locator('[name="principal"]')).toBeFocused();
+  await expect(page.locator('[name="principal"]')).toHaveAttribute('aria-invalid', 'true');
 });
 
-test('rejects a zero / negative loan amount and a negative rate', async ({ page }) => {
-  await calcTerm(page, '0', '6', '5');
-  await expect(page.locator('[data-error-for="principal"]')).toHaveText('Enter a loan amount greater than zero.');
-  await calcTerm(page, '20000', '-1', '5');
-  await expect(page.locator('[data-error-for="annualRatePct"]')).toHaveText('Enter an interest rate of zero or more.');
-});
-
-test('term mode requires the term; payment mode requires the monthly payment', async ({ page }) => {
-  await calcTerm(page, '20000', '6', ''); // no term
-  await expect(page.locator('[data-error-for="termYears"]')).toHaveText('Enter a loan term.');
-  await page.click('[data-reset]');
-  await page.check('[name="mode"][value="payment"]');
-  await page.fill('[name="principal"]', '20000');
-  await page.fill('[name="annualRatePct"]', '6');
-  await submit(page).click(); // no payment
-  await expect(page.locator('[data-error-for="payment"]')).toHaveText('Enter a monthly payment.');
-});
-
-test('keyboard submission works from a field', async ({ page }) => {
-  await page.fill('[name="principal"]', '20000');
-  await page.fill('[name="annualRatePct"]', '6');
-  await page.locator('[name="termYears"]').fill('5');
-  await page.locator('[name="termYears"]').press('Enter');
+test('only the active mode field is required', async ({ page }) => {
+  // Fixed term does not ask for a payment...
+  await calcTerm(page);
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$386.66');
+  // ...and fixed payments does not ask for a term.
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await calcPayment(page);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
 });
 
-/* ---- Reset -------------------------------------------------------------- */
+test('rejects a zero loan, a negative rate and a fractional term', async ({ page }) => {
+  await fillShared(page, '0');
+  await page.fill('[name="termYears"]', '15');
+  await submit(page).click();
+  await expect(page.locator('[data-error-for="principal"]')).toBeVisible();
 
-test('reset restores Monthly-payment mode + label, clears fields, returns to empty', async ({ page }) => {
-  await calcPayment(page, '20000', '6', '400');
+  await fillShared(page, '200000', '-1');
+  await submit(page).click();
+  await expect(page.locator('[data-error-for="annualRatePct"]')).toBeVisible();
+
+  await fillShared(page);
+  await page.fill('[name="termYears"]', '15.5');
+  await submit(page).click();
+  await expect(page.locator('[data-error-for="termYears"]')).toBeVisible();
+});
+
+test('a zero interest rate is a valid, principal-only loan', async ({ page }) => {
+  await fillShared(page, '12000', '0');
+  await page.fill('[name="termYears"]', '1');
+  await submit(page).click();
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await page.click('[data-reset]');
+  await expect(primary(page)).toHaveText('$1,000.00');
+  await expect(cell(page, 'interest')).toHaveText('$0.00');
+});
+
+test('never renders NaN, Infinity or a raw error', async ({ page }) => {
+  await calcPayment(page, '500');
+  let text = (await shell(page).innerText()) ?? '';
+  expect(text).not.toMatch(/NaN|Infinity|undefined|\[object/);
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await calcTerm(page, '30');
+  text = (await shell(page).innerText()) ?? '';
+  expect(text).not.toMatch(/NaN|Infinity|undefined|\[object/);
+});
+
+/* ---- Live-after-first, mode switching, reset ---------------------------- */
+
+test('recalculates live after the first result without moving focus', async ({ page }) => {
+  await calcTerm(page);
+  await expect(page.locator('[data-live-note]')).toBeVisible();
+  const rate = page.locator('[name="annualRatePct"]');
+  await rate.focus();
+  await rate.fill('7');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(primary(page)).not.toHaveText('$1,687.71');
+  await expect(rate).toBeFocused();
+});
+
+test('switching mode keeps the shared fields and the entered value for a switch back', async ({ page }) => {
+  await calcTerm(page);
+  await page.locator('[name="mode"][value="payment"]').check();
+  await expect(page.locator('[name="principal"]')).toHaveValue('200000');
+  await expect(page.locator('[name="annualRatePct"]')).toHaveValue('6');
+  await page.locator('[name="mode"][value="term"]').check();
+  await expect(page.locator('[name="termYears"]')).toHaveValue('15');
+});
+
+test('reset clears every field, restores fixed-term mode and empties the result', async ({ page }) => {
+  await calcTerm(page);
+  await openSchedule(page);
+  await page.locator('[data-pay-view-radio][value="monthly"]').check();
+  await page.locator('[name="mode"][value="payment"]').check();
+
+  await page.locator('[data-reset]').click();
+  for (const name of ['principal', 'annualRatePct', 'termYears', 'payment']) {
+    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+  }
   await expect(page.locator('[name="mode"][value="term"]')).toBeChecked();
+  await expect(page.locator('[data-pay-term]')).toBeVisible();
+  await expect(page.locator('[data-pay-view-radio][value="yearly"]')).toBeChecked();
   await expect(submit(page)).toHaveText('Calculate Payment');
-  await expect(page.locator('[data-pm-term]')).toBeVisible();
-  await expect(page.locator('[data-pm-payment]')).toBeHidden();
-  await expect(page.locator('[name="principal"]')).toHaveValue('');
-  await expect(page.locator('[name="payment"]')).toHaveValue('');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
   await expect(liveRegion(page)).toHaveText('');
 });
 
-/* ---- Integrity ---------------------------------------------------------- */
+/* ---- Layout, theme, embed, monetization --------------------------------- */
 
-test('renders no NaN / Infinity / undefined for an ordinary result', async ({ page }) => {
-  await calcTerm(page, '20000', '6', '5');
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
+test('desktop shows the form, the primary action and the result at 1366×768', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  for (const target of [page.locator('h1'), submit(page), primary(page).first()]) {
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(768);
+  }
 });
 
-/* ---- Responsive / theme / embed / monetization ------------------------- */
-
-test('desktop shows the dominant result within the first viewport at 1366×768', async ({ page }) => {
+test('lays the fields out two to a row', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
-  await calcTerm(page, '20000', '6', '5');
-  await expect(primary(page)).toBeInViewport();
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  const tops = await page
+    .locator('form [data-field]:visible')
+    .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+  // Three visible fields: the amount beside the term, then the rate.
+  expect(tops).toHaveLength(3);
+  expect(tops[0]).toBe(tops[1]);
+  expect(tops[2]).toBeGreaterThan(tops[1]);
 });
 
 test('mobile stacks inputs → result and does not overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  const formBox = (await page.locator('form[data-form]').boundingBox())!;
-  const resultTop = (await shell(page).boundingBox())!.y;
-  expect(resultTop).toBeGreaterThanOrEqual(formBox.y + formBox.height - 1);
-  await calcTerm(page, '20000', '6', '5');
-  await expect(primary(page)).toHaveText('$386.66');
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
+  await calcTerm(page);
+  await openSchedule(page);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
 });
 
 test('renders in dark scheme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
-  await calcTerm(page, '20000', '6', '5');
-  await expect(primary(page)).toBeVisible();
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await calcTerm(page);
+  await expect(primary(page)).toHaveText('$1,687.71');
 });
 
-test('the embed route mounts the same interactive island', async ({ page }) => {
+test('the generated embed mounts the same island and computes', async ({ page }) => {
   await page.goto('/embed/finance/payment-calculator', { waitUntil: 'domcontentloaded' });
-  await page.fill('[name="principal"]', '20000');
-  await page.fill('[name="annualRatePct"]', '6');
-  await page.fill('[name="termYears"]', '5');
-  await page.locator('[data-pm-submit]').click();
-  await expect(page.locator('#pm-result [data-result-value]')).toHaveText('$386.66');
+  await calcTerm(page);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(primary(page)).toHaveText('$1,687.71');
 });
 
 test('the live page carries no monetization output', async ({ page }) => {
-  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-  expect(await page.content()).not.toContain('data-mon-');
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-monetization-region]')).toHaveCount(0);
+  const html = await page.content();
+  expect(html).not.toMatch(/adsbygoogle|data-ad-client/);
 });

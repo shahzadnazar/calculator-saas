@@ -1,4 +1,4 @@
-# AllCalculators — Product & SEO Strategy
+# BestCalculate — Product & SEO Strategy
 
 > **Non-negotiable product doctrine:** every calculator and content surface must
 > comply with **Global Task-Completion Psychology**
@@ -56,7 +56,7 @@ permanently.
 - **Why it matters:** for a calculator brand, correctness *is* the product and
   the trust moat.
 
-### Brand: AllCalculators (`allcalculators.com`)
+### Brand: BestCalculate (`bestcalculate.com`)
 - Keyword-rich hub brand; communicates the value proposition instantly.
 - Centralised in `src/config/site.ts` — one-line change to rebrand or swap domain.
 

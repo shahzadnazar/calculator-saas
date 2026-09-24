@@ -1,153 +1,210 @@
 import { describe, it, expect } from 'vitest';
-import { calculateGPA, GRADE_POINTS } from './gpa';
+import {
+  GRADE_SCALE,
+  GRADED_LETTERS,
+  IGNORED_LETTERS,
+  gradePoints,
+  isGrade,
+  MAX_GRADE_POINTS,
+  calculateGPA,
+  planGpa,
+  formatGpa,
+  formatPoints,
+  gradePointsExpression,
+} from './gpa';
 
-/**
- * Dedicated GPA characterization (R16B1 Commit 1 — Academic family pilot, 1 of 2).
- * FREEZES the current behaviour of `calculateGPA` + the `GRADE_POINTS` scale ahead
- * of the task-first migration; it does NOT change any module. The GPA binding
- * (gpa-form.ts) layers row/credit validation and a complete-result guard ON TOP of
- * this unchanged function — this file pins exactly what it wraps:
- *
- *   • per course: credits = max(0, credits||0); qualityPoints += (gradePoints||0)·credits;
- *   • totalCredits = Σ credits; totalQualityPoints = Σ qualityPoints;
- *   • gpa = totalCredits > 0 ? totalQualityPoints / totalCredits : NaN.
- *
- * A valid GPA of 0 (an F with positive credits) is DISTINCT from the NaN returned
- * when total credits is 0 — the migration's complete-result guard depends on this.
- * The 2 GPA cases previously in batch-e.test.ts are consolidated here and expanded;
- * batch-e keeps its grade / conversion coverage.
- */
+/** The reference's own worked example. */
+const COURSES = [
+  { name: 'Math', credits: 3, grade: 'A' },
+  { name: 'English', credits: 3, grade: 'B+' },
+  { name: 'History', credits: 2, grade: 'A-' },
+];
 
-const MAX_GRADE_POINT = Math.max(...GRADE_POINTS.map((g) => g.value));
-
-describe('GPA — GRADE_POINTS scale (frozen)', () => {
-  it('is the exact 11-entry unweighted 4.0 scale (no A+, no D−)', () => {
-    expect(GRADE_POINTS).toEqual([
-      { label: 'A', value: 4.0 },
-      { label: 'A-', value: 3.7 },
-      { label: 'B+', value: 3.3 },
-      { label: 'B', value: 3.0 },
-      { label: 'B-', value: 2.7 },
-      { label: 'C+', value: 2.3 },
-      { label: 'C', value: 2.0 },
-      { label: 'C-', value: 1.7 },
-      { label: 'D+', value: 1.3 },
-      { label: 'D', value: 1.0 },
-      { label: 'F', value: 0.0 },
+describe('the grade scale', () => {
+  it('is the reference scale, including the A+ and D- most 4.0 tables leave out', () => {
+    expect(GRADED_LETTERS.map((g) => [g.label, g.points])).toEqual([
+      ['A+', 4.3],
+      ['A', 4],
+      ['A-', 3.7],
+      ['B+', 3.3],
+      ['B', 3],
+      ['B-', 2.7],
+      ['C+', 2.3],
+      ['C', 2],
+      ['C-', 1.7],
+      ['D+', 1.3],
+      ['D', 1],
+      ['D-', 0.7],
+      ['F', 0],
     ]);
   });
-  it('the exact maximum scale value is 4.0 (the GPA guard ceiling)', () => {
-    expect(MAX_GRADE_POINT).toBe(4.0);
+
+  it('carries the four grades that are ignored rather than scored', () => {
+    expect(IGNORED_LETTERS.map((g) => g.label)).toEqual(['P', 'NP', 'I', 'W']);
+    for (const g of IGNORED_LETTERS) expect(g.points).toBe(null);
   });
-  it('every value is within [0, 4.0]', () => {
-    for (const g of GRADE_POINTS) {
-      expect(g.value).toBeGreaterThanOrEqual(0);
-      expect(g.value).toBeLessThanOrEqual(MAX_GRADE_POINT);
-    }
+
+  it('tops out at 4.3, not 4', () => {
+    expect(MAX_GRADE_POINTS).toBe(4.3);
+  });
+
+  it('tells a scored grade, an ignored grade and an unknown one apart', () => {
+    expect(gradePoints('B+')).toBe(3.3);
+    expect(gradePoints('W')).toBe(null); // ignored, NOT zero
+    expect(gradePoints('Z')).toBeUndefined();
+    expect(isGrade('D-')).toBe(true);
+    expect(isGrade('E')).toBe(false);
+  });
+
+  it('has no duplicate labels', () => {
+    expect(new Set(GRADE_SCALE.map((g) => g.label)).size).toBe(GRADE_SCALE.length);
   });
 });
 
-describe('GPA — weighted computation', () => {
-  it('one ordinary course: gpa = its grade points, credits echoed (moved/expanded from batch-e)', () => {
-    const r = calculateGPA([{ gradePoints: 3.7, credits: 4 }]);
-    expect(r.totalCredits).toBe(4);
-    expect(r.totalQualityPoints).toBeCloseTo(14.8, 6);
-    expect(r.gpa).toBeCloseTo(3.7, 6);
-  });
+describe('GPA from courses — the reference example', () => {
+  const r = calculateGPA(COURSES);
 
-  it('multiple courses weight quality points by credits (the batch-e 3.51 case)', () => {
-    const r = calculateGPA([
-      { gradePoints: 4.0, credits: 3 },
-      { gradePoints: 3.0, credits: 4 },
-      { gradePoints: 3.7, credits: 3 },
-    ]);
-    expect(r.totalCredits).toBe(10);
-    expect(r.totalQualityPoints).toBeCloseTo(35.1, 6); // 12 + 12 + 11.1
-    expect(r.gpa).toBeCloseTo(3.51, 2);
-  });
-
-  it('an all-A transcript is exactly 4.0', () => {
-    const r = calculateGPA([
-      { gradePoints: 4.0, credits: 3 },
-      { gradePoints: 4.0, credits: 5 },
-    ]);
-    expect(r.gpa).toBe(4.0);
+  it('totals the credits of the counted courses', () => {
     expect(r.totalCredits).toBe(8);
   });
 
-  it('valid F grades with positive credits are exactly 0.0 (NOT NaN)', () => {
-    const r = calculateGPA([
-      { gradePoints: 0.0, credits: 3 },
-      { gradePoints: 0.0, credits: 4 },
-    ]);
-    expect(r.gpa).toBe(0);
-    expect(Number.isNaN(r.gpa)).toBe(false);
-    expect(r.totalCredits).toBe(7);
+  it('gives each course its grade points, as the reference writes them', () => {
+    expect(r.courses.map(gradePointsExpression)).toEqual(['3×4 = 12', '3×3.3 = 9.9', '2×3.7 = 7.4']);
   });
 
-  it('mixed grades reconcile gpa = totalQualityPoints / totalCredits', () => {
-    const r = calculateGPA([
-      { gradePoints: 4.0, credits: 3 },
-      { gradePoints: 2.0, credits: 3 },
-      { gradePoints: 0.0, credits: 2 },
-    ]);
-    expect(r.totalCredits).toBe(8);
-    expect(r.totalQualityPoints).toBeCloseTo(18, 6); // 12 + 6 + 0
-    expect(r.gpa).toBeCloseTo(18 / 8, 10);
-  });
-
-  it('supports decimal credit hours', () => {
-    const r = calculateGPA([
-      { gradePoints: 4.0, credits: 1.5 },
-      { gradePoints: 3.0, credits: 0.5 },
-    ]);
-    expect(r.totalCredits).toBeCloseTo(2, 10);
-    expect(r.gpa).toBeCloseTo(7.5 / 2, 10); // 6 + 1.5 = 7.5 over 2
+  it('reports the reference GPA of 3.663', () => {
+    // The exact value is 3.6625; in binary floating point it arrives just under, and a naive
+    // round would print 3.662 — one digit off the reference.
+    expect(r.gpa).toBeCloseTo(3.6625, 10);
+    expect(formatGpa(r.gpa)).toBe('3.663');
   });
 });
 
-describe('GPA — zero / degenerate credit handling', () => {
-  it('a zero-credit row contributes nothing but is not itself invalid', () => {
+describe('GPA — ignored grades', () => {
+  it('leaves a P, NP, I or W out of both the credits and the average', () => {
     const r = calculateGPA([
-      { gradePoints: 4.0, credits: 3 },
-      { gradePoints: 2.0, credits: 0 },
+      { name: 'Math', credits: 3, grade: 'A' },
+      { name: 'Yoga', credits: 2, grade: 'P' },
+      { name: 'Dropped', credits: 4, grade: 'W' },
     ]);
-    expect(r.totalCredits).toBe(3);
-    expect(r.gpa).toBe(4.0); // the 0-credit C does not move the GPA
+    expect(r.totalCredits).toBe(3); // not 9
+    expect(r.gpa).toBe(4);
+    expect(r.courses.map((c) => c.counted)).toEqual([true, false, false]);
   });
 
-  it('all-zero-credit input returns NaN (total credits 0)', () => {
-    expect(Number.isNaN(calculateGPA([{ gradePoints: 4.0, credits: 0 }]).gpa)).toBe(true);
+  it('scores an F as zero, which is not the same as ignoring it', () => {
+    const r = calculateGPA([
+      { name: 'Math', credits: 3, grade: 'A' },
+      { name: 'Physics', credits: 3, grade: 'F' },
+    ]);
+    expect(r.totalCredits).toBe(6);
+    expect(r.gpa).toBe(2);
   });
 
-  it('an empty course list returns NaN gpa with 0 totals', () => {
-    const r = calculateGPA([]);
-    expect(Number.isNaN(r.gpa)).toBe(true);
+  it('has no GPA at all when nothing counted', () => {
+    const r = calculateGPA([{ name: 'Yoga', credits: 2, grade: 'P' }]);
     expect(r.totalCredits).toBe(0);
-    expect(r.totalQualityPoints).toBe(0);
+    expect(r.gpa).toBeNaN();
+    expect(formatGpa(r.gpa)).toBe('—');
+  });
+
+  it('has no GPA for an empty list', () => {
+    expect(calculateGPA([]).gpa).toBeNaN();
   });
 });
 
-describe('GPA — malformed / negative source inputs (clamped, not sanitized-to-valid)', () => {
-  it('negative credits clamp to 0 (Math.max(0, credits||0))', () => {
+describe('GPA — weighting and edges', () => {
+  it('weights by credits, not by course count', () => {
     const r = calculateGPA([
-      { gradePoints: 4.0, credits: -3 },
-      { gradePoints: 3.0, credits: 4 },
+      { name: 'Big', credits: 6, grade: 'A' },
+      { name: 'Small', credits: 1, grade: 'F' },
     ]);
-    expect(r.totalCredits).toBe(4); // the −3 clamps to 0
-    expect(r.gpa).toBe(3.0);
+    expect(r.gpa).toBeCloseTo(24 / 7, 12);
   });
-  it('a NaN credit field clamps to 0 (NaN || 0)', () => {
-    expect(Number.isNaN(calculateGPA([{ gradePoints: 4.0, credits: Number.NaN }]).gpa)).toBe(true);
+
+  it('accepts fractional credits', () => {
+    const r = calculateGPA([
+      { name: 'Lab', credits: 0.5, grade: 'A' },
+      { name: 'Seminar', credits: 1.5, grade: 'B' },
+    ]);
+    expect(r.totalCredits).toBe(2);
+    expect(r.gpa).toBeCloseTo(3.25, 12);
   });
-  it('a NaN gradePoints contributes 0 quality points (gradePoints || 0)', () => {
-    const r = calculateGPA([{ gradePoints: Number.NaN, credits: 3 }]);
+
+  it('lets a zero-credit course count without moving the average', () => {
+    const r = calculateGPA([
+      { name: 'Math', credits: 3, grade: 'A' },
+      { name: 'Audit', credits: 0, grade: 'F' },
+    ]);
     expect(r.totalCredits).toBe(3);
-    expect(r.totalQualityPoints).toBe(0);
-    expect(r.gpa).toBe(0); // 0 quality points over 3 credits
+    expect(r.gpa).toBe(4);
   });
-  it('is deterministic for identical input', () => {
-    const input = [{ gradePoints: 3.3, credits: 3 }, { gradePoints: 2.7, credits: 4 }];
-    expect(calculateGPA(input)).toEqual(calculateGPA(input));
+
+  it('gives an all-F transcript a real 0, not an absent result', () => {
+    const r = calculateGPA([{ name: 'One', credits: 3, grade: 'F' }]);
+    expect(r.gpa).toBe(0);
+    expect(formatGpa(r.gpa)).toBe('0');
+  });
+});
+
+describe('GPA planning — the reference example', () => {
+  const p = planGpa({ currentGpa: 3.663, targetGpa: 3, currentCredits: 8, additionalCredits: 15 });
+
+  it('reports the reference requirement of 2.646', () => {
+    expect(formatGpa(p.required)).toBe('2.646');
+    expect(p.achievable).toBe(true);
+  });
+
+  it('knows when a target is already met', () => {
+    const met = planGpa({ currentGpa: 4, targetGpa: 2, currentCredits: 30, additionalCredits: 15 });
+    expect(met.alreadyMet).toBe(true);
+    expect(met.required).toBeLessThanOrEqual(0);
+  });
+
+  it('knows when a target cannot be reached on this scale', () => {
+    const hard = planGpa({ currentGpa: 1, targetGpa: 4, currentCredits: 60, additionalCredits: 3 });
+    expect(hard.achievable).toBe(false);
+    expect(hard.required).toBeGreaterThan(MAX_GRADE_POINTS);
+  });
+
+  it('has no answer without additional credits, rather than dividing by zero', () => {
+    const none = planGpa({ currentGpa: 3, targetGpa: 3.5, currentCredits: 10, additionalCredits: 0 });
+    expect(none.required).toBeNaN();
+    expect(none.achievable).toBe(false);
+  });
+
+  it('needs exactly the target when there is no history to average against', () => {
+    const fresh = planGpa({ currentGpa: 0, targetGpa: 3.5, currentCredits: 0, additionalCredits: 12 });
+    expect(fresh.required).toBeCloseTo(3.5, 12);
+  });
+});
+
+describe('formatting', () => {
+  it('prints a GPA to three decimals, trailing zeros dropped', () => {
+    expect(formatGpa(3.6625)).toBe('3.663');
+    expect(formatGpa(4)).toBe('4');
+    expect(formatGpa(3.5)).toBe('3.5');
+    expect(formatGpa(2.6464)).toBe('2.646');
+  });
+
+  it('rounds half UP, and corrects the float error that would round it down', () => {
+    expect(formatGpa(3.6624999999999996)).toBe('3.663');
+    expect(formatGpa(0.0005)).toBe('0.001');
+  });
+
+  it('never prints a non-finite GPA', () => {
+    expect(formatGpa(Number.NaN)).toBe('—');
+    expect(formatGpa(Number.POSITIVE_INFINITY)).toBe('—');
+  });
+
+  it('strips floating-point noise from a product', () => {
+    expect(formatPoints(9.899999999999999)).toBe('9.9');
+    expect(formatPoints(12)).toBe('12');
+    expect(formatPoints(0.5)).toBe('0.5');
+  });
+
+  it('says an ignored course has no grade points rather than showing a product', () => {
+    const r = calculateGPA([{ name: 'Yoga', credits: 2, grade: 'W' }]);
+    expect(gradePointsExpression(r.courses[0])).toBe('—');
   });
 });

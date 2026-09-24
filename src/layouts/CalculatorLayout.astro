@@ -32,6 +32,7 @@ import AdSlot from '@components/AdSlot.astro';
 import RelatedOffers from '@components/RelatedOffers.astro';
 import EmbedBox from '@components/EmbedBox.astro';
 import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
+import CalculatorRail from '@components/CalculatorRail.astro';
 import {
   type Calculator,
   getCategory,
@@ -77,6 +78,13 @@ interface Props {
   /** Legacy shorthand for reviewMetadata.reviewedDate; still used by un-migrated pages. Prefer reviewMetadata on new/migrated pages. */
   reviewedOn?: string;
   /**
+   * Render the desktop side rail beside the tool (reserved ad space, the home
+   * page's search box, plain related/reference links). Opt-in per page; the
+   * tool keeps ~900px at our 1280px wrap, and below ~1040px of container the
+   * rail becomes a row underneath.
+   */
+  rail?: boolean;
+  /**
    * Monetization opt-in (R6). Expresses ELIGIBILITY only — every field is off by
    * default, and the central `MONETIZATION_CONFIG` (all off) gates every
    * placement, so this changes nothing until monetization is deliberately
@@ -92,6 +100,7 @@ const {
   presentation = 'legacy',
   reviewMetadata,
   reviewedOn,
+  rail = false,
   monetization,
 } = Astro.props;
 
@@ -202,10 +211,10 @@ sync();
   ogImage={`/og/calc-${calculator.slug}.png`}
   jsonLd={jsonLd}
 >
-  <div class="wrap py-8">
+  <div class="wrap py-4">
     <Breadcrumbs crumbs={crumbs} />
 
-    <header class="mt-5 max-w-3xl">
+    <header class="mt-2 max-w-3xl">
       {
         !taskFirst && (
           <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style="color: var(--color-brand-600)">
@@ -230,12 +239,12 @@ sync();
       <h1 class={taskFirst ? 'text-3xl font-extrabold tracking-tight sm:text-4xl' : 'mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl'}>
         {calculator.title}
       </h1>
-      <p class="mt-3 text-lg" style="color: var(--muted)">
+      <p class="mt-2 text-lg" style="color: var(--muted)">
         {intro}
       </p>
       {
         !taskFirst && reviewedDisplay && (
-          <p class="mt-3 inline-flex items-center gap-1.5 text-xs" style="color: var(--muted)">
+          <p class="mt-2 inline-flex items-center gap-1.5 text-xs" style="color: var(--muted)">
             <svg class="h-4 w-4" style="color: var(--color-accent-600)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -265,7 +274,7 @@ sync();
       monetizationPlan.sidebar ? (
         <div class="mon-workspace" data-mon-workspace>
           <section
-            class:list={['mon-workspace__core', taskFirst ? 'mt-6' : 'mt-8']}
+            class:list={['mon-workspace__core', taskFirst ? 'mt-3' : 'mt-8']}
             aria-label={`${calculator.title} tool`}
             data-calculator-workspace={monetizationPlan.bridge ? '' : undefined}
           >
@@ -279,9 +288,20 @@ sync();
             class="mon-workspace__aside"
           />
         </div>
+      ) : rail ? (
+        <div class:list={['tool-shell', taskFirst ? 'mt-3' : 'mt-8']}>
+          <section
+            class="tool-shell__core"
+            aria-label={`${calculator.title} tool`}
+            data-calculator-workspace={monetizationPlan.bridge ? '' : undefined}
+          >
+            <slot />
+          </section>
+          <CalculatorRail calculator={calculator} />
+        </div>
       ) : (
         <section
-          class={taskFirst ? 'mt-6' : 'mt-8'}
+          class={taskFirst ? 'mt-3' : 'mt-8'}
           aria-label={`${calculator.title} tool`}
           data-calculator-workspace={monetizationPlan.bridge ? '' : undefined}
         >
@@ -294,14 +314,14 @@ sync();
     <AdSlot placement="below-tool" class="mt-10 max-w-3xl" />
 
     <!-- Explainer content -->
-    <div class="prose mt-12">
+    <div class="prose mt-4">
       <slot name="content" />
     </div>{monetizationPlan.inContent && <MonetizationRegion placement="calculator-in-content" pageSlug={calculator.slug} category={calculator.category} class="mt-12 max-w-3xl" />}
 
     <!-- Related guides -->
     {
       relatedGuides.length > 0 && (
-        <section class="mt-14 max-w-3xl" aria-labelledby="guides-heading">
+        <section class="mt-4 max-w-3xl" aria-labelledby="guides-heading">
           <h2 id="guides-heading" class="text-2xl font-bold">Read more</h2>
           <ul class="mt-5 space-y-3">
             {relatedGuides.map((g) => (
@@ -323,7 +343,7 @@ sync();
     <!-- FAQ -->
     {
       faqs.length > 0 && (
-        <section class="mt-14 max-w-3xl" aria-labelledby="faq-heading">
+        <section class="mt-4 max-w-3xl" aria-labelledby="faq-heading">
           <h2 id="faq-heading" class="text-2xl font-bold">Frequently asked questions</h2>
           <div class="mt-5 space-y-3">
             {faqs.map((f) => (
@@ -346,7 +366,7 @@ sync();
     <!-- Related -->
     {
       related.length > 0 && (
-        <section class="mt-16" aria-labelledby="related-heading">
+        <section class="mt-6" aria-labelledby="related-heading">
           <h2 id="related-heading" class="text-2xl font-bold">Related calculators</h2>
           <ul class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((c) => (
@@ -368,7 +388,7 @@ sync();
     {/* Trust signals (task-first): review date, methodology and references, below the tool */}
     {
       taskFirst && (reviewedDisplay || aboutReferences.length > 0) && (
-        <section class="mt-16 max-w-3xl border-t pt-8" style="border-color: var(--line)" aria-labelledby="about-heading">
+        <section class="mt-6 max-w-3xl border-t pt-8" style="border-color: var(--line)" aria-labelledby="about-heading">
           <h2 id="about-heading" class="text-2xl font-bold">About this calculator</h2>
           {reviewedDisplay && (
             <p class="mt-3 inline-flex items-center gap-1.5 text-sm" style="color: var(--muted)">

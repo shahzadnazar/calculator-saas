@@ -1,291 +1,327 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateAmortizationValues,
-  computeAmortization,
-  completeResultValue,
-  describeAmortizationResult,
-  spokenUSD,
-  amortizationBinding,
+  AMORTIZATION_EXAMPLE_VALUES,
   MAX_TERM_YEARS,
-  MAX_MONTHLY_ROWS,
+  ONE_TIME_SLOTS,
+  TERM_MAX_MESSAGE,
   TERM_MESSAGE,
+  amortizationBinding,
+  completeResultValue,
+  computeAmortization,
+  describeAmortizationResult,
+  emptyOneTimeList,
+  formatMonths,
+  spokenUSD,
+  validateAmortizationValues,
   type AmortComputed,
   type AmortValues,
 } from './amortization-form';
 
-const values = (over: Partial<AmortValues> = {}): AmortValues => ({
-  amount: '250000',
-  annualInterestRate: '6.5',
-  termYears: '30',
-  ...over,
-});
+/**
+ * Amortization binding — validation, the optional extras and the complete-result
+ * guard.
+ *
+ * The guard carries most of these tests: it is what stands between a reader and a
+ * schedule whose rows do not add up to its totals, so every way a result can be
+ * internally inconsistent is asserted to fail it.
+ */
 
-/* ------------------------------------------------------------------ */
-/* Constants / contract                                                */
-/* ------------------------------------------------------------------ */
+const FULL: AmortValues = {
+  amount: '200000',
+  annualInterestRate: '6',
+  termYears: '15',
+  termMonths: '0',
+  startMonth: '',
+  startYear: '',
+  extraMonthlyAmount: '',
+  extraMonthlyMonth: '',
+  extraMonthlyYear: '',
+  extraYearlyAmount: '',
+  extraYearlyMonth: '',
+  extraYearlyYear: '',
+  extraOneTime: emptyOneTimeList(),
+};
 
-describe('amortization binding — contract constants', () => {
-  it('the migrated-product term ceiling is 30 years / 360 monthly rows', () => {
-    expect(MAX_TERM_YEARS).toBe(30);
-    expect(MAX_MONTHLY_ROWS).toBe(360);
-    expect(TERM_MESSAGE).toBe('Enter a whole loan term from 1 to 30 years.');
-  });
-});
+const at = (over: Partial<AmortValues> = {}): AmortValues => ({ ...FULL, ...over });
+const errs = (r: ReturnType<typeof validateAmortizationValues>): Record<string, string> =>
+  r.ok ? {} : (r.fieldErrors ?? {});
+const cents = (n: number) => Math.round(n * 100) / 100;
 
-/* ------------------------------------------------------------------ */
-/* Validation                                                          */
-/* ------------------------------------------------------------------ */
-
-describe('validateAmortizationValues — amount', () => {
-  it('requires a loan amount', () => {
-    const r = validateAmortizationValues(values({ amount: '' }));
-    expect(r).toMatchObject({ ok: false, fieldErrors: { amount: 'Enter a loan amount.' } });
-  });
-  it('rejects zero and negative amounts as greater-than-zero', () => {
-    for (const amount of ['0', '-100', '-0.5']) {
-      const r = validateAmortizationValues(values({ amount }));
-      expect(r).toMatchObject({ ok: false, fieldErrors: { amount: 'Enter a loan amount greater than zero.' } });
-    }
-  });
-  it('rejects non-finite amounts', () => {
-    for (const amount of ['abc', 'Infinity', 'NaN']) {
-      expect(validateAmortizationValues(values({ amount })).ok).toBe(false);
-    }
-  });
-  it('accepts a positive amount', () => {
-    expect(validateAmortizationValues(values({ amount: '1000' })).ok).toBe(true);
-  });
-});
-
-describe('validateAmortizationValues — interest rate', () => {
-  it('requires a rate', () => {
-    expect(validateAmortizationValues(values({ annualInterestRate: '' }))).toMatchObject({
-      ok: false,
-      fieldErrors: { annualInterestRate: 'Enter an interest rate.' },
-    });
-  });
-  it('rejects a negative rate', () => {
-    expect(validateAmortizationValues(values({ annualInterestRate: '-1' }))).toMatchObject({
-      ok: false,
-      fieldErrors: { annualInterestRate: 'Enter an interest rate of zero or more.' },
-    });
-  });
-  it('ACCEPTS a 0% rate (a valid zero-interest loan)', () => {
-    expect(validateAmortizationValues(values({ annualInterestRate: '0' })).ok).toBe(true);
-  });
-});
-
-describe('validateAmortizationValues — term (migrated-product boundary 1–30, whole)', () => {
-  it('accepts the boundary terms 1 and 30', () => {
-    expect(validateAmortizationValues(values({ termYears: '1' })).ok).toBe(true);
-    expect(validateAmortizationValues(values({ termYears: '30' })).ok).toBe(true);
+describe('validation — the required fields', () => {
+  it('accepts the reference entry', () => {
+    expect(validateAmortizationValues(FULL)).toEqual({ ok: true });
   });
 
-  it('rejects a term above the 30-year maximum with the single term message', () => {
-    for (const termYears of ['31', '40', '50', '100']) {
-      expect(validateAmortizationValues(values({ termYears }))).toMatchObject({
-        ok: false,
-        fieldErrors: { termYears: TERM_MESSAGE },
-      });
+  it('requires a loan amount greater than zero', () => {
+    expect(errs(validateAmortizationValues(at({ amount: '' }))).amount).toBe('Enter a loan amount.');
+    for (const bad of ['0', '-5000', 'abc']) {
+      expect(errs(validateAmortizationValues(at({ amount: bad }))).amount).toBeTruthy();
     }
   });
 
-  it('rejects a term below 1', () => {
-    for (const termYears of ['0', '-5']) {
-      expect(validateAmortizationValues(values({ termYears })).ok).toBe(false);
-      expect(validateAmortizationValues(values({ termYears })).ok).toBe(false);
-    }
-  });
-
-  it('rejects a fractional term (never rounded)', () => {
-    for (const termYears of ['2.5', '29.9', '0.5']) {
-      expect(validateAmortizationValues(values({ termYears }))).toMatchObject({
-        ok: false,
-        fieldErrors: { termYears: TERM_MESSAGE },
-      });
-    }
-  });
-
-  it('rejects an empty or non-finite term with the same single message', () => {
-    for (const termYears of ['', 'abc', 'Infinity', 'NaN']) {
-      expect(validateAmortizationValues(values({ termYears }))).toMatchObject({
-        ok: false,
-        fieldErrors: { termYears: TERM_MESSAGE },
-      });
-    }
+  it('requires an interest rate, and accepts zero', () => {
+    expect(errs(validateAmortizationValues(at({ annualInterestRate: '' }))).annualInterestRate).toBe(
+      'Enter an interest rate.',
+    );
+    expect(errs(validateAmortizationValues(at({ annualInterestRate: '-1' }))).annualInterestRate).toBeTruthy();
+    expect(validateAmortizationValues(at({ annualInterestRate: '0' }))).toEqual({ ok: true });
   });
 });
 
-describe('validateAmortizationValues — combined', () => {
-  it('passes for a complete, in-range loan', () => {
-    expect(validateAmortizationValues(values())).toEqual({ ok: true });
+describe('validation — the term is two boxes but one quantity', () => {
+  it('accepts years alone, months alone, or both', () => {
+    expect(validateAmortizationValues(at({ termYears: '15', termMonths: '' }))).toEqual({ ok: true });
+    expect(validateAmortizationValues(at({ termYears: '', termMonths: '18' }))).toEqual({ ok: true });
+    expect(validateAmortizationValues(at({ termYears: '5', termMonths: '6' }))).toEqual({ ok: true });
   });
-  it('reports every invalid field at once', () => {
-    const r = validateAmortizationValues({ amount: '', annualInterestRate: '-1', termYears: '99' });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(Object.keys(r.fieldErrors!).sort()).toEqual(['amount', 'annualInterestRate', 'termYears']);
+
+  it('rejects a term of nothing at all, against the years box', () => {
+    expect(errs(validateAmortizationValues(at({ termYears: '', termMonths: '' }))).termYears).toBe(TERM_MESSAGE);
+    expect(errs(validateAmortizationValues(at({ termYears: '0', termMonths: '0' }))).termYears).toBe(TERM_MESSAGE);
+  });
+
+  it(`rejects a term beyond ${MAX_TERM_YEARS} years`, () => {
+    expect(errs(validateAmortizationValues(at({ termYears: '31' }))).termYears).toBe(TERM_MAX_MESSAGE);
+    expect(errs(validateAmortizationValues(at({ termYears: '30', termMonths: '1' }))).termYears).toBe(
+      TERM_MAX_MESSAGE,
+    );
+    expect(validateAmortizationValues(at({ termYears: '30', termMonths: '0' }))).toEqual({ ok: true });
+  });
+
+  it('rejects a fractional or negative box, never rounding it', () => {
+    expect(errs(validateAmortizationValues(at({ termYears: '15.5' }))).termYears).toBeTruthy();
+    expect(errs(validateAmortizationValues(at({ termMonths: '2.5' }))).termMonths).toBeTruthy();
+    expect(errs(validateAmortizationValues(at({ termYears: '-3' }))).termYears).toBeTruthy();
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Computation — pass-through to the unchanged calculateLoan           */
-/* ------------------------------------------------------------------ */
+describe('validation — the optional extras', () => {
+  it('an untouched form reaches none of the extras branches', () => {
+    expect(validateAmortizationValues(FULL)).toEqual({ ok: true });
+  });
+
+  it('accepts extras with no date at all — blank means from the first payment', () => {
+    expect(
+      validateAmortizationValues(at({ extraMonthlyAmount: '200', extraYearlyAmount: '1000' })),
+    ).toEqual({ ok: true });
+  });
+
+  it('rejects a negative or unparseable extra amount', () => {
+    expect(errs(validateAmortizationValues(at({ extraMonthlyAmount: '-50' }))).extraMonthlyAmount).toBeTruthy();
+    expect(errs(validateAmortizationValues(at({ extraYearlyAmount: 'lots' }))).extraYearlyAmount).toBeTruthy();
+  });
+
+  it('rejects an out-of-range year on any dated field', () => {
+    expect(errs(validateAmortizationValues(at({ startYear: '1800' }))).startYear).toBeTruthy();
+    expect(errs(validateAmortizationValues(at({ extraMonthlyYear: '9999' }))).extraMonthlyYear).toBeTruthy();
+    expect(errs(validateAmortizationValues(at({ extraYearlyYear: '12.5' }))).extraYearlyYear).toBeTruthy();
+  });
+
+  it('validates every one-time row by its own key', () => {
+    const rows = emptyOneTimeList();
+    rows[2] = { amount: '-100', month: '', year: '' };
+    rows[4] = { amount: '500', month: '', year: '1700' };
+    const e = errs(validateAmortizationValues(at({ extraOneTime: rows })));
+    expect(e.extraOneTime3Amount).toBeTruthy();
+    expect(e.extraOneTime5Year).toBeTruthy();
+    expect(e.extraOneTime1Amount).toBeUndefined();
+  });
+
+  it('offers five one-time rows', () => {
+    expect(ONE_TIME_SLOTS).toBe(5);
+    expect(emptyOneTimeList()).toHaveLength(5);
+  });
+});
 
 describe('computeAmortization', () => {
-  it('delegates to calculateLoan for a 30-year loan (360 rows, reconciling totals)', () => {
-    const r = computeAmortization(values());
-    expect(r.monthlyPayment).toBeCloseTo(1580.17, 2);
-    expect(r.totalInterest).toBeCloseTo(318861.22, 2);
-    expect(r.totalPaid).toBeCloseTo(568861.22, 2);
-    expect(r.payoffMonths).toBe(360);
-    expect(r.schedule.length).toBe(360);
-    expect(r.yearlySchedule.length).toBe(30);
-    expect(r.schedule[359].balance).toBe(0);
+  it('reproduces the reference case', () => {
+    const r = computeAmortization(FULL);
+    expect(cents(r.monthlyPayment)).toBe(1687.71);
+    expect(cents(r.totalOfPayments)).toBe(303788.46);
+    expect(cents(r.totalInterest)).toBe(103788.46);
+    expect(r.payoffMonths).toBe(180);
+    expect(r.hasExtras).toBe(false);
+    expect(r.annual).toHaveLength(15);
   });
 
-  it('a 1-year term yields exactly 12 monthly rows / 1 yearly row', () => {
-    const r = computeAmortization(values({ termYears: '1' }));
-    expect(r.schedule.length).toBe(12);
-    expect(r.yearlySchedule.length).toBe(1);
+  it('reads the term from both boxes', () => {
+    expect(computeAmortization(at({ termYears: '5', termMonths: '6' })).scheduledMonths).toBe(66);
+    expect(computeAmortization(at({ termYears: '', termMonths: '18' })).scheduledMonths).toBe(18);
   });
 
-  it('the maximum in-range term never exceeds MAX_MONTHLY_ROWS', () => {
-    const r = computeAmortization(values({ termYears: String(MAX_TERM_YEARS) }));
-    expect(r.schedule.length).toBeLessThanOrEqual(MAX_MONTHLY_ROWS);
-    expect(r.schedule.length).toBe(MAX_MONTHLY_ROWS);
+  it('flags extras only when one actually applies', () => {
+    expect(computeAmortization(at({ extraMonthlyAmount: '0' })).hasExtras).toBe(false);
+    expect(computeAmortization(at({ extraMonthlyAmount: '200' })).hasExtras).toBe(true);
   });
 
-  it('a 0% loan computes a principal-only schedule', () => {
-    const r = computeAmortization(values({ amount: '12000', annualInterestRate: '0', termYears: '1' }));
-    expect(r.monthlyPayment).toBe(1000);
-    expect(r.totalInterest).toBe(0);
-    expect(r.schedule[0].interest).toBe(0);
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* Complete-result guard in resultValue (NO isUsableResult) — R11B1.1   */
-/* ------------------------------------------------------------------ */
-
-const good = (): AmortComputed => computeAmortization(values());
-/** completeResultValue returns a NaN sentinel on any failure. */
-const rejects = (r: AmortComputed) => Number.isNaN(completeResultValue(r));
-
-describe('amortization binding — resultValue complete-result guard', () => {
-  it('does NOT define isUsableResult (guard lives in resultValue)', () => {
-    expect(amortizationBinding.isUsableResult).toBeUndefined();
+  it('an extra with no date applies from the first payment', () => {
+    const r = computeAmortization(at({ extraMonthlyAmount: '200' }));
+    expect(r.schedule[0].extra).toBe(200);
   });
 
-  it('the binding wires resultValue to completeResultValue', () => {
-    expect(amortizationBinding.resultValue).toBe(completeResultValue);
-  });
-
-  it('returns the dominant monthly payment for a well-formed result', () => {
-    const r = good();
-    expect(completeResultValue(r)).toBe(r.monthlyPayment);
-    expect(Number.isFinite(completeResultValue(r))).toBe(true);
-  });
-
-  /* --- Summary failures --- */
-  it('rejects non-finite / negative summary values', () => {
-    expect(rejects({ ...good(), monthlyPayment: Infinity })).toBe(true);
-    expect(rejects({ ...good(), monthlyPayment: NaN })).toBe(true);
-    expect(rejects({ ...good(), monthlyPayment: -1 })).toBe(true);
-    expect(rejects({ ...good(), totalInterest: -1 })).toBe(true);
-    expect(rejects({ ...good(), totalPaid: -1 })).toBe(true);
-  });
-
-  it('rejects a non-whole or out-of-range payoffMonths', () => {
-    expect(rejects({ ...good(), payoffMonths: 359.5 })).toBe(true);
-    expect(rejects({ ...good(), payoffMonths: 0 })).toBe(true);
-  });
-
-  it('rejects a schedule OVER 360 rows', () => {
-    const r = good();
-    const rows = Array.from({ length: MAX_MONTHLY_ROWS + 1 }, (_, i) => ({ ...r.schedule[0], period: i + 1 }));
-    expect(rejects({ ...r, payoffMonths: MAX_MONTHLY_ROWS + 1, schedule: rows })).toBe(true);
-  });
-
-  /* --- Malformed MONTHLY schedule --- */
-  it('rejects an empty monthly schedule', () => {
-    expect(rejects({ ...good(), schedule: [] })).toBe(true);
-  });
-  it('rejects a schedule whose length disagrees with payoffMonths', () => {
-    const r = good();
-    expect(rejects({ ...r, schedule: r.schedule.slice(0, r.schedule.length - 1) })).toBe(true);
-  });
-  it('rejects out-of-order periods', () => {
-    const r = good();
-    const sched = r.schedule.map((row, i) => (i === 5 ? { ...row, period: 999 } : row));
-    expect(rejects({ ...r, schedule: sched })).toBe(true);
-  });
-  it('rejects a non-finite or negative row value', () => {
-    const r = good();
-    expect(rejects({ ...r, schedule: r.schedule.map((row, i) => (i === 0 ? { ...row, balance: NaN } : row)) })).toBe(true);
-    expect(rejects({ ...r, schedule: r.schedule.map((row, i) => (i === 0 ? { ...row, principal: -1 } : row)) })).toBe(true);
-  });
-  it('rejects a row where payment ≠ principal + interest', () => {
-    const r = good();
-    const sched = r.schedule.map((row, i) => (i === 0 ? { ...row, payment: row.payment + 1 } : row));
-    expect(rejects({ ...r, schedule: sched })).toBe(true);
-  });
-  it('rejects a non-zero FINAL balance', () => {
-    const r = good();
-    const sched = r.schedule.map((row, i) => (i === r.schedule.length - 1 ? { ...row, balance: 100 } : row));
-    expect(rejects({ ...r, schedule: sched })).toBe(true);
-  });
-
-  /* --- Reconciliation failures --- */
-  it('rejects a PRINCIPAL reconciliation failure (loan amount does not match the schedule)', () => {
-    // loanAmount = totalPaid − totalInterest; inflating totalPaid breaks the principal reconciliation.
-    expect(rejects({ ...good(), totalPaid: good().totalPaid + 10_000 })).toBe(true);
-  });
-  it('rejects an INTEREST reconciliation failure', () => {
-    const r = good();
-    // Shift one row's interest AND payment together (row-sum still holds) so only the interest total drifts.
-    const sched = r.schedule.map((row, i) =>
-      i === 0 ? { ...row, interest: row.interest + 5_000, payment: row.payment + 5_000 } : row,
+  it('dates an extra relative to the loan start', () => {
+    const r = computeAmortization(
+      at({
+        startMonth: '1',
+        startYear: '2026',
+        extraOneTime: [
+          { amount: '10000', month: '7', year: '2026' },
+          ...emptyOneTimeList().slice(1),
+        ],
+      }),
     );
-    expect(rejects({ ...r, schedule: sched })).toBe(true);
+    // July 2026 is six months after January 2026, so the seventh payment.
+    expect(r.schedule[6].extra).toBe(10000);
+    expect(r.totalExtra).toBe(10000);
   });
 
-  /* --- Malformed YEARLY schedule --- */
-  it('rejects an empty yearly schedule', () => {
-    expect(rejects({ ...good(), yearlySchedule: [] })).toBe(true);
+  it('clamps a date before the loan start to the first payment', () => {
+    const r = computeAmortization(
+      at({
+        startMonth: '6',
+        startYear: '2026',
+        extraMonthlyAmount: '150',
+        extraMonthlyMonth: '1',
+        extraMonthlyYear: '2020',
+      }),
+    );
+    expect(r.schedule[0].extra).toBe(150);
   });
-  it('rejects a non-zero final YEARLY balance', () => {
-    const r = good();
-    const yearly = r.yearlySchedule.map((row, i) => (i === r.yearlySchedule.length - 1 ? { ...row, balance: 100 } : row));
-    expect(rejects({ ...r, yearlySchedule: yearly })).toBe(true);
+
+  it('shortens the loan and reports what was saved', () => {
+    const r = computeAmortization(at({ extraMonthlyAmount: '300' }));
+    expect(r.payoffMonths).toBeLessThan(180);
+    expect(r.interestSaved).toBeGreaterThan(0);
+    expect(r.monthsSaved).toBe(180 - r.payoffMonths);
+    expect(cents((r.withoutExtras as { totalInterest: number }).totalInterest)).toBe(103788.46);
   });
-  it('rejects a YEARLY reconciliation failure vs the monthly rows', () => {
-    const r = good();
-    const yearly = r.yearlySchedule.map((row, i) => (i === 0 ? { ...row, principal: row.principal + 10_000 } : row));
-    expect(rejects({ ...r, yearlySchedule: yearly })).toBe(true);
+
+  it('ignores blank one-time rows', () => {
+    const rows = emptyOneTimeList();
+    rows[1] = { amount: '2500', month: '', year: '' };
+    const r = computeAmortization(at({ extraOneTime: rows }));
+    expect(r.totalExtra).toBe(2500);
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Announcement                                                        */
-/* ------------------------------------------------------------------ */
+describe('the complete-result guard', () => {
+  const good = computeAmortization(FULL);
+  const withExtras = computeAmortization(at({ extraMonthlyAmount: '250' }));
+  const clone = (r: AmortComputed): AmortComputed => ({
+    ...r,
+    schedule: r.schedule.map((x) => ({ ...x })),
+    annual: r.annual.map((x) => ({ ...x })),
+    withoutExtras: r.withoutExtras ? { ...r.withoutExtras } : null,
+  });
+  const broken = (base: AmortComputed, mutate: (r: AmortComputed) => void): AmortComputed => {
+    const copy = clone(base);
+    mutate(copy);
+    return copy;
+  };
 
-describe('describeAmortizationResult + spokenUSD', () => {
-  it('speaks a USD amount with cents', () => {
-    expect(spokenUSD(1580.17)).toBe('1580 dollars and 17 cents');
-    expect(spokenUSD(1000)).toBe('1000 dollars');
+  it('accepts a result that reconciles, with and without extras', () => {
+    expect(cents(completeResultValue(good))).toBe(1687.71);
+    expect(cents(completeResultValue(withExtras))).toBe(1687.71);
+  });
+
+  it('rejects a summary that does not add up', () => {
+    expect(completeResultValue(broken(good, (r) => (r.totalInterest += 100)))).toBeNaN();
+    expect(completeResultValue(broken(good, (r) => (r.totalOfPayments *= 2)))).toBeNaN();
+    expect(completeResultValue(broken(good, (r) => (r.loanAmount -= 1000)))).toBeNaN();
+  });
+
+  it('rejects a non-finite or negative figure', () => {
+    expect(completeResultValue(broken(good, (r) => (r.monthlyPayment = Number.NaN)))).toBeNaN();
+    expect(completeResultValue(broken(good, (r) => (r.totalInterest = -1)))).toBeNaN();
+  });
+
+  it('rejects a row whose payment is not its principal plus interest', () => {
+    expect(completeResultValue(broken(good, (r) => (r.schedule[10].payment += 5)))).toBeNaN();
+  });
+
+  it('rejects rows that are reordered or have a gap', () => {
+    expect(completeResultValue(broken(good, (r) => (r.schedule[5].period = 99)))).toBeNaN();
+    expect(completeResultValue(broken(good, (r) => r.schedule.splice(5, 1)))).toBeNaN();
+  });
+
+  it('rejects a schedule that does not repay the loan', () => {
+    expect(completeResultValue(broken(good, (r) => (r.schedule[3].principal += 500)))).toBeNaN();
+  });
+
+  it('rejects a final balance that is not zero', () => {
+    expect(completeResultValue(broken(good, (r) => (r.schedule[179].balance = 250)))).toBeNaN();
+  });
+
+  it('rejects yearly rows that disagree with the monthly ones', () => {
+    expect(completeResultValue(broken(good, (r) => (r.annual[4].interest += 50)))).toBeNaN();
+    expect(completeResultValue(broken(good, (r) => (r.annual[4].balance += 50)))).toBeNaN();
+    expect(completeResultValue(broken(good, (r) => r.annual.pop()))).toBeNaN();
+  });
+
+  it('rejects a payoff longer than the scheduled term', () => {
+    expect(completeResultValue(broken(good, (r) => (r.scheduledMonths = 12)))).toBeNaN();
+  });
+
+  it('rejects an extras flag that disagrees with the extras paid', () => {
+    expect(completeResultValue(broken(good, (r) => (r.hasExtras = true)))).toBeNaN();
+    expect(completeResultValue(broken(withExtras, (r) => (r.hasExtras = false)))).toBeNaN();
+  });
+
+  it('rejects a comparison missing from a result that claims extras', () => {
+    expect(completeResultValue(broken(withExtras, (r) => (r.withoutExtras = null)))).toBeNaN();
+  });
+
+  it('rejects savings that contradict the comparison', () => {
+    expect(completeResultValue(broken(withExtras, (r) => (r.interestSaved += 1000)))).toBeNaN();
+    expect(completeResultValue(broken(withExtras, (r) => (r.monthsSaved += 3)))).toBeNaN();
+    // Paying extra can never cost more interest or take longer.
+    expect(completeResultValue(broken(withExtras, (r) => (r.interestSaved = -50)))).toBeNaN();
+    expect(completeResultValue(broken(withExtras, (r) => (r.monthsSaved = -1)))).toBeNaN();
+  });
+
+  it('rejects stray savings on a result with no extras', () => {
+    expect(completeResultValue(broken(good, (r) => (r.interestSaved = 500)))).toBeNaN();
+  });
+
+  it('rejects an extra column that does not sum to the reported total', () => {
+    expect(completeResultValue(broken(withExtras, (r) => (r.schedule[2].extra += 100)))).toBeNaN();
+  });
+});
+
+describe('presentation helpers', () => {
+  it('announces the monthly payment', () => {
+    expect(describeAmortizationResult(computeAmortization(FULL))).toBe(
+      'Your monthly payment is 1687 dollars and 71 cents.',
+    );
+  });
+
+  it('speaks dollars and cents', () => {
+    expect(spokenUSD(0)).toBe('0 dollars');
     expect(spokenUSD(1)).toBe('1 dollar');
-    expect(spokenUSD(0.01)).toBe('0 dollars and 1 cent');
+    expect(spokenUSD(1687.71)).toBe('1687 dollars and 71 cents');
   });
 
-  it('announces the dominant payment, the payment count and total interest', () => {
-    const msg = describeAmortizationResult(computeAmortization(values()));
-    expect(msg).toBe(
-      'Your estimated monthly payment is 1580 dollars and 17 cents over 360 monthly payments, with 318861 dollars and 22 cents in total interest.',
-    );
+  it('formats a duration in years and months, dropping the empty half', () => {
+    expect(formatMonths(0)).toBe('0 months');
+    expect(formatMonths(1)).toBe('1 month');
+    expect(formatMonths(7)).toBe('7 months');
+    expect(formatMonths(12)).toBe('1 year');
+    expect(formatMonths(24)).toBe('2 years');
+    expect(formatMonths(38)).toBe('3 years 2 months');
+  });
+});
+
+describe('the worked example', () => {
+  it('validates, so the example a visitor sees is a real calculation', () => {
+    expect(validateAmortizationValues(AMORTIZATION_EXAMPLE_VALUES)).toEqual({ ok: true });
   });
 
-  it('singularizes a one-payment loan', () => {
-    const r = { ...computeAmortization(values()), payoffMonths: 1 };
-    expect(describeAmortizationResult(r)).toContain('over 1 monthly payment,');
+  it('is the published reference case and passes the same guard as any other result', () => {
+    const r = computeAmortization(AMORTIZATION_EXAMPLE_VALUES);
+    expect(cents(amortizationBinding.resultValue(r) as number)).toBe(1687.71);
+  });
+
+  it('carries no extras, matching what an untouched form produces', () => {
+    expect(computeAmortization(AMORTIZATION_EXAMPLE_VALUES).hasExtras).toBe(false);
   });
 });

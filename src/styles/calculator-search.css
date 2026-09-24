@@ -168,3 +168,35 @@
   min-height: 52px;
   padding: 0.4rem 0.6rem;
 }
+
+/* ---------------------------------------------------------------------------
+   In a calculator's desktop side rail
+   ---------------------------------------------------------------------------
+   There the search is a secondary way in, not the page's main action, so it
+   sits lower than the hero's box and the button matches the input's height
+   exactly. Scoped to the rail's own container query on purpose: below it the
+   rail becomes a full-width row on touch, where the >=44px tap-target rule
+   applies and the control keeps its normal size.
+
+   These live here rather than in global.css because this stylesheet is
+   unlayered — an @layer components rule there would lose to the base
+   .calc-search__input rule above however specific it was.
+   --------------------------------------------------------------------------- */
+@container (min-width: 1040px) {
+  .tool-rail .calc-search__input,
+  .tool-rail .calc-search__submit {
+    min-height: 2.25rem;
+    padding-block: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.3;
+    border-radius: 0.5rem;
+  }
+
+  .tool-rail .calc-search__input {
+    padding-inline: 0.65rem;
+  }
+
+  .tool-rail .calc-search__submit {
+    padding-inline: 0.8rem;
+  }
+}

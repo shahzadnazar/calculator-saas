@@ -4,18 +4,21 @@ import IncomeTaxCalculator from '@components/islands/IncomeTaxCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'income-tax-calculator')!;
 const faqs = [
-  { question: 'How is federal income tax calculated?', answer: 'The U.S. uses progressive brackets: different portions of your income are taxed at increasing rates. Your income is first reduced by the standard (or itemized) deduction, then each bracket applies only to the income that falls within its range. This calculator uses the 2024 brackets and standard deduction.' },
-  { question: 'Which states have no income tax?', answer: 'Nine states levy no tax on wage income: Alaska, Florida, Nevada, South Dakota, Tennessee, Texas, Washington, Wyoming and New Hampshire. (New Hampshire taxed interest and dividends until that tax was fully repealed in 2025, and Washington taxes certain capital gains but not wages.) In every other state you also owe state income tax on top of the federal figure shown here.' },
-  { question: 'What is the difference between the marginal and effective rate?', answer: 'Your marginal rate is the rate on your last dollar of income — your top bracket. Your effective rate is your total tax divided by your total income, and it is always lower, because your first dollars are taxed in the cheaper brackets. A "22% bracket" earner usually pays an effective rate closer to 12–15%.' },
-  { question: 'Is Social Security taxed as income?', answer: 'Two separate things. While you work, wages fund Social Security and Medicare through FICA payroll tax (7.65%), which is separate from income tax. In retirement, up to 85% of your Social Security benefits can be taxable as income depending on your total income — many lower-income retirees owe nothing on them.' },
-  { question: 'When is the income tax deadline?', answer: 'Federal returns are normally due April 15. If the 15th falls on a weekend or holiday it moves to the next business day, and you can request an automatic extension to file (though not to pay) until October 15. State deadlines usually mirror the federal date.' },
-  { question: 'Does this include state tax, FICA and credits?', answer: 'No — this is a federal income tax estimate only. It excludes state and local income taxes, FICA payroll taxes, and credits such as the Earned Income Tax Credit or Child Tax Credit, which can substantially lower (or, for refundable credits, reverse) your actual bill.' },
+  { question: 'How is federal income tax calculated?', answer: 'Progressively. Your income is first reduced by adjustments and then by the standard or itemized deduction, and each bracket applies only to the slice of taxable income that falls inside it. For a single filer in 2025 with $64,250 of taxable income that is 10% on the first $11,925, 12% up to $48,475 and 22% on the rest — $9,049 in total, not 22% of everything.' },
+  { question: 'What is the difference between the marginal and effective rate?', answer: 'Your marginal rate is the rate on your next dollar of income — your top bracket. Your effective rate is your total tax divided by your total income, and it is always lower, because your first dollars are taxed in the cheaper brackets. Someone "in the 22% bracket" usually pays an effective rate closer to 11–14%.' },
+  { question: 'Which tax year should I choose?', answer: 'Choose 2025 for the return you file in 2026, and 2026 for planning ahead or estimating quarterly payments. Both sets of figures come from the IRS inflation adjustments, including the changes made by the July 2025 reconciliation law — the higher standard deduction, the raised state and local cap, and the temporary deductions for tips, overtime, car loan interest and seniors.' },
+  { question: 'Why does entering tips or overtime lower my tax without lowering my income?', answer: 'Because those amounts are already inside your W-2 wages. The 2025 law lets you deduct up to $25,000 of qualified tips and up to $12,500 of overtime ($25,000 on a joint return) from taxable income, so you enter them as deductions rather than as extra income. The same is true of up to $10,000 of interest on a qualifying car loan.' },
+  { question: 'Should I itemize or take the standard deduction?', answer: 'Whichever is larger — the calculator takes the better of the two for you. Itemizing only wins once your state and local taxes (capped), mortgage interest, charitable gifts and other deductibles together beat the standard deduction, which is $15,750 for a single filer in 2025 and $16,100 in 2026.' },
+  { question: 'Are long-term capital gains taxed differently?', answer: 'Yes. Qualified dividends and gains on assets held more than a year are taxed at 0%, 15% or 20% rather than at the ordinary rates, and they stack on top of your ordinary income — so it is your other income that decides which of the three rates the gains start at.' },
+  { question: 'Does this include state tax and payroll tax?', answer: 'It estimates federal income tax, plus self-employment tax and the net investment income tax where they apply. It does not compute a state return; the state and local rate field is only used to estimate your deduction. Ordinary FICA withholding on wages is separate and is not shown.' },
+  { question: 'How accurate is this?', answer: 'It is an estimate, and takes the mainstream path through each rule. It does not model the earned income credit, the refundable part of the child credit, the qualified business income deduction, itemized medical expenses, or AMT preferences beyond the state and local addback. For anything consequential, check with a preparer.' },
 ];
 ---
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Estimate your U.S. federal income tax using the 2024 brackets and standard deduction, with your effective and marginal rates and after-tax income."
+  rail
+  intro="Estimate the refund or amount owed on a federal return for 2025 or 2026, from your income, deductions, credits and what has already been withheld."
   faqs={faqs}
   reviewMetadata={{ reviewedDate: '2026-08-09' }}
 >
@@ -23,124 +26,101 @@ const faqs = [
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter your <strong>gross annual income</strong> — total pay before any tax is taken out.</li>
-      <li>Choose your <strong>filing status</strong>: single or married filing jointly. Each uses its own bracket table and standard deduction.</li>
-      <li>Optionally add <strong>pre-tax deductions</strong> such as traditional 401(k) or HSA contributions, which come off your income on top of the standard deduction.</li>
-      <li>Press <strong>Calculate</strong> to see your estimated federal tax, taxable income, after-tax income, and both your marginal and effective rates.</li>
+      <li>Set your <strong>file status</strong>, <strong>age</strong>, dependants and the
+        <strong>tax year</strong> you are estimating.</li>
+      <li>Enter your <strong>income</strong>. Wages and federal tax withheld come straight off
+        your W-2 (boxes 1 and 2); the rest of the boxes cover interest, dividends, gains and
+        anything else that arrives on a 1099.</li>
+      <li>Add your <strong>deductions and credits</strong>. Leave anything that does not apply at
+        zero — the calculator will simply take the standard deduction if itemizing does not beat it.</li>
+      <li>Press <strong>Calculate</strong> to see the return line by line, ending in what you owe
+        or get back.</li>
     </ol>
-    <p>
-      The result is a federal-only estimate for the 2024 tax year. It applies the standard
-      deduction automatically, so you enter gross income and the tool handles the deduction
-      and the bracket-by-bracket arithmetic.
-    </p>
-
-    <h2>How progressive tax brackets work</h2>
-    <p>
-      A higher salary does not push your <em>whole</em> income into a higher rate — only the
-      portion that falls inside each bracket is taxed at that bracket's rate. That is the
-      single most misunderstood part of the tax system, and it is why your
-      <strong>effective</strong> rate (total tax ÷ income) is always lower than your
-      <strong>marginal</strong> rate (your top bracket). These are the 2024 federal rates for
-      a single filer, applied to income after the standard deduction:
-    </p>
-    <table>
-      <thead>
-        <tr><th>Tax rate</th><th>Taxable income (single filer, 2024)</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>10%</td><td>$0 – $11,600</td></tr>
-        <tr><td>12%</td><td>$11,600 – $47,150</td></tr>
-        <tr><td>22%</td><td>$47,150 – $100,525</td></tr>
-        <tr><td>24%</td><td>$100,525 – $191,950</td></tr>
-        <tr><td>32%</td><td>$191,950 – $243,725</td></tr>
-        <tr><td>35%</td><td>$243,725 – $609,350</td></tr>
-        <tr><td>37%</td><td>Over $609,350</td></tr>
-      </tbody>
-    </table>
-
-    <h2>Single vs. married filing jointly</h2>
-    <p>
-      Married-filing-jointly couples use the same seven rates but over roughly doubled bands,
-      and a larger standard deduction ($29,200 versus $14,600 for 2024). Because the lower
-      brackets stretch twice as far, a couple with one earner keeps more than a single filer
-      on the identical income:
-    </p>
-    <table>
-      <thead>
-        <tr><th>Tax rate</th><th>Taxable income (married filing jointly, 2024)</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>10%</td><td>$0 – $23,200</td></tr>
-        <tr><td>12%</td><td>$23,200 – $94,300</td></tr>
-        <tr><td>22%</td><td>$94,300 – $201,050</td></tr>
-        <tr><td>24%</td><td>$201,050 – $383,900</td></tr>
-        <tr><td>32%</td><td>$383,900 – $487,450</td></tr>
-        <tr><td>35%</td><td>$487,450 – $731,200</td></tr>
-        <tr><td>37%</td><td>Over $731,200</td></tr>
-      </tbody>
-    </table>
-    <p>
-      On a $120,000 income, a single filer owes about $18,339, while a married-jointly filer
-      with the same income owes roughly $10,432 — the wider bands and bigger deduction cut the
-      bill by nearly half. Switch the filing status above to see the difference on your own
-      numbers.
-    </p>
 
     <h2>A worked example</h2>
     <p>
-      Take a single filer earning <strong>$60,000</strong>. Subtract the 2024 standard
-      deduction of $14,600 and taxable income is <strong>$45,400</strong>. The tax is built up
-      one bracket at a time:
+      A single filer aged 30 earned <strong>$80,000</strong> in 2025 and had
+      <strong>$9,000</strong> of federal tax withheld. Nothing else applies.
+    </p>
+    <p>
+      The standard deduction of <strong>$15,750</strong> comes off first, leaving
+      <strong>$64,250</strong> of taxable income. That is taxed in three slices: 10% of the first
+      $11,925 is $1,193, 12% of the next $36,550 is $4,386, and 22% of the remaining $15,775 is
+      $3,471 — <strong>$9,049</strong> in all. Their marginal rate is 22%, but their effective rate
+      is only 11.3%. Against $9,000 already withheld, they owe <strong>$49</strong>.
+    </p>
+
+    <h2>The 2025 and 2026 brackets</h2>
+    <p>
+      Both years use the same seven rates on inflation-adjusted thresholds. These are the single
+      filer's; joint filers get roughly double, and head of household sits between the two.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Rate</th><th>2025 taxable income</th><th>2026 taxable income</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>10%</td><td>$0 – $11,925</td><td>$0 – $12,400</td></tr>
+        <tr><td>12%</td><td>$11,925 – $48,475</td><td>$12,400 – $50,400</td></tr>
+        <tr><td>22%</td><td>$48,475 – $103,350</td><td>$50,400 – $105,700</td></tr>
+        <tr><td>24%</td><td>$103,350 – $197,300</td><td>$105,700 – $201,775</td></tr>
+        <tr><td>32%</td><td>$197,300 – $250,525</td><td>$201,775 – $256,225</td></tr>
+        <tr><td>35%</td><td>$250,525 – $626,350</td><td>$256,225 – $640,600</td></tr>
+        <tr><td>37%</td><td>Over $626,350</td><td>Over $640,600</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The standard deduction rises with them: <strong>$15,750</strong> single and
+      <strong>$31,500</strong> joint for 2025, <strong>$16,100</strong> and
+      <strong>$32,200</strong> for 2026, with an extra amount at 65.
+    </p>
+
+    <h2>What the temporary deductions do</h2>
+    <p>
+      The July 2025 law added four deductions that run through 2028 and sit
+      <em>above</em> the line, so you get them whether or not you itemize:
     </p>
     <ul>
-      <li>10% on the first $11,600 = <strong>$1,160</strong></li>
-      <li>12% on the remaining $33,800 = <strong>$4,056</strong></li>
-      <li>Total federal tax ≈ <strong>$5,216</strong></li>
+      <li><strong>Tips</strong> — up to $25,000 of qualified tip income.</li>
+      <li><strong>Overtime</strong> — up to $12,500, or $25,000 on a joint return.</li>
+      <li><strong>Car loan interest</strong> — up to $10,000 on a qualifying vehicle, fading out above $100,000 of income ($200,000 joint).</li>
+      <li><strong>Age 65 and over</strong> — an extra $6,000 per qualifying person, fading out above $75,000 ($150,000 joint).</li>
     </ul>
     <p>
-      That $45,400 sits entirely inside the 12% bracket, so 12% is the marginal rate — but the
-      $5,216 bill is only <strong>8.7%</strong> of the $60,000 salary, because the first
-      $11,600 was taxed at just 10% and the deduction escaped tax entirely.
+      Tips and overtime are already inside your W-2 wages, which is why they belong in the
+      deductions section rather than the income one — entering them twice would overstate what
+      you earned.
     </p>
 
-    <h2>Marginal vs. effective rate</h2>
+    <h2>Ordinary income and capital gains are taxed differently</h2>
     <p>
-      The gap between the two rates widens as income climbs. A single filer on $120,000 reaches
-      the <strong>24% marginal</strong> bracket, yet pays an <strong>effective rate of about
-      15.3%</strong> — because only the slice above $100,525 is taxed at 24%, while earlier
-      dollars were taxed at 10%, 12% and 22%. When people say they are "in the 24% bracket,"
-      they almost never pay 24% of their income; the effective rate is the number that reflects
-      what you actually owe.
+      Qualified dividends and gains on assets held more than a year use their own 0%, 15% and 20%
+      ladder. The important detail is that they stack <em>on top of</em> your ordinary income: it
+      is your wages and interest that decide where the gains slice begins, so the same $40,000 of
+      gains can be untaxed for one filer and taxed at 15% for another.
     </p>
 
-    <h2>How deductions lower your bill</h2>
+    <h2>Marginal versus effective</h2>
     <p>
-      Taxable income is gross income minus deductions, and this tool always applies the
-      <strong>standard deduction</strong> for your filing status. Traditional 401(k) and HSA
-      contributions reduce taxable income further, and each dollar removed is saved at your
-      <em>marginal</em> rate. Add $5,000 of pre-tax 401(k) to the $60,000 example and taxable
-      income drops to $40,400, cutting the tax to about $4,616 — a $600 saving, exactly 12% of
-      the $5,000.
-    </p>
-    <p>
-      Deductions differ from <em>credits</em>, which the tool does not model. A deduction lowers
-      the income that gets taxed; a credit cuts the tax itself, dollar for dollar. The Earned
-      Income Tax Credit and Child Tax Credit are the most common, and refundable credits can
-      exceed the tax withheld and produce a net refund.
+      A raise into the 24% bracket does not tax your whole income at 24% — only the dollars above
+      the threshold. That is why the effective rate in the example is 11.3% while the marginal
+      rate is 22%. When people say a raise "pushed them into a higher bracket and cost them
+      money", it is nearly always this that has been misunderstood.
     </p>
 
-    <h2>What this estimate leaves out</h2>
+    <h2>What this does not do</h2>
     <ul>
-      <li><strong>State and local income tax.</strong> Only federal tax is shown; most states add their own on top. Nine — Alaska, Florida, Nevada, South Dakota, Tennessee, Texas, Washington, Wyoming and New Hampshire — tax no wage income.</li>
-      <li><strong>FICA payroll tax.</strong> Social Security and Medicare (7.65% of wages) are separate from income tax and are not included here.</li>
-      <li><strong>Credits and itemized deductions.</strong> The tool uses the standard deduction and no credits, so an actual return with children, education costs or large itemized deductions can differ substantially.</li>
+      <li><strong>No state return.</strong> The state and local rate field only estimates your
+        deduction; it does not compute state tax owed.</li>
+      <li><strong>No earned income credit</strong>, and no refundable portion of the child credit,
+        so a low-income return will understate a refund.</li>
+      <li><strong>No qualified business income deduction</strong>, itemized medical expenses, or
+        AMT preferences beyond the state and local addback.</li>
     </ul>
     <p>
-      Treat the figure as a planning estimate for the 2024 tax year, not a filing number; for an
-      official calculation, consult a tax professional or the IRS. To see your pay in other
-      terms, use the <a href="/finance/salary-calculator">salary calculator</a>; to plan pre-tax
-      retirement contributions, try the <a href="/finance/retirement-calculator">retirement
-      calculator</a>. This is general educational information, not tax advice.
+      This is an estimate for planning, not a filing. To see what a salary is worth before tax,
+      try the <a href="/finance/salary-calculator">salary calculator</a>; to model saving what you
+      keep, the <a href="/finance/investment-calculator">investment calculator</a>.
     </p>
   </Fragment>
 </CalculatorLayout>

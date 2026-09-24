@@ -13,11 +13,12 @@
 import CalculatorLayout from '@layouts/CalculatorLayout.astro';
 import PhysicalCalculator from '@components/calc/PhysicalCalculator.astro';
 import { getCalculator } from '@data/calculators';
+import { SITE } from '@config/site';
 
 const calc = getCalculator('math', 'scientific-calculator')!;
 
 const faqs = [
-  { question: 'Is this scientific calculator free to use?', answer: 'Yes. Every calculator on AllCalculators is completely free, works in your browser with no sign-up, and runs entirely on your device — nothing you type is sent to a server.' },
+  { question: 'Is this scientific calculator free to use?', answer: `Yes. Every calculator on ${SITE.name} is completely free, works in your browser with no sign-up, and runs entirely on your device — nothing you type is sent to a server.` },
   { question: 'What is the difference between degree and radian mode?', answer: 'Degrees divide a circle into 360 parts; radians measure angles by arc length, where a full circle is 2π. Trigonometric functions such as sin, cos and tan give different results depending on the mode, so set Deg or Rad to match your problem before calculating.' },
   { question: 'How do I calculate powers and roots?', answer: 'Use x² or x³ for common powers, xʸ for any power (for example 2 xʸ 10 = 1024), √ for square roots and ∛ for cube roots. You can also type the caret ^ directly, e.g. 3^4.' },
   { question: 'Does it follow the correct order of operations?', answer: 'Yes. The calculator evaluates full expressions using standard order of operations (PEMDAS/BODMAS): parentheses first, then exponents, then multiplication and division, then addition and subtraction.' },
@@ -28,6 +29,7 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
+  rail
   intro="Enter an expression and calculate trigonometry, logarithms, powers and roots."
   faqs={faqs}
   reviewMetadata={{ reviewedDate: '2026-07-17' }}

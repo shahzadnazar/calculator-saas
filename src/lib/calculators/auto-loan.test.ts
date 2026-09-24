@@ -232,3 +232,156 @@ describe('auto loan — precision', () => {
     expect(r.totalLoanInterest).toBeCloseTo(Math.max(0, r.totalOfPayments - r.loanAmount), 6);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* Cash incentives, the schedule and the loan breakdown                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The reference case published for this calculator: a $50,000 car, 60 months at 5%,
+ * $10,000 down, 7% sales tax and $2,000 of fees, with taxes and fees paid upfront.
+ * Every figure below is pinned to that published result, so the engine cannot drift
+ * away from the numbers the product is expected to produce.
+ */
+const REFERENCE = {
+  autoPrice: 50000,
+  loanTermMonths: 60,
+  interestRatePct: 5,
+  downPayment: 10000,
+  tradeInValue: 0,
+  amountOwedOnTradeIn: 0,
+  salesTaxRatePct: 7,
+  fees: 2000,
+  includeTaxesFeesInLoan: false,
+};
+
+describe('auto loan — pinned against the published reference figures', () => {
+  const r = calculateAutoLoan(REFERENCE);
+  const money = (v: number) => Math.round(v * 100) / 100;
+
+  it('reproduces the summary to the cent', () => {
+    expect(money(r.loanAmount)).toBe(40000);
+    expect(money(r.salesTax)).toBe(3500);
+    expect(money(r.upfrontPayment)).toBe(15500);
+    expect(money(r.monthlyPayment)).toBe(754.85);
+    expect(money(r.totalOfPayments)).toBe(45290.96);
+    expect(money(r.totalLoanInterest)).toBe(5290.96);
+    expect(money(r.totalCost)).toBe(60790.96);
+  });
+
+  it('splits the repayment 88% principal / 12% interest', () => {
+    expect(Math.round(r.principalShare * 100)).toBe(88);
+    expect(Math.round((1 - r.principalShare) * 100)).toBe(12);
+  });
+
+  it('reproduces the monthly schedule to the cent', () => {
+    expect(r.schedule.length).toBe(60);
+    expect(r.schedule[0]).toMatchObject({ period: 1 });
+    expect(money(r.schedule[0].interest)).toBe(166.67);
+    expect(money(r.schedule[0].principal)).toBe(588.18);
+    expect(money(r.schedule[0].balance)).toBe(39411.82);
+    expect(money(r.schedule[11].interest)).toBe(139.14);
+    expect(money(r.schedule[11].principal)).toBe(615.71);
+    expect(money(r.schedule[11].balance)).toBe(32777.79);
+    expect(money(r.schedule[59].balance)).toBe(0);
+  });
+
+  it('reproduces the annual schedule to the cent', () => {
+    const expected = [
+      [1835.98, 7222.21, 32777.79],
+      [1466.48, 7591.71, 25186.08],
+      [1078.07, 7980.12, 17205.96],
+      [669.8, 8388.4, 8817.56],
+      [240.63, 8817.56, 0],
+    ];
+    expect(r.yearlySchedule.length).toBe(5);
+    r.yearlySchedule.forEach((row, i) => {
+      expect(row.period).toBe(i + 1);
+      expect([money(row.interest), money(row.principal), money(row.balance)]).toEqual(expected[i]);
+    });
+  });
+});
+
+describe('auto loan — the schedule is a real repayment', () => {
+  const r = calculateAutoLoan(REFERENCE);
+
+  it('every row pays interest + principal and periods run 1..n', () => {
+    r.schedule.forEach((row, i) => {
+      expect(row.period).toBe(i + 1);
+      expect(row.payment).toBeCloseTo(row.interest + row.principal, 9);
+      expect(row.interest).toBeGreaterThanOrEqual(0);
+      expect(row.principal).toBeGreaterThanOrEqual(0);
+      expect(row.balance).toBeGreaterThanOrEqual(0);
+    });
+  });
+  it('the principal repaid sums to the loan and the interest to the reported total', () => {
+    expect(r.schedule.reduce((s, x) => s + x.principal, 0)).toBeCloseTo(r.loanAmount, 6);
+    expect(r.schedule.reduce((s, x) => s + x.interest, 0)).toBeCloseTo(r.totalLoanInterest, 6);
+    expect(r.schedule.reduce((s, x) => s + x.payment, 0)).toBeCloseTo(r.totalOfPayments, 6);
+  });
+  it('interest falls and principal rises every month, closing at zero', () => {
+    for (let i = 1; i < r.schedule.length; i++) {
+      expect(r.schedule[i].interest).toBeLessThan(r.schedule[i - 1].interest);
+      expect(r.schedule[i].principal).toBeGreaterThan(r.schedule[i - 1].principal);
+    }
+    expect(r.schedule[r.schedule.length - 1].balance).toBeLessThanOrEqual(0.005);
+  });
+  it('the yearly collapse sums the months it was built from', () => {
+    expect(r.yearlySchedule.reduce((s, x) => s + x.interest, 0)).toBeCloseTo(r.totalLoanInterest, 6);
+    expect(r.yearlySchedule.reduce((s, x) => s + x.principal, 0)).toBeCloseTo(r.loanAmount, 6);
+  });
+  it('a part-year makes a final short row rather than being dropped', () => {
+    const odd = calculateAutoLoan({ ...REFERENCE, loanTermMonths: 30 });
+    expect(odd.schedule.length).toBe(30);
+    expect(odd.yearlySchedule.length).toBe(3);
+    expect(odd.yearlySchedule[2].balance).toBeLessThanOrEqual(0.005);
+  });
+  it('a 0% loan still amortizes, with no interest at all', () => {
+    const free = calculateAutoLoan({ ...REFERENCE, interestRatePct: 0 });
+    expect(free.schedule.length).toBe(60);
+    expect(free.totalLoanInterest).toBe(0);
+    expect(free.schedule.every((row) => row.interest === 0)).toBe(true);
+    expect(free.principalShare).toBeCloseTo(1, 9);
+  });
+  it('a zero loan has no schedule to show', () => {
+    const none = calculateAutoLoan({ ...REFERENCE, downPayment: 60000 });
+    expect(none.loanAmount).toBe(0);
+    expect(none.schedule).toEqual([]);
+    expect(none.yearlySchedule).toEqual([]);
+    expect(none.principalShare).toBe(0);
+  });
+});
+
+describe('auto loan — cash incentives', () => {
+  const base = calculateAutoLoan(REFERENCE);
+
+  it('are absent by default and change nothing', () => {
+    expect(base.cashIncentives).toBe(0);
+    expect(calculateAutoLoan({ ...REFERENCE, cashIncentives: 0 }).loanAmount).toBe(base.loanAmount);
+  });
+  it('reduce the amount financed dollar for dollar', () => {
+    const r = calculateAutoLoan({ ...REFERENCE, cashIncentives: 2500 });
+    expect(r.cashIncentives).toBe(2500);
+    expect(r.loanAmount).toBe(base.loanAmount - 2500);
+    expect(r.monthlyPayment).toBeLessThan(base.monthlyPayment);
+  });
+  it('do NOT reduce the sales tax — most states tax the pre-rebate price', () => {
+    const r = calculateAutoLoan({ ...REFERENCE, cashIncentives: 2500 });
+    expect(r.salesTax).toBe(base.salesTax);
+    expect(r.upfrontPayment).toBe(base.upfrontPayment);
+  });
+  it('come off the total cost, because the buyer never pays them', () => {
+    const r = calculateAutoLoan({ ...REFERENCE, cashIncentives: 2500 });
+    expect(r.totalCost).toBeCloseTo(base.totalCost - 2500 - (base.totalLoanInterest - r.totalLoanInterest), 6);
+    expect(r.totalCost).toBeLessThan(base.totalCost);
+  });
+  it('cannot push the loan below zero', () => {
+    const r = calculateAutoLoan({ ...REFERENCE, cashIncentives: 999999 });
+    expect(r.loanAmount).toBe(0);
+    expect(r.monthlyPayment).toBe(0);
+    expect(r.schedule).toEqual([]);
+  });
+  it('a negative incentive is ignored rather than becoming a surcharge', () => {
+    expect(calculateAutoLoan({ ...REFERENCE, cashIncentives: -5000 }).loanAmount).toBe(base.loanAmount);
+  });
+});

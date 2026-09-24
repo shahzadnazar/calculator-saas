@@ -7,43 +7,131 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - run: npm ci
+
       - name: Type check
         run: npm run check
+
       - name: Assert generated embed pages are current (no drift from the registry)
         run: npm run assert:embed-pages-current
+
       - name: Unit tests
         run: npm test
+
       - name: Production build
         run: npm run build
+
       - name: Assert public embeds stay isolated (0 unrelated calculator-scoped CSS)
         run: npm run assert:embed-isolation
+
       - name: Assert monetization stays off (no region/landmark/reserved space/CSS/bridge JS on any live page)
         run: npm run assert:mon-off
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+
       - name: E2E smoke
         run: npm run test:e2e
 
-  # The internal /dev/ demo route is allowed on feature branches while building
-  # the shared utility system, but must never reach production. Enforced on the
-  # default branch only.
-  prelaunch-no-dev:
-    if: github.ref == 'refs/heads/main'
+  # --------------------------------------------------------------------------
+  # Deploy to Hostinger over SSH/rsync from main only.
+  #
+  # Deployment starts only after all build/test checks above have passed.
+  # Astro is built on GitHub Actions. Only the finished dist/ output is sent
+  # to Hostinger.
+  #
+  # Required GitHub repository secrets:
+  # HOSTINGER_HOST
+  # HOSTINGER_USER
+  # HOSTINGER_PORT
+  # HOSTINGER_PATH
+  # HOSTINGER_SSH_KEY
+  # --------------------------------------------------------------------------
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+
+    concurrency:
+      group: hostinger-production
+      cancel-in-progress: false
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - run: npm ci
-      - run: npm run build
-      - name: Assert no /dev/ output in production build
+
+      - name: Build
+        run: npm run build
+
+      # Internal demo routes are used by tests but must not reach production.
+      - name: Strip internal /dev routes from the bundle
+        run: rm -rf dist/dev
+
+      - name: Assert no /dev output is about to ship
         run: npm run assert:no-dev
+
+      - name: Assert .htaccess is in the bundle
+        run: |
+          test -f dist/.htaccess || \
+          (echo "::error::dist/.htaccess missing - clean URLs would 404" && exit 1)
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HOSTINGER_HOST }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan \
+            -p "$SSH_PORT" \
+            -H "$SSH_HOST" \
+            >> ~/.ssh/known_hosts
+
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify Hostinger SSH connection
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_PATH: ${{ secrets.HOSTINGER_PATH }}
+        run: |
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            -o PasswordAuthentication=no \
+            -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" \
+            "test -d '$HOSTINGER_PATH' && echo 'SSH connection and deployment path verified'"
+
+      - name: Deploy Astro dist to Hostinger
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_PATH: ${{ secrets.HOSTINGER_PATH }}
+        run: |
+          rsync \
+            -az \
+            --exclude='*.map' \
+            -e "ssh -i ~/.ssh/id_ed25519 -o PasswordAuthentication=no -p $SSH_PORT" \
+            dist/ \
+            "$SSH_USER@$SSH_HOST:$HOSTINGER_PATH"

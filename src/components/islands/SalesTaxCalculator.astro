@@ -1,21 +1,13 @@
 ---
 /**
- * Sales-tax calculator island (R8A1 — standard-form wave, calculator #13; product
- * family MULTI-MODE, on the standard-form runtime UNCHANGED).
+ * Sales tax island — the reference's three-field solver on the UNCHANGED standard-form
+ * runtime.
  *
- * Task-first, direct-intent: mode defaults to Add tax, the amount + rate start EMPTY,
- * the result is empty (an instruction, not the legacy $100 / 7.25% sample), and the
- * visitor presses "Add Sales Tax" (or "Remove Sales Tax") for the first result.
- * Live-after-first afterwards. Compute, validation, state, announcement and focus are
- * owned by the shared runtime (UNCHANGED) + the sales-tax binding
- * (@lib/calculators/sales-tax-form).
+ * Before-tax price, sales tax rate, after-tax price: fill any two, leave one blank, and the
+ * blank one is what gets worked out. There is deliberately NO mode selector — the blank
+ * field is the mode, which is one fewer control to get out of step with the values.
  *
- * Mode is a native radio group — a STRUCTURAL selector the runtime recomputes on
- * (like calorie's goal). The island OWNS the visible mode presentation: the amount +
- * action labels change with the mode, and on a mode switch the mode-owned result is
- * briefly blanked so no stale values show under the new mode while the runtime's
- * live recompute is pending. The binding owns formula selection, the mode-specific
- * dominant result, the USD announcement and clearing the values on reset.
+ * All three start empty, because none of them is more "the input" than the others.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
@@ -25,241 +17,229 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
-<div class="salestax mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-tax>
+<div class="stcalc mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-sales-tax>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Sales tax calculator">
-    <fieldset class="tax-modes">
-      <legend class="field-label">Calculation</legend>
-      <div class="seg-group">
-        <label class="seg"><input type="radio" name="mode" value="add" checked /><span>Add tax</span></label>
-        <label class="seg"><input type="radio" name="mode" value="remove" /><span>Remove tax</span></label>
-      </div>
-    </fieldset>
+  <form class="card p-4" data-form novalidate aria-label="Sales tax calculator">
+    <p class="st-lede">Fill in any two and leave the third blank — that is the one worked out.</p>
 
-    <div class="mt-5 space-y-4">
-      <div data-field="amount">
-        <label class="field-label" for="tax-amount" data-tax-amount-label>Amount before tax</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="tax-amount"
-            name="amount"
-            type="number"
-            min="0"
-            step="0.01"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 100"
-            aria-describedby="tax-amount-error"
-          />
+    <div class="st-fields">
+      <div class="st-row" data-field="beforeTax">
+        <label class="field-label st-row__label" for="st-before">Before Tax Price</label>
+        <div class="st-money">
+          <span class="st-affix">$</span>
+          <input class="field st-input" id="st-before" name="beforeTax" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="100" aria-describedby="st-before-error" />
         </div>
-        <p class="tax-field-error" id="tax-amount-error" data-error-for="amount" hidden></p>
       </div>
+      <p class="st-error" id="st-before-error" data-error-for="beforeTax" hidden></p>
 
-      <div data-field="rate">
-        <label class="field-label" for="tax-rate">Sales tax rate</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="tax-rate"
-            name="rate"
-            type="number"
-            min="0"
-            step="0.01"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 7.25"
-            aria-describedby="tax-rate-error"
-          />
-          <span class="field-affix rounded-r-lg border-l-0">%</span>
+      <div class="st-row" data-field="rate">
+        <label class="field-label st-row__label" for="st-rate">Sales Tax Rate</label>
+        <div class="st-money">
+          <input class="field st-input st-input--pct" id="st-rate" name="rate" type="number" step="any" inputmode="decimal" autocomplete="off" placeholder="6.5" aria-describedby="st-rate-error" />
+          <span class="st-affix st-affix--suffix">%</span>
         </div>
-        <p class="tax-field-error" id="tax-rate-error" data-error-for="rate" hidden></p>
       </div>
+      <p class="st-error" id="st-rate-error" data-error-for="rate" hidden></p>
+
+      <div class="st-row" data-field="afterTax">
+        <label class="field-label st-row__label" for="st-after">After Tax Price</label>
+        <div class="st-money">
+          <span class="st-affix">$</span>
+          <input class="field st-input" id="st-after" name="afterTax" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="106.50" aria-describedby="st-after-error" />
+        </div>
+      </div>
+      <p class="st-error" id="st-after-error" data-error-for="afterTax" hidden></p>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-tax-submit>Add Sales Tax</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <div class="st-actions">
+      <button type="submit" class="btn btn-primary st-btn">Calculate</button>
+      <button type="button" class="btn btn-secondary st-btn" data-reset>Clear</button>
     </div>
-    <p class="tax-live-note" data-live-note hidden>Changes update automatically.</p>
+    <p class="st-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell
-    id="tax-result"
-    state="empty"
-    density="standard"
-    label="Sales tax result"
-    minHeight="20rem"
-    placeholderAlignment="center"
-  >
-    <EmptyResult message="Enter an amount and tax rate, then add or remove sales tax." />
+  <ResultShell id="st-result" state="example" density="standard" label="Sales tax result" minHeight="16rem" placeholderAlignment="center">
+    <ExampleNotice caption="Sample: $100 before tax at a 6.5% rate." />
+    <EmptyResult message="Enter any two of the three, then calculate." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Total including sales tax">
-        <ResultValue value="—" />
+      <ResultSummary label="After Tax Price">
+        <ResultValue value="—" size="text-4xl" />
       </ResultSummary>
       <ResultInterpretation>
-        <span data-tax-interpretation></span>
+        <span data-st-interpretation></span>
       </ResultInterpretation>
 
-      <ResultBreakdown title="Breakdown">
-        <dl class="tax-metrics">
-          <div><dt data-tax-sec1-label>—</dt><dd data-tax-sec1>—</dd></div>
-          <div><dt data-tax-sec2-label>—</dt><dd data-tax-sec2>—</dd></div>
+      <ResultBreakdown title="All three">
+        <dl class="st-metrics">
+          <div><dt>Before Tax Price</dt><dd data-st-before>—</dd></div>
+          <div><dt>Sales Tax</dt><dd data-st-tax>—</dd></div>
+          <div><dt>After Tax Price</dt><dd data-st-after>—</dd></div>
         </dl>
-        <p class="tax-note">Amounts are in US dollars (USD).</p>
       </ResultBreakdown>
     </div>
 
-    <InvalidResult title="Check your entries" message="Enter an amount and a sales-tax rate to calculate." />
+    <InvalidResult
+      title="Check your entries"
+      message="Fill in exactly two of the three, using prices of zero or more and a rate above -100%."
+    />
 
-    <ResultAnnouncement id="tax-live" />
+    <ResultAnnouncement id="st-live" />
   </ResultShell>
 </div>
 
 <style>
-  .tax-modes {
-    border: 0;
-    margin: 0;
-    padding: 0;
-    min-width: 0;
-  }
-  .seg-group {
-    display: inline-flex;
-    margin-top: 0.4rem;
-    border: 1px solid var(--line);
-    border-radius: 0.55rem;
-    padding: 0.125rem;
-  }
-  .seg {
-    position: relative;
-    display: inline-flex;
-  }
-  .seg input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    cursor: pointer;
-  }
-  .seg span {
-    padding: 0.35rem 0.9rem;
-    border-radius: 0.45rem;
-    font-size: 0.85rem;
-    font-weight: 600;
+  .st-lede {
+    margin: 0 0 0.75rem;
+    font-size: 0.84rem;
+    line-height: 1.45;
     color: var(--muted);
   }
-  .seg:has(input:checked) span {
-    background: var(--color-brand-600);
-    color: #fff;
-  }
-  .seg:has(input:focus-visible) span {
-    outline: 2px solid var(--color-brand-600);
-    outline-offset: 2px;
+
+  .st-fields {
+    display: grid;
+    gap: 0.15rem;
   }
 
-  .tax-field-error {
-    margin-top: 0.3rem;
+  .st-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+  }
+  .st-row__label {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  .st-money {
+    display: inline-flex;
+    align-items: stretch;
+    flex: 0 0 auto;
+  }
+  .st-affix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.55rem;
+    border: 1px solid var(--line);
+    border-right: 0;
+    border-radius: 0.5rem 0 0 0.5rem;
+    background: var(--surface-2, transparent);
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .st-affix--suffix {
+    border-right: 1px solid var(--line);
+    border-left: 0;
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+  .st-input {
+    width: 9rem;
+    min-height: 2.75rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .st-input--pct {
+    border-radius: 0.5rem 0 0 0.5rem;
+  }
+
+  .st-error {
+    margin: 0 0 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .tax-field-error {
+    :root:not([data-theme='light']) .st-error {
       color: #fca5a5;
     }
   }
-  :root[data-theme='dark'] .tax-field-error {
+  :root[data-theme='dark'] .st-error {
     color: #fca5a5;
   }
 
-  .tax-live-note {
+  .st-actions {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .st-btn {
+    min-height: 2.75rem;
+  }
+  .st-live-note {
     margin-top: 0.75rem;
     font-size: 0.8rem;
     color: var(--muted);
   }
 
-  .tax-metrics {
+  .st-metrics {
     margin: 0;
     display: grid;
     gap: 0.25rem;
   }
-  .tax-metrics > div {
+  .st-metrics > div {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.3rem 0;
+    padding: 0.35rem 0;
     border-bottom: 1px solid var(--line);
     font-size: 0.95rem;
   }
-  .tax-metrics dt {
+  .st-metrics > div:last-child {
+    border-bottom: 0;
+  }
+  .st-metrics dt {
     color: var(--fg);
     font-weight: 600;
   }
-  .tax-metrics dd {
+  .st-metrics dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
     color: var(--heading);
     font-weight: 700;
     white-space: nowrap;
   }
-  .tax-note {
-    margin: 0.7rem 0 0;
-    font-size: 0.8rem;
-    color: var(--muted);
+
+  @media (max-width: 26rem) {
+    .st-row {
+      flex-wrap: wrap;
+    }
+    .st-input {
+      width: 7rem;
+    }
   }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { salesTaxBinding } from '@lib/calculators/sales-tax-form';
+  import { salesTaxBinding, SALES_TAX_EXAMPLE_VALUES } from '@lib/calculators/sales-tax-form';
 
-  document.querySelectorAll<HTMLElement>('[data-tax]').forEach((root) => {
+  document.querySelectorAll<HTMLElement>('[data-sales-tax]').forEach((root) => {
     mountFormCalculator(root, salesTaxBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Add Sales Tax',
+      example: { values: SALES_TAX_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
     });
 
-    // The island owns the visible mode presentation. The runtime recomputes on the
-    // mode radio's structural `input` (unchanged); here we keep the amount + action
-    // labels in step and, on a switch, blank the mode-owned result so no stale value
-    // shows under the new mode while the live recompute is pending.
-    const amountLabel = root.querySelector<HTMLElement>('[data-tax-amount-label]');
-    const submitBtn = root.querySelector<HTMLElement>('[data-tax-submit]');
+    // Blank the three figures whenever the shell leaves the valid state, so nothing stale
+    // lingers behind the hidden valid region. Presentation only.
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
-    const isRemove = () => root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'remove';
-    const syncMode = () => {
-      if (amountLabel) amountLabel.textContent = isRemove() ? 'Total amount including tax' : 'Amount before tax';
-      if (submitBtn) submitBtn.textContent = isRemove() ? 'Remove Sales Tax' : 'Add Sales Tax';
-    };
-    const blankResult = () => {
-      for (const sel of [
-        '[data-result-when~="valid"] [data-result-value]',
-        '[data-tax-interpretation]',
-        '[data-tax-sec1]',
-        '[data-tax-sec2]',
-      ]) {
-        const el = root.querySelector<HTMLElement>(sel);
-        if (el) el.textContent = '—';
-      }
-    };
-    root.querySelectorAll<HTMLInputElement>('[name="mode"]').forEach((r) =>
-      r.addEventListener('change', () => {
-        syncMode();
-        if (shell?.dataset.resultState === 'valid') blankResult();
-      }),
-    );
-    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
-      const add = root.querySelector<HTMLInputElement>('[name="mode"][value="add"]');
-      if (add) add.checked = true;
-      syncMode();
-    });
-    syncMode();
+    if (shell) {
+      new MutationObserver(() => {
+        if (shell.dataset.resultState === 'valid') return;
+        root.querySelectorAll<HTMLElement>('[data-st-before], [data-st-tax], [data-st-after]').forEach((el) => {
+          el.textContent = '—';
+        });
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
+    }
   });
 </script>

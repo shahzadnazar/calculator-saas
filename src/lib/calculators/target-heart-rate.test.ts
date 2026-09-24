@@ -1,135 +1,178 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTargetHeartRate } from './target-heart-rate';
+import {
+  calculateTargetHeartRate,
+  maxHeartRate,
+  scaleLabelFor,
+  MHR_FORMULAS,
+  INTENSITY_SCALES,
+  INTENSITY_BANDS,
+  AEROBIC_LOW_PCT,
+  AEROBIC_HIGH_PCT,
+  type TargetHeartRateInput,
+} from './target-heart-rate';
 
-/**
- * Target heart-rate CHARACTERIZATION suite (R7C-2C, commit 1 of 2).
- *
- * This locks the EXACT current behaviour of the reviewed pure function BEFORE the
- * task-first UX migration touches anything around it. It changes no formula — it
- * freezes what `calculateTargetHeartRate` does today so the migration's new
- * validation layer (which stops nonsensical inputs from ever reaching this
- * function) is a visible binding-level decision, not a silent formula change.
- *
- * Confirmed from source (src/lib/calculators/target-heart-rate.ts), not assumed:
- *   - max HR = Math.max(0, 220 − (age || 0));
- *   - method = Karvonen (heart-rate reserve) when restingHr > 0, else simple % of max;
- *   - 5 fixed contiguous zones: 50–60 / 60–70 / 70–80 / 80–90 / 90–100 %.
- *
- * The pure function is SHARED with the reference chart (referenceTables.ts) and the
- * embed, so this parity net guards every consumer.
- */
-describe('target-heart-rate — max HR (220 − age, floored at 0)', () => {
-  it('is 220 − age for typical ages', () => {
-    expect(calculateTargetHeartRate(30).maxHr).toBe(190);
-    expect(calculateTargetHeartRate(25).maxHr).toBe(195);
-    expect(calculateTargetHeartRate(40).maxHr).toBe(180);
-    expect(calculateTargetHeartRate(50).maxHr).toBe(170);
-  });
-
-  // Characterized quirks — frozen deliberately (the migration's validation prevents
-  // these inputs from reaching the function; the function itself is unchanged).
-  it('treats age 0 / empty / NaN as 0 → maxHr 220 (suspected-defect input, frozen)', () => {
-    expect(calculateTargetHeartRate(0).maxHr).toBe(220);
-    expect(calculateTargetHeartRate(NaN).maxHr).toBe(220);
-  });
-
-  it('floors an over-large age at maxHr 0 (never negative)', () => {
-    const r = calculateTargetHeartRate(250);
-    expect(r.maxHr).toBe(0);
-    expect(r.zones.every((z) => z.low === 0 && z.high === 0)).toBe(true);
-  });
+/** The reference's case: age 30, resting 70, Haskell & Fox, Karvonen. */
+const base = (over: Partial<TargetHeartRateInput> = {}): TargetHeartRateInput => ({
+  age: 30,
+  restingHr: 70,
+  formula: 'haskell-fox',
+  scale: 'karvonen',
+  ...over,
 });
+const zone = (r: ReturnType<typeof calculateTargetHeartRate>, key: string) =>
+  r.zones.find((z) => z.key === key)!;
 
-describe('target-heart-rate — zone model (5 fixed contiguous bands)', () => {
-  it('exposes exactly five zones with the documented names and percentages', () => {
-    const { zones } = calculateTargetHeartRate(30);
-    expect(zones.map((z) => [z.name, z.lowPct, z.highPct])).toEqual([
-      ['Warm up / recovery', 50, 60],
-      ['Fat burn (light)', 60, 70],
-      ['Aerobic (moderate)', 70, 80],
-      ['Anaerobic (hard)', 80, 90],
-      ['Maximum effort', 90, 100],
+describe('the reference report reproduces exactly', () => {
+  const r = calculateTargetHeartRate(base());
+
+  it('estimates a maximum of 190 from age 30', () => {
+    expect(r.maxHr).toBe(190);
+    expect(r.reserve).toBe(120);
+    expect(r.usesReserve).toBe(true);
+  });
+
+  it('quotes 130 to 172 bpm for aerobic exercise, at 50-85% of reserve', () => {
+    expect([r.aerobicLow, r.aerobicHigh]).toEqual([130, 172]);
+    expect([AEROBIC_LOW_PCT, AEROBIC_HIGH_PCT]).toEqual([50, 85]);
+  });
+
+  it('prints the five bands the reference prints, with its bpm', () => {
+    expect(r.zones.map((z) => [z.label, z.scaleLabel, `${z.low} - ${z.high}`])).toEqual([
+      ['Very light', '50 - 60%', '130 - 142'],
+      ['Light', '60 - 70%', '142 - 154'],
+      ['Moderate', '70 - 80%', '154 - 166'],
+      ['Hard', '80 - 90%', '166 - 178'],
+      ['VO₂ Max (maximum)', '90 - 100%', '178 - 190'],
     ]);
   });
 
-  it('bands are contiguous (each zone high% is the next zone low%)', () => {
-    const { zones } = calculateTargetHeartRate(30);
-    for (let i = 0; i < zones.length - 1; i++) {
-      expect(zones[i].highPct).toBe(zones[i + 1].lowPct);
+  it('the bands run continuously — one zone’s top is the next one’s floor', () => {
+    for (let i = 1; i < r.zones.length; i++) {
+      expect(r.zones[i].low).toBe(r.zones[i - 1].high);
     }
   });
 });
 
-describe('target-heart-rate — simple % of max (no resting HR)', () => {
-  it('computes every zone bound for age 30 (maxHr 190)', () => {
-    const { zones } = calculateTargetHeartRate(30);
-    expect(zones.map((z) => [z.low, z.high])).toEqual([
-      [95, 114], // 50–60%
-      [114, 133], // 60–70%
-      [133, 152], // 70–80%
-      [152, 171], // 80–90%
-      [171, 190], // 90–100%
+describe('the three maximum-heart-rate equations', () => {
+  it('are the reference’s three, in its order', () => {
+    expect(MHR_FORMULAS.map((f) => f.label)).toEqual([
+      'Haskell & Fox (1971)',
+      'Tanaka, Monahan, & Seals (2001)',
+      'Nes, Janszky, Wisloff, Stoylen, Karlsen (2013)',
     ]);
   });
 
-  it('the top of the maximum zone equals maxHr; the default arg equals restingHr 0', () => {
-    const r = calculateTargetHeartRate(30);
-    expect(r.zones[4].high).toBe(r.maxHr);
-    expect(calculateTargetHeartRate(30)).toEqual(calculateTargetHeartRate(30, 0));
+  it('compute their published formulas', () => {
+    expect(maxHeartRate('haskell-fox', 30)).toBe(190); // 220 − age
+    expect(maxHeartRate('tanaka', 30)).toBeCloseTo(187, 6); // 208 − 0.7 × age
+    expect(maxHeartRate('nes', 30)).toBeCloseTo(191.8, 6); // 211 − 0.64 × age
   });
 
-  it('rounds to the nearest bpm, halves upward (age 25, 70% of 195 = 136.5 → 137)', () => {
-    const { zones } = calculateTargetHeartRate(25); // maxHr 195
-    expect(zones[2].low).toBe(137); // 70%: 136.5 → 137
-    expect(zones[3].high).toBe(176); // 90%: 175.5 → 176
+  it('genuinely disagree, and disagree more at the extremes of age', () => {
+    const at = (age: number) => MHR_FORMULAS.map((f) => Math.round(maxHeartRate(f.value, age)));
+    const spread = (age: number) => Math.max(...at(age)) - Math.min(...at(age));
+    expect(new Set(at(30)).size).toBe(3);
+    expect(spread(70)).toBeGreaterThan(spread(30));
+  });
+
+  it('change every zone', () => {
+    expect(calculateTargetHeartRate(base({ formula: 'tanaka' })).maxHr).toBe(187);
+    expect(calculateTargetHeartRate(base({ formula: 'nes' })).maxHr).toBe(192);
+    expect(zone(calculateTargetHeartRate(base({ formula: 'nes' })), 'moderate').low).toBe(155);
   });
 });
 
-describe('target-heart-rate — Karvonen (heart-rate reserve) when resting HR > 0', () => {
-  it('computes every zone bound for age 30, resting 60 (reserve 130)', () => {
-    const { zones } = calculateTargetHeartRate(30, 60);
-    // round(130 · pct + 60)
-    expect(zones.map((z) => [z.low, z.high])).toEqual([
-      [125, 138], // 50–60%
-      [138, 151], // 60–70%
-      [151, 164], // 70–80%
-      [164, 177], // 80–90%
-      [177, 190], // 90–100%
+describe('a measured maximum beats any estimate of it', () => {
+  it('is used instead of the equation, and the age is then irrelevant', () => {
+    const r = calculateTargetHeartRate(base({ measuredMaxHr: 200 }));
+    expect(r.maxHr).toBe(200);
+    expect(r.reserve).toBe(130);
+    expect(calculateTargetHeartRate(base({ measuredMaxHr: 200, age: 70 })).maxHr).toBe(200);
+    expect(calculateTargetHeartRate(base({ measuredMaxHr: 200, formula: 'tanaka' })).maxHr).toBe(200);
+  });
+
+  it('falls back to the equation when the measurement is not usable', () => {
+    for (const bad of [0, -5, Number.NaN]) {
+      expect(calculateTargetHeartRate(base({ measuredMaxHr: bad })).maxHr).toBe(190);
+    }
+  });
+});
+
+describe('resting heart rate decides what the percentages mean', () => {
+  it('with one, the percentages are of heart-rate reserve', () => {
+    const r = calculateTargetHeartRate(base());
+    expect(r.usesReserve).toBe(true);
+    expect(zone(r, 'very-light').low).toBe(130); // 70 + 120 × 50%
+  });
+
+  it('without one, they are of maximum heart rate — a different, lower set', () => {
+    const r = calculateTargetHeartRate(base({ restingHr: undefined }));
+    expect(r.usesReserve).toBe(false);
+    expect(r.reserve).toBe(null);
+    expect(zone(r, 'very-light').low).toBe(95); // 190 × 50%
+    expect([r.aerobicLow, r.aerobicHigh]).toEqual([95, 162]);
+  });
+
+  it('refuses to treat a resting rate at or above the maximum as a reserve', () => {
+    // 190 − 190 is not a heart-rate reserve, it is a contradiction; fall back to %MHR.
+    for (const resting of [190, 220]) {
+      const r = calculateTargetHeartRate(base({ restingHr: resting }));
+      expect(r.usesReserve).toBe(false);
+      expect(r.reserve).toBe(null);
+      expect(Number.isFinite(zone(r, 'moderate').low)).toBe(true);
+    }
+  });
+});
+
+describe('the intensity scale renames the effort, never the bpm', () => {
+  it('offers the reference’s three scales, in its order', () => {
+    expect(INTENSITY_SCALES.map((s) => s.label)).toEqual([
+      'The Karvonen Formula',
+      'Rating of perceived exertion with Borg scale',
+      'Rating of perceived exertion with modified Borg CR10 scale',
     ]);
   });
 
-  it('a positive resting HR switches methods (age 30: simple 95 → Karvonen 125)', () => {
-    expect(calculateTargetHeartRate(30, 0).zones[0].low).toBe(95);
-    expect(calculateTargetHeartRate(30, 60).zones[0].low).toBe(125);
+  it('leaves every bpm identical across all three', () => {
+    const bpm = (scale: 'karvonen' | 'borg' | 'borg-cr10') =>
+      calculateTargetHeartRate(base({ scale })).zones.map((z) => [z.low, z.high]);
+    expect(bpm('borg')).toEqual(bpm('karvonen'));
+    expect(bpm('borg-cr10')).toEqual(bpm('karvonen'));
   });
 
-  it('the top of the maximum zone still equals maxHr under Karvonen', () => {
-    const r = calculateTargetHeartRate(30, 60);
-    expect(r.zones[4].high).toBe(r.maxHr); // round((190−60)·1 + 60) = 190
+  it('renames the middle column to match the scale', () => {
+    const labels = (scale: 'karvonen' | 'borg' | 'borg-cr10') =>
+      calculateTargetHeartRate(base({ scale })).zones.map((z) => z.scaleLabel);
+    expect(labels('karvonen')).toEqual(['50 - 60%', '60 - 70%', '70 - 80%', '80 - 90%', '90 - 100%']);
+    expect(labels('borg')).toEqual(['9 - 11', '11 - 13', '13 - 15', '15 - 17', '17 - 20']);
+    expect(labels('borg-cr10')).toEqual(['1 - 2', '3 - 4', '5 - 6', '7 - 8', '9 - 10']);
   });
 
-  it('resting HR ≥ max HR yields inverted zones (suspected-defect input, frozen)', () => {
-    // age 30 → maxHr 190; resting 200 → reserve −10; the warm-up floor exceeds the max ceiling.
-    const { zones } = calculateTargetHeartRate(30, 200);
-    expect(zones[0].low).toBe(195); // round(−10·0.5 + 200)
-    expect(zones[4].high).toBe(190); // round(−10·1 + 200)
-    expect(zones[0].low).toBeGreaterThan(zones[4].high);
+  it('names each column head', () => {
+    expect(INTENSITY_SCALES.map((s) => s.column)).toEqual([
+      'Heart Rate Reserve',
+      'Borg scale (6-20)',
+      'Borg CR10 (0-10)',
+    ]);
+    expect(scaleLabelFor(INTENSITY_BANDS[0], 'borg')).toBe('9 - 11');
   });
 });
 
-describe('target-heart-rate — result shape', () => {
-  it('returns maxHr plus five fully-populated zone rows', () => {
-    const r = calculateTargetHeartRate(30, 60);
-    expect(typeof r.maxHr).toBe('number');
-    expect(r.zones).toHaveLength(5);
-    for (const z of r.zones) {
-      expect(z).toEqual({
-        name: expect.any(String),
-        lowPct: expect.any(Number),
-        highPct: expect.any(Number),
-        low: expect.any(Number),
-        high: expect.any(Number),
-      });
+describe('guards', () => {
+  it('returns nothing usable without an age or a measurement', () => {
+    for (const bad of [{}, { age: 0 }, { age: Number.NaN }] as TargetHeartRateInput[]) {
+      const r = calculateTargetHeartRate({ ...bad, restingHr: 70 });
+      expect(Number.isNaN(r.maxHr)).toBe(true);
+      expect(r.zones).toEqual([]);
+    }
+  });
+
+  it('never produces a zone that runs backwards', () => {
+    for (const age of [1, 20, 60, 120]) {
+      for (const resting of [undefined, 40, 70]) {
+        const r = calculateTargetHeartRate({ age, restingHr: resting });
+        for (const z of r.zones) expect(z.high).toBeGreaterThanOrEqual(z.low);
+      }
     }
   });
 });

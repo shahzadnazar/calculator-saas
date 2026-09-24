@@ -126,10 +126,7 @@
     "componentPath": "@components/islands/SquareFootageCalculator.astro"
   },
   "standard-deviation-calculator": {
-    "componentPath": "@components/islands/StatisticsCalculator.astro",
-    "props": {
-      "primary": "sd"
-    }
+    "componentPath": "@components/islands/StandardDeviationCalculator.astro"
   },
   "statistics-calculator": {
     "componentPath": "@components/islands/StatisticsCalculator.astro"
@@ -145,6 +142,9 @@
   },
   "triangle-calculator": {
     "componentPath": "@components/islands/TriangleCalculator.astro"
+  },
+  "vat-calculator": {
+    "componentPath": "@components/islands/VatCalculator.astro"
   },
   "volume-calculator": {
     "componentPath": "@components/islands/VolumeCalculator.astro"

@@ -1,39 +1,43 @@
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Amortization calculator — R11B1 task-first migration + R11B1.1 hardening. Wraps the UNCHANGED
- * calculateLoan / @lib/finance engine; the complete-result guard lives in the binding's resultValue
- * (NaN sentinel — NO isUsableResult). Task-first: empty start, "Calculate Amortization" for the first
- * result, live-after-first. The schedule is a native <details> disclosure (closed by default) holding
- * the FULL schedule — yearly summary + up to 360 monthly rows, every row, no pagination/virtualization
- * — built via the DOM API (no innerHTML). Yearly (default) / Monthly is a native-radio, island-owned
- * presentation switch that never recomputes and never announces.
+ * Amortization calculator.
+ *
+ * Required: loan amount, term (years + months), interest rate. Everything under
+ * "Optional: make extra payments" is blank and closed on load. The result carries
+ * the payment, a principal-against-interest ring, the two totals, an extras panel
+ * that appears only when an extra applies, and the schedule on annual or monthly.
+ *
+ * The reference case ($200,000 at 6% over 15 years) is asserted to the cent here as
+ * well as in the unit tests, because it is the case the model was built to reproduce.
  */
 const ROUTE = '/finance/amortization-calculator';
-const DEBOUNCE = 300;
+const DEBOUNCE = 350;
 
 const shell = (page: Page) => page.locator('#am-result');
 const primary = (page: Page) => page.locator('#am-result [data-result-value]');
-const summaryLabel = (page: Page) => page.locator('#am-result [data-result-summary-label]');
-const interest = (page: Page) => page.locator('[data-am-interest]');
-const total = (page: Page) => page.locator('[data-am-total]');
-const count = (page: Page) => page.locator('[data-am-count]');
-const live = (page: Page) => page.locator('#am-live');
+const liveRegion = (page: Page) => page.locator('#am-live');
 const submit = (page: Page) => page.locator('[data-am-submit]');
 const region = (page: Page, when: string) => page.locator(`#am-result [data-result-when~="${when}"]`);
-const disclosure = (page: Page) => page.locator('[data-am-disclosure]');
-const summaryToggle = (page: Page) => page.locator('[data-am-disclosure] > summary');
-const yearlyRows = (page: Page) => page.locator('[data-am-rows="yearly"] tr');
-const monthlyRows = (page: Page) => page.locator('[data-am-rows="monthly"] tr');
-const viewRadio = (page: Page, v: string) => page.locator(`[name="am-view"][value="${v}"]`);
+const cell = (page: Page, key: string) => page.locator(`#am-result [data-am-${key}]`);
 
-const isOpen = (d: Locator) => d.evaluate((el) => (el as HTMLDetailsElement).open);
+const REFERENCE = { amount: '200000', annualInterestRate: '6', termYears: '15' };
 
-const calc = async (page: Page, amount: string, rate: string, term: string) => {
-  await page.fill('[name="amount"]', amount);
-  await page.fill('[name="annualInterestRate"]', rate);
-  await page.fill('[name="termYears"]', term);
+const fillReference = async (page: Page, over: Record<string, string> = {}) => {
+  for (const [name, value] of Object.entries({ ...REFERENCE, ...over })) {
+    await page.fill(`[name="${name}"]`, value);
+  }
+};
+
+const calcReference = async (page: Page, over: Record<string, string> = {}) => {
+  await fillReference(page, over);
   await submit(page).click();
+};
+
+const openExtras = (page: Page) => page.locator('[data-am-optional] summary').click();
+const openSchedule = async (page: Page) => {
+  await page.locator('.am-disclosure__summary').click();
+  await expect(page.locator('[data-am-schedule]')).toBeVisible();
 };
 
 test.beforeEach(async ({ page }) => {
@@ -42,259 +46,341 @@ test.beforeEach(async ({ page }) => {
 
 /* ---- Initial state ------------------------------------------------------ */
 
-test('loads empty: blank fields, empty result, "Calculate Amortization" action, disclosure closed, no rows', async ({ page }) => {
-  await expect(page.locator('[name="amount"]')).toHaveValue('');
-  await expect(page.locator('[name="annualInterestRate"]')).toHaveValue('');
-  await expect(page.locator('[name="termYears"]')).toHaveValue('');
-  await expect(submit(page)).toHaveText('Calculate Amortization');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+test('loads with every field empty, extras closed, and a labelled example', async ({ page }) => {
+  for (const name of ['amount', 'annualInterestRate', 'termYears', 'termMonths']) {
+    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+  }
+  await expect(page.locator('[data-am-optional]')).not.toHaveAttribute('open', '');
+  await expect(submit(page)).toHaveText('Calculate');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  await expect(region(page, 'empty')).toBeHidden();
   await expect(page.locator('[data-live-note]')).toBeHidden();
-  await expect(live(page)).toHaveText('');
-  // Disclosure closed, no rows, Yearly selected structurally.
-  expect(await isOpen(disclosure(page))).toBe(false);
-  await expect(yearlyRows(page)).toHaveCount(0);
-  await expect(monthlyRows(page)).toHaveCount(0);
-  await expect(viewRadio(page, 'yearly')).toBeChecked();
+  await expect(liveRegion(page)).toHaveText('');
 });
 
-test('the term field carries the migrated-product min/max/step attributes', async ({ page }) => {
-  const term = page.locator('[name="termYears"]');
-  await expect(term).toHaveAttribute('min', '1');
-  await expect(term).toHaveAttribute('max', '30');
-  await expect(term).toHaveAttribute('step', '1');
+test('every optional extra field is blank, so nothing looks pre-scheduled', async ({ page }) => {
+  await openExtras(page);
+  for (const name of [
+    'startMonth',
+    'startYear',
+    'extraMonthlyAmount',
+    'extraMonthlyMonth',
+    'extraMonthlyYear',
+    'extraYearlyAmount',
+    'extraYearlyMonth',
+    'extraYearlyYear',
+    'extraOneTime1Amount',
+    'extraOneTime1Month',
+    'extraOneTime1Year',
+  ]) {
+    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+  }
 });
 
 test('does not calculate before the first submission', async ({ page }) => {
-  await page.fill('[name="amount"]', '250000');
-  await page.fill('[name="annualInterestRate"]', '6.5');
-  await page.fill('[name="termYears"]', '30');
-  await page.waitForTimeout(DEBOUNCE);
+  await fillReference(page);
+  await page.waitForTimeout(DEBOUNCE + 100);
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(liveRegion(page)).toHaveText('');
 });
 
-/* ---- First success ------------------------------------------------------ */
+/* ---- The reference case ------------------------------------------------- */
 
-test('valid result: dominant payment + totals + count + announcement, disclosure stays CLOSED, rows prepared', async ({ page }) => {
-  await calc(page, '250000', '6.5', '30');
+test('reproduces the reference loan to the cent', async ({ page }) => {
+  await calcReference(page);
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(summaryLabel(page)).toHaveText('Estimated monthly payment');
-  await expect(primary(page)).toHaveText('$1,580.17');
-  await expect(interest(page)).toHaveText('$318,861');
-  await expect(total(page)).toHaveText('$568,861');
-  await expect(count(page)).toHaveText('360 payments');
-  await expect(live(page)).toHaveText(
-    'Your estimated monthly payment is 1580 dollars and 17 cents over 360 monthly payments, with 318861 dollars and 22 cents in total interest.',
+  await expect(primary(page)).toHaveText('$1,687.71');
+  await expect(cell(page, 'count-label')).toHaveText('Total of 180 monthly payments');
+  await expect(cell(page, 'total')).toHaveText('$303,788.46');
+  await expect(cell(page, 'interest')).toHaveText('$103,788.46');
+  await expect(liveRegion(page)).toHaveText('Your monthly payment is 1687 dollars and 71 cents.');
+});
+
+test('draws the principal-against-interest ring with both shares labelled', async ({ page }) => {
+  await calcReference(page);
+  const figure = page.locator('[data-am-donut-figure]');
+  await expect(figure).toBeVisible();
+  // Two arcs, and a percentage label drawn on each.
+  await expect(page.locator('[data-am-donut] circle')).toHaveCount(2);
+  await expect(page.locator('[data-am-donut] text')).toHaveText(['66%', '34%']);
+  // The legend names both, with their share and amount — identity is never colour alone.
+  await expect(cell(page, 'share-principal')).toHaveText('66%');
+  await expect(cell(page, 'share-interest')).toHaveText('34%');
+  await expect(cell(page, 'share-principal-amt')).toHaveText('$200,000');
+  await expect(figure).toContainText('Principal');
+  await expect(figure).toContainText('Interest');
+  // ...and the chart carries its own description rather than relying on the image.
+  await expect(page.locator('[data-am-donut] svg')).toHaveAttribute('aria-label', /\$303,788\.46/);
+});
+
+test('the two labelled shares stay inside the drawing area', async ({ page }) => {
+  await calcReference(page);
+  const svg = await page.locator('[data-am-donut] svg').boundingBox();
+  const labels = await page.locator('[data-am-donut] text').all();
+  expect(labels).toHaveLength(2);
+  for (const label of labels) {
+    const box = await label.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(svg!.x);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(svg!.x + svg!.width);
+  }
+});
+
+test('a term in years and months is honoured', async ({ page }) => {
+  await calcReference(page, { termYears: '5', termMonths: '6' });
+  await expect(cell(page, 'count-label')).toHaveText('Total of 66 monthly payments');
+  await openSchedule(page);
+  await expect(page.locator('[data-am-rows="yearly"] tr')).toHaveCount(6);
+});
+
+/* ---- Schedule ----------------------------------------------------------- */
+
+test('the annual schedule reproduces the reference rows', async ({ page }) => {
+  await calcReference(page);
+  await openSchedule(page);
+  const rows = page.locator('[data-am-rows="yearly"] tr');
+  await expect(rows).toHaveCount(15);
+  // The Extra column is hidden without extras, so only four cells are visible.
+  await expect(rows.nth(0).locator('th, td:visible')).toHaveText([
+    '1', '$11,769.23', '$8,483.33', '$191,516.67',
+  ]);
+  await expect(rows.nth(1).locator('th, td:visible')).toHaveText([
+    '2', '$11,246.00', '$9,006.57', '$182,510.10',
+  ]);
+  await expect(rows.nth(8).locator('th, td:visible')).toHaveText([
+    '9', '$6,559.25', '$13,693.31', '$101,835.82',
+  ]);
+});
+
+test('the loan is fully repaid — the last row closes on zero', async ({ page }) => {
+  await calcReference(page);
+  await openSchedule(page);
+  await expect(page.locator('[data-am-rows="yearly"] tr').last().locator('td:visible').last()).toHaveText('$0.00');
+});
+
+test('switching to the monthly view is a view change, not a recalculation', async ({ page }) => {
+  await calcReference(page);
+  await openSchedule(page);
+  await expect(page.locator('[data-am-rows="yearly"] tr').first()).toBeVisible();
+
+  await page.locator('[data-am-view-radio][value="monthly"]').check();
+  await expect(page.locator('[data-am-rows="yearly"] tr').first()).toBeHidden();
+  // 180 months plus a divider closing each of the first 14 years.
+  await expect(page.locator('[data-am-rows="monthly"] tr')).toHaveCount(194);
+  await expect(page.locator('[data-am-rows="monthly"] .am-cell--yearend').first()).toHaveText(
+    'End of year 1',
   );
-  // Disclosure remains CLOSED; rows are PREPARED (present in the DOM) but not visible or announced.
-  expect(await isOpen(disclosure(page))).toBe(false);
-  await expect(yearlyRows(page)).toHaveCount(30);
-  await expect(monthlyRows(page)).toHaveCount(360);
-  await expect(yearlyRows(page).first()).toBeHidden(); // hidden inside the closed disclosure
-  await expect(viewRadio(page, 'yearly')).toBeChecked();
-  // Dominant payment visually larger than the supporting metrics.
-  const primarySize = await primary(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  const cellSize = await interest(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(primarySize).toBeGreaterThan(cellSize * 1.5);
-});
-
-test('renders no NaN / Infinity / undefined for an ordinary result', async ({ page }) => {
-  await calc(page, '250000', '6.5', '30');
-  await summaryToggle(page).click();
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-});
-
-/* ---- Open the disclosure ------------------------------------------------ */
-
-test('opening the disclosure reveals the Yearly schedule with a caption + scoped headers', async ({ page }) => {
-  await calc(page, '250000', '6.5', '30');
-  await summaryToggle(page).click();
-  expect(await isOpen(disclosure(page))).toBe(true);
-  await expect(yearlyRows(page).first()).toBeVisible();
-  await expect(page.locator('[data-am-rows="monthly"]')).toBeHidden();
-  // Semantic table: a caption + four column headers, period cells are row headers.
-  await expect(page.locator('#am-result table caption')).toHaveText(/Amortization schedule/);
-  await expect(page.locator('#am-result thead th[scope="col"]')).toHaveCount(4);
-  await expect(page.locator('[data-am-rows="yearly"] tr th[scope="row"]')).toHaveCount(30);
-  await expect(yearlyRows(page).last().locator('td').last()).toHaveText('$0'); // ends at $0
-});
-
-/* ---- View change (native radios; no recompute, no announcement) --------- */
-
-test('switching to Monthly is a pure presentation change: native radio, 360 rows, focus kept, no recompute/announce', async ({ page }) => {
-  await calc(page, '250000', '6.5', '30');
-  await summaryToggle(page).click();
-  const announced = await live(page).textContent();
-
-  await viewRadio(page, 'monthly').check();
-  await expect(page.locator('[data-am-schedule]')).toHaveAttribute('data-am-view', 'monthly');
-  await expect(page.locator('[data-am-rows="monthly"]')).toBeVisible();
-  await expect(page.locator('[data-am-rows="yearly"]')).toBeHidden();
-  await expect(page.locator('[data-am-when-view="monthly"]')).toBeVisible(); // header reads "Month"
-  await expect(monthlyRows(page)).toHaveCount(360);
-  await expect(monthlyRows(page).last().locator('td').last()).toHaveText('$0');
-  // Focus stays on the selected radio; the dominant result + announcement are unchanged (no recompute).
-  await expect(viewRadio(page, 'monthly')).toBeFocused();
-  await expect(primary(page)).toHaveText('$1,580.17');
-  await expect(live(page)).toHaveText(announced ?? '');
+  await expect(primary(page)).toHaveText('$1,687.71');
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
 });
 
-/* ---- Term boundary (migrated-product 1–30, whole) ----------------------- */
-
-test('a 30-year term is valid and prepares exactly 360 monthly rows (the ceiling)', async ({ page }) => {
-  await calc(page, '250000', '6.5', '30');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(monthlyRows(page)).toHaveCount(360);
+test('the schedule table right-aligns its numbers', async ({ page }) => {
+  await calcReference(page);
+  await openSchedule(page);
+  await expect(page.locator('[data-am-rows="yearly"] td.am-num').first()).toHaveCSS(
+    'text-align',
+    'right',
+  );
 });
 
-test('a term ABOVE 30 years is rejected with the single term message', async ({ page }) => {
-  await calc(page, '250000', '6.5', '31');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(page.locator('[data-error-for="termYears"]')).toHaveText('Enter a whole loan term from 1 to 30 years.');
+/* ---- Optional extra payments -------------------------------------------- */
+
+test('the extras panel and the Extra column stay hidden until an extra applies', async ({ page }) => {
+  await calcReference(page);
+  await expect(page.locator('[data-am-extras]')).toBeHidden();
+  await openSchedule(page);
+  await expect(page.locator('[data-am-rows="yearly"] td.am-col-extra').first()).toBeHidden();
+  await expect(page.locator('[data-am-schedule]')).not.toHaveAttribute('data-am-has-extras', '');
 });
 
-test('a 1-year term is valid with exactly 12 monthly rows', async ({ page }) => {
-  await calc(page, '24000', '6', '1');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(monthlyRows(page)).toHaveCount(12);
-  await expect(yearlyRows(page)).toHaveCount(1);
+test('an extra monthly payment shortens the loan and reports what it saves', async ({ page }) => {
+  await calcReference(page);
+  await openExtras(page);
+  await page.fill('[name="extraMonthlyAmount"]', '300');
+  await page.waitForTimeout(DEBOUNCE);
+
+  await expect(page.locator('[data-am-extras]')).toBeVisible();
+  await expect(cell(page, 'extra-total')).toHaveText('$42,000.00');
+  await expect(cell(page, 'interest-saved')).toHaveText('$25,072.62');
+  await expect(cell(page, 'time-saved')).toHaveText('3 years 3 months');
+  await expect(cell(page, 'payoff')).toHaveText('11 years 9 months');
+  await expect(cell(page, 'interest-without')).toHaveText('$103,788.46');
+  // The scheduled payment is unchanged — extra shortens the loan, it does not shrink the bill.
+  await expect(primary(page)).toHaveText('$1,687.71');
+  await expect(cell(page, 'count-label')).toHaveText('Total of 141 monthly payments');
 });
 
-test('a zero, negative or fractional term is rejected (never rounded)', async ({ page }) => {
-  const msg = 'Enter a whole loan term from 1 to 30 years.';
-  await calc(page, '250000', '6.5', '0');
-  await expect(page.locator('[data-error-for="termYears"]')).toHaveText(msg);
-  await page.fill('[name="termYears"]', '2.5');
-  await submit(page).click();
-  await expect(page.locator('[data-error-for="termYears"]')).toHaveText(msg);
+test('the Extra column appears once an extra applies', async ({ page }) => {
+  await calcReference(page);
+  await openExtras(page);
+  await page.fill('[name="extraMonthlyAmount"]', '300');
+  await page.waitForTimeout(DEBOUNCE);
+  await openSchedule(page);
+  await expect(page.locator('[data-am-schedule]')).toHaveAttribute('data-am-has-extras', '');
+  await expect(page.locator('[data-am-rows="yearly"] td.am-col-extra').first()).toBeVisible();
+  await expect(page.locator('[data-am-rows="yearly"] td.am-col-extra').first()).toHaveText('$3,600.00');
 });
 
-/* ---- Amount + rate validation ------------------------------------------- */
+test('a one-time extra is dated from the loan start', async ({ page }) => {
+  await calcReference(page);
+  await openExtras(page);
+  await page.selectOption('[name="startMonth"]', '1');
+  await page.fill('[name="startYear"]', '2026');
+  await page.fill('[name="extraOneTime1Amount"]', '10000');
+  await page.selectOption('[name="extraOneTime1Month"]', '7');
+  await page.fill('[name="extraOneTime1Year"]', '2026');
+  await page.waitForTimeout(DEBOUNCE);
 
-test('a zero loan amount is rejected as greater-than-zero', async ({ page }) => {
-  await calc(page, '0', '6.5', '30');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(page.locator('[data-error-for="amount"]')).toHaveText('Enter a loan amount greater than zero.');
+  await expect(page.locator('[data-am-extras]')).toBeVisible();
+  await expect(cell(page, 'extra-total')).toHaveText('$10,000.00');
+  await openSchedule(page);
+  await page.locator('[data-am-view-radio][value="monthly"]').check();
+  // July 2026 is the seventh payment of a loan starting January 2026.
+  const rows = page.locator('[data-am-rows="monthly"] tr');
+  await expect(rows.nth(6).locator('td.am-col-extra')).toHaveText('$10,000.00');
+  await expect(rows.nth(5).locator('td.am-col-extra')).toHaveText('$0.00');
 });
 
-test('a 0% interest loan is VALID (principal-only schedule); a negative rate is invalid', async ({ page }) => {
-  await calc(page, '12000', '0', '1');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$1,000.00'); // 12,000 / 12
-  await expect(interest(page)).toHaveText('$0');
-  await calc(page, '12000', '-1', '1');
-  await expect(page.locator('[data-error-for="annualInterestRate"]')).toHaveText('Enter an interest rate of zero or more.');
+test('one-time rows are revealed on demand', async ({ page }) => {
+  await openExtras(page);
+  await expect(page.locator('[data-am-onetime]:visible')).toHaveCount(1);
+  await page.locator('[data-am-add-onetime]').click();
+  await expect(page.locator('[data-am-onetime]:visible')).toHaveCount(2);
+  await page.locator('[data-am-add-onetime]').click();
+  await expect(page.locator('[data-am-onetime]:visible')).toHaveCount(3);
 });
 
-test('an empty explicit submission focuses the amount and associates the error', async ({ page }) => {
+test('rejects a negative extra and an out-of-range year', async ({ page }) => {
+  await calcReference(page);
+  await openExtras(page);
+  await page.fill('[name="extraMonthlyAmount"]', '-50');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(page.locator('[data-error-for="extraMonthlyAmount"]')).toBeVisible();
+
+  await page.fill('[name="extraMonthlyAmount"]', '100');
+  await page.fill('[name="extraYearlyYear"]', '1700');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(page.locator('[data-error-for="extraYearlyYear"]')).toBeVisible();
+});
+
+/* ---- Validation --------------------------------------------------------- */
+
+test('an all-empty submission reports the required fields and focuses the first', async ({ page }) => {
   await submit(page).click();
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  const amount = page.locator('[name="amount"]');
-  await expect(amount).toBeFocused();
-  await expect(amount).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.locator('[data-error-for="amount"]')).toHaveText('Enter a loan amount.');
+  await expect(page.locator('[data-error-for="amount"]')).toBeVisible();
+  await expect(page.locator('[data-error-for="annualInterestRate"]')).toBeVisible();
+  await expect(page.locator('[data-error-for="termYears"]')).toBeVisible();
+  await expect(page.locator('[name="amount"]')).toBeFocused();
+  await expect(page.locator('[name="amount"]')).toHaveAttribute('aria-invalid', 'true');
 });
 
-/* ---- Valid live update: disclosure + view + focus preserved ------------- */
-
-test('a valid live update preserves the open disclosure and the Monthly view, replaces rows, keeps focus', async ({ page }) => {
-  await calc(page, '250000', '6.5', '30');
-  await summaryToggle(page).click();
-  await viewRadio(page, 'monthly').check();
-  expect(await isOpen(disclosure(page))).toBe(true);
-
-  await page.fill('[name="amount"]', '200000');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(primary(page)).toHaveText('$1,264.14'); // 200k at 6.5% / 30y — rows replaced
-  expect(await isOpen(disclosure(page))).toBe(true); // disclosure state preserved
-  await expect(page.locator('[data-am-schedule]')).toHaveAttribute('data-am-view', 'monthly'); // view preserved
-  await expect(monthlyRows(page)).toHaveCount(360);
-  await expect(page.locator('[name="amount"]')).toBeFocused(); // focus preserved
-});
-
-/* ---- Invalid live update: stale rows removed, focus kept ---------------- */
-
-test('an invalid live edit removes the stale summary AND all schedule rows, keeping focus on the field', async ({ page }) => {
-  await calc(page, '250000', '6.5', '30');
-  await summaryToggle(page).click();
-  await viewRadio(page, 'monthly').check();
-  await expect(monthlyRows(page)).toHaveCount(360);
-
-  await page.fill('[name="termYears"]', '31'); // above the 30-year max
-  await page.waitForTimeout(DEBOUNCE);
+test('a term of nothing at all is reported against the years box', async ({ page }) => {
+  await calcReference(page, { termYears: '0', termMonths: '0' });
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(region(page, 'valid')).toBeHidden(); // stale summary gone
-  await expect(yearlyRows(page)).toHaveCount(0); // stale rows removed
-  await expect(monthlyRows(page)).toHaveCount(0);
-  await expect(page.locator('[name="termYears"]')).toBeFocused(); // focus on the edited field
+  await expect(page.locator('[data-error-for="termYears"]')).toContainText('at least one month');
 });
 
-/* ---- Reset -------------------------------------------------------------- */
+test('months alone is a valid term', async ({ page }) => {
+  await calcReference(page, { termYears: '', termMonths: '18' });
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(cell(page, 'count-label')).toHaveText('Total of 18 monthly payments');
+});
 
-test('reset closes the disclosure, restores Yearly, clears rows + fields, empties result + announcement', async ({ page }) => {
-  await calc(page, '250000', '6.5', '30');
-  await summaryToggle(page).click();
-  await viewRadio(page, 'monthly').check();
+test('rejects a fractional or over-long term, and a zero loan', async ({ page }) => {
+  await calcReference(page, { termYears: '15.5' });
+  await expect(page.locator('[data-error-for="termYears"]')).toBeVisible();
+  await calcReference(page, { termYears: '31', termMonths: '0' });
+  await expect(page.locator('[data-error-for="termYears"]')).toContainText('30 years or less');
+  await calcReference(page, { termYears: '15', amount: '0' });
+  await expect(page.locator('[data-error-for="amount"]')).toBeVisible();
+});
 
-  await page.click('[data-reset]');
-  await expect(page.locator('[name="amount"]')).toHaveValue('');
-  await expect(page.locator('[name="termYears"]')).toHaveValue('');
+test('a zero interest rate is a valid, principal-only loan', async ({ page }) => {
+  await calcReference(page, { amount: '12000', annualInterestRate: '0', termYears: '1' });
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(primary(page)).toHaveText('$1,000.00');
+  await expect(cell(page, 'interest')).toHaveText('$0.00');
+});
+
+test('never renders NaN, Infinity or a raw error', async ({ page }) => {
+  await calcReference(page, { amount: '1', annualInterestRate: '0.01', termYears: '30' });
+  const text = (await shell(page).innerText()) ?? '';
+  expect(text).not.toMatch(/NaN|Infinity|undefined|\[object/);
+});
+
+/* ---- Live-after-first, reset -------------------------------------------- */
+
+test('recalculates live after the first result without moving focus', async ({ page }) => {
+  await calcReference(page);
+  await expect(page.locator('[data-live-note]')).toBeVisible();
+  const rate = page.locator('[name="annualInterestRate"]');
+  await rate.focus();
+  await rate.fill('7');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(primary(page)).not.toHaveText('$1,687.71');
+  await expect(rate).toBeFocused();
+});
+
+test('reset clears every field, closes the extras and empties the result', async ({ page }) => {
+  await calcReference(page);
+  await openExtras(page);
+  await page.fill('[name="extraMonthlyAmount"]', '300');
+  await page.locator('[data-am-add-onetime]').click();
+  await page.waitForTimeout(DEBOUNCE);
+  await openSchedule(page);
+  await page.locator('[data-am-view-radio][value="monthly"]').check();
+
+  await page.locator('[data-reset]').click();
+  for (const name of ['amount', 'annualInterestRate', 'termYears', 'termMonths', 'extraMonthlyAmount']) {
+    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+  }
+  await expect(page.locator('[data-am-optional]')).not.toHaveAttribute('open', '');
+  await expect(page.locator('[data-am-view-radio][value="yearly"]')).toBeChecked();
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  expect(await isOpen(disclosure(page))).toBe(false); // disclosure closed
-  await expect(viewRadio(page, 'yearly')).toBeChecked(); // Yearly restored
-  await expect(page.locator('[data-am-schedule]')).toHaveAttribute('data-am-view', 'yearly');
-  await expect(yearlyRows(page)).toHaveCount(0); // rows cleared
-  await expect(monthlyRows(page)).toHaveCount(0);
-  await expect(live(page)).toHaveText(''); // announcement cleared
+  await expect(liveRegion(page)).toHaveText('');
 });
 
-/* ---- Keyboard / responsive / theme / embed / monetization -------------- */
+/* ---- Layout, theme, embed, monetization --------------------------------- */
 
-test('keyboard submission works from a field', async ({ page }) => {
-  await page.fill('[name="amount"]', '24000');
-  await page.fill('[name="annualInterestRate"]', '0');
-  await page.locator('[name="termYears"]').fill('1');
-  await page.locator('[name="termYears"]').press('Enter');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('$2,000.00');
-});
-
-test('desktop shows the dominant result within the first viewport at 1366×768', async ({ page }) => {
+test('desktop shows the form, the primary action and the result at 1366×768', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
-  await calc(page, '250000', '6.5', '30');
-  await expect(primary(page)).toBeInViewport();
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  for (const target of [page.locator('h1'), submit(page), primary(page).first()]) {
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(768);
+  }
 });
 
-test('mobile does not overflow horizontally (the wide schedule scrolls inside its own container)', async ({ page }) => {
+test('mobile stacks inputs → result and does not overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  await calc(page, '250000', '6.5', '30');
-  await summaryToggle(page).click();
-  await viewRadio(page, 'monthly').check();
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
+  await calcReference(page);
+  await openExtras(page);
+  await openSchedule(page);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
 });
 
 test('renders in dark scheme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
-  await calc(page, '250000', '6.5', '30');
-  await expect(primary(page)).toBeVisible();
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await calcReference(page);
+  await expect(primary(page)).toHaveText('$1,687.71');
 });
 
-test('the embed route mounts the same interactive island', async ({ page }) => {
+test('the generated embed mounts the same island and computes', async ({ page }) => {
   await page.goto('/embed/finance/amortization-calculator', { waitUntil: 'domcontentloaded' });
-  await page.fill('[name="amount"]', '24000');
-  await page.fill('[name="annualInterestRate"]', '0');
-  await page.fill('[name="termYears"]', '1');
-  await page.locator('[data-am-submit]').click();
-  await expect(page.locator('#am-result [data-result-value]')).toHaveText('$2,000.00');
-  await page.locator('[data-am-disclosure] > summary').click();
-  await expect(page.locator('[data-am-rows="monthly"] tr')).toHaveCount(12);
+  await calcReference(page);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(primary(page)).toHaveText('$1,687.71');
 });
 
 test('the live page carries no monetization output', async ({ page }) => {
-  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-  expect(await page.content()).not.toContain('data-mon-');
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-monetization-region]')).toHaveCount(0);
+  const html = await page.content();
+  expect(html).not.toMatch(/adsbygoogle|data-ad-client/);
 });

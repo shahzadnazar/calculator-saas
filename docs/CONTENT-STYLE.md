@@ -1,6 +1,6 @@
 # Content & Density Style
 
-Shared editorial and typography standards for every AllCalculators surface.
+Shared editorial and typography standards for every BestCalculate surface.
 Serves the **Task-Completion Doctrine** (`TASK-COMPLETION-DOCTRINE.md`) and the
 task-first content architecture (`TASK-FIRST-MIGRATION.md`). Non-negotiable for
 reviews.

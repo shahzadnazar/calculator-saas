@@ -1,109 +1,192 @@
 ---
 /**
- * Investment calculator island (R11D1 — task-first migration, finance complex-form family).
+ * Investment island — what a starting amount plus regular contributions grows to.
  *
- * Task-first, summary-only: all fields start EMPTY, the result is empty, and the visitor presses
- * "Calculate Investment Growth" for the first result; live-after-first afterwards. Compute, validation,
- * state, announcement and focus are owned by the shared runtime + the investment binding
- * (@lib/calculators/investment-form), which wraps the UNCHANGED calculateInvestment / shared
- * compound-interest engine. The complete-result guard lives in the binding's resultValue (a NaN
- * sentinel) — NO isUsableResult. The latent yearly series is NOT rendered.
+ * The form is the reference's own: starting amount, how long for, the return rate,
+ * how often it compounds, the contribution, and when that contribution lands. The
+ * last of those is two small choices that change the answer more than they look —
+ * beginning or end of each period, and month or year.
  *
- * No structural selector. Starting investment + monthly contribution are each optional but COLLECTIVELY
- * must fund the projection — a FORM-level funding error (Triangle precedent): the runtime shows/announces
- * it, and the island returns focus to Starting investment on an explicit submit and reveals the
- * funding-group message (associated with both funding fields via aria-describedby). The output is a
- * NOMINAL projection; investment growth may be negative and is shown SIGNED. The supplemental proportion
- * bar is aria-hidden (the text conveys every value) and is hidden entirely for negative growth so no
- * invalid width is produced.
+ * The result leads with the end balance, then splits it into the three things that
+ * made it — what you started with, what you added, and what it earned — as figures
+ * and as a ring. Beneath that the accumulation schedule in both views, and the
+ * year-by-year stack that shows the interest slice overtaking the contributions.
+ *
+ * The schedule table and the stacked chart come from `@lib/result/accumulation`,
+ * shared with Savings and Interest; the ring is the same `drawDonut` the borrowing
+ * calculators use. Compute, validation, state, focus and the announcement belong to
+ * the shared form runtime and the investment binding.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
+import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { COMPOUND_FREQUENCIES } from '@lib/calculators/compounding';
+
+const COMPOUND_LABELS: Record<string, string> = {
+  annually: 'annually',
+  semiannually: 'semi-annually',
+  quarterly: 'quarterly',
+  monthly: 'monthly',
+  semimonthly: 'semi-monthly',
+  biweekly: 'biweekly',
+  weekly: 'weekly',
+  daily: 'daily',
+  continuously: 'continuously',
+};
 ---
 
-<div class="investment mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-investment>
+<div class="inv mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-inv>
   <!-- Inputs -->
-  <form class="card p-5 sm:p-6" data-form novalidate aria-label="Investment calculator">
-    <div class="space-y-4">
-      <div data-inv-funding>
-        <div data-field="startingAmount">
-          <label class="field-label" for="inv-start">Starting investment (USD)</label>
-          <div class="flex">
-            <span class="field-affix rounded-l-lg border-r-0">$</span>
-            <input class="field rounded-l-none" id="inv-start" name="startingAmount" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="e.g. 10000" aria-describedby="inv-start-error inv-funding-error" />
-          </div>
-          <p class="inv-field-error" id="inv-start-error" data-error-for="startingAmount" hidden></p>
-        </div>
-
-        <div class="mt-4" data-field="monthlyContribution">
-          <label class="field-label" for="inv-monthly">Monthly contribution (USD)</label>
-          <div class="flex">
-            <span class="field-affix rounded-l-lg border-r-0">$</span>
-            <input class="field rounded-l-none" id="inv-monthly" name="monthlyContribution" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 300" aria-describedby="inv-monthly-error inv-funding-error" />
-          </div>
-          <p class="inv-field-error" id="inv-monthly-error" data-error-for="monthlyContribution" hidden></p>
-        </div>
-
-        <p class="inv-field-error" id="inv-funding-error" data-inv-funding-error hidden>Enter a starting investment or a monthly contribution greater than zero.</p>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div data-field="annualReturnPct">
-          <label class="field-label" for="inv-return">Expected annual return</label>
-          <div class="flex">
-            <input class="field rounded-r-none" id="inv-return" name="annualReturnPct" type="number" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 7" aria-describedby="inv-return-error" />
-            <span class="field-affix rounded-r-lg border-l-0">%</span>
-          </div>
-          <p class="inv-field-error" id="inv-return-error" data-error-for="annualReturnPct" hidden></p>
-        </div>
-        <div data-field="years">
-          <label class="field-label" for="inv-years">Projection period (years)</label>
-          <input class="field" id="inv-years" name="years" type="number" min="1" max="100" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 25" aria-describedby="inv-years-error" />
-          <p class="inv-field-error" id="inv-years-error" data-error-for="years" hidden></p>
+  <form class="card p-4" data-form novalidate aria-label="Investment calculator">
+    <div class="inv-fields">
+      <div class="inv-row" data-field="startingAmount">
+        <label class="field-label" for="inv-start">Starting Amount</label>
+        <div class="flex inv-row__control">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="inv-start" name="startingAmount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 20000" aria-describedby="inv-start-error" />
         </div>
       </div>
+      <p class="inv-error" id="inv-start-error" data-error-for="startingAmount" hidden></p>
+
+      <div class="inv-row" data-field="years">
+        <label class="field-label" for="inv-years">After</label>
+        <div class="flex inv-row__control">
+          <input class="field rounded-r-none" id="inv-years" name="years" type="number" min="1" max="100" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="inv-years-error" />
+          <span class="field-affix rounded-r-lg border-l-0">years</span>
+        </div>
+      </div>
+      <p class="inv-error" id="inv-years-error" data-error-for="years" hidden></p>
+
+      <div class="inv-row" data-field="annualReturnPct">
+        <label class="field-label" for="inv-return">Return Rate</label>
+        <div class="flex inv-row__control">
+          <input class="field rounded-r-none" id="inv-return" name="annualReturnPct" type="number" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 6" aria-describedby="inv-return-error" />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        </div>
+      </div>
+      <p class="inv-error" id="inv-return-error" data-error-for="annualReturnPct" hidden></p>
+
+      <div class="inv-row">
+        <label class="field-label" for="inv-compound">Compound</label>
+        <select class="field inv-row__control" id="inv-compound" name="compound">
+          {COMPOUND_FREQUENCIES.map((f) => (
+            <option value={f} selected={f === 'annually'}>{COMPOUND_LABELS[f]}</option>
+          ))}
+        </select>
+      </div>
+
+      <div class="inv-row" data-field="contribution">
+        <label class="field-label" for="inv-contribution">Additional Contribution</label>
+        <div class="flex inv-row__control">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="inv-contribution" name="contribution" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="optional" aria-describedby="inv-contribution-error" />
+        </div>
+      </div>
+      <p class="inv-error" id="inv-contribution-error" data-error-for="contribution" hidden></p>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-inv-submit>Calculate Investment Growth</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <!-- When the contribution lands. Two small choices that move the answer. -->
+    <fieldset class="inv-timing">
+      <legend class="sr-only">When you contribute</legend>
+      <p class="inv-timing__line">
+        <span class="inv-timing__label">Contribute at the</span>
+        <label class="inv-radio"><input type="radio" name="contributeAt" value="beginning" /><span>beginning</span></label>
+        <label class="inv-radio"><input type="radio" name="contributeAt" value="end" checked /><span>end</span></label>
+      </p>
+      <p class="inv-timing__line">
+        <span class="inv-timing__label">of each</span>
+        <label class="inv-radio"><input type="radio" name="contributeEvery" value="month" checked /><span>month</span></label>
+        <label class="inv-radio"><input type="radio" name="contributeEvery" value="year" /><span>year</span></label>
+      </p>
+    </fieldset>
+
+    <div class="mt-3 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-inv-submit>Calculate</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
     </div>
     <p class="inv-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
   <ResultShell id="inv-result" state="empty" density="complex" label="Investment result" minHeight="20rem">
-    <EmptyResult message="Enter a starting investment or a monthly contribution, an expected annual return, and a projection period, then calculate your projected investment value." />
+    <ExampleNotice />
+    <EmptyResult message="Enter what you are starting with, how long for and the return you expect, then press Calculate to see what it grows to." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Projected investment value">
+      <ResultSummary label="End Balance">
         <ResultValue value="—" size="text-4xl" />
       </ResultSummary>
 
-      <p class="inv-interpretation" data-inv-interpretation></p>
+      <p class="inv-interpretation" data-inv-interpretation>—</p>
 
-      <div class="inv-bar" data-inv-bar aria-hidden="true">
-        <span class="inv-seg" style="width:0%; background: var(--color-brand-600)" data-inv-seg="start"></span>
-        <span class="inv-seg" style="width:0%; background: #64748b" data-inv-seg="contrib"></span>
-        <span class="inv-seg" style="width:0%; background: var(--color-accent-500)" data-inv-seg="earn"></span>
-      </div>
+      <ResultBreakdown title="Results">
+        <dl class="inv-metrics">
+          <div><dt>Starting Amount</dt><dd data-inv-start>—</dd></div>
+          <div><dt>Total Contributions</dt><dd data-inv-contributions>—</dd></div>
+          <div><dt>Total Interest</dt><dd data-inv-interest>—</dd></div>
+        </dl>
 
-      <dl class="inv-metrics">
-        <div><dt><span class="inv-dot" style="background: var(--color-brand-600)"></span>Starting investment</dt><dd data-inv-start>—</dd></div>
-        <div><dt><span class="inv-dot" style="background: #64748b"></span>Total contributions</dt><dd data-inv-contrib>—</dd></div>
-        <div><dt><span class="inv-dot" style="background: var(--color-accent-500)"></span>Investment growth</dt><dd data-inv-earn>—</dd></div>
-      </dl>
+        <figure class="inv-donut" data-inv-donut-figure hidden>
+          <figcaption class="inv-figure__title">What the end balance is made of</figcaption>
+          <div class="inv-donut__row">
+            <div class="inv-donut__plot" data-inv-donut></div>
+            <ul class="inv-legend">
+              <li><span class="inv-key inv-key--start" aria-hidden="true"></span>Starting Amount <b data-inv-share-start>—</b></li>
+              <li><span class="inv-key inv-key--contributions" aria-hidden="true"></span>Total Contributions <b data-inv-share-contributions>—</b></li>
+              <li><span class="inv-key inv-key--interest" aria-hidden="true"></span>Interest <b data-inv-share-interest>—</b></li>
+            </ul>
+          </div>
+        </figure>
 
-      <p class="inv-assumptions">This is a <strong>nominal</strong> projection assuming monthly compounding and monthly contributions made at the end of each period. It does not adjust for inflation, taxes or investment fees. Amounts are in US dollars (USD).</p>
+        <figure class="inv-chart" data-inv-chart-figure hidden>
+          <figcaption class="inv-figure__title">Accumulation by year</figcaption>
+          <div class="inv-chart__plot" data-inv-chart></div>
+          <p class="inv-legend inv-legend--chart">
+            <span><span class="inv-key inv-key--start" aria-hidden="true"></span>Starting Amount</span>
+            <span><span class="inv-key inv-key--contributions" aria-hidden="true"></span>Contributions</span>
+            <span><span class="inv-key inv-key--interest" aria-hidden="true"></span>Interest</span>
+          </p>
+        </figure>
+
+        <!-- Shown, not collapsed: the schedule is half the reason to run this. -->
+        <div class="inv-schedule" data-inv-schedule data-inv-view="yearly">
+          <p class="inv-figure__title">Accumulation Schedule</p>
+          <fieldset class="inv-view">
+            <legend class="sr-only">Schedule view</legend>
+            <label class="inv-view__opt"><input type="radio" name="inv-view" value="yearly" checked data-inv-view-radio /><span>Annual</span></label>
+            <label class="inv-view__opt"><input type="radio" name="inv-view" value="monthly" data-inv-view-radio /><span>Monthly</span></label>
+          </fieldset>
+
+          <div class="inv-table-wrap">
+            <table class="inv-table">
+              <caption class="sr-only">Accumulation schedule showing each period's deposit, the interest it earned and the balance afterwards.</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="inv-th-period"><span data-inv-when-view="yearly">Year</span><span data-inv-when-view="monthly">Month</span></th>
+                  <th scope="col" class="inv-num">Deposit</th>
+                  <th scope="col" class="inv-num">Interest</th>
+                  <th scope="col" class="inv-num">Ending balance</th>
+                </tr>
+              </thead>
+              <tbody data-inv-rows-yearly></tbody>
+              <tbody data-inv-rows-monthly></tbody>
+            </table>
+          </div>
+          <p class="inv-schedule__note">
+            The first period's deposit includes your starting amount. Amounts are in US dollars (USD).
+          </p>
+        </div>
+      </ResultBreakdown>
     </div>
 
     <InvalidResult
       title="Check your entries"
-      message="Enter a starting investment or a monthly contribution, an expected annual return, and a whole projection period from 1 to 100 years."
+      message="Enter a starting amount or a contribution, a length from 1 to 100 years, and a return rate."
     />
 
     <ResultAnnouncement id="inv-live" />
@@ -111,77 +194,214 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 </div>
 
 <style>
-  .inv-field-error {
-    margin-top: 0.3rem;
+  /* Three series, one validated step per scheme rather than an automatic flip:
+     plum for the money you started with, emerald for what you added, burnt orange
+     for what it earned. The same three the rest of the site's charts use. */
+  .inv {
+    --inv-start: #7c3aed;
+    --inv-contributions: #0e9f6e;
+    --inv-interest: #ea580c;
+  }
+
+  .inv > :global(*) { min-width: 0; }
+  .inv .field-label { margin-bottom: 0; line-height: 1.25; }
+
+  /* Label beside its field, as the reference lays it out — the labels are long
+     enough that stacking them doubles the height of the form. */
+  .inv-fields { display: grid; gap: 0.45rem; }
+  .inv-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+    align-items: center;
+  }
+  .inv-row__control { min-width: 0; }
+  @media (min-width: 30rem) {
+    .inv-row {
+      grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr);
+      gap: 0.6rem;
+    }
+  }
+
+  .inv-timing {
+    margin-top: 0.7rem;
+    padding-top: 0.7rem;
+    border: 0;
+    border-top: 1px solid var(--line);
+  }
+  .inv-timing__line {
+    margin: 0 0 0.3rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem 0.9rem;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+  }
+  .inv-timing__line:last-child { margin-bottom: 0; }
+  .inv-timing__label { color: var(--fg); font-weight: 600; }
+  /* The label is the tap target, so it carries the 44px floor. */
+  .inv-radio { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; cursor: pointer; color: var(--fg); }
+  .inv-radio input { width: 0.95rem; height: 0.95rem; accent-color: var(--color-brand-600); }
+
+  .inv-error {
+    margin: 0.05rem 0 0.2rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
+  .inv-error[hidden] { display: none; }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .inv-field-error { color: #fca5a5; }
+    :root:not([data-theme='light']) .inv-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .inv-field-error { color: #fca5a5; }
+  :root[data-theme='dark'] .inv-error { color: #fca5a5; }
 
   .inv-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
-  .inv-interpretation { margin: 0.6rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+  .inv-interpretation { margin: 0.4rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
 
-  .inv-bar {
-    margin-top: 1.1rem;
-    display: flex;
-    height: 0.75rem;
-    width: 100%;
-    overflow: hidden;
-    border-radius: 9999px;
-    background: var(--subtle);
-  }
-  .inv-seg { display: block; height: 100%; }
-
-  .inv-metrics { margin: 1.1rem 0 0; display: grid; gap: 0.25rem; }
+  .inv-metrics { margin: 0; display: grid; gap: 0.2rem; }
   .inv-metrics > div {
-    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-    padding: 0.4rem 0; border-bottom: 1px solid var(--line); font-size: 0.95rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.92rem;
   }
-  .inv-metrics dt { display: flex; align-items: center; gap: 0.5rem; color: var(--fg); font-weight: 600; }
-  .inv-metrics dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--heading); font-weight: 700; white-space: nowrap; }
-  .inv-dot { display: inline-block; height: 0.6rem; width: 0.6rem; border-radius: 9999px; flex: none; }
+  .inv-metrics dt { color: var(--fg); font-weight: 600; }
+  .inv-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 700;
+    white-space: nowrap;
+  }
 
-  .inv-assumptions { margin: 0.9rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+  .inv-figure__title {
+    margin: 0 0 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .inv-donut { margin: 0.9rem 0 0; }
+  .inv-donut__row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .inv-donut__plot { flex: 0 0 auto; width: 11.5rem; }
+  .inv-donut :global(.inv-donut__svg) { display: block; width: 100%; height: auto; }
+  .inv-donut :global(.inv-donut__arc--start) { stroke: var(--inv-start); }
+  .inv-donut :global(.inv-donut__arc--contributions) { stroke: var(--inv-contributions); }
+  .inv-donut :global(.inv-donut__arc--interest) { stroke: var(--inv-interest); }
+  /* Labels wear text ink, never the series colour. */
+  .inv-donut :global(.inv-donut__label) { fill: var(--heading); font-size: 11px; font-weight: 700; }
+
+  .inv-chart { margin: 1rem 0 0; }
+  .inv-chart__plot { width: 100%; }
+  .inv-chart :global(.inv-chart__svg) { display: block; width: 100%; height: auto; }
+  .inv-chart :global(.inv-chart__grid) { stroke: var(--line); stroke-width: 1; }
+  .inv-chart :global(.inv-chart__tick) { fill: var(--muted); font-size: 9px; }
+  .inv-chart :global(.inv-chart__seg--initial) { fill: var(--inv-start); }
+  .inv-chart :global(.inv-chart__seg--contrib) { fill: var(--inv-contributions); }
+  .inv-chart :global(.inv-chart__seg--interest) { fill: var(--inv-interest); }
+
+  .inv-legend {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+  .inv-legend--chart { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
+  .inv-legend li,
+  .inv-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .inv-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .inv-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+  .inv-key--start { background: var(--inv-start); }
+  .inv-key--contributions { background: var(--inv-contributions); }
+  .inv-key--interest { background: var(--inv-interest); }
+
+  .inv-schedule { margin-top: 1.1rem; }
+  .inv-view { border: 0; padding: 0; margin: 0 0 0.5rem; display: flex; gap: 0.4rem; }
+  .inv-view__opt { position: relative; display: inline-flex; min-height: 2.75rem; align-items: center; }
+  .inv-view__opt input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; }
+  .inv-view__opt span {
+    display: inline-block;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .inv-view__opt:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .inv-view__opt:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .inv-table-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
+  .inv-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.82rem; }
+  .inv-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .inv-table th.inv-th-period { width: 3.5rem; }
+  /* Rows are built with the DOM API, so these must be global — a scoped selector
+     compiles to an attribute the generated cells never carry. */
+  .inv-table :global(.inv-cell) { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); }
+  .inv-table :global(.inv-cell--period) { font-weight: 600; color: var(--fg); text-align: left; }
+  .inv-table th.inv-num,
+  .inv-table :global(td.inv-num) { text-align: right; font-variant-numeric: tabular-nums; }
+  .inv-table :global(.inv-year-end) > :global(.inv-cell--yearend) {
+    background: var(--surface-2, var(--line));
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--heading);
+    text-align: left;
+  }
+
+  .inv-schedule[data-inv-view='yearly'] :global([data-inv-rows-monthly]),
+  .inv-schedule[data-inv-view='monthly'] :global([data-inv-rows-yearly]) { display: none; }
+  .inv-schedule[data-inv-view='yearly'] [data-inv-when-view='monthly'],
+  .inv-schedule[data-inv-view='monthly'] [data-inv-when-view='yearly'] { display: none; }
+
+  .inv-schedule__note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { investmentBinding, validateInvestmentValues } from '@lib/calculators/investment-form';
+  import { investmentBinding, INVESTMENT_EXAMPLE_VALUES } from '@lib/calculators/investment-form';
 
-  document.querySelectorAll<HTMLElement>('[data-investment]').forEach((root) => {
+  document.querySelectorAll<HTMLElement>('[data-inv]').forEach((root) => {
     mountFormCalculator(root, investmentBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate Investment Growth',
+      example: { values: INVESTMENT_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
     });
 
-    // The runtime owns field-error focus; the island owns the field-less FUNDING error (both amounts
-    // collectively zero — the Triangle domain-error precedent). On an explicit submit that fails funding,
-    // return the visitor to Starting investment and reveal the funding-group message (aria-describedby
-    // ties it to both funding fields). Live edits keep it in step and never move focus.
-    const form = root.querySelector<HTMLFormElement>('[data-form]');
-    const fundingError = root.querySelector<HTMLElement>('[data-inv-funding-error]');
-    const start = root.querySelector<HTMLInputElement>('[name="startingAmount"]');
-
-    const fundingFailure = () => {
-      const v = validateInvestmentValues(investmentBinding.readValues(root));
-      return !v.ok && Boolean(v.formError);
-    };
-    const syncFunding = () => {
-      if (fundingError) fundingError.hidden = !fundingFailure();
-    };
-
-    form?.addEventListener('submit', () => {
-      syncFunding();
-      if (fundingFailure()) start?.focus();
+    // Annual ⇆ Monthly is a VIEW of one computed schedule, never a recalculation.
+    const schedule = root.querySelector<HTMLElement>('[data-inv-schedule]');
+    root.querySelectorAll<HTMLInputElement>('[data-inv-view-radio]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        if (schedule && radio.checked) schedule.dataset.invView = radio.value;
+      });
     });
-    form?.addEventListener('input', syncFunding);
-    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
-      if (fundingError) fundingError.hidden = true;
+    root.querySelector('[data-reset]')?.addEventListener('click', () => {
+      queueMicrotask(() => {
+        if (schedule) schedule.dataset.invView = 'yearly';
+        const yearly = root.querySelector<HTMLInputElement>('[data-inv-view-radio][value="yearly"]');
+        if (yearly) yearly.checked = true;
+      });
     });
   });
 </script>
