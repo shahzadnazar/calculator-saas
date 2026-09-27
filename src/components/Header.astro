@@ -188,13 +188,9 @@ const isGroupActive = (group: { slug: string }) =>
   btn?.addEventListener('click', () => {
     const root = document.documentElement;
 
-    const current =
-      root.getAttribute('data-theme') ||
-      (window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light');
-
-    const next = current === 'dark' ? 'light' : 'dark';
+    // BaseLayout always stamps data-theme before first paint, so there is no OS
+    // fallback to consult here any more — the attribute is the single answer.
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
 
     root.setAttribute('data-theme', next);
 

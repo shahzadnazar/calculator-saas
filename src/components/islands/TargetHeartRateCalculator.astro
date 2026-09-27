@@ -320,8 +320,15 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     color: var(--muted);
     font-weight: 600;
   }
+  /* `display: block` turns the table into its own scroll area, the same job
+     .am-table-wrap does for the amortization schedule. Its numeric column cannot
+     shrink below ~161px, so on a 320px screen the table pushed the whole page
+     sideways instead of scrolling within itself. */
   .thr-zones {
+    display: block;
     width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
     border-collapse: collapse;
     font-size: 0.84rem;
   }

@@ -331,7 +331,11 @@ const ONE_TIME_ROWS = Array.from({ length: ONE_TIME_SLOTS }, (_, i) => i + 1);
     flex: 1 1 9rem;
     min-width: 0;
   }
-  .am-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  /* Each legend row is one inline-flex line: a swatch, "Principal", the share and
+     the dollar amount. Without wrapping, that line has a hard min-content width —
+     186px against a 144px column beside the donut at 414px — and it pushed the
+     page 5px sideways once real six-figure amounts landed in it. It wraps instead. */
+  .am-legend span { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; min-width: 0; }
   .am-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
   .am-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
   .am-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }

@@ -27,7 +27,7 @@ import { percentExamples } from '@lib/calculators/percent-form';
 const ex = percentExamples();
 ---
 
-<div class="pct mx-auto grid grid-cols-2  gap-4" data-percent>
+<div class="pct mx-auto grid grid-cols-1 gap-4 sm:grid-cols-2" data-percent>
   <!-- Equation 1 — What is X% of Y? -->
   <form class="eq card" data-equation="percent-of" novalidate aria-label="What is a percentage of a number">
     <p class="eq-q">What is a percentage of a number?</p>
@@ -251,9 +251,17 @@ const ex = percentExamples();
   .eq-in {
     display: inline-flex;
     align-items: stretch;
+    /* The field and its suffix together ran 2px past a 320px screen. The pair is
+       allowed to shrink so the equation line always fits. */
+    max-width: 100%;
+    min-width: 0;
   }
+  /* 6rem wherever it fits, but never wider than the line it sits on: with the
+     suffix beside it the pair ran 2px past a 320px screen. */
   .eq-field {
     width: 6rem;
+    max-width: 100%;
+    min-width: 0;
     text-align: right;
   }
   .eq-in .eq-field {
@@ -275,7 +283,12 @@ const ex = percentExamples();
      to 37px — the only control in the fleet under the 44px target. The min-height puts it back
      without widening it. */
   .eq-select {
+    /* `width: auto` sizes a <select> to its longest OPTION, which made this 147px
+       inside a 94px flex parent and pushed a 320px phone sideways. The cap lets it
+       keep its natural width wherever there is room and shrink where there is not. */
     width: auto;
+    max-width: 100%;
+    min-width: 0;
     min-height: 2.75rem;
     padding-block: 0.4rem;
   }

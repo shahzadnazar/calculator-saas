@@ -386,6 +386,39 @@
   }
 
   /* ------------------------------------------------------------------------
+     Grid items inside a calculator must be allowed to shrink
+     ------------------------------------------------------------------------
+     A CSS Grid item defaults to `min-width: auto`, which refuses to go narrower
+     than its own min-content. One unbreakable child is then enough to push the
+     whole column past the viewport: a <select> sized to its longest option
+     ("Extra Active: very intense exercise daily, or physical job"), a wide radio
+     row, a table. On a 320px phone that showed as the protein, fat-intake,
+     target-heart-rate and percentage calculators scrolling sideways by 16-32px.
+
+     Nothing in the tool area wants that floor — every panel is width constrained
+     and wraps on its own — so the items are told they may shrink. Scoped to the
+     workspace rather than set globally, because elsewhere a min-content floor is
+     sometimes exactly what a layout relies on.
+
+     Two selectors, because two conventions exist: Tailwind's `.grid` utility, and
+     the islands' own named grid wrappers (`it-grid`, `sk-grid`). Income Tax used
+     the second, which is why its sticky result column still forced a 16px
+     sideways scroll at 320px after the first pass fixed the Tailwind ones.
+     ------------------------------------------------------------------------ */
+
+  .tool-shell__core .grid > *,
+  .tool-shell__core [class$='-grid'] > * {
+    min-width: 0;
+  }
+
+  /* A <select> is the usual offender: it sizes to its widest OPTION and ignores
+     its container. It keeps that natural width wherever there is room. */
+  .tool-shell__core select {
+    max-width: 100%;
+  }
+
+
+  /* ------------------------------------------------------------------------
      Tool shell — calculator and optional side rail
      ------------------------------------------------------------------------ */
 

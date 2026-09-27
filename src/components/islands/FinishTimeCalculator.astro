@@ -151,7 +151,9 @@ import { LENGTH_UNITS, RACE_DISTANCES, DEFAULT_DISTANCE_UNIT } from '@lib/calcul
     color: var(--muted);
   }
   .ft__chip {
-    min-height: 2.25rem;
+    /* 2.75rem, not 2.25rem: these are the quick-pick race distances and were the
+       only controls in the fleet still under the 44px tap target. */
+    min-height: 2.75rem;
     padding: 0 0.6rem;
     border: 1px solid var(--line);
     border-radius: 999px;
