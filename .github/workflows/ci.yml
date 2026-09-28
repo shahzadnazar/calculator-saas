@@ -1,29 +1,25 @@
 name: CI
 
 on:
-  # Run CI/CD when code reaches the production branch.
   push:
-    branches:
-      - main
 
-  # Validate pull requests before they are merged into main.
-  pull_request:
-    branches:
-      - main
-
-# This workflow only needs permission to read repository contents.
+# Workflow only needs read access to repository contents.
 permissions:
   contents: read
 
-# Cancel outdated CI runs when a newer commit is pushed to the same PR.
-# Production/main runs are NOT cancelled.
+# If several commits are pushed quickly to the same feature branch,
+# cancel the older CI run and test only the newest commit.
+#
+# Never cancel a main/production workflow once it has started.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # ==========================================================================
   # BUILD AND TEST
+  #
+  # Runs on every push to every branch.
   # ==========================================================================
   build-and-test:
     runs-on: ubuntu-24.04
@@ -35,8 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          # Keep the project's existing Node version for now.
-          # Upgrading the application itself to Node 24 should be a separate change.
+          # Keep the application's existing Node.js version for now.
           node-version: '20'
           cache: 'npm'
 
@@ -70,11 +65,11 @@ jobs:
   # ==========================================================================
   # DEPLOY TO HOSTINGER
   #
-  # Deployment runs only:
-  #   1. After build-and-test succeeds
-  #   2. On a push to main
+  # Runs ONLY when:
+  #   1. build-and-test succeeds
+  #   2. the push is on main
   #
-  # Required GitHub repository secrets:
+  # Required repository secrets:
   #   HOSTINGER_HOST
   #   HOSTINGER_USER
   #   HOSTINGER_PORT
@@ -88,7 +83,7 @@ jobs:
 
     runs-on: ubuntu-24.04
 
-    # Never allow two production deployments to run simultaneously.
+    # Only one production deployment can run at a time.
     concurrency:
       group: hostinger-production
       cancel-in-progress: false
@@ -109,8 +104,8 @@ jobs:
       - name: Build production site
         run: npm run build
 
-      # Internal demo routes are useful during development/tests
-      # but must never be deployed to production.
+      # Internal demo routes are used during development/tests,
+      # but must never reach production.
       - name: Strip internal /dev routes from the bundle
         run: rm -rf dist/dev
 
