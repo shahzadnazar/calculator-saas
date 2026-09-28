@@ -14,12 +14,22 @@ const faqs = [
   {
     question: 'Does the day count include both the start and end date?',
     answer:
-      'The result is the difference — end date minus start date — so from January 1 to January 2 is 1 day. If you need to count both endpoints (for example, total vacation days you are away), add one to the result.',
+      'By default it is the difference — end date minus start date — so January 1 to January 2 is 1 day. Tick "Include the end day" when you need both endpoints counted, such as total days away on a trip, and the count goes up by one.',
   },
   {
-    question: 'How do I add or subtract days from a date?',
+    question: 'How do I add or subtract time from a date?',
     answer:
-      'Use the "Add or subtract days" tool: pick a start date, choose add or subtract, and enter the number of days. The resulting calendar date is shown instantly.',
+      'Use the "Add or subtract from a date" task: pick a start date, choose add or subtract, and fill in any combination of years, months, weeks and days. Boxes you leave blank count as zero. The resulting calendar date is shown instantly.',
+  },
+  {
+    question: 'How do I count business days between two dates?',
+    answer:
+      'Tick "Count business days only" and the result counts Monday to Friday, skipping every weekend. Tick "Also skip US federal holidays" as well and the eleven observed federal holidays come out too — including the day a holiday is moved to when it falls on a weekend.',
+  },
+  {
+    question: 'What happens when I add a month to the 31st?',
+    answer:
+      'The date is clamped to the last day of the target month, so one month after January 31 is February 28 — or February 29 in a leap year — rather than rolling into March. Years and months are applied first, then weeks and days, which is why a month and a day after January 31 is March 1.',
   },
   {
     question: 'How do I count down the days until a future date?',
@@ -37,27 +47,30 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Find the number of days between two dates, or add and subtract days from any date. Leap years and month lengths are handled automatically."
+  rail
+  intro="Find the number of days between two dates, or add and subtract years, months, weeks and days from any date. Count business days only if you need to, and leap years and month lengths are handled automatically."
   faqs={faqs}
   reviewMetadata={{ reviewedDate: '2026-08-09' }}
 >
   <DateCalculator />
 
   <Fragment slot="content">
-    <h2>Two date tools in one</h2>
+    <h2>Two calculators on this page</h2>
     <p>
-      Pick a mode with the selector at the top. <strong>Days between two dates</strong>
-      measures the duration between a start and an end date — useful for counting down to an
-      event, tracking a project timeline or checking someone's age on a specific day.
-      <strong>Add or subtract days</strong> shifts a single date forward or back by a whole
-      number of days, handy for deadlines, due dates and return-by dates.
+      They are separate tools, each with its own button and its own answer, so you can use one
+      without clearing the other. <strong>Days Between Two Dates</strong> measures the span from a
+      start date to an end date — useful for counting down to an event, tracking a project
+      timeline or checking someone's age on a specific day. <strong>Add to or Subtract from a
+      Date</strong> shifts a single date forward or back by any combination of years, months,
+      weeks and days, handy for deadlines, due dates and return-by dates. Either one can count
+      business days instead of calendar days.
     </p>
 
     <h2>Finding the days between two dates</h2>
     <ol>
-      <li>Choose the <strong>days between</strong> mode.</li>
+      <li>Use the <strong>Days Between Two Dates</strong> calculator at the top.</li>
       <li>Enter a <strong>start date</strong> and an <strong>end date</strong>.</li>
-      <li>Press <strong>Calculate</strong> to see the total days, the span in weeks, and a breakdown in years, months and days.</li>
+      <li>Press <strong>Calculate</strong> to see the total days, the span in weeks and days, and a breakdown in years, months and days.</li>
     </ol>
     <p>
       The two dates are order-independent: put the later one first and the tool still reports
@@ -69,15 +82,37 @@ const faqs = [
     <p>
       "How many days between" almost always means the difference — the later date minus the
       earlier one. From July 1 to July 10 that is <strong>9 days</strong>. If you actually want
-      to include both the first and last day, as when counting the days of a trip, add one to
-      get <strong>10</strong>. Deciding which you need up front avoids the classic off-by-one
-      error.
+      to include both the first and last day, as when counting the days of a trip, tick
+      <strong>Include the end day</strong> and the count becomes <strong>10</strong>. Deciding
+      which you need up front avoids the classic off-by-one error.
     </p>
 
-    <h2>Adding or subtracting days</h2>
+    <h2>Counting business days</h2>
+    <p>
+      Tick <strong>Count business days only</strong> and the count drops the weekends, which is
+      what you want for delivery windows, notice periods, court deadlines and anything else
+      measured in working days. Tick <strong>Also skip US federal holidays</strong> and the
+      eleven federal holidays come out too.
+    </p>
+    <p>
+      Holidays are counted on the day they are <strong>observed</strong>, not the date in the
+      statute. A fixed-date holiday that lands on a Saturday is observed the Friday before, and
+      one on a Sunday the Monday after — so Independence Day 2027 falls on a Sunday and the day
+      off is Monday July 5. Juneteenth is only counted from 2021, the year it became a federal
+      holiday, so historical spans are not quietly shortened.
+    </p>
+    <p>
+      In the second calculator, business days are a count of working days, so the amount goes in
+      the Days box on its own. The start day itself is never counted: three business days
+      from a Friday is the following Wednesday, and asking from the Saturday lands on the same
+      Wednesday.
+    </p>
+
+    <h2>Adding or subtracting from a date</h2>
     <ol>
-      <li>Switch to the <strong>add or subtract</strong> mode.</li>
-      <li>Enter a <strong>start date</strong>, choose <strong>add</strong> or <strong>subtract</strong>, and type a whole number of days.</li>
+      <li>Use the <strong>Add to or Subtract from a Date</strong> calculator below it.</li>
+      <li>Enter a <strong>start date</strong> and choose <strong>add</strong> or <strong>subtract</strong>.</li>
+      <li>Fill in any combination of <strong>years, months, weeks and days</strong>. A box left blank counts as zero; at least one must be filled in.</li>
       <li>The resulting calendar date appears, with the weekday spelled out.</li>
     </ol>
     <p>
@@ -85,12 +120,27 @@ const faqs = [
       handled for you — there is no need to work out which months have 30 or 31 days.
     </p>
 
+    <h2>What "one month later" means</h2>
+    <p>
+      Months are not all the same length, so adding one to the 31st has to land somewhere. The
+      answer here is the <strong>last day of the target month</strong>: one month after January
+      31 is February 28, or February 29 in a leap year, rather than rolling over into March.
+      That is what a calendar does when you page forward a month, and it keeps the step
+      reversible.
+    </p>
+    <p>
+      Years and months are applied first, then weeks and days. That order matters at month ends:
+      <strong>one month and one day</strong> after January 31 is March 1 — the month step clamps
+      to February 28 first, and the day is added to that.
+    </p>
+
     <h2>A worked example</h2>
     <p>
       From <strong>15 January 2026</strong> to <strong>10 August 2026</strong> is
       <strong>207 days</strong> — that is <strong>29 weeks and 4 days</strong>, or 6 months and
-      26 days in the calendar breakdown. Switch to the other mode and adding
-      <strong>90 days</strong> to 10 August 2026 lands on <strong>8 November 2026</strong>.
+      26 days in the calendar breakdown, and <strong>147 business days</strong> once weekends
+      come out. In the second calculator, adding <strong>90 days</strong> to 10 August 2026 lands
+      on <strong>8 November 2026</strong>.
     </p>
 
     <h2>Accurate calendar math</h2>

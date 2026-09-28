@@ -36,3 +36,6 @@ playwright-report/
 
 # local e2e scripts (not part of the project)
 /e2e-run.mjs
+
+# Deployment bundle (built artifact, not source)
+bestcalculate-dist.zip

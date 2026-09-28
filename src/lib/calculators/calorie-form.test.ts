@@ -1,193 +1,263 @@
 import { describe, it, expect } from 'vitest';
-import { calculateCalories, ACTIVITY_LEVELS } from './calorie';
 import {
+  MSG,
+  ACTIVITY_BANDS,
+  ACTIVITY_BAND_NOTES,
+  DEFAULT_ACTIVITY,
+  MINIMUM_DAILY_CALORIES,
+  ageError,
+  activityError,
+  bodyFatError,
   validateCalorieValues,
-  computeCalorie,
+  computeCalories,
+  completeCalorieValue,
   describeCalorieResult,
   formatCalories,
   isUsableCalories,
-  CALORIE_GOALS,
-  DEFAULT_ACTIVITY,
-  DEFAULT_GOAL_KEY,
+  rateFor,
+  minimumWarning,
   calorieBinding,
+  metricToImperial,
+  imperialToMetric,
+  CALORIE_EXAMPLE_VALUES,
   type CalorieValues,
 } from './calorie-form';
 
 /**
- * Calorie binding — pure surface. Mifflin-St Jeor BMR × activity + the goal deltas
- * stay in the reviewed pure `calorie.ts`; here we pin the personal-input
- * validation, the PRESERVED figures (delegated verbatim to `calculateCalories`),
- * the goal SELECTOR that only picks an existing value as the headline, the
- * finite+positive guards, and the concise description.
+ * The binding's pure surface. The report itself lives in the reviewed pure `calorie.ts`;
+ * here we pin what the binding adds — the age, activity and body-fat gates, the unit-aware
+ * rate labels and warning, the whole-report guard, and Metric/US conversion.
  */
 
-const mMetric = (o: Partial<Record<string, string>> = {}): CalorieValues =>
-  ({ sex: 'male', system: 'metric', age: '30', heightCm: '180', weightKg: '80', activity: '1.55', goalKey: 'maintain', ...o } as CalorieValues);
-const fMetric = (o: Partial<Record<string, string>> = {}): CalorieValues =>
-  ({ sex: 'female', system: 'metric', age: '30', heightCm: '165', weightKg: '60', activity: '1.55', goalKey: 'maintain', ...o } as CalorieValues);
-const mImperial = (o: Partial<Record<string, string>> = {}): CalorieValues =>
-  ({ sex: 'male', system: 'imperial', age: '25', heightFt: '5', heightIn: '11', weightLb: '176', activity: '1.375', goalKey: 'maintain', ...o } as CalorieValues);
+const base: CalorieValues = {
+  system: 'metric',
+  sex: 'male',
+  age: '25',
+  heightCm: '180',
+  weightKg: '65',
+  heightFt: '',
+  heightIn: '',
+  weightLb: '',
+  activity: '1.465',
+  formula: 'mifflin',
+  bodyFatPct: '',
+};
+const metric = (over: Partial<CalorieValues> = {}): CalorieValues => ({ ...base, ...over });
+const us = (over: Partial<CalorieValues> = {}): CalorieValues => ({
+  ...base,
+  system: 'imperial',
+  heightCm: '',
+  weightKg: '',
+  heightFt: '5',
+  heightIn: '10',
+  weightLb: '165',
+  ...over,
+});
+const by = (v: CalorieValues, key: string) => computeCalories(v).goals.find((g) => g.key === key)!;
+
+describe('the reference report reproduces exactly', () => {
+  it('Metric: 25, male, 180 cm, 65 kg, Moderate → maintain 2,425', () => {
+    const r = computeCalories(metric());
+    expect(r.maintenance).toBe(2425);
+    expect(formatCalories(r.maintenance)).toBe('2,425');
+  });
+
+  it('prints the reference’s four loss rows with their percentages', () => {
+    expect(by(metric(), 'maintain')).toMatchObject({ calories: 2425, percent: 100 });
+    expect(by(metric(), 'mild-loss')).toMatchObject({ calories: 2175, percent: 90 });
+    expect(by(metric(), 'loss')).toMatchObject({ calories: 1925, percent: 79 });
+    expect(by(metric(), 'extreme-loss')).toMatchObject({ calories: 1425, percent: 59 });
+  });
+
+  it('prints the three gain rows behind the disclosure', () => {
+    expect(by(metric(), 'mild-gain')).toMatchObject({ calories: 2675, percent: 110 });
+    expect(by(metric(), 'gain')).toMatchObject({ calories: 2925, percent: 121 });
+    expect(by(metric(), 'fast-gain')).toMatchObject({ calories: 3425, percent: 141 });
+  });
+});
+
+describe('the unit system changes the labels, never the arithmetic', () => {
+  it('writes the same delta as kg/week or lb/week', () => {
+    const row = { rateMetric: '0.5 kg/week', rateImperial: '1 lb/week' };
+    expect(rateFor(row, 'metric')).toBe('0.5 kg/week');
+    expect(rateFor(row, 'imperial')).toBe('1 lb/week');
+  });
+
+  it('worded the same way in the doctor warning', () => {
+    expect(minimumWarning('metric')).toContain('1 kg or more per week');
+    expect(minimumWarning('imperial')).toContain('2 lb or more per week');
+    for (const s of ['metric', 'imperial'] as const) {
+      expect(minimumWarning(s)).toContain('1,500 calories a day');
+    }
+  });
+
+  it('the same body in either system produces the same calories', () => {
+    // 180 cm / 65 kg is 5 ft 11 in / 143.3 lb; entering that in US units must agree.
+    const inMetric = computeCalories(metric()).maintenance;
+    const inUs = computeCalories(us({ heightFt: '5', heightIn: '11', weightLb: '143.3' })).maintenance;
+    expect(Math.abs(inMetric - inUs)).toBeLessThanOrEqual(3);
+  });
+
+  it('the warning only fires when the report actually goes below the minimum', () => {
+    expect(computeCalories(metric()).belowMinimum).toBe(true); // 1,425
+    // A larger, more active body's extreme rate stays above 1,500.
+    const bigger = computeCalories(metric({ weightKg: '95', activity: '1.9' }));
+    expect(bigger.goals.find((g) => g.key === 'extreme-loss')!.calories).toBeGreaterThan(MINIMUM_DAILY_CALORIES);
+    expect(bigger.belowMinimum).toBe(false);
+  });
+});
+
+describe('activity', () => {
+  it('offers the six shared bands, defaulting to Moderate', () => {
+    expect(ACTIVITY_BANDS).toHaveLength(6);
+    expect(DEFAULT_ACTIVITY).toBe(1.465);
+    expect(activityError(String(DEFAULT_ACTIVITY))).toBe(null);
+  });
+
+  it('refuses a multiplier that is not one of the six', () => {
+    expect(activityError('1.3')).toBe(MSG.activityMissing);
+    expect(activityError('')).toBe(MSG.activityMissing);
+    expect(activityError('abc')).toBe(MSG.activityMissing);
+    for (const b of ACTIVITY_BANDS) expect(activityError(String(b.value))).toBe(null);
+  });
+
+  it('actually moves the answer', () => {
+    const sedentary = computeCalories(metric({ activity: '1.2' })).maintenance;
+    const extra = computeCalories(metric({ activity: '1.9' })).maintenance;
+    expect(sedentary).toBe(1986); // 1655 × 1.2
+    expect(extra).toBe(3145); // 1655 × 1.9
+  });
+
+  it('carries the footnotes that define its terms', () => {
+    expect(ACTIVITY_BAND_NOTES).toHaveLength(3);
+  });
+});
+
+describe('age and body fat', () => {
+  it('age is required, whole, and inside 15–80', () => {
+    expect(ageError('')).toBe(MSG.ageMissing);
+    expect(ageError('25.5')).toBe(MSG.ageWhole);
+    expect(ageError('14')).toBe(MSG.ageRange);
+    expect(ageError('81')).toBe(MSG.ageRange);
+    expect(ageError('15')).toBe(null);
+  });
+
+  it('body fat is asked for only by Katch-McArdle', () => {
+    expect(bodyFatError('mifflin', '')).toBe(null);
+    expect(bodyFatError('katch-mcardle', '')).toBe(MSG.bodyFatMissing);
+    expect(bodyFatError('katch-mcardle', '120')).toBe(MSG.bodyFatRange);
+    expect(bodyFatError('katch-mcardle', '20')).toBe(null);
+  });
+
+  it('the equation changes the whole report', () => {
+    expect(computeCalories(metric({ formula: 'harris-benedict' })).maintenance).toBe(2463);
+    expect(computeCalories(metric({ formula: 'katch-mcardle', bodyFatPct: '20' })).maintenance).toBe(2188);
+  });
+});
 
 describe('validateCalorieValues', () => {
-  it('accepts valid metric + imperial personal inputs', () => {
-    expect(validateCalorieValues(mMetric())).toEqual({ ok: true });
-    expect(validateCalorieValues(fMetric())).toEqual({ ok: true });
-    expect(validateCalorieValues(mImperial())).toEqual({ ok: true });
+  it('accepts a complete metric and a complete US entry', () => {
+    expect(validateCalorieValues(metric())).toEqual({ ok: true });
+    expect(validateCalorieValues(us())).toEqual({ ok: true });
   });
-  it('flags missing age / height / weight (never Number()||0)', () => {
-    const r = validateCalorieValues(mMetric({ age: '', heightCm: '', weightKg: '' }));
+
+  it('reports every missing field at once', () => {
+    const r = validateCalorieValues(metric({ age: '', heightCm: '', weightKg: '', activity: '' }));
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.fieldErrors!.age).toBe('Enter your age.');
-      expect(r.fieldErrors!.heightCm).toBe('Enter your height.');
-      expect(r.fieldErrors!.weightKg).toBe('Enter your weight.');
+      expect(r.fieldErrors!.age).toBe(MSG.ageMissing);
+      expect(r.fieldErrors!.heightCm).toBe(MSG.heightMissing);
+      expect(r.fieldErrors!.weightKg).toBe(MSG.weightMissing);
+      expect(r.fieldErrors!.activity).toBe(MSG.activityMissing);
     }
   });
-  it('rejects zero / negative personal inputs', () => {
-    for (const bad of ['0', '-5']) {
-      expect(validateCalorieValues(mMetric({ weightKg: bad })).ok).toBe(false);
-    }
-  });
-  it('applies the shared imperial-height semantics (0–11 inches)', () => {
-    const over = validateCalorieValues(mImperial({ heightIn: '12' }));
+
+  it('applies the shared imperial-height semantics', () => {
+    const over = validateCalorieValues(us({ heightIn: '12' }));
     expect(over.ok).toBe(false);
-    if (!over.ok) expect(over.fieldErrors!.height).toMatch(/0 to 11/);
+    if (!over.ok) expect(over.fieldErrors!.height).toBe(MSG.heightInches);
   });
-  it('never validates activity or goal (both are selects with valid options)', () => {
-    expect(validateCalorieValues(mMetric({ activity: 'nonsense', goalKey: 'nonsense' })).ok).toBe(true);
-  });
-  it('rejects a non-usable selected target with plain guidance (no internals)', () => {
-    // Tiny valid inputs → a large loss goal drops the target below zero.
-    const r = validateCalorieValues(mMetric({ goalKey: 'loss', age: '1', heightCm: '1', weightKg: '1' }));
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.formError).toBe('These details do not produce a usable calorie estimate. Check your entries and try again.');
-      expect(r.formError).not.toMatch(/NaN|Infinity|BMR formula|internal/i);
-    }
+
+  it('never reads the other tab’s boxes', () => {
+    expect(validateCalorieValues(us({ heightCm: '', weightKg: '' })).ok).toBe(true);
+    expect(validateCalorieValues(metric({ heightFt: '', heightIn: '', weightLb: '' })).ok).toBe(true);
   });
 });
 
-describe('computeCalorie — preserved figures, goal picks an existing value', () => {
-  it('delegates every figure verbatim to calculateCalories (metric)', () => {
-    const values = mMetric({ activity: '1.2' });
-    const mine = computeCalorie(values);
-    const pure = calculateCalories({ sex: 'male', age: 30, system: 'metric', heightCm: 180, weightKg: 80, activity: 1.2 });
-    expect(mine.bmr).toBe(pure.bmr); // 1780
-    expect(mine.maintenance).toBe(pure.maintenance); // 2136
-    expect(mine.loss).toBe(pure.loss); // 1636
-    expect(mine.gain).toBe(pure.gain); // 2636
-    expect(mine.mildLoss).toBe(pure.mildLoss);
-    expect(mine.mildGain).toBe(pure.mildGain);
+describe('completeCalorieValue — the whole report or nothing', () => {
+  it('is finite for a complete entry', () => {
+    expect(Number.isFinite(completeCalorieValue(computeCalories(metric())))).toBe(true);
   });
 
-  it('the selected goal maps to the matching preserved field', () => {
-    const cases: Array<[string, keyof ReturnType<typeof calculateCalories>]> = [
-      ['maintain', 'maintenance'],
-      ['mild-loss', 'mildLoss'],
-      ['loss', 'loss'],
-      ['mild-gain', 'mildGain'],
-      ['gain', 'gain'],
-    ];
-    for (const [goalKey, field] of cases) {
-      const r = computeCalorie(mMetric({ goalKey }));
-      expect(r.target).toBe(r[field]);
+  it('is NaN when anything is missing', () => {
+    for (const bad of [metric({ age: '' }), metric({ heightCm: '' }), metric({ weightKg: '' })]) {
+      expect(Number.isNaN(completeCalorieValue(computeCalories(bad)))).toBe(true);
     }
   });
 
-  it('maintenance = round(BMR × activity) for every shared activity level', () => {
-    for (const level of ACTIVITY_LEVELS) {
-      const r = computeCalorie(mMetric({ activity: String(level.value) }));
-      expect(Number.isFinite(r.maintenance)).toBe(true);
-      expect(r.maintenance).toBe(Math.round(r.bmr * level.value));
-    }
+  it('is NaN for Katch-McArdle without a body fat percentage', () => {
+    expect(Number.isNaN(completeCalorieValue(computeCalories(metric({ formula: 'katch-mcardle' }))))).toBe(true);
   });
 
-  it('supports imperial and echoes the goal metadata', () => {
-    const r = computeCalorie(mImperial({ goalKey: 'loss' }));
-    expect(Number.isFinite(r.target)).toBe(true);
-    expect(r.target).toBeGreaterThan(0);
-    expect(r.goalLabel).toBe('Weight loss (−500 kcal/day)');
-    expect(r.goalAnnounce).toBe('for weight loss');
-  });
-
-  it('fabricates no range/average field — only the reviewed figures + goal metadata', () => {
-    const keys = Object.keys(computeCalorie(mMetric())).sort();
-    expect(keys).toEqual(
-      ['bmr', 'gain', 'goalAnnounce', 'goalKey', 'goalLabel', 'goalNote', 'loss', 'maintenance', 'mildGain', 'mildLoss', 'target'].sort(),
-    );
-    expect(keys).not.toContain('average');
-    expect(keys).not.toContain('range');
-    expect(keys).not.toContain('min');
-  });
-
-  it('guards invalid personal input (all figures NaN)', () => {
-    const r = computeCalorie(mMetric({ age: '0', heightCm: '0', weightKg: '0' }));
-    for (const v of [r.bmr, r.maintenance, r.loss, r.gain, r.target]) expect(Number.isNaN(v)).toBe(true);
+  it('refuses the whole report rather than printing a row at or below zero', () => {
+    // A very small, sedentary body: the extreme 1,000-calorie deficit lands under zero.
+    const tiny = computeCalories(metric({ heightCm: '120', weightKg: '25', age: '80', activity: '1.2' }));
+    expect(tiny.goals.find((g) => g.key === 'extreme-loss')!.calories).toBeLessThanOrEqual(0);
+    expect(Number.isNaN(completeCalorieValue(tiny))).toBe(true);
   });
 });
 
-describe('resultValue + formatting guards', () => {
-  it('passes a usable target through, gates a non-usable one to NaN', () => {
-    expect(calorieBinding.resultValue(computeCalorie(mMetric()))).toBeGreaterThan(0);
-    const bad = computeCalorie(mMetric({ goalKey: 'loss', age: '1', heightCm: '1', weightKg: '1' }));
-    expect(bad.target).toBeLessThan(0);
-    expect(Number.isNaN(calorieBinding.resultValue(bad))).toBe(true);
-  });
-  it('isUsableCalories rejects ≤ 0 and non-finite', () => {
-    for (const ok of [1, 2136, 5000]) expect(isUsableCalories(ok)).toBe(true);
-    for (const bad of [0, -1, NaN, Infinity]) expect(isUsableCalories(bad)).toBe(false);
-  });
-  it('formatCalories renders thousands separators and dashes non-usable values', () => {
-    expect(formatCalories(2136)).toBe('2,136');
-    expect(formatCalories(-5)).toBe('—');
+describe('formatting and speech', () => {
+  it('never prints a non-number or a non-positive figure', () => {
+    expect(formatCalories(Number.NaN)).toBe('—');
     expect(formatCalories(0)).toBe('—');
-    expect(formatCalories(NaN)).toBe('—');
+    expect(formatCalories(-5)).toBe('—');
+    expect(formatCalories(2425)).toBe('2,425');
+    expect(isUsableCalories(0)).toBe(false);
+    expect(isUsableCalories(1)).toBe(true);
+  });
+
+  it('announces maintenance only, never the whole table', () => {
+    const s = describeCalorieResult(computeCalories(metric()));
+    expect(s).toBe('To maintain your weight you need about 2,425 Calories a day.');
+    expect(s).not.toMatch(/2,175|1,925|1,425|zigzag/i);
   });
 });
 
-describe('describeCalorieResult', () => {
-  it('announces the selected goal target only, never the comparison', () => {
-    const s = describeCalorieResult(computeCalorie(mMetric({ activity: '1.2', goalKey: 'maintain' })));
-    expect(s).toBe('Your estimated daily calorie target for maintaining weight is 2,136 kilocalories per day.');
-    expect(s).not.toMatch(/mild|loss|gain|bmr/i);
+describe('conversion between the tabs', () => {
+  it('metric → US and back', () => {
+    expect(metricToImperial({ heightCm: 180, weightKg: 65 })).toEqual({ heightFt: 5, heightIn: 11, weightLb: 143.3 });
+    const m = imperialToMetric({ heightFt: 5, heightIn: 10, weightLb: 165 });
+    expect(m.heightCm).toBeCloseTo(177.8, 1);
+    expect(m.weightKg).toBeCloseTo(74.8, 1);
+  });
+  it('empty stays empty', () => {
+    expect(metricToImperial({ heightCm: null, weightKg: null })).toEqual({ heightFt: null, heightIn: null, weightLb: null });
+    expect(imperialToMetric({ heightFt: null, heightIn: null, weightLb: null })).toEqual({ heightCm: null, weightKg: null });
   });
 });
 
-describe('CALORIE_GOALS defaults + scenario labels (R7C-2B.1)', () => {
-  it('has five goals, defaults to maintain, and the default activity is Moderate (1.55)', () => {
-    expect(CALORIE_GOALS.map((g) => g.key)).toEqual(['maintain', 'mild-loss', 'loss', 'mild-gain', 'gain']);
-    expect(DEFAULT_GOAL_KEY).toBe('maintain');
-    expect(DEFAULT_ACTIVITY).toBe(1.55);
-    expect(ACTIVITY_LEVELS.some((a) => a.value === DEFAULT_ACTIVITY)).toBe(true);
-  });
-  it('labels the loss/gain scenarios with their exact kcal adjustments', () => {
-    expect(CALORIE_GOALS.map((g) => g.label)).toEqual([
-      'Maintain weight',
-      'Mild weight loss (−250 kcal/day)',
-      'Weight loss (−500 kcal/day)',
-      'Mild weight gain (+250 kcal/day)',
-      'Weight gain (+500 kcal/day)',
-    ]);
-    // Every interpretation frames the result as a calculation scenario.
-    for (const g of CALORIE_GOALS) expect(g.note).toMatch(/selected calculation scenario/i);
+describe('the labelled example', () => {
+  it('is the reference’s US case, in the system the tabs open on, at the default band', () => {
+    expect(CALORIE_EXAMPLE_VALUES).toMatchObject({
+      system: 'imperial',
+      age: '25',
+      heightFt: '5',
+      heightIn: '10',
+      weightLb: '165',
+      formula: 'mifflin',
+      bodyFatPct: '',
+    });
+    expect(CALORIE_EXAMPLE_VALUES.activity).toBe(String(DEFAULT_ACTIVITY));
+    expect(validateCalorieValues(CALORIE_EXAMPLE_VALUES)).toEqual({ ok: true });
+    expect(Number.isFinite(completeCalorieValue(computeCalories(CALORIE_EXAMPLE_VALUES)))).toBe(true);
   });
 });
 
-describe('non-positive comparison handling (R7C-2B.1)', () => {
-  // Tiny-but-valid inputs: maintenance is positive but the −500 loss goal is negative.
-  const edge = (goalKey = 'maintain') => mMetric({ age: '80', heightCm: '100', weightKg: '10', activity: '1.2', goalKey });
-
-  it('produces a positive maintenance while an unselected goal is non-positive', () => {
-    const r = computeCalorie(edge('maintain'));
-    expect(r.maintenance).toBeGreaterThan(0);
-    expect(r.loss).toBeLessThanOrEqual(0); // −500 goal underwater for these inputs
-    expect(isUsableCalories(r.target)).toBe(true); // selected (maintain) is fine
-  });
-
-  it('selecting the non-positive goal makes the result invalid (not another goal shown as selected)', () => {
-    const r = validateCalorieValues(edge('loss'));
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.formError).toContain('usable calorie estimate');
-    expect(Number.isNaN(calorieBinding.resultValue(computeCalorie(edge('loss'))))).toBe(true);
+describe('the binding wires the pure parts together', () => {
+  it('gates the result on the complete-report guard', () => {
+    expect(calorieBinding.resultValue).toBe(completeCalorieValue);
+    expect(calorieBinding.validate).toBe(validateCalorieValues);
+    expect(calorieBinding.compute).toBe(computeCalories);
   });
 });

@@ -1,59 +1,61 @@
 /**
- * Inflation form binding (R9C1 — standard-form wave, calculator #19; product family
- * FINANCE-SIMPLE, on the standard-form runtime UNCHANGED — no `isUsableResult`).
+ * Inflation bindings — THREE independent calculators on one page, each its own
+ * `<form data-equation>` on the shared equation runtime, exactly as the six percentage
+ * equations work:
  *
- * Single mode, no structural selectors. Amount + annual rate + years → projected future cost
- * (dominant) plus future buying power ($) and a signed cumulative price change (%). The pure
- * `adjustForInflation` is UNCHANGED and frozen by inflation.test.ts; everything here is at the
- * VALIDATION / PRESENTATION boundary. Product decisions (R9C1):
- *   • Amount required, finite, >= 0 (0 valid; empty and negative / non-finite invalid).
- *   • Annual rate required and finite, **strictly greater than -100** — a NEGATIVE rate is VALID
- *     deflation; `rate <= -100` (the non-finite cliff) and NaN/Infinity are rejected. No positive max.
- *   • Time in years required, finite, >= 0, fractional allowed.
- *   • Projected future cost is the DOMINANT result; future buying power ($) and cumulative price
- *     change (signed %) are the breakdown. Wording stays neutral for inflation AND deflation; a
- *     negative cumulative change is valid (never labelled an "increase").
- *   • USD only. The announcement speaks the dominant future cost in dollars/cents.
+ *   1. `cpi`      — what an amount in one month or annual average is worth in another,
+ *                   read off the published U.S. CPI-U series.
+ *   2. `forward`  — an amount grown at a flat rate for some years.
+ *   3. `backward` — what an amount would have been that many years ago at a flat rate.
  *
- * `isUsableResult` is NOT implemented (R9A0 Decision A). Instead `resultValue` returns a non-finite
- * sentinel for any malformed output — a non-finite futureCost/buyingPower/pct, or a negative
- * currency — so the runtime's DEFAULT finite gate moves such a result to the invalid state. For the
- * validated domain this only ever fires on absurd overflow/underflow (e.g. a ~2000-year horizon that
- * underflows the factor to 0 → NaN buying power); every realistic entry passes.
+ * The two flat-rate forms are mirror images and share one engine (`adjustForInflation`,
+ * UNCHANGED and still frozen by inflation.test.ts). The CPI form is a different thing
+ * entirely: it looks values up rather than assuming a rate, so it can also report the
+ * rate that actually happened.
+ *
+ * Amounts start EMPTY behind a labelled worked example, the fleet-wide contract every
+ * other calculator keeps (e2e/example-state.spec.ts). The period selects carry defaults
+ * because a select always holds something, and that default is derived from the data —
+ * the latest published month, against the annual average ten years before it — so the
+ * page does not rot as new months are released. The CPI example is that same span, which
+ * is why the panel opens on a real, reproducible figure with the visitor's own fields
+ * still blank.
  */
 import { adjustForInflation } from './inflation';
-import { formatCurrency, formatPercent } from '@lib/format';
+import {
+  type CpiComparison,
+  type CpiPeriod,
+  compareCpi,
+  cpiValue,
+  hasAnnualAverage,
+  latestPeriod,
+  periodLabel,
+} from './cpi';
+import { drawPurchasingPowerChart } from './inflation-chart';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
 import type {
-  FormCalculatorBinding,
-  FormRenderContext,
-  ResetMode,
+  EquationCalculatorBinding,
+  EquationRenderContext,
   ValidationResult,
-} from '@lib/result/form-runtime';
-
-export interface InflationValues {
-  amount: string;
-  annualRatePct: string;
-  years: string;
-}
-
-/** Structured result — carries the validated inputs so presentation can build the (inflation vs
- *  deflation) interpretation without re-reading the DOM. */
-export interface InflationComputed {
-  amount: number;
-  annualRatePct: number;
-  years: number;
-  futureCost: number;
-  buyingPower: number;
-  totalInflationPct: number;
-}
+} from '@lib/result/equation-runtime';
 
 /* ------------------------------------------------------------------ */
-/* Parsing + validation (pure)                                         */
+/* Shared helpers                                                      */
 /* ------------------------------------------------------------------ */
+
+const field = (root: HTMLElement, name: string) =>
+  root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
+
+const readField = (root: HTMLElement, name: string): string => field(root, name)?.value ?? '';
+
+function clearField(root: HTMLElement, name: string): void {
+  const el = field(root, name);
+  if (el && el instanceof HTMLInputElement) el.value = '';
+}
 
 type NumParse = 'empty' | 'invalid' | number;
 
-/** Finite and >= 0. An explicit 0 is valid; empty and negative / non-finite are not. */
+/** Finite and >= 0. An explicit 0 is valid; empty and negative are not. */
 function parseNonNegative(raw: string): NumParse {
   const t = raw.trim();
   if (t === '') return 'empty';
@@ -62,9 +64,8 @@ function parseNonNegative(raw: string): NumParse {
   return n;
 }
 
-/** Finite and strictly greater than -100. A negative rate is valid deflation; `<= -100` (the
- *  non-finite cliff) and NaN/Infinity are not. No positive maximum. */
-function parseRateAboveMinus100(raw: string): NumParse {
+/** Finite and strictly above -100. A negative rate is valid deflation. */
+function parseRate(raw: string): NumParse {
   const t = raw.trim();
   if (t === '') return 'empty';
   const n = Number(t);
@@ -72,50 +73,35 @@ function parseRateAboveMinus100(raw: string): NumParse {
   return n;
 }
 
-/** Validate inflation values. Amount (>= 0), annual rate (> -100) and years (>= 0, fractional
- *  allowed) are all required. Distinguishes an empty field from an entered 0. */
-export function validateInflationValues(values: InflationValues): ValidationResult {
-  const fieldErrors: Record<string, string> = {};
-
-  const amount = parseNonNegative(values.amount);
-  if (amount === 'empty') fieldErrors.amount = 'Enter an amount.';
-  else if (amount === 'invalid') fieldErrors.amount = 'Enter an amount of zero or more.';
-
-  const rate = parseRateAboveMinus100(values.annualRatePct);
-  if (rate === 'empty') fieldErrors.annualRatePct = 'Enter an annual rate.';
-  else if (rate === 'invalid') fieldErrors.annualRatePct = 'Enter an annual rate greater than -100%.';
-
-  const years = parseNonNegative(values.years);
-  if (years === 'empty') fieldErrors.years = 'Enter a time period in years.';
-  else if (years === 'invalid') fieldErrors.years = 'Enter a time period of zero years or more.';
-
-  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+/** Exactly two decimals — the precision the published figures are quoted to. */
+export function formatPct2(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return `${value.toFixed(2)}%`;
 }
 
-/* ------------------------------------------------------------------ */
-/* Computation (pure)                                                  */
-/* ------------------------------------------------------------------ */
-
-export function computeInflation(values: InflationValues): InflationComputed {
-  const amount = Number(values.amount);
-  const annualRatePct = Number(values.annualRatePct);
-  const years = Number(values.years);
-  const r = adjustForInflation({ amount, annualRatePct, years });
-  return { amount, annualRatePct, years, futureCost: r.futureCost, buyingPower: r.buyingPower, totalInflationPct: r.totalInflationPct };
+/**
+ * A figure the visitor typed, echoed back as they typed it: "$100" and "3%", not
+ * "$100.00" and "3.00%". Computed figures keep their two decimals — the distinction is
+ * deliberate, because trailing zeros on a result carry precision and on an echo they are
+ * just noise.
+ */
+export function formatAmountEntered(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return Number.isInteger(value) ? formatCurrencyRounded(value) : formatCurrency(value);
 }
 
-/** Every rendered output must be finite; the two currency figures must be non-negative. A negative
- *  cumulative percentage (deflation) is fine. */
-export function isInflationResultUsable(r: InflationComputed): boolean {
-  if (![r.futureCost, r.buyingPower, r.totalInflationPct].every((v) => Number.isFinite(v))) return false;
-  return r.futureCost >= 0 && r.buyingPower >= 0;
+export function formatRateEntered(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return `${Number(value.toFixed(4))}%`;
 }
 
-/* ------------------------------------------------------------------ */
-/* Presentation (pure)                                                 */
-/* ------------------------------------------------------------------ */
+/** The index as BLS prints it: up to three decimals, trailing zeros trimmed. */
+export function formatIndex(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return String(Math.round(value * 1000) / 1000);
+}
 
-/** A USD amount in spoken form, e.g. "134 dollars and 39 cents", "81 dollars". */
+/** A USD amount spoken aloud, e.g. "139 dollars and 13 cents". */
 export function spokenUSD(value: number): string {
   const cents = Math.round(value * 100);
   const dollars = Math.floor(cents / 100);
@@ -124,83 +110,275 @@ export function spokenUSD(value: number): string {
   return rem === 0 ? d : `${d} and ${rem} cent${rem === 1 ? '' : 's'}`;
 }
 
-/** "10 years", "1 year", "1.25 years", "0 years". */
+function setText(scope: HTMLElement, sel: string, text: string): void {
+  const el = scope.querySelector<HTMLElement>(sel);
+  if (el) el.textContent = text;
+}
+
+function setValue(scope: HTMLElement, display: string, spoken: string): void {
+  setText(scope, '[data-result-when~="valid"] [data-result-value]', display);
+  setText(scope, '[data-result-when~="valid"] [data-result-value-a11y]', spoken);
+}
+
+/* ------------------------------------------------------------------ */
+/* 1. CPI calculator                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface CpiOperands {
+  amount: string;
+  fromMonth: string;
+  fromYear: string;
+  toMonth: string;
+  toYear: string;
+}
+
+export interface CpiComputed {
+  amount: number;
+  comparison: CpiComparison | null;
+}
+
+/** "average" or "1".."12" from a select, into the engine's period shape. */
+export function toPeriod(monthRaw: string, yearRaw: string): CpiPeriod | null {
+  const year = Number(yearRaw);
+  if (!Number.isInteger(year)) return null;
+  if (monthRaw === 'average') return { year, month: 'average' };
+  const month = Number(monthRaw);
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  return { year, month };
+}
+
+/**
+ * Both ends must name a period the Bureau actually published. The two failures a visitor
+ * can really hit are a year whose annual average does not exist yet (this year, or 2025,
+ * which lost October) and a month later than the last release — so each gets its own
+ * sentence rather than one shrug.
+ */
+export function validateCpi(o: CpiOperands): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+
+  const amount = parseNonNegative(o.amount);
+  if (amount === 'empty') fieldErrors.amount = 'Enter an amount.';
+  else if (amount === 'invalid') fieldErrors.amount = 'Enter an amount of zero or more.';
+
+  const ends: [CpiPeriod | null, string][] = [
+    [toPeriod(o.fromMonth, o.fromYear), 'fromMonth'],
+    [toPeriod(o.toMonth, o.toYear), 'toMonth'],
+  ];
+  let formError: string | undefined;
+  for (const [period, name] of ends) {
+    if (!period) {
+      fieldErrors[name] = 'Choose a period.';
+      continue;
+    }
+    if (cpiValue(period) !== null) continue;
+    if (period.month === 'average' && !hasAnnualAverage(period.year)) {
+      fieldErrors[name] = `${period.year} has no annual average yet. Choose a month.`;
+    } else {
+      fieldErrors[name] = `No index was published for ${periodLabel(period)}.`;
+      formError = `The CPI runs to ${periodLabel(latestPeriod())}. October 2025 is missing because prices were never collected that month.`;
+    }
+  }
+
+  if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors, formError };
+  return { ok: true };
+}
+
+export function computeCpi(o: CpiOperands): CpiComputed {
+  const amount = Number(o.amount);
+  const from = toPeriod(o.fromMonth, o.fromYear);
+  const to = toPeriod(o.toMonth, o.toYear);
+  return {
+    amount,
+    comparison: from && to ? compareCpi(amount, from, to) : null,
+  };
+}
+
+/** The result sentence, worded as the published reference words it. */
+export function cpiHeadline(c: CpiComparison): string {
+  return `${formatCurrency(c.value)} in ${periodLabel(c.to)} equals ${formatAmountEntered(c.amount)} of buying power in ${periodLabel(c.from)}.`;
+}
+
+export function cpiRates(c: CpiComparison): string {
+  const total = `The total inflation rate from ${periodLabel(c.from)} to ${periodLabel(c.to)} is ${formatPct2(c.totalPct)}.`;
+  if (!Number.isFinite(c.annualPct)) return total;
+  return `${total} The average inflation rate is ${formatPct2(c.annualPct)} per year.`;
+}
+
+export function cpiIndexes(c: CpiComparison): string {
+  return `The CPI of ${periodLabel(c.from)} is ${formatIndex(c.fromCpi)} and the CPI of ${periodLabel(c.to)} is ${formatIndex(c.toCpi)}.`;
+}
+
+export function cpiChartTitle(c: CpiComparison): string {
+  return `Purchasing power of ${formatAmountEntered(c.amount)} in ${periodLabel(c.from)} over time: ${periodLabel(c.from)}–${periodLabel(c.to)}`;
+}
+
+export const cpiBinding: EquationCalculatorBinding<CpiOperands, CpiComputed> = {
+  readOperands: (root) => ({
+    amount: readField(root, 'amount'),
+    fromMonth: readField(root, 'fromMonth'),
+    fromYear: readField(root, 'fromYear'),
+    toMonth: readField(root, 'toMonth'),
+    toYear: readField(root, 'toYear'),
+  }),
+
+  validate: validateCpi,
+
+  compute: computeCpi,
+
+  /** No comparison means no figure to show; the runtime's finite gate takes it from here. */
+  resultValue: (r) => (r.comparison ? r.comparison.value : Number.NaN),
+
+  describeResult: (r) =>
+    r.comparison
+      ? `${spokenUSD(r.comparison.value)} in ${periodLabel(r.comparison.to)}.`
+      : 'No result.',
+
+  renderResult(result, ctx: EquationRenderContext) {
+    const c = result.comparison;
+    if (!c) return;
+    const scope = ctx.result;
+    setValue(scope, formatCurrency(c.value), spokenUSD(c.value));
+    setText(scope, '[data-cpi-headline]', cpiHeadline(c));
+    setText(scope, '[data-cpi-rates]', cpiRates(c));
+    setText(scope, '[data-cpi-indexes]', cpiIndexes(c));
+
+    const figure = scope.querySelector<HTMLElement>('[data-cpi-figure]');
+    const drawn = drawPurchasingPowerChart(
+      scope.querySelector<HTMLElement>('[data-cpi-chart]'),
+      c.series,
+      {
+        prefix: 'if',
+        label: cpiChartTitle(c),
+        formatTick: (v) => `$${Math.round(v).toLocaleString('en-US')}`,
+      },
+    );
+    setText(scope, '[data-cpi-chart-title]', cpiChartTitle(c));
+    if (figure) figure.hidden = !drawn;
+  },
+
+  resetOperands(root) {
+    clearField(root, 'amount');
+    for (const [name, value] of Object.entries(CPI_DEFAULT_PERIODS)) {
+      const el = field(root, name);
+      if (el) el.value = value;
+    }
+  },
+};
+
+/** Latest published month, against the annual average ten years earlier. */
+function defaultPeriods(): Record<string, string> {
+  const latest = latestPeriod();
+  let fromYear = latest.year - 10;
+  // Fall back a year at a time if that year never got a complete annual average.
+  while (fromYear > 1913 && !hasAnnualAverage(fromYear)) fromYear -= 1;
+  return {
+    fromMonth: 'average',
+    fromYear: String(fromYear),
+    toMonth: String(latest.month),
+    toYear: String(latest.year),
+  };
+}
+
+export const CPI_DEFAULT_PERIODS = defaultPeriods();
+
+/** The worked example: the reference span, with an amount of our own, never the visitor's. */
+export const CPI_EXAMPLE_VALUES: CpiOperands = { amount: '100', ...CPI_DEFAULT_PERIODS } as CpiOperands;
+
+/* ------------------------------------------------------------------ */
+/* 2 + 3. Flat-rate calculators                                        */
+/* ------------------------------------------------------------------ */
+
+export interface FlatOperands {
+  amount: string;
+  annualRatePct: string;
+  years: string;
+}
+
+export interface FlatComputed {
+  amount: number;
+  annualRatePct: number;
+  years: number;
+  /** Forward: the amount grown. Backward: the amount discounted. */
+  value: number;
+  totalPct: number;
+}
+
+export function validateFlat(o: FlatOperands): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+
+  const amount = parseNonNegative(o.amount);
+  if (amount === 'empty') fieldErrors.amount = 'Enter an amount.';
+  else if (amount === 'invalid') fieldErrors.amount = 'Enter an amount of zero or more.';
+
+  const rate = parseRate(o.annualRatePct);
+  if (rate === 'empty') fieldErrors.annualRatePct = 'Enter an inflation rate.';
+  else if (rate === 'invalid') fieldErrors.annualRatePct = 'Enter a rate greater than -100%.';
+
+  const years = parseNonNegative(o.years);
+  if (years === 'empty') fieldErrors.years = 'Enter a number of years.';
+  else if (years === 'invalid') fieldErrors.years = 'Enter zero years or more.';
+
+  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+}
+
+function computeFlat(o: FlatOperands, direction: 'forward' | 'backward'): FlatComputed {
+  const amount = Number(o.amount);
+  const annualRatePct = Number(o.annualRatePct);
+  const years = Number(o.years);
+  const r = adjustForInflation({ amount, annualRatePct, years });
+  return {
+    amount,
+    annualRatePct,
+    years,
+    value: direction === 'forward' ? r.futureCost : r.buyingPower,
+    totalPct: r.totalInflationPct,
+  };
+}
+
+/** "10 years", "1 year", "1.5 years". */
 export function yearsPhrase(years: number): string {
   const n = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(years);
   return `${n} ${years === 1 ? 'year' : 'years'}`;
 }
 
-/** Plain-language interpretation, neutral across inflation / deflation / no-change / zero amount. */
-export function interpretInflation(r: InflationComputed): string {
-  const yrs = yearsPhrase(r.years);
-  if (r.amount === 0) {
-    return `With a ${formatCurrency(0)} amount, the projected future cost is ${formatCurrency(0)}.`;
-  }
-  if (r.annualRatePct === 0 || r.years === 0) {
-    return `With no price change over ${yrs}, the projected cost remains ${formatCurrency(r.amount)}.`;
-  }
-  if (r.annualRatePct > 0) {
-    return `At an annual inflation rate of ${formatPercent(r.annualRatePct, 1)} for ${yrs}, an amount costing ${formatCurrency(r.amount)} today would cost approximately ${formatCurrency(r.futureCost)}.`;
-  }
-  return `At an annual deflation rate of ${formatPercent(Math.abs(r.annualRatePct), 1)} for ${yrs}, the projected cost decreases to approximately ${formatCurrency(r.futureCost)}.`;
+export function forwardSentence(r: FlatComputed): string {
+  return `${formatAmountEntered(r.amount)} today, at ${formatRateEntered(r.annualRatePct)} inflation a year, has the same buying power as ${formatCurrency(r.value)} in ${yearsPhrase(r.years)}. Prices rise ${formatPct2(r.totalPct)} in total over the period.`;
 }
 
-/** Concise announcement — the dominant result (projected future cost) only. */
-export function describeInflationResult(result: InflationComputed): string {
-  return `The projected future cost is ${spokenUSD(result.futureCost)}.`;
+export function backwardSentence(r: FlatComputed): string {
+  return `${formatAmountEntered(r.amount)} today had the same buying power as ${formatCurrency(r.value)} ${yearsPhrase(r.years)} ago, at ${formatRateEntered(r.annualRatePct)} inflation a year. Prices rose ${formatPct2(r.totalPct)} in total over the period.`;
 }
 
-/* ------------------------------------------------------------------ */
-/* The binding                                                         */
-/* ------------------------------------------------------------------ */
+/** Both flat-rate forms are one engine read in opposite directions. */
+function flatBinding(
+  direction: 'forward' | 'backward',
+  sentence: (r: FlatComputed) => string,
+): EquationCalculatorBinding<FlatOperands, FlatComputed> {
+  return {
+    readOperands: (root) => ({
+      amount: readField(root, 'amount'),
+      annualRatePct: readField(root, 'annualRatePct'),
+      years: readField(root, 'years'),
+    }),
+    validate: validateFlat,
+    compute: (o) => computeFlat(o, direction),
+    /** Guard every figure on screen, not just the headline one. */
+    resultValue: (r) =>
+      Number.isFinite(r.value) && Number.isFinite(r.totalPct) && r.value >= 0 ? r.value : Number.NaN,
+    describeResult: (r) => spokenUSD(r.value),
+    renderResult(result, ctx: EquationRenderContext) {
+      setValue(ctx.result, formatCurrency(result.value), spokenUSD(result.value));
+      setText(ctx.result, '[data-flat-sentence]', sentence(result));
+    },
+    resetOperands(root) {
+      clearField(root, 'amount');
+      clearField(root, 'annualRatePct');
+      clearField(root, 'years');
+    },
+  };
+}
 
-const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+export const forwardInflationBinding = flatBinding('forward', forwardSentence);
+export const backwardInflationBinding = flatBinding('backward', backwardSentence);
 
-export const inflationBinding: FormCalculatorBinding<InflationValues, InflationComputed> = {
-  readValues(root) {
-    return {
-      amount: input(root, 'amount')?.value ?? '',
-      annualRatePct: input(root, 'annualRatePct')?.value ?? '',
-      years: input(root, 'years')?.value ?? '',
-    };
-  },
-
-  validate: validateInflationValues,
-
-  compute: computeInflation,
-
-  /** The guarded magnitude is the dominant future cost — but return a NON-FINITE sentinel for any
-   *  malformed output (a non-finite figure or a negative currency) so the runtime's DEFAULT finite
-   *  gate rejects it. This keeps `isUsableResult` unimplemented while still guarding all outputs. */
-  resultValue(result) {
-    return isInflationResultUsable(result) ? result.futureCost : NaN;
-  },
-
-  // No isUsableResult — the malformed-result guard lives in resultValue (R9C1 decision A).
-
-  describeResult: describeInflationResult,
-
-  renderResult(result, context: FormRenderContext) {
-    const scope = context.result;
-    const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
-    const setText = (sel: string, text: string) => {
-      const el = q(sel);
-      if (el) el.textContent = text;
-    };
-
-    const label = q('[data-result-when~="valid"] [data-result-summary-label]');
-    if (label) label.textContent = 'Projected future cost';
-    setText('[data-result-when~="valid"] [data-result-value]', formatCurrency(result.futureCost));
-    setText('[data-result-when~="valid"] [data-result-value-a11y]', spokenUSD(result.futureCost));
-    setText('[data-if-interpretation]', interpretInflation(result));
-    setText('[data-if-power]', formatCurrency(result.buyingPower));
-    setText('[data-if-change]', formatPercent(result.totalInflationPct, 1));
-  },
-
-  resetValues(root, _mode: ResetMode) {
-    for (const name of ['amount', 'annualRatePct', 'years']) {
-      const el = input(root, name);
-      if (el) el.value = '';
-    }
-  },
-};
+export const FLAT_EXAMPLE_VALUES: FlatOperands = { amount: '100', annualRatePct: '3', years: '10' };

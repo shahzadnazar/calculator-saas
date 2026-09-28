@@ -116,11 +116,18 @@ export function completeAgeValue(r: AgeComputed): number {
   if (dob.getTime() > at.getTime()) return FAIL;
   if (r.valid !== true) return FAIL;
 
-  const scalars = [r.years, r.months, r.days, r.totalDays, r.totalWeeks, r.totalMonths, r.nextBirthdayInDays];
+  const scalars = [
+    r.years, r.months, r.days,
+    r.totalDays, r.totalWeeks, r.totalWeeksRemainderDays, r.totalMonths,
+    r.totalHours, r.totalMinutes, r.totalSeconds,
+    r.nextBirthdayInDays,
+  ];
   if (!scalars.every((n) => Number.isInteger(n))) return FAIL;
   if (r.years < 0 || r.months < 0 || r.days < 0) return FAIL;
   if (r.months > 11) return FAIL;
   if (r.totalDays < 0 || r.totalWeeks < 0 || r.totalMonths < 0) return FAIL;
+  if (r.totalWeeksRemainderDays < 0 || r.totalWeeksRemainderDays > 6) return FAIL;
+  if (r.totalHours < 0 || r.totalMinutes < 0 || r.totalSeconds < 0) return FAIL;
   if (r.nextBirthdayInDays < 1 || r.nextBirthdayInDays > 366) return FAIL;
 
   const c = calculateAge(dob, at);
@@ -131,7 +138,11 @@ export function completeAgeValue(r: AgeComputed): number {
     c.days !== r.days ||
     c.totalDays !== r.totalDays ||
     c.totalWeeks !== r.totalWeeks ||
+    c.totalWeeksRemainderDays !== r.totalWeeksRemainderDays ||
     c.totalMonths !== r.totalMonths ||
+    c.totalHours !== r.totalHours ||
+    c.totalMinutes !== r.totalMinutes ||
+    c.totalSeconds !== r.totalSeconds ||
     c.nextBirthdayInDays !== r.nextBirthdayInDays
   ) {
     return FAIL;
@@ -145,6 +156,28 @@ export function completeAgeValue(r: AgeComputed): number {
 
 const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`;
 const withCommas = (n: number): string => n.toLocaleString('en-US');
+
+/** A civil date in long form, e.g. "15 June 1991". UTC, so no timezone drift. */
+export function ageDate(iso: string): string {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Whole weeks plus the leftover days, e.g. "1,836 + 4 days". The row's own label
+ * already says "Total weeks", so the unit is not repeated here; an exact number
+ * of weeks has no remainder to show and reads as a plain count.
+ */
+export function weeksAndDays(r: AgeComputed): string {
+  const weeks = withCommas(r.totalWeeks);
+  return r.totalWeeksRemainderDays === 0
+    ? weeks
+    : `${weeks} + ${plural(r.totalWeeksRemainderDays, 'day')}`;
+}
 
 /** The dominant exact-age phrase, e.g. "34 years, 2 months, 15 days". */
 export function exactAge(r: AgeComputed): string {
@@ -195,10 +228,16 @@ export const ageBinding: FormCalculatorBinding<AgeValues, AgeComputed> = {
     // Dominant: the exact age (shown + spoken).
     set('[data-result-when~="valid"] [data-result-value]', phrase);
     set('[data-result-when~="valid"] [data-result-value-a11y]', phrase);
-    // Supporting totals.
+    // The span the age covers — start and end date.
+    set('[data-age-from]', ageDate(result.dobISO));
+    set('[data-age-to]', ageDate(result.atISO));
+    // Supporting totals, coarsest to finest.
     set('[data-age-months]', withCommas(result.totalMonths));
-    set('[data-age-weeks]', withCommas(result.totalWeeks));
+    set('[data-age-weeks]', weeksAndDays(result));
     set('[data-age-days]', withCommas(result.totalDays));
+    set('[data-age-hours]', withCommas(result.totalHours));
+    set('[data-age-minutes]', withCommas(result.totalMinutes));
+    set('[data-age-seconds]', withCommas(result.totalSeconds));
     // Secondary contextual metric.
     set('[data-age-next]', withCommas(result.nextBirthdayInDays));
     // Interpretation.
@@ -213,3 +252,26 @@ export const ageBinding: FormCalculatorBinding<AgeValues, AgeComputed> = {
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load.
+ *
+ * A FUNCTION, not a constant, because this calculator's example is relative to
+ * today — a hardcoded date would silently go stale in the built markup. Called
+ * by the island at mount, exactly like the client-today defaults the date
+ * calculators already use.
+ *
+ * These values are OURS, not the visitor's: the runtime computes them and calls
+ * this binding's own `renderResult`, so the example reuses the calculator's real
+ * result markup. The visitor's fields are never written to.
+ */
+export function ageExampleValues(): AgeValues {
+  const today = new Date();
+  const dob = new Date(today.getFullYear() - 35, 5, 15); // 35 years ago, 15 June
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { dob: iso(dob), at: iso(today) };
+}

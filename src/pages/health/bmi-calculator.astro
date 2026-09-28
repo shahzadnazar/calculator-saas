@@ -9,7 +9,7 @@ const faqs = [
   {
     question: 'How is BMI calculated?',
     answer:
-      'Body Mass Index is your weight in kilograms divided by the square of your height in metres (BMI = kg ÷ m²). In imperial units the formula is 703 × pounds ÷ inches². This calculator handles the conversion for you in both systems.',
+      'Body Mass Index is your weight in kilograms divided by the square of your height in metres (BMI = kg ÷ m²). In imperial units the formula is 703 × pounds ÷ inches². This calculator handles the conversion for you in both systems, and Other Units opens a converter for anything measured in stones, metres or inches.',
   },
   {
     question: 'What is a healthy BMI range?',
@@ -42,9 +42,10 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
+  rail
   intro="Calculate your Body Mass Index in metric or imperial units, see your WHO weight category on a color-coded scale, and find the healthy weight range for your height."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-17' }}
+  reviewMetadata={{ reviewedDate: '2026-08-30' }}
 >
   <BmiCalculator />
 
@@ -56,6 +57,11 @@ const faqs = [
       <li>Press <strong>Calculate BMI</strong> to see your BMI, your WHO category and the healthy weight range for your height.</li>
       <li>After the first result, the figure and the marker on the colored scale update automatically as you adjust your numbers.</li>
     </ol>
+    <p>
+      <strong>Other Units</strong> opens a converter above the calculator. It is not a third unit
+      system: use it when your scales read in stones or your tape reads in metres, then type the
+      converted figure into the boxes. The calculator stays on whichever system you chose.
+    </p>
 
     <h2>What Body Mass Index is</h2>
     <p>

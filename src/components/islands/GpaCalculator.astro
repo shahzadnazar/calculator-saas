@@ -1,314 +1,567 @@
 ---
 /**
- * GPA calculator island (R16B1 — Academic family pilot, 1 of 2; task-first migration).
+ * GPA island — the reference's TWO calculators.
  *
- * Task-first, direct-intent: starts with exactly ONE blank course row, the result is an instruction,
- * and the visitor presses "Calculate GPA" for the first result; live-after-first afterwards. Compute,
- * validation, state, announcement and focus are owned by the shared runtime + the GPA binding
- * (@lib/calculators/gpa-form), which wraps the UNCHANGED calculateGPA / GRADE_POINTS.
+ * The GPA Calculator takes a table of courses (name, credits, grade) and reports the average with a
+ * per-course breakdown; the GPA Planning Calculator answers a different question from four plain
+ * numbers. They are separate calculators with their own fields, button and result, as the reference
+ * lays them out — the planning one is not a mode of the first.
  *
- * The dynamic course rows are entirely ISLAND-OWNED: rows are built with the DOM API (never innerHTML),
- * each with a globally-unique id (so two instances on one page never collide), a grade <select>
- * (letter value + "Select grade" placeholder), a credit-hours input, per-row error slots
- * ([data-error-for]) the runtime targets, and a remove control. "Add course" / remove dispatch an
- * `input` event so the runtime recalculates live AFTER the first calculation (a no-op before it); a
- * MutationObserver keeps the remove buttons disabled when only one row remains (including after the
- * binding's Reset collapses to one row). The standard-form runtime is UNCHANGED and there is NO generic
- * rows/repeater abstraction — GPA owns its rows; Grade (follow-on) will own its own.
+ * The course rows are ISLAND-OWNED and built with the DOM API, never innerHTML: each carries a
+ * globally unique id (so two instances on a page never collide), a name field, a credits field, a
+ * grade <select> and its own error slots that the runtime targets. Adding or removing a row
+ * dispatches an `input` event so the runtime recalculates live AFTER the first calculation, and a
+ * no-op before it.
  *
- * The complete-result guard lives in the binding's resultValue (a NaN sentinel → the runtime's default
- * finite gate) — there is NO isUsableResult (a valid 0.0 GPA is a finite 0 the default gate accepts).
+ * Both run on the UNCHANGED standard-form runtime; the complete-result guard lives in `resultValue`
+ * and there is no `isUsableResult` (a 0.0 GPA is a finite 0 the default gate accepts).
  */
 import ResultShell from '@components/result/ResultShell.astro';
-import ResultSummary from '@components/result/ResultSummary.astro';
-import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+/**
+ * Each field carries an example of what goes in it. A label says what a field means; a placeholder
+ * says what it looks like — "3.663" answers "do I type a letter grade here?" before the visitor has
+ * to guess and be told they were wrong.
+ */
+const PLAN_FIELDS = [
+  { name: 'currentGpa', label: 'Current GPA', placeholder: '3.663', hint: 'Your GPA so far.' },
+  { name: 'targetGpa', label: 'Target GPA', placeholder: '3', hint: 'The GPA you want to reach.' },
+  { name: 'currentCredits', label: 'Current Credits', placeholder: '8', hint: 'Credits your current GPA covers.' },
+  { name: 'additionalCredits', label: 'Additional Credits', placeholder: '15', hint: 'Credits still to come.' },
+];
 ---
 
-<div class="gpa grid grid-cols-2 gap-4 mx-auto w-full" data-gpa>
-  <form class="card p-4" data-form novalidate aria-label="GPA calculator">
-    <div class="gpa-head" aria-hidden="true">
-      <span>Grade</span>
-      <span>Credit hours</span>
-      <span></span>
+<div class="gpapage mx-auto w-full max-w-5xl" data-gpa-page>
+  <!-- 1 — GPA from courses -->
+  <section class="gpa-calc" data-gpa aria-labelledby="gpa-heading">
+    <h2 class="gpa-title" id="gpa-heading">GPA Calculator</h2>
+    <p class="gpa-lede">
+      Enter each course's credits and grade. The course name is optional — it only labels the rows
+      in your report.
+    </p>
+
+    <div class="gpa-split">
+      <form class="card gpa-card" data-form novalidate aria-label="GPA calculator">
+        <div class="gpa-scroll gpa-scroll--fits">
+          <table class="gpa-input-table">
+            <thead>
+              <tr>
+                <th scope="col">Course <span class="gpa-optional">(optional)</span></th>
+                <th scope="col">Credits</th>
+                <th scope="col">Grade</th>
+                <th scope="col"><span class="sr-only">Remove</span></th>
+              </tr>
+            </thead>
+            <!-- Rows are island-owned; the script seeds the opening set. -->
+            <tbody data-gpa-rows></tbody>
+          </table>
+        </div>
+        <div class="gpa-errors" data-gpa-errors></div>
+
+        <button type="button" class="gpa-add" data-gpa-add>+ add more courses</button>
+
+        <div class="mt-3 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary" data-gpa-submit>Calculate</button>
+          <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+        </div>
+        <p class="gpa-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ResultShell id="gpa-result" state="empty" density="standard" label="GPA result" minHeight="0" class="gpa-result">
+        <ExampleNotice />
+        <EmptyResult message="Enter a grade and credits for at least one course, then calculate." />
+
+        <div data-result-when="valid">
+          <p class="gpa-headline">
+            <span class="gpa-headline__label">GPA:</span>
+            <span class="gpa-headline__value" data-result-value>—</span>
+          </p>
+          <p class="gpa-subline">Total Credits: <span data-gpa-total-credits>—</span></p>
+          <span class="sr-only" data-result-value-a11y></span>
+
+          <div class="gpa-scroll">
+            <table class="gpa-report">
+              <caption class="sr-only">Grade points by course</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Course</th>
+                  <th scope="col">Credit</th>
+                  <th scope="col">Grade</th>
+                  <th scope="col">Grade Points</th>
+                </tr>
+              </thead>
+              <tbody data-gpa-breakdown></tbody>
+              <tfoot>
+                <tr><th scope="row">Total Credits</th><td colspan="3" data-gpa-total-credits-row>—</td></tr>
+                <tr class="gpa-report__total"><th scope="row">Overall GPA</th><td colspan="3" data-gpa-overall>—</td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <InvalidResult
+          title="Check your courses"
+          message="Every course you fill in needs both a grade and credit hours of zero or more."
+        />
+
+        <ResultAnnouncement id="gpa-live" />
+      </ResultShell>
     </div>
-    <!-- Course rows are island-owned; the script seeds exactly one blank row. -->
-    <div data-gpa-rows></div>
+  </section>
 
-    <button type="button" class="btn btn-secondary mt-3" data-gpa-add>+ Add course</button>
+  <!-- 2 — GPA planning -->
+  <section class="gpa-calc" data-gpa-plan aria-labelledby="gpa-plan-heading">
+    <h2 class="gpa-title" id="gpa-plan-heading">GPA Planning Calculator</h2>
+    <p class="gpa-lede">
+      Work out the minimum GPA your future courses need, to raise your GPA to a level you want or
+      to keep it above one.
+    </p>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-gpa-submit>Calculate GPA</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <div class="gpa-split">
+      <form class="card gpa-card" data-form novalidate aria-label="GPA planning calculator">
+        {
+          PLAN_FIELDS.map((f) => (
+            <div class="gpa-field">
+              <label class="field-label gpa-field__label" for={`gpa-${f.name}`}>{f.label}</label>
+              <div class="gpa-field__control">
+                <input
+                  class="field gpa-num"
+                  id={`gpa-${f.name}`}
+                  name={f.name}
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder={f.placeholder}
+                  aria-describedby={`gpa-${f.name}-hint gpa-${f.name}-error`}
+                />
+                <p class="gpa-hint" id={`gpa-${f.name}-hint`}>{f.hint}</p>
+                <p class="gpa-field-error" id={`gpa-${f.name}-error`} data-error-for={f.name} hidden />
+              </div>
+            </div>
+          ))
+        }
+
+        <div class="mt-3 flex items-center gap-3">
+          <button type="submit" class="btn btn-primary" data-plan-submit>Calculate</button>
+          <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+        </div>
+        <p class="gpa-live-note" data-live-note hidden>Changes update automatically.</p>
+      </form>
+
+      <ResultShell id="gpa-plan-result" state="empty" density="standard" label="GPA planning result" minHeight="0" class="gpa-result">
+        <ExampleNotice />
+        <EmptyResult message="Enter your current GPA and credits, the GPA you want and the credits still to come." />
+
+        <div data-result-when="valid">
+          <p class="gpa-plan-sentence" data-plan-sentence>—</p>
+          <span class="sr-only" data-result-value>—</span>
+          <span class="sr-only" data-result-value-a11y></span>
+        </div>
+
+        <InvalidResult
+          title="Check your entries"
+          message="Enter a GPA on the scale, credits of zero or more, and more than zero additional credits."
+        />
+
+        <ResultAnnouncement id="gpa-plan-live" />
+      </ResultShell>
     </div>
-    <p class="gpa-live-note" data-live-note hidden>Changes update automatically.</p>
-  </form>
-
-  <ResultShell id="gpa-result" state="empty" density="standard" label="GPA result" minHeight="4rem">
-    <EmptyResult message="Add each course's grade and credit hours, then calculate to see your credit-weighted GPA." />
-
-    <div data-result-when="valid">
-      <div class="gpa-summary">
-        <ResultSummary label="GPA">
-          <ResultValue value="—" size="text-3xl" />
-        </ResultSummary>
-        <dl class="gpa-metrics">
-          <div><dt>Total credit hours</dt><dd data-gpa-credits-total>—</dd></div>
-        </dl>
-      </div>
-      <p class="gpa-interpretation" data-gpa-interpretation>—</p>
-    </div>
-
-    <InvalidResult
-      title="Check your courses"
-      message="Add at least one course with a grade and credit hours greater than zero."
-    />
-
-    <ResultAnnouncement id="gpa-live" />
-  </ResultShell>
+  </section>
 </div>
 
 <style>
-  .gpa-head {
-    display: grid;
-    grid-template-columns: 1fr 8rem 2.5rem;
-    gap: 0.75rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.78rem;
-    font-weight: 600;
+  /* Grid and flex items default to min-width:auto, which lets a wide table push the whole page
+     sideways instead of scrolling inside its own container. */
+  .gpapage { display: grid; gap: 1.75rem; min-width: 0; }
+  .gpa-calc { min-width: 0; }
+  .gpa-title {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--heading);
+  }
+  .gpa-lede {
+    margin: 0.1rem 0 0.55rem;
+    font-size: 0.84rem;
+    line-height: 1.45;
     color: var(--muted);
+    max-width: 68ch;
   }
-
-  .gpa :global(.gpa-row) {
-    padding: 0.6rem 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .gpa :global(.gpa-row__controls) {
+  /* Inputs and result side by side once there is room for both, so the answer appears beside the
+     table that produced it rather than under a screenful of course rows. */
+  .gpa-split {
     display: grid;
-    grid-template-columns: 1fr 8rem 2.5rem;
-    gap: 0.75rem;
-    align-items: center;
+    gap: 1rem;
+    align-items: start;
+    min-width: 0;
   }
-  .gpa :global(.gpa-remove) {
+  @media (min-width: 62rem) {
+    .gpa-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+  .gpa-card { padding: 0.85rem; min-width: 0; }
+  /* `position: relative` matters: an absolutely positioned .sr-only label inside the table would
+     otherwise take the PAGE as its containing block, escape this scroller and stretch the document
+     forty pixels wider than the phone. */
+  .gpa-scroll { overflow-x: auto; min-width: 0; position: relative; }
+  /* The input table is table-layout:fixed, so it can no longer outgrow the card
+     and has nothing to scroll. Left as a scroll container it still reported a
+     1px sub-pixel overflow and drew a scrollbar under the rows, so clip it. The
+     report table below keeps its scroller — that one can genuinely be wide. */
+  .gpa-scroll--fits { overflow-x: clip; }
+
+  /* ---- The course table ---------------------------------------- */
+  /* Sized to its fields, not stretched across the card: a credits box three hundred pixels wide
+     tells the visitor nothing and makes the column headings strangers to their inputs. */
+  .gpa-input-table { width: auto; border-collapse: collapse; }
+  .gpa-input-table thead th {
+    padding: 0 0.35rem 0.35rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .gpa-optional { font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+  /* Rows are built in JS, so their rules must be :global() beneath an element the template owns. */
+  .gpa-calc :global(.gpa-row td) { padding: 0.15rem 0.35rem; vertical-align: top; }
+  /* Explicit widths, not min-widths: an <input> carries an intrinsic size of about twenty
+     characters, so a min-width lets the column grow to that instead of down to what it needs. */
+  .gpa-calc :global(.gpa-row .field) { min-height: 2.75rem; max-width: 100%; }
+  /* Fixed layout so the columns divide the card, instead of the widest header
+     deciding the table's width. With intrinsic sizing the filled table came out
+     44px wider than its card and put a scrollbar under the rows. */
+  .gpa-input-table { width: 100%; table-layout: fixed; }
+  .gpa-input-table th { overflow-wrap: anywhere; }
+  .gpa-input-table th:nth-child(2),
+  .gpa-input-table th:nth-child(3) { width: 5.75rem; }
+  .gpa-input-table th:nth-child(4) { width: 3rem; }
+  .gpa-calc :global(.gpa-row__name) { width: 100%; }
+  .gpa-calc :global(.gpa-row__credits) { width: 100%; font-variant-numeric: tabular-nums; }
+  .gpa-calc :global(.gpa-row__grade) { width: 100%; }
+  .gpa-calc :global(.gpa-row__remove) {
     display: grid;
     place-items: center;
-    height: 2.25rem;
-    width: 2.25rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--line);
-    color: var(--color-danger);
-    font-size: 1.1rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 0;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: var(--muted);
+    font-size: 1.05rem;
     line-height: 1;
     cursor: pointer;
   }
-  .gpa :global(.gpa-remove:disabled) {
-    opacity: 0.4;
-    cursor: not-allowed;
+  .gpa-calc :global(.gpa-row__remove:hover:not(:disabled)) { background: var(--subtle); color: var(--color-danger); }
+  .gpa-calc :global(.gpa-row__remove:disabled) { opacity: 0.35; cursor: not-allowed; }
+  .gpa-calc :global(.gpa-row-error) {
+    margin: 0.15rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #b91c1c;
   }
-  .gpa :global(.gpa-remove:focus-visible) {
-    outline: 2px solid var(--color-brand-600);
-    outline-offset: 2px;
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .gpa-calc :global(.gpa-row-error) { color: #fca5a5; }
   }
-  .gpa :global(.gpa-row__errors:empty) {
-    display: none;
+  :root[data-theme='dark'] .gpa-calc :global(.gpa-row-error) { color: #fca5a5; }
+
+  .gpa-add {
+    margin-top: 0.5rem;
+    padding: 0.35rem 0;
+    min-height: 2.75rem;
+    background: none;
+    border: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--color-brand-700);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
-  .gpa :global(.gpa-field-error) {
-    margin: 0.35rem 0 0;
-    font-size: 0.8rem;
+  :root[data-theme='dark'] .gpa-add { color: var(--color-brand-400); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .gpa-add { color: var(--color-brand-400); }
+  }
+
+  .gpa-errors:not(:empty) { margin-top: 0.4rem; }
+  .gpa-live-note { margin-top: 0.6rem; font-size: 0.8rem; color: var(--muted); }
+
+  /* ---- The planning fields -------------------------------------- */
+  .gpa-field + .gpa-field { margin-top: 0.5rem; }
+  .gpa-field {
+    display: grid;
+    grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: start;
+  }
+  .gpa-field__label { margin: 0; padding-top: 0.7rem; }
+  .gpa-field__control { min-width: 0; }
+  .gpa-num { min-height: 2.75rem; max-width: 14rem; font-variant-numeric: tabular-nums; }
+  .gpa-hint { margin: 0.2rem 0 0; font-size: 0.76rem; line-height: 1.35; color: var(--muted); }
+  .gpa-field-error {
+    margin: 0.2rem 0 0;
+    font-size: 0.78rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .gpa :global(.gpa-field-error) {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .gpa-field-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .gpa :global(.gpa-field-error) {
-    color: #fca5a5;
-  }
-
-  .gpa-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: var(--muted);
+  :root[data-theme='dark'] .gpa-field-error { color: #fca5a5; }
+  @media (max-width: 30rem) {
+    .gpa-field { grid-template-columns: minmax(0, 1fr); gap: 0.15rem; }
+    .gpa-field__label { padding-top: 0; }
+    .gpa-num { max-width: 100%; }
   }
 
-  .gpa-summary {
-    display: grid;
-    gap: 1rem;
-    align-items: center;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 640px) {
-    .gpa-summary {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-  }
-  .gpa-metrics {
-    margin: 0;
-    align-self: center;
-  }
-  .gpa-metrics > div {
+  /* ---- Results --------------------------------------------------- */
+  .gpa-calc :global(.gpa-result) { min-width: 0; }
+  .gpa-headline {
     display: flex;
     align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.35rem 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
-  }
-  .gpa-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
-  .gpa-metrics dd {
+    flex-wrap: wrap;
+    gap: 0.4rem;
     margin: 0;
-    font-variant-numeric: tabular-nums;
+  }
+  .gpa-headline__label { font-size: 1.05rem; font-weight: 700; color: var(--muted); }
+  .gpa-headline__value {
+    font-size: clamp(1.5rem, 5vw, 2rem);
+    font-weight: 800;
     color: var(--heading);
+    font-variant-numeric: tabular-nums;
+  }
+  .gpa-subline { margin: 0.15rem 0 0.8rem; font-size: 0.9rem; color: var(--fg); }
+
+  .gpa-report { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .gpa-report thead th {
+    padding: 0.35rem 0.55rem;
+    text-align: left;
+    font-size: 0.75rem;
     font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
-  .gpa-interpretation {
-    margin: 1.25rem 0 0;
+  .gpa-report tfoot th,
+  .gpa-report tfoot td,
+  .gpa-calc :global(.gpa-report tbody th),
+  .gpa-calc :global(.gpa-report tbody td) {
+    padding: 0.35rem 0.55rem;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    vertical-align: baseline;
+  }
+  .gpa-calc :global(.gpa-report tbody th) { font-weight: 600; color: var(--fg); }
+  .gpa-calc :global(.gpa-report tbody td) {
+    color: var(--heading);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .gpa-calc :global(.gpa-row--ignored) { color: var(--muted); }
+  .gpa-report tfoot th { font-weight: 700; color: var(--fg); }
+  .gpa-report tfoot td { font-weight: 700; color: var(--heading); font-variant-numeric: tabular-nums; }
+  .gpa-report__total th,
+  .gpa-report__total td {
+    background: color-mix(in srgb, var(--color-brand-500) 10%, transparent);
     font-size: 0.95rem;
-    line-height: 1.5;
-    color: var(--fg);
+  }
+
+  .gpa-plan-sentence {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--heading);
+    font-weight: 600;
+    max-width: 68ch;
   }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { gpaBinding } from '@lib/calculators/gpa-form';
-  import { GRADE_POINTS } from '@lib/calculators/gpa';
+  import {
+    gpaBinding,
+    gpaPlanBinding,
+    GPA_EXAMPLE_VALUES,
+    PLAN_EXAMPLE_VALUES,
+    INITIAL_ROWS,
+  } from '@lib/calculators/gpa-form';
+  import { GRADE_SCALE } from '@lib/calculators/gpa';
 
-  // Module-global so row ids are unique across every instance rendered on a page.
   let uid = 0;
 
-  function buildRow(): HTMLElement {
-    const id = `gpa-r${++uid}`;
-    const row = document.createElement('div');
-    row.className = 'gpa-row';
-    row.dataset.gpaRow = '';
-    row.dataset.rowId = id;
-
-    const controls = document.createElement('div');
-    controls.className = 'gpa-row__controls';
-
-    const grade = document.createElement('select');
-    grade.className = 'field';
-    grade.dataset.gpaGrade = '';
-    grade.name = `grade-${id}`;
-    grade.id = `${id}-grade`;
-    grade.setAttribute('aria-label', 'Course grade');
-    grade.setAttribute('aria-describedby', `${id}-grade-error`);
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = 'Select grade';
-    grade.appendChild(placeholder);
-    for (const g of GRADE_POINTS) {
-      const opt = document.createElement('option');
-      opt.value = g.label;
-      opt.textContent = `${g.label} (${g.value.toFixed(1)})`;
-      grade.appendChild(opt);
-    }
-
-    const credits = document.createElement('input');
-    credits.className = 'field';
-    credits.type = 'number';
-    credits.min = '0';
-    credits.step = '0.5';
-    credits.inputMode = 'decimal';
-    credits.autocomplete = 'off';
-    credits.dataset.gpaCredits = '';
-    credits.name = `credits-${id}`;
-    credits.id = `${id}-credits`;
-    credits.placeholder = 'e.g. 3';
-    credits.setAttribute('aria-label', 'Credit hours');
-    credits.setAttribute('aria-describedby', `${id}-credits-error`);
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'gpa-remove';
-    remove.dataset.gpaRemove = '';
-    remove.setAttribute('aria-label', 'Remove course');
-    remove.textContent = '×';
-
-    controls.append(grade, credits, remove);
-
-    const errors = document.createElement('div');
-    errors.className = 'gpa-row__errors';
-    const gradeErr = document.createElement('p');
-    gradeErr.className = 'gpa-field-error';
-    gradeErr.id = `${id}-grade-error`;
-    gradeErr.dataset.errorFor = `grade-${id}`;
-    gradeErr.hidden = true;
-    const creditsErr = document.createElement('p');
-    creditsErr.className = 'gpa-field-error';
-    creditsErr.id = `${id}-credits-error`;
-    creditsErr.dataset.errorFor = `credits-${id}`;
-    creditsErr.hidden = true;
-    errors.append(gradeErr, creditsErr);
-
-    row.append(controls, errors);
-    return row;
+  /**
+   * Namespace this instance's server-STATIC ids and repoint their in-root references, but ONLY when
+   * more than one shares the document (an embed gallery, a guide with two copies). A lone instance
+   * keeps the ids the server wrote. Without this, two instances would collide on every id and a
+   * label would point at the other one's field.
+   */
+  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
+    const remap = new Map<string, string>();
+    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+      const next = `${el.id}-${suffix}`;
+      remap.set(el.id, next);
+      el.id = next;
+    });
+    const repoint = (attr: string) =>
+      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
+        const next = el
+          .getAttribute(attr)!
+          .split(/\s+/)
+          .map((token) => remap.get(token) ?? token)
+          .join(' ');
+        el.setAttribute(attr, next);
+      });
+    repoint('for');
+    repoint('aria-describedby');
+    repoint('aria-labelledby');
+    repoint('aria-controls');
   }
 
-  document.querySelectorAll<HTMLElement>('[data-gpa]').forEach((root) => {
-    const form = root.querySelector<HTMLFormElement>('[data-form]')!;
-    const rowsEl = root.querySelector<HTMLElement>('[data-gpa-rows]')!;
-    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
-    const addBtn = root.querySelector<HTMLButtonElement>('[data-gpa-add]')!;
+  /**
+   * One course row, built with the DOM API — never markup from a string.
+   *
+   * Only the first row carries example placeholders. Five rows all reading "Math / 3" look like an
+   * instruction to type Math five times; one row shows the format and the rest stay quiet.
+   */
+  function buildRow(withExample = false): HTMLTableRowElement {
+    const id = `r${++uid}`;
+    const tr = document.createElement('tr');
+    tr.className = 'gpa-row';
+    tr.setAttribute('data-gpa-row', id);
 
-    // Seed exactly one blank course row (idempotent).
-    if (!rowsEl.querySelector('[data-gpa-row]')) rowsEl.appendChild(buildRow());
+    const nameCell = document.createElement('td');
+    const name = document.createElement('input');
+    name.type = 'text';
+    name.className = 'field gpa-row__name';
+    name.setAttribute('data-gpa-name', '');
+    name.autocomplete = 'off';
+    if (withExample) name.placeholder = 'Math';
+    name.setAttribute('aria-label', 'Course name (optional)');
+    nameCell.appendChild(name);
 
-    const updateRemoveState = () => {
-      const rows = rowsEl.querySelectorAll<HTMLElement>('[data-gpa-row]');
-      const onlyOne = rows.length <= 1;
-      rows.forEach((r) => {
-        const btn = r.querySelector<HTMLButtonElement>('[data-gpa-remove]');
-        if (btn) btn.disabled = onlyOne;
+    const creditsCell = document.createElement('td');
+    const credits = document.createElement('input');
+    credits.type = 'text';
+    credits.className = 'field gpa-row__credits';
+    credits.setAttribute('data-gpa-credits', '');
+    credits.inputMode = 'decimal';
+    credits.autocomplete = 'off';
+    if (withExample) credits.placeholder = '3';
+    credits.setAttribute('aria-label', 'Credits');
+    credits.setAttribute('aria-describedby', `gpa-credits-${id}-error`);
+    const creditsError = document.createElement('p');
+    creditsError.className = 'gpa-row-error';
+    creditsError.id = `gpa-credits-${id}-error`;
+    creditsError.setAttribute('data-error-for', `credits-${id}`);
+    creditsError.hidden = true;
+    creditsCell.append(credits, creditsError);
+
+    const gradeCell = document.createElement('td');
+    const grade = document.createElement('select');
+    grade.className = 'field gpa-row__grade';
+    grade.setAttribute('data-gpa-grade', '');
+    grade.setAttribute('aria-label', 'Grade');
+    grade.setAttribute('aria-describedby', `gpa-grade-${id}-error`);
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '-';
+    grade.appendChild(blank);
+    for (const g of GRADE_SCALE) {
+      const option = document.createElement('option');
+      option.value = g.label;
+      option.textContent = g.label;
+      grade.appendChild(option);
+    }
+    const gradeError = document.createElement('p');
+    gradeError.className = 'gpa-row-error';
+    gradeError.id = `gpa-grade-${id}-error`;
+    gradeError.setAttribute('data-error-for', `grade-${id}`);
+    gradeError.hidden = true;
+    gradeCell.append(grade, gradeError);
+
+    const removeCell = document.createElement('td');
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'gpa-row__remove';
+    remove.textContent = '×';
+    remove.setAttribute('data-gpa-remove', '');
+    remove.setAttribute('aria-label', 'Remove this course');
+    removeCell.appendChild(remove);
+
+    tr.append(nameCell, creditsCell, gradeCell, removeCell);
+    return tr;
+  }
+
+  function mountCourses(root: HTMLElement): void {
+    const body = root.querySelector<HTMLElement>('[data-gpa-rows]');
+    const form = root.querySelector<HTMLFormElement>('form[data-form]');
+    if (!body || !form) return;
+
+    /** Adding, removing and resetting all recalculate through the runtime's own input path. */
+    const notify = () => form.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const syncRemoveButtons = () => {
+      const rows = body.querySelectorAll('[data-gpa-row]');
+      rows.forEach((row) => {
+        const button = row.querySelector<HTMLButtonElement>('[data-gpa-remove]');
+        if (button) button.disabled = rows.length <= 1;
       });
     };
-    updateRemoveState();
 
-    // Shared runtime, UNCHANGED, with the GPA binding.
+    const seed = (count: number) => {
+      body.textContent = '';
+      for (let i = 0; i < count; i += 1) body.appendChild(buildRow(i === 0));
+      syncRemoveButtons();
+    };
+
+    root.querySelector('[data-gpa-add]')?.addEventListener('click', () => {
+      body.appendChild(buildRow());
+      syncRemoveButtons();
+      notify();
+    });
+
+    body.addEventListener('click', (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-gpa-remove]');
+      if (!button || button.disabled) return;
+      button.closest('[data-gpa-row]')?.remove();
+      syncRemoveButtons();
+      notify();
+    });
+
+    // The binding cannot rebuild island-owned rows, so it asks for it.
+    root.addEventListener('gpa:reset', () => seed(INITIAL_ROWS));
+
+    seed(INITIAL_ROWS);
+  }
+
+  const gRoots = document.querySelectorAll<HTMLElement>('[data-gpa]');
+  gRoots.forEach((root, i) => {
+    if (gRoots.length > 1) uniquifyStaticIds(root, `g${i + 1}`);
+    mountCourses(root);
     mountFormCalculator(root, gpaBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate GPA',
+      example: { values: GPA_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
     });
+  });
 
-    // Drive the runtime's live-after-first path on structural row changes (ignored before the first calc).
-    const notifyInput = () => form.dispatchEvent(new Event('input', { bubbles: true }));
-
-    addBtn.addEventListener('click', () => {
-      rowsEl.appendChild(buildRow());
-      updateRemoveState();
-      notifyInput();
-    });
-
-    rowsEl.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-gpa-remove]');
-      if (!btn) return;
-      if (rowsEl.querySelectorAll('[data-gpa-row]').length > 1) {
-        btn.closest('[data-gpa-row]')!.remove();
-        updateRemoveState();
-        notifyInput();
-      }
-    });
-
-    // Keep the remove-button state correct when Reset (binding) collapses to one row.
-    new MutationObserver(updateRemoveState).observe(rowsEl, { childList: true });
-
-    // Form-level error focus (Triangle precedent): on an explicit invalid submit with no field marked
-    // invalid (the "add a course" form error), return focus to the first grade selector.
-    form.addEventListener('submit', () => {
-      if (shell?.dataset.resultState === 'invalid' && !root.querySelector('[aria-invalid="true"]')) {
-        root.querySelector<HTMLElement>('[data-gpa-grade]')?.focus();
-      }
+  const pRoots = document.querySelectorAll<HTMLElement>('[data-gpa-plan]');
+  pRoots.forEach((root, i) => {
+    if (pRoots.length > 1) uniquifyStaticIds(root, `p${i + 1}`);
+    mountFormCalculator(root, gpaPlanBinding, {
+      recalculationMode: 'live-after-first',
+      example: { values: PLAN_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
     });
   });
 </script>

@@ -4,28 +4,53 @@ import StatisticsCalculator from '@components/islands/StatisticsCalculator.astro
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('math', 'statistics-calculator')!;
 const faqs = [
-  { question: 'What does the statistics calculator compute?', answer: 'Paste or type a list of numbers and it returns the full set of descriptive statistics: count and sum; the mean, median and mode; the range, variance and standard deviation (both population and sample); and the five-number summary — minimum, first quartile, median, third quartile and maximum — plus the interquartile range.' },
+  { question: 'Do I have to use the keypad?', answer: 'No — there are two ways in, and they are separate calculators with separate data. Use the keypad when your numbers arrive one at a time: type a value, press ADD, then press a statistic to read it back. Use the comma-separated box when you already have a list to paste, and it returns the whole table at once. Neither one touches the other.' },
+  { question: 'What do the keypad symbols mean?', answer: 'x̄ is the mean and x̄² the mean of the squared values; Σx is the sum and Σx² the sum of the squared values; σ and σ² are the population standard deviation and variance; s and s² are the sample versions; GM is the geometric mean. Each key also carries its name underneath, so you do not have to remember the notation. ADD puts the number on the screen into the data set, C clears what you are typing, and CAD clears the whole set.' },
+  { question: 'What does the statistics calculator compute?', answer: 'Paste or type a list of numbers and it returns the full set of descriptive statistics in one table: count and sum; mean, median and mode; largest, smallest and range; the geometric mean; and the standard deviation and variance for both the population and a sample. It also lists your data sorted, and the quartiles (Q1, Q3 and the interquartile range) under a Quartiles heading.' },
   { question: 'What is the difference between mean, median and mode?', answer: 'The mean is the arithmetic average (sum ÷ count). The median is the middle value when the data is sorted. The mode is the value that appears most often. On symmetric data they are close; on skewed data they diverge, which is why seeing all three is useful.' },
   { question: 'When should I use the median instead of the mean?', answer: 'Use the median when the data is skewed or has outliers — incomes, house prices, response times. One extreme value drags the mean but barely moves the median, so the median better represents a "typical" value in those cases.' },
   { question: 'What is the five-number summary?', answer: 'It is the minimum, first quartile (Q1), median, third quartile (Q3) and maximum. Together they describe the shape and spread of the data and are the basis of a box plot. The gap between Q1 and Q3 — the interquartile range — captures the middle 50% of values.' },
   { question: 'What is the difference between population and sample statistics?', answer: 'A population is the entire group you care about; a sample is a subset drawn from it. Sample variance and standard deviation divide by n − 1 (Bessel\'s correction) instead of n, which corrects the tendency of a sample to underestimate the true spread. Use the sample figures when your data is a sample, the population figures when it is the whole group.' },
-  { question: 'Can a data set have more than one mode?', answer: 'Yes. If two or more values tie for the highest frequency, the set is multimodal and the calculator lists them all. If every value appears exactly once, there is no mode.' },
+  { question: 'Can a data set have more than one mode?', answer: 'Yes. If two or more values tie for the highest frequency, the set is multimodal and the calculator lists them all, with the number of times each one appeared. If every value appears exactly once, there is no mode.' },
+  { question: 'What is the geometric mean, and when should I use it?', answer: 'The geometric mean is the nth root of the product of your values, rather than the sum divided by n. It is the right average for things that compound — growth rates, investment returns, ratios and index numbers — because it accounts for multiplication rather than addition. It is only defined when every value is positive: a zero collapses the product and a negative makes the root imaginary, so the calculator says so instead of printing a number that would mean nothing.' },
+  { question: 'How precise are the results?', answer: 'Every figure is shown to fourteen significant figures, with trailing zeros dropped — enough to check our answer against any other statistics tool digit for digit. The one-line summary below the table rounds to four decimals, because that is a sentence to read rather than a number to verify.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" intro="Calculate every descriptive statistic from a data set — mean, median, mode, range, variance, standard deviation and the full five-number summary — with population and sample results." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Enter your numbers on the keypad or paste a list below, and read every descriptive statistic at once." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
   <StatisticsCalculator primary="summary" />
   <Fragment slot="content">
     <h2>Everything the calculator gives you</h2>
-    <p>Enter your numbers once and read every descriptive statistic at a glance, grouped into three families:</p>
+    <p>Enter your numbers once and read the whole table at a glance:</p>
     <ul>
-      <li><strong>Central tendency</strong> — mean, median and mode: where the data centres.</li>
-      <li><strong>Dispersion</strong> — range, variance, standard deviation and the interquartile range: how spread out it is.</li>
-      <li><strong>Five-number summary</strong> — minimum, Q1, median, Q3 and maximum: the basis of a box plot.</li>
+      <li><strong>Count and sum</strong> — how many values, and what they add up to.</li>
+      <li><strong>Central tendency</strong> — mean, median and mode, plus the <strong>geometric mean</strong> for values that compound.</li>
+      <li><strong>Spread</strong> — largest, smallest and range, then the standard deviation and variance for both a population (σ, σ²) and a sample (s, s²).</li>
+      <li><strong>Your data, sorted</strong> — printed under the table, so you can see the shape of it.</li>
+      <li><strong>Quartiles</strong> — Q1, Q3 and the interquartile range, under their own heading.</li>
     </ul>
 
-    <h2>How to enter your data</h2>
+    <h2>Two ways in, and they stay separate</h2>
     <p>
-      Type or paste your values into the box, separated by <strong>commas, spaces or line breaks</strong> — you can mix them, and the calculator ignores blank entries. It sorts the numbers for you, so the order you enter them in does not matter. Both population and sample figures appear together, so you never have to pick before you see the numbers.
+      The <strong>keypad</strong> at the top is for numbers that arrive one at a time — readings you are taking, marks you are reading off a page. Type a value, press <strong>ADD</strong>, and it joins the data set on the right; then press any statistic to read it back. Each key shows its name under its symbol, and you can remove a single value with the × beside it rather than clearing everything.
+    </p>
+    <p>
+      The <strong>comma-separated box</strong> below is for a list you already have. Type or paste your values separated by <strong>commas, spaces or line breaks</strong> — you can mix them, and blank entries are ignored. One Calculate returns the whole table at once, and it updates as you edit, so correcting a typo does not mean starting again.
+    </p>
+    <p>
+      The two keep their own data. Adding values on the keypad never changes what the box below reports, and vice versa.
+    </p>
+    <p>
+      One difference from most keypads worth knowing: if you have typed a number but not pressed ADD, pressing a statistic will tell you so rather than answering. A number on the screen is not in the data set until you add it, and a statistic for a set you did not mean to have is worse than no statistic.
+    </p>
+
+    <h2>A worked example you can check</h2>
+    <p>
+      For the data set <strong>10, 2, 38, 23, 38, 23, 21, 23</strong> the calculator reports a count of 8, a sum of 178, a mean of 22.25 and a median of 23. The mode is 23, appeared 3 times. The largest value is 38, the smallest is 2, and the range is 36. The geometric mean is 17.119851726053. The population standard deviation is 11.508149286484 with a variance of 132.4375; the sample standard deviation is 12.302729081677 with a variance of 151.35714285714. Sorted, the data reads 2, 10, 21, 23, 23, 23, 38, 38.
+    </p>
+
+    <h2>The geometric mean</h2>
+    <p>
+      The ordinary (arithmetic) mean adds your values and divides; the <strong>geometric mean</strong> multiplies them and takes the nth root. That makes it the right average whenever the quantities compound rather than accumulate — annual growth rates, investment returns, ratios, index numbers. It is never larger than the arithmetic mean, and it is only defined when every value is positive, so the calculator says the answer is undefined rather than printing a number for a set containing zero or a negative.
     </p>
 
     <h2>Mean, median and mode — a worked example</h2>

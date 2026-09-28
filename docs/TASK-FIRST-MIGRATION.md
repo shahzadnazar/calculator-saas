@@ -209,8 +209,10 @@ referencing it.
 
 Search is a **task-first embedded behavior**, not a destination. There is **no
 public standalone Search page**. `/dev/search` is an internal component test
-route only (noindex + nofollow, sitemap-excluded, `/dev` prelaunch guard) and is
-**deleted before launch** — it must never become public.
+route only (noindex + nofollow, sitemap-excluded) and is **stripped from the
+deploy bundle** — it must never become public. Not deleted from the source: four
+e2e specs use the /dev routes as isolated harnesses, so they have to build. The
+`deploy` job removes them and re-runs `assert:no-dev` on the bundle it uploads.
 
 ### 5.1 Public behavior
 

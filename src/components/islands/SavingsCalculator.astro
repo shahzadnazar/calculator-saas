@@ -1,20 +1,24 @@
 ---
 /**
- * Savings calculator island (R8D1 — standard-form wave, calculator #16; product family
- * MULTI-MODE, on the standard-form runtime UNCHANGED — no isUsableResult).
+ * Savings calculator island — the accumulation calculator.
  *
- * Task-first, direct-intent: mode defaults to Project savings, all fields start EMPTY, the
- * result is empty (an instruction, not the legacy $1,000 / $300 / 4% / 10-year sample), and
- * the visitor presses "Project Savings" (or "Calculate Required Deposit") for the first
- * result. Live-after-first afterwards. Compute, validation, state, announcement and focus are
- * owned by the shared runtime + the savings binding (@lib/calculators/savings-form).
+ * FIELDS match the reference set one for one, in its order: initial deposit ·
+ * annual contribution and its yearly increase · monthly contribution and its
+ * yearly increase · interest rate · compound · years to save · tax rate. They are
+ * laid out two to a row, with each contribution beside its own increase, so the
+ * whole form is reachable without scrolling past the primary action.
  *
- * "Savings calculation" is a native radio group — a STRUCTURAL selector the runtime recomputes
- * on. Its two modes swap ONE conditional field (monthly deposit ⇆ savings goal), sharing the
- * starting balance, annual return and years. The island OWNS the conditional field's visibility
- * + the action label: the inactive field is hidden AND disabled, its stale error cleared and its
- * value preserved for an in-session switch; on a switch the mode-owned result is briefly blanked.
- * The calculator is SUMMARY-ONLY — the formula's yearly series is not rendered.
+ * Task-first: every personal field starts EMPTY and the result panel carries a
+ * LABELLED worked example, never a sample dressed as the visitor's own answer.
+ * `Compound` is the one pre-set control — a select always has a value, and
+ * "annually" is a structural default, not a personal one.
+ *
+ * "Savings calculation" is a native radio group — a STRUCTURAL selector the runtime
+ * recomputes on. Project mode fills in the monthly contribution and reports the end
+ * balance; Reach a goal hides the monthly contribution and its increase, takes a
+ * target instead, and solves for the flat monthly contribution that reaches it. The
+ * island owns the conditional fields' visibility and the action label; the runtime
+ * owns compute, validation, state, focus and the announcement.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
@@ -23,9 +27,23 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { COMPOUND_FREQUENCIES } from '@lib/calculators/savings';
+
+const COMPOUND_LABELS: Record<string, string> = {
+  annually: 'annually',
+  semiannually: 'semiannually',
+  quarterly: 'quarterly',
+  monthly: 'monthly',
+  semimonthly: 'semimonthly',
+  biweekly: 'biweekly',
+  weekly: 'weekly',
+  daily: 'daily',
+  continuously: 'continuously',
+};
 ---
 
-<div class="savings mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-savings>
+<div class="savings mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-savings>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Savings calculator">
     <fieldset class="sv-modes">
@@ -36,92 +54,192 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       </div>
     </fieldset>
 
-    <div class="mt-5 space-y-4">
-      <div data-field="startingAmount">
-        <label class="field-label" for="sv-start">Starting balance</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="sv-start" name="startingAmount" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 1000" aria-describedby="sv-start-error" />
-        </div>
-        <p class="sv-field-error" id="sv-start-error" data-error-for="startingAmount" hidden></p>
-      </div>
-
-      <!-- Conditional: Project shows the monthly deposit. -->
-      <div data-field="monthlyContribution" data-sv-project>
-        <label class="field-label" for="sv-monthly">Monthly deposit</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="sv-monthly" name="monthlyContribution" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 300" aria-describedby="sv-monthly-error" />
-        </div>
-        <p class="sv-field-error" id="sv-monthly-error" data-error-for="monthlyContribution" hidden></p>
-      </div>
-
-      <!-- Conditional: Reach a goal shows the savings goal. -->
-      <div data-field="goal" data-sv-goal hidden>
-        <label class="field-label" for="sv-goalamt">Savings goal</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="sv-goalamt" name="goal" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 50000" aria-describedby="sv-goal-error" disabled />
-        </div>
-        <p class="sv-field-error" id="sv-goal-error" data-error-for="goal" hidden></p>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div data-field="annualRatePct">
-          <label class="field-label" for="sv-rate">Annual return</label>
+    <div class="sv-fields">
+      <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+        <div data-field="initialDeposit">
+          <label class="field-label" for="sv-initial">Initial deposit</label>
           <div class="flex">
-            <input class="field rounded-r-none" id="sv-rate" name="annualRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 4" aria-describedby="sv-rate-error" />
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="sv-initial" name="initialDeposit" type="number" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 20000" aria-describedby="sv-initial-error" />
+          </div>
+          <p class="sv-error" id="sv-initial-error" data-error-for="initialDeposit" hidden></p>
+        </div>
+
+        <div data-field="annualRatePct">
+          <label class="field-label" for="sv-rate">Interest rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="sv-rate" name="annualRatePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 3" aria-describedby="sv-rate-error" />
             <span class="field-affix rounded-r-lg border-l-0">%</span>
           </div>
-          <p class="sv-field-error" id="sv-rate-error" data-error-for="annualRatePct" hidden></p>
+          <p class="sv-error" id="sv-rate-error" data-error-for="annualRatePct" hidden></p>
         </div>
+
+        <div data-field="annualContribution">
+          <label class="field-label" for="sv-annual">Annual contribution</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="sv-annual" name="annualContribution" type="number" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 5000" aria-describedby="sv-annual-error" />
+          </div>
+          <p class="sv-error" id="sv-annual-error" data-error-for="annualContribution" hidden></p>
+        </div>
+
+        <div data-field="annualIncreasePct">
+          <label class="field-label" for="sv-annual-inc">increase <span class="sv-unit">% /year</span></label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="sv-annual-inc" name="annualIncreasePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="sv-annual-inc-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="sv-error" id="sv-annual-inc-error" data-error-for="annualIncreasePct" hidden></p>
+        </div>
+
+        <div data-field="monthlyContribution" data-sv-project>
+          <label class="field-label" for="sv-monthly">Monthly contribution</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="sv-monthly" name="monthlyContribution" type="number" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 0" aria-describedby="sv-monthly-error" />
+          </div>
+          <p class="sv-error" id="sv-monthly-error" data-error-for="monthlyContribution" hidden></p>
+        </div>
+
+        <div data-field="monthlyIncreasePct" data-sv-project>
+          <label class="field-label" for="sv-monthly-inc">increase <span class="sv-unit">% /year</span></label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="sv-monthly-inc" name="monthlyIncreasePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="sv-monthly-inc-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="sv-error" id="sv-monthly-inc-error" data-error-for="monthlyIncreasePct" hidden></p>
+        </div>
+
+        <!-- Reach-a-goal replaces the monthly contribution: it is the answer, not an input. -->
+        <div class="col-span-2" data-field="goal" data-sv-goal hidden>
+          <label class="field-label" for="sv-goal">Savings goal</label>
+          <div class="flex">
+            <span class="field-affix rounded-l-lg border-r-0">$</span>
+            <input class="field rounded-l-none" id="sv-goal" name="goal" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 100000" aria-describedby="sv-goal-error" disabled />
+          </div>
+          <p class="sv-error" id="sv-goal-error" data-error-for="goal" hidden></p>
+        </div>
+
+        <div data-field="compound">
+          <label class="field-label" for="sv-compound">Compound</label>
+          <select class="field" id="sv-compound" name="compound" aria-describedby="sv-compound-error">
+            {COMPOUND_FREQUENCIES.map((f) => <option value={f} selected={f === 'annually'}>{COMPOUND_LABELS[f]}</option>)}
+          </select>
+          <p class="sv-error" id="sv-compound-error" data-error-for="compound" hidden></p>
+        </div>
+
         <div data-field="years">
-          <label class="field-label" for="sv-years">Years</label>
-          <input class="field" id="sv-years" name="years" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="sv-years-error" />
-          <p class="sv-field-error" id="sv-years-error" data-error-for="years" hidden></p>
+          <label class="field-label" for="sv-years">Years to save</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="sv-years" name="years" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="sv-years-error" />
+            <span class="field-affix rounded-r-lg border-l-0">years</span>
+          </div>
+          <p class="sv-error" id="sv-years-error" data-error-for="years" hidden></p>
+        </div>
+
+        <div data-field="taxRatePct">
+          <label class="field-label" for="sv-tax">Tax rate</label>
+          <div class="flex">
+            <input class="field rounded-r-none" id="sv-tax" name="taxRatePct" type="number" min="0" max="100" step="0.1" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="sv-tax-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <p class="sv-error" id="sv-tax-error" data-error-for="taxRatePct" hidden></p>
         </div>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-sv-submit>Project Savings</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <div class="mt-3 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-sv-submit>Calculate</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
     </div>
     <p class="sv-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell
-    id="sv-result"
-    state="empty"
-    density="standard"
-    label="Savings result"
-    minHeight="20rem"
-    placeholderAlignment="center"
-  >
-    <EmptyResult message="Enter your savings details, then project your balance or calculate the monthly deposit needed for a goal." />
+  <ResultShell id="sv-result" state="empty" density="complex" label="Savings result" minHeight="22rem">
+    <ExampleNotice />
+    <EmptyResult message="Enter your deposit, contributions, interest rate and term, then press Calculate to see your end balance." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Projected savings balance">
+      <ResultSummary label="End balance">
         <ResultValue value="—" size="text-4xl" />
       </ResultSummary>
 
+      <p class="sv-goal-line" data-sv-goal-block hidden>to reach a goal of <b data-sv-goal-amount>—</b>.</p>
       <p class="sv-interpretation" data-sv-interpretation hidden></p>
 
-      <div data-sv-breakdown>
-        <ResultBreakdown title="Breakdown">
-          <dl class="sv-metrics">
-            <div><dt>Total deposited</dt><dd data-sv-contrib>—</dd></div>
-            <div><dt>Interest earned</dt><dd data-sv-interest>—</dd></div>
-          </dl>
-          <p class="sv-note">Assumes monthly deposits and monthly compounding. Amounts are in US dollars (USD).</p>
-        </ResultBreakdown>
+      <ResultBreakdown title="Results">
+        <dl class="sv-metrics">
+          <div><dt>End balance</dt><dd data-sv-end>—</dd></div>
+          <div><dt>Initial deposit</dt><dd data-sv-initial>—</dd></div>
+          <div><dt>Total contributions</dt><dd data-sv-contrib>—</dd></div>
+          <div><dt>Total interest earned</dt><dd data-sv-interest>—</dd></div>
+          <div data-sv-tax-row hidden><dt>Total tax paid</dt><dd data-sv-tax>—</dd></div>
+        </dl>
+
+        <!-- What the end balance is made of. Three parts of one whole, so a labelled
+             proportion bar rather than a pie: the segments share a baseline and the
+             legend carries both the share and the amount. -->
+        <div class="sv-split" data-sv-split hidden>
+          <div class="sv-bar" aria-hidden="true">
+            <span class="sv-seg sv-seg--initial" data-sv-seg-initial style="width:0%"></span>
+            <span class="sv-seg sv-seg--contrib" data-sv-seg-contrib style="width:0%"></span>
+            <span class="sv-seg sv-seg--interest" data-sv-seg-interest style="width:0%"></span>
+          </div>
+          <ul class="sv-legend">
+            <li><span class="sv-key sv-key--initial" aria-hidden="true"></span>Initial deposit <b data-sv-share-initial>—</b> <span class="sv-legend__amt" data-sv-share-initial-amt>—</span></li>
+            <li><span class="sv-key sv-key--contrib" aria-hidden="true"></span>Contributions <b data-sv-share-contrib>—</b> <span class="sv-legend__amt" data-sv-share-contrib-amt>—</span></li>
+            <li><span class="sv-key sv-key--interest" aria-hidden="true"></span>Interest <b data-sv-share-interest>—</b> <span class="sv-legend__amt" data-sv-share-interest-amt>—</span></li>
+          </ul>
+        </div>
+      </ResultBreakdown>
+
+      <div data-sv-schedule-block hidden>
+        <details class="sv-disclosure">
+          <summary class="sv-disclosure__summary">Accumulation schedule</summary>
+
+          <fieldset class="sv-view">
+            <legend class="sv-view__legend">Schedule</legend>
+            <div class="sv-view__group">
+              <label class="sv-view__opt"><input type="radio" name="sv-view" value="yearly" checked data-sv-view-radio /><span>Annual</span></label>
+              <label class="sv-view__opt"><input type="radio" name="sv-view" value="monthly" data-sv-view-radio /><span>Monthly</span></label>
+            </div>
+          </fieldset>
+
+          <div class="sv-schedule" data-sv-schedule data-sv-view="yearly">
+            <figure class="sv-chart" data-sv-chart-figure hidden>
+              <div class="sv-chart__plot" data-sv-chart></div>
+              <figcaption class="sv-legend sv-legend--chart">
+                <span><span class="sv-key sv-key--initial" aria-hidden="true"></span>Initial deposit</span>
+                <span><span class="sv-key sv-key--contrib" aria-hidden="true"></span>Contributions</span>
+                <span><span class="sv-key sv-key--interest" aria-hidden="true"></span>Interest</span>
+              </figcaption>
+            </figure>
+
+            <div class="sv-table-wrap">
+              <table class="sv-table">
+                <caption class="sr-only">Accumulation schedule showing each period's deposit, the interest it earned and the balance it ended on.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" class="sv-th-period"><span data-sv-when-view="yearly">Year</span><span data-sv-when-view="monthly">Month</span></th>
+                    <th scope="col" class="sv-num">Deposit</th>
+                    <th scope="col" class="sv-num">Interest</th>
+                    <th scope="col" class="sv-num">Ending balance</th>
+                  </tr>
+                </thead>
+                <tbody data-sv-rows="yearly"></tbody>
+                <tbody data-sv-rows="monthly"></tbody>
+              </table>
+            </div>
+            <p class="sv-schedule__note">Contributions are made at the end of each period. When interest compounds less often than monthly, the monthly rows show it as it accrues, so each year still totals the annual figure. Amounts are in US dollars (USD).</p>
+          </div>
+        </details>
       </div>
     </div>
 
     <InvalidResult
       title="Check your entries"
-      message="Enter your starting balance, annual return, years, and — depending on the mode — a monthly deposit or a savings goal."
+      message="Enter an initial deposit, an interest rate and a whole number of years. Contributions, increases and the tax rate are optional and count as zero when left blank."
     />
 
     <ResultAnnouncement id="sv-live" />
@@ -129,80 +247,63 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 </div>
 
 <style>
-  .sv-modes {
-    border: 0;
-    margin: 0;
-    padding: 0;
-    min-width: 0;
+  /* Series colours: one validated step per scheme rather than an automatic flip.
+     The same three the loan and auto-loan charts use, so a series keeps its identity
+     across the site. */
+  .savings {
+    --sv-initial: #7c3aed; /* plum — money the saver put in at the start */
+    --sv-contrib: #0e9f6e; /* emerald — money contributed over time */
+    --sv-interest: #ea580c; /* burnt orange — money the account earned */
   }
+
+  .savings > :global(*) { min-width: 0; }
+
+  .sv-modes { border: 0; margin: 0; padding: 0; min-width: 0; }
   .seg-group {
     display: inline-flex;
-    margin-top: 0.4rem;
+    margin-top: 0.25rem;
     border: 1px solid var(--line);
     border-radius: 0.55rem;
     padding: 0.125rem;
   }
-  .seg {
-    position: relative;
-    display: inline-flex;
-  }
-  .seg input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    cursor: pointer;
-  }
+  .seg { position: relative; display: inline-flex; /* the label is the tap target */ min-height: 2.75rem; align-items: center; }
+  .seg input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
   .seg span {
-    padding: 0.35rem 0.9rem;
+    padding: 0.3rem 0.85rem;
     border-radius: 0.45rem;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--muted);
   }
-  .seg:has(input:checked) span {
-    background: var(--color-brand-600);
-    color: #fff;
-  }
-  .seg:has(input:focus-visible) span {
-    outline: 2px solid var(--color-brand-600);
-    outline-offset: 2px;
-  }
+  .seg:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .seg:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
 
-  .sv-field-error {
+  .sv-fields { margin-top: 0.6rem; }
+
+  /* The form must show every field AND the primary action inside a 1366x768
+     viewport, so the label/control rhythm here is a touch tighter than the
+     fleet default. Scoped to this island — nothing else changes. */
+  .savings .field-label { margin-bottom: 0.15rem; line-height: 1.25; }
+  .sv-unit { font-weight: 500; color: var(--muted); }
+
+  .sv-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .sv-field-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .sv-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .sv-field-error {
-    color: #fca5a5;
-  }
+  :root[data-theme='dark'] .sv-error { color: #fca5a5; }
 
-  .sv-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
+  .sv-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
-  .sv-interpretation {
-    margin: 0.6rem 0 0;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    color: var(--fg);
-  }
+  .sv-goal-line { margin: 0.35rem 0 0; font-size: 0.95rem; color: var(--muted); }
+  .sv-goal-line b { color: var(--heading); font-variant-numeric: tabular-nums; }
+  .sv-interpretation { margin: 0.6rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
 
-  .sv-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
-  }
+  .sv-metrics { margin: 0; display: grid; gap: 0.25rem; }
   .sv-metrics > div {
     display: flex;
     align-items: baseline;
@@ -212,10 +313,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     border-bottom: 1px solid var(--line);
     font-size: 0.95rem;
   }
-  .sv-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
+  .sv-metrics dt { color: var(--fg); font-weight: 600; }
   .sv-metrics dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
@@ -223,34 +321,140 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     font-weight: 700;
     white-space: nowrap;
   }
-  .sv-note {
-    margin: 0.6rem 0 0;
+
+  /* Proportion bar: thin, one baseline, 2px surface gaps between segments. */
+  .sv-split { margin-top: 0.85rem; }
+  .sv-bar {
+    display: flex;
+    gap: 2px;
+    height: 0.6rem;
+    border-radius: 0.3rem;
+    overflow: hidden;
+    background: var(--line);
+  }
+  .sv-seg { display: block; height: 100%; }
+  .sv-seg--initial { background: var(--sv-initial); }
+  .sv-seg--contrib { background: var(--sv-contrib); }
+  .sv-seg--interest { background: var(--sv-interest); }
+
+  .sv-legend {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+  }
+  .sv-legend li,
+  .sv-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .sv-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .sv-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .sv-key {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 0.15rem;
+    flex: none;
+  }
+  .sv-key--initial { background: var(--sv-initial); }
+  .sv-key--contrib { background: var(--sv-contrib); }
+  .sv-key--interest { background: var(--sv-interest); }
+
+  .sv-disclosure { margin-top: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.6rem; }
+  .sv-disclosure__summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--heading);
+    padding: 0.2rem 0;
+  }
+  .sv-disclosure__summary:focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .sv-view { border: 0; margin: 0.6rem 0 0; padding: 0; min-width: 0; }
+  .sv-view__legend { font-size: 0.8rem; font-weight: 600; color: var(--muted); padding: 0; }
+  .sv-view__group {
+    display: inline-flex;
+    margin-top: 0.3rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.1rem;
+  }
+  .sv-view__opt { position: relative; display: inline-flex; /* the label is the tap target */ min-height: 2.75rem; align-items: center; }
+  .sv-view__opt input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .sv-view__opt span {
+    padding: 0.3rem 0.75rem;
+    border-radius: 0.4rem;
     font-size: 0.8rem;
-    line-height: 1.45;
+    font-weight: 600;
     color: var(--muted);
   }
+  .sv-view__opt:has(input:checked) span { background: var(--color-brand-600); color: #fff; }
+  .sv-view__opt:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .sv-schedule { margin-top: 0.75rem; }
+  .sv-chart { margin: 0 0 0.75rem; }
+  .sv-chart__plot { width: 100%; }
+  .sv-chart :global(.sv-chart__svg) { display: block; width: 100%; height: auto; }
+  .sv-chart :global(.sv-chart__grid) { stroke: var(--line); stroke-width: 1; }
+  .sv-chart :global(.sv-chart__tick) { fill: var(--muted); font-size: 9px; }
+  .sv-chart :global(.sv-chart__seg--initial) { fill: var(--sv-initial); }
+  .sv-chart :global(.sv-chart__seg--contrib) { fill: var(--sv-contrib); }
+  .sv-chart :global(.sv-chart__seg--interest) { fill: var(--sv-interest); }
+  .sv-legend--chart { margin-top: 0.4rem; font-size: 0.8rem; }
+
+  .sv-table-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
+  .sv-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .sv-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  /* Rows are built with the DOM API, so these must be global — a scoped selector
+     compiles to an attribute the generated cells never carry. */
+  .sv-table :global(.sv-cell) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .sv-table :global(.sv-cell--period) { font-weight: 600; color: var(--fg); text-align: left; }
+  .sv-table th.sv-num,
+  .sv-table :global(td.sv-num) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sv-table :global(.sv-year-end) > :global(.sv-cell--yearend) {
+    background: var(--surface-2, var(--line));
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--heading);
+    text-align: left;
+    letter-spacing: 0.02em;
+  }
+
+  .sv-schedule[data-sv-view='yearly'] :global([data-sv-rows='monthly']),
+  .sv-schedule[data-sv-view='monthly'] :global([data-sv-rows='yearly']) { display: none; }
+  .sv-schedule[data-sv-view='yearly'] [data-sv-when-view='monthly'],
+  .sv-schedule[data-sv-view='monthly'] [data-sv-when-view='yearly'] { display: none; }
+
+  .sv-schedule__note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { savingsBinding } from '@lib/calculators/savings-form';
+  import { savingsBinding, SAVINGS_EXAMPLE_VALUES } from '@lib/calculators/savings-form';
 
   document.querySelectorAll<HTMLElement>('[data-savings]').forEach((root) => {
     mountFormCalculator(root, savingsBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Project Savings',
+      example: { values: SAVINGS_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
     });
 
-    // The island owns the visible mode presentation. The runtime recomputes on the mode
-    // radio's structural `input` (unchanged); here we keep the conditional field + action
-    // label in step and, on a switch, blank the mode-owned result so no stale value shows
-    // under the new mode while the live recompute is pending.
     const submitBtn = root.querySelector<HTMLElement>('[data-sv-submit]');
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
-    const projWrap = root.querySelector<HTMLElement>('[data-sv-project]');
     const goalWrap = root.querySelector<HTMLElement>('[data-sv-goal]');
-    const projInput = projWrap?.querySelector<HTMLInputElement>('input');
     const goalInput = goalWrap?.querySelector<HTMLInputElement>('input');
+    const projectWraps = Array.from(root.querySelectorAll<HTMLElement>('[data-sv-project]'));
     const isGoal = () => root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'goal';
 
     const clearError = (name: string) => {
@@ -264,21 +468,32 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     const syncMode = () => {
       const g = isGoal();
-      if (submitBtn) submitBtn.textContent = g ? 'Calculate Required Deposit' : 'Project Savings';
-      if (projWrap) projWrap.hidden = g;
-      if (projInput) projInput.disabled = g;
+      if (submitBtn) submitBtn.textContent = g ? 'Calculate Contribution' : 'Calculate';
+      for (const wrap of projectWraps) {
+        wrap.hidden = g;
+        const el = wrap.querySelector<HTMLInputElement>('input');
+        if (el) el.disabled = g;
+      }
       if (goalWrap) goalWrap.hidden = !g;
       if (goalInput) goalInput.disabled = !g;
-      clearError(g ? 'monthlyContribution' : 'goal');
+      if (g) {
+        clearError('monthlyContribution');
+        clearError('monthlyIncreasePct');
+      } else {
+        clearError('goal');
+      }
     };
 
+    // Blank the mode-owned figures on a switch so no stale value shows under the new
+    // mode while the live recompute is pending.
     const blankResult = () => {
       for (const sel of [
         '[data-result-when~="valid"] [data-result-value]',
         '[data-result-when~="valid"] [data-result-value-a11y]',
+        '[data-sv-end]',
+        '[data-sv-initial]',
         '[data-sv-contrib]',
         '[data-sv-interest]',
-        '[data-sv-interpretation]',
       ]) {
         const el = root.querySelector<HTMLElement>(sel);
         if (el) el.textContent = '—';
@@ -291,11 +506,24 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         if (shell?.dataset.resultState === 'valid') blankResult();
       }),
     );
+
+    // Annual ⇆ Monthly is a VIEW of one computed schedule, never a recalculation.
+    const schedule = root.querySelector<HTMLElement>('[data-sv-schedule]');
+    root.querySelectorAll<HTMLInputElement>('[data-sv-view-radio]').forEach((radio) =>
+      radio.addEventListener('change', () => {
+        if (schedule && radio.checked) schedule.dataset.svView = radio.value;
+      }),
+    );
+
     root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
       const projectRadio = root.querySelector<HTMLInputElement>('[name="mode"][value="project"]');
       if (projectRadio) projectRadio.checked = true;
       syncMode();
+      const yearly = root.querySelector<HTMLInputElement>('[data-sv-view-radio][value="yearly"]');
+      if (yearly) yearly.checked = true;
+      if (schedule) schedule.dataset.svView = 'yearly';
     });
+
     syncMode();
   });
 </script>

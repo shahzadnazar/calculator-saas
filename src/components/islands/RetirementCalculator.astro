@@ -1,262 +1,464 @@
 ---
 /**
- * Retirement calculator island (R18B3 — task-first; finance complex-form family; standard-form
- * runtime UNCHANGED).
+ * Retirement calculator island — the four retirement questions on one form.
  *
- * A single form on the UNCHANGED standard-form runtime + the Retirement binding
- * (@lib/calculators/retirement-form), which wraps the UNCHANGED calculateRetirement (delegating
- * to the SHARED compound-interest engine — monthly compounding, monthly contributions — then a
- * withdrawal step). Task-first, summary-only: the personal fields start EMPTY (the withdrawal
- * rate is prefilled with the source's 4% default — a non-personal assumption); the legacy island
- * prefilled a full $25k/$500/6% scenario and auto-calculated a baked-in SSR result. The DOMINANT
- * result is the projected nest egg; the estimated retirement income (monthly + annual), total
- * contributions and investment growth are supporting. The latent yearly compound series is NOT
- * rendered — there is no schedule table. Ages are whole years (no invented upper cap) with
- * retirement age > current age; current savings and monthly contribution are each OPTIONAL — a
- * zero-funded projection is a valid all-zero result ($0 nest egg, $0 income), SHOWN, never a
- * funding error (R18B3.1). NO isUsableResult — the guard lives in the binding's resultValue. No runtime change; NO shared
- * growth / investment / retirement / projection binding, and NOTHING shared with Investment or
- * Savings beyond the frozen engine.
+ * Task-first: every personal field starts EMPTY behind a labelled worked example, the visitor
+ * presses Calculate for the first result, live-after-first afterwards. Compute, validation, state,
+ * announcement and focus are owned by the shared form runtime + the retirement binding
+ * (@lib/calculators/retirement-form), which wraps the pure engine. The complete-result guard lives
+ * in the binding's resultValue (a NaN sentinel → the runtime's default finite gate) — NO
+ * isUsableResult.
  *
- * Static ids are namespaced per-instance WHEN more than one Retirement calculator shares a
- * document (the R16B2.1 discipline), so an embed gallery has no duplicate ids.
+ * The four modes are a native radio group INSIDE the form, so the runtime treats a mode change like
+ * any other input change: no bespoke event wiring, and no mode state in the URL or storage (ratified
+ * decision 3 — multi-mode state stays ephemeral). The island's own script only does presentation the
+ * runtime cannot know about: showing the fieldset the selected question uses.
+ *
+ * Fields that mean the same thing in more than one question SHARE a name, so a visitor who enters
+ * their age once keeps it when they switch; the binding validates only the fields the selected mode
+ * reads. The planning assumptions (return, inflation, income growth, the two percentages) ship with
+ * the source's documented defaults — they are assumptions, not the visitor's own figures.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
-import ResultInterpretation from '@components/result/ResultInterpretation.astro';
-import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { RETIREMENT_MODES, MODE_SHORT, MODE_LABELS, DEFAULTS } from '@lib/calculators/retirement-form';
 ---
 
-<div class="retirement mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-retirement>
+<div class="retirement mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2 lg:items-start" data-retirement>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Retirement calculator">
-    <div class="grid grid-cols-2 gap-4">
-      <div data-field="currentAge">
-        <label class="field-label" for="ret-age">Current age</label>
-        <input class="field" id="ret-age" name="currentAge" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 30" aria-describedby="ret-age-error" />
+    <fieldset class="ret-modes">
+      <legend class="field-label">What do you want to work out?</legend>
+      <div class="ret-modes__group">
+        {
+          RETIREMENT_MODES.map((m) => (
+            <label class="ret-mode">
+              <input type="radio" name="mode" value={m} checked={m === 'plan'} data-ret-mode />
+              <span class="ret-mode__label">{MODE_SHORT[m]}</span>
+            </label>
+          ))
+        }
+      </div>
+      <p class="ret-mode__question" data-ret-mode-question>{MODE_LABELS.plan}</p>
+    </fieldset>
+
+    <div class="ret-fields">
+      <div data-field="currentAge" data-ret-for="plan save withdraw">
+        <label class="field-label" for="ret-age">Your current age</label>
+        <input class="field" id="ret-age" name="currentAge" type="number" min="0" max="120" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 35" aria-describedby="ret-age-error" />
         <p class="ret-error" id="ret-age-error" data-error-for="currentAge" hidden></p>
       </div>
-      <div data-field="retirementAge">
-        <label class="field-label" for="ret-rage">Retirement age</label>
-        <input class="field" id="ret-rage" name="retirementAge" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 65" aria-describedby="ret-rage-error" />
-        <p class="ret-error" id="ret-rage-error" data-error-for="retirementAge" hidden></p>
+      <div data-field="retirementAge" data-ret-for="plan save withdraw">
+        <label class="field-label" for="ret-retire">Your planned retirement age</label>
+        <input class="field" id="ret-retire" name="retirementAge" type="number" min="0" max="120" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 67" aria-describedby="ret-retire-error" />
+        <p class="ret-error" id="ret-retire-error" data-error-for="retirementAge" hidden></p>
       </div>
-    </div>
-
-    <div class="mt-4 space-y-4">
-      <div data-field="currentSavings">
-        <label class="field-label" for="ret-savings">Current savings</label>
+      <div data-field="lifeExpectancy" data-ret-for="plan withdraw">
+        <label class="field-label" for="ret-life">Your life expectancy</label>
+        <input class="field" id="ret-life" name="lifeExpectancy" type="number" min="0" max="120" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 85" aria-describedby="ret-life-error" />
+        <p class="ret-error" id="ret-life-error" data-error-for="lifeExpectancy" hidden></p>
+      </div>
+      <div data-field="currentIncome" data-ret-for="plan">
+        <label class="field-label" for="ret-income">Your current pre-tax income <span class="ret-unit-note">/year</span></label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="ret-savings" name="currentSavings" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 25000" aria-describedby="ret-savings-error" />
+          <input class="field rounded-l-none" id="ret-income" name="currentIncome" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 70000" aria-describedby="ret-income-error" />
+        </div>
+        <p class="ret-error" id="ret-income-error" data-error-for="currentIncome" hidden></p>
+      </div>
+      <div data-field="amountNeeded" data-ret-for="save">
+        <label class="field-label" for="ret-need-amt">Amount needed at the retirement age</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ret-need-amt" name="amountNeeded" type="number" min="0" step="10000" inputmode="decimal" autocomplete="off" placeholder="e.g. 600000" aria-describedby="ret-need-amt-error" />
+        </div>
+        <p class="ret-error" id="ret-need-amt-error" data-error-for="amountNeeded" hidden></p>
+      </div>
+      <div data-field="potAmount" data-ret-for="lasts">
+        <label class="field-label" for="ret-pot">The amount you have</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ret-pot" name="potAmount" type="number" min="0" step="10000" inputmode="decimal" autocomplete="off" placeholder="e.g. 600000" aria-describedby="ret-pot-error" />
+        </div>
+        <p class="ret-error" id="ret-pot-error" data-error-for="potAmount" hidden></p>
+      </div>
+      <div data-field="monthlyWithdrawal" data-ret-for="lasts">
+        <label class="field-label" for="ret-draw">You plan to withdraw <span class="ret-unit-note">/month</span></label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ret-draw" name="monthlyWithdrawal" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="e.g. 5000" aria-describedby="ret-draw-error" />
+        </div>
+        <p class="ret-error" id="ret-draw-error" data-error-for="monthlyWithdrawal" hidden></p>
+      </div>
+
+      <p class="ret-section" data-ret-for="plan">Assumptions</p>
+      <div data-field="incomeIncreasePct" data-ret-for="plan">
+        <label class="field-label" for="ret-inc-growth">Your current income increase <span class="ret-unit-note">/year</span></label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="ret-inc-growth" name="incomeIncreasePct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" value={DEFAULTS.incomeIncreasePct} aria-describedby="ret-inc-growth-error" />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        </div>
+        <p class="ret-error" id="ret-inc-growth-error" data-error-for="incomeIncreasePct" hidden></p>
+      </div>
+      <div data-field="incomeNeededPct" data-ret-for="plan">
+        <label class="field-label" for="ret-need">Income needed after retirement</label>
+        <div class="flex ret-unit-stack">
+          <input class="field rounded-r-none" id="ret-need" name="incomeNeededPct" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" value={DEFAULTS.incomeNeededPct} aria-describedby="ret-need-error" />
+          <select class="field ret-unit" name="incomeNeededUnit" aria-label="Income needed after retirement as a percent of income or a dollar amount">
+            <option value="percent" selected>% of income</option>
+            <option value="amount">$ /year</option>
+          </select>
+        </div>
+        <p class="ret-error" id="ret-need-error" data-error-for="incomeNeededPct" hidden></p>
+      </div>
+      <div data-field="annualReturnPct" data-ret-for="plan save withdraw lasts">
+        <label class="field-label" for="ret-return">Average investment return <span class="ret-unit-note">/year</span></label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="ret-return" name="annualReturnPct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" value={DEFAULTS.annualReturnPct} aria-describedby="ret-return-error" />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        </div>
+        <p class="ret-error" id="ret-return-error" data-error-for="annualReturnPct" hidden></p>
+      </div>
+      <div data-field="inflationPct" data-ret-for="plan withdraw">
+        <label class="field-label" for="ret-inflation">Inflation rate <span class="ret-unit-note">/year</span></label>
+        <div class="flex">
+          <input class="field rounded-r-none" id="ret-inflation" name="inflationPct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" value={DEFAULTS.inflationPct} aria-describedby="ret-inflation-error" />
+          <span class="field-affix rounded-r-lg border-l-0">%</span>
+        </div>
+        <p class="ret-error" id="ret-inflation-error" data-error-for="inflationPct" hidden></p>
+      </div>
+
+      <p class="ret-section" data-ret-for="plan">Optional</p>
+      <div data-field="otherMonthlyIncome" data-ret-for="plan">
+        <label class="field-label" for="ret-other">Other income after retirement <span class="ret-unit-note">/month</span></label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ret-other" name="otherMonthlyIncome" type="number" min="0" step="100" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="ret-other-error" />
+        </div>
+        <p class="ret-error" id="ret-other-error" data-error-for="otherMonthlyIncome" hidden></p>
+      </div>
+      <div data-field="currentSavings" data-ret-for="plan save withdraw">
+        <label class="field-label" for="ret-savings">Your current retirement savings</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ret-savings" name="currentSavings" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="ret-savings-error" />
         </div>
         <p class="ret-error" id="ret-savings-error" data-error-for="currentSavings" hidden></p>
       </div>
-      <div data-field="monthlyContribution">
-        <label class="field-label" for="ret-monthly">Monthly contribution</label>
+      <div data-field="annualContribution" data-ret-for="withdraw">
+        <label class="field-label" for="ret-w-annual">Annual contribution</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="ret-monthly" name="monthlyContribution" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 500" aria-describedby="ret-monthly-error" />
+          <input class="field rounded-l-none" id="ret-w-annual" name="annualContribution" type="number" min="0" step="500" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="ret-w-annual-error" />
         </div>
-        <p class="ret-error" id="ret-monthly-error" data-error-for="monthlyContribution" hidden></p>
+        <p class="ret-error" id="ret-w-annual-error" data-error-for="annualContribution" hidden></p>
       </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div data-field="annualReturnPct">
-          <label class="field-label" for="ret-return">Annual return</label>
-          <div class="flex">
-            <input class="field rounded-r-none" id="ret-return" name="annualReturnPct" type="number" min="0" step="0.1" inputmode="decimal" autocomplete="off" placeholder="e.g. 6" aria-describedby="ret-return-error" />
-            <span class="field-affix rounded-r-lg border-l-0">%</span>
-          </div>
-          <p class="ret-error" id="ret-return-error" data-error-for="annualReturnPct" hidden></p>
+      <div data-field="monthlyContribution" data-ret-for="withdraw">
+        <label class="field-label" for="ret-w-monthly">Monthly contribution</label>
+        <div class="flex">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="ret-w-monthly" name="monthlyContribution" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="ret-w-monthly-error" />
         </div>
-        <div data-field="withdrawalRatePct">
-          <label class="field-label" for="ret-wd">Withdrawal rate</label>
-          <div class="flex">
-            <input class="field rounded-r-none" id="ret-wd" name="withdrawalRatePct" type="number" min="0" step="0.1" value="4" inputmode="decimal" autocomplete="off" aria-describedby="ret-wd-error" />
-            <span class="field-affix rounded-r-lg border-l-0">%</span>
-          </div>
-          <p class="ret-error" id="ret-wd-error" data-error-for="withdrawalRatePct" hidden></p>
+        <p class="ret-error" id="ret-w-monthly-error" data-error-for="monthlyContribution" hidden></p>
+      </div>
+      <div data-field="futureSavingsPct" data-ret-for="plan">
+        <label class="field-label" for="ret-future">Future retirement savings</label>
+        <div class="flex ret-unit-stack">
+          <input class="field rounded-r-none" id="ret-future" name="futureSavingsPct" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" value={DEFAULTS.futureSavingsPct} aria-describedby="ret-future-error" />
+          <select class="field ret-unit" name="futureSavingsUnit" aria-label="Future retirement savings as a percent of income or a dollar amount">
+            <option value="percent" selected>% of income</option>
+            <option value="amount">$ /year</option>
+          </select>
         </div>
+        <p class="ret-error" id="ret-future-error" data-error-for="futureSavingsPct" hidden></p>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Retirement</button>
+    <div class="mt-4 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-ret-submit>Calculate Retirement</button>
       <button type="button" class="btn btn-secondary" data-reset>Reset</button>
     </div>
     <p class="ret-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell id="ret-result" state="empty" density="standard" label="Retirement projection" minHeight="20rem" placeholderAlignment="center">
-    <EmptyResult message="Enter your ages and expected return (and any current savings or monthly contribution), then calculate your projection." />
+  <ResultShell id="ret-result" state="empty" density="complex" label="Retirement result" minHeight="20rem">
+    <ExampleNotice />
+    <EmptyResult message="Choose what you want to work out, fill in the fields, then calculate." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Projected retirement balance">
+      <p class="ret-question" data-ret-question></p>
+      <ResultSummary label="You will need">
         <ResultValue value="—" size="text-4xl" />
       </ResultSummary>
-      <p class="ret-horizon">in <span data-ret-years>—</span> years</p>
+      <p class="ret-interpretation" data-ret-interpretation></p>
 
-      <div class="ret-income">
-        <p class="ret-income-label">Estimated retirement income</p>
-        <p class="ret-income-primary"><span data-ret-monthly-income>—</span> <span class="ret-income-unit">/month</span></p>
-        <p class="ret-income-secondary"><span data-ret-annual-income>—</span> per year</p>
+      <!-- 1. What you need -->
+      <div data-ret-panel="plan" hidden>
+        <div class="ret-compare">
+          <div class="ret-compare__row">
+            <span class="ret-compare__label"><span class="ret-key ret-key--have" aria-hidden="true"></span>You will have</span>
+            <span class="ret-compare__value" data-ret-have>—</span>
+          </div>
+          <div class="ret-track" aria-hidden="true"><span class="ret-track__fill" style="width:0%" data-ret-bar-have></span></div>
+          <div class="ret-compare__row">
+            <span class="ret-compare__label"><span class="ret-key ret-key--need" aria-hidden="true"></span>You will need</span>
+            <span class="ret-compare__value" data-ret-need>—</span>
+          </div>
+          <p class="ret-readiness">Your plan covers <b data-ret-readiness>—</b> of what you need.</p>
+        </div>
+
+        <p class="ret-ontrack" data-ret-ontrack hidden>Your current plan already covers what you need.</p>
+
+        <p class="ret-section-title">Monthly income after retirement</p>
+        <div class="ret-table-wrap">
+          <table class="ret-table">
+            <caption class="sr-only">Monthly retirement income each plan supports, in the dollars of the day and in today's money.</caption>
+            <thead><tr><th scope="col">Plan</th><th scope="col" class="ret-num">Actual amount</th><th scope="col" class="ret-num">Today's money</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">If you save what you will have</th><td class="ret-num" data-ret-have-income>—</td><td class="ret-num" data-ret-have-income-today>—</td></tr>
+              <tr><th scope="row">If you save what you need</th><td class="ret-num" data-ret-need-income>—</td><td class="ret-num" data-ret-need-income-today>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div data-ret-save-block hidden>
+          <p class="ret-section-title" data-ret-save-heading>How can you save it?</p>
+          <dl class="ret-metrics">
+            <div><dt>Save per month</dt><dd data-ret-save-monthly>—</dd></div>
+            <div><dt>Save per year</dt><dd data-ret-save-annual>—</dd></div>
+            <div><dt>Or save this much of your income</dt><dd data-ret-save-pct>—</dd></div>
+          </dl>
+        </div>
+
+        <p class="ret-section-title">Balance by age</p>
+        <figure class="ret-chart">
+          <div class="ret-chart__plot" data-ret-chart></div>
+          <figcaption class="ret-legend">
+            <span><span class="ret-key ret-key--have" aria-hidden="true"></span>If you save what you will have</span>
+            <span><span class="ret-key ret-key--need" aria-hidden="true"></span>If you save what you need</span>
+          </figcaption>
+        </figure>
       </div>
 
-      <ResultBreakdown title="Breakdown">
+      <!-- 2. How to save -->
+      <div data-ret-panel="save" hidden>
         <dl class="ret-metrics">
-          <div><dt>Total contributions</dt><dd data-ret-contrib>—</dd></div>
-          <div><dt>Investment growth</dt><dd data-ret-earn>—</dd></div>
+          <div><dt>Save per month</dt><dd data-ret-save2-monthly>—</dd></div>
+          <div><dt>Save per year</dt><dd data-ret-save2-annual>—</dd></div>
+          <div><dt>Your savings alone grow to</dt><dd data-ret-save2-alone>—</dd></div>
+          <div><dt>Left to save</dt><dd data-ret-save2-gap>—</dd></div>
+          <div><dt>Years to retirement</dt><dd data-ret-save2-years>—</dd></div>
         </dl>
-      </ResultBreakdown>
+      </div>
 
-      <ResultInterpretation>
-        <span data-ret-interpretation></span>
-      </ResultInterpretation>
+      <!-- 3. What you can withdraw -->
+      <div data-ret-panel="withdraw" hidden>
+        <dl class="ret-metrics">
+          <div><dt>Monthly withdrawal</dt><dd data-ret-w-monthly>—</dd></div>
+          <div><dt>In today's money</dt><dd data-ret-w-today>—</dd></div>
+          <div><dt>Yearly withdrawal</dt><dd data-ret-w-annual>—</dd></div>
+          <div><dt>Savings at retirement</dt><dd data-ret-w-pot>—</dd></div>
+          <div><dt>Years it must cover</dt><dd data-ret-w-years>—</dd></div>
+        </dl>
+        <p class="ret-section-title">Balance by age</p>
+        <figure class="ret-chart">
+          <div class="ret-chart__plot" data-ret-chart-w></div>
+          <figcaption class="ret-legend"><span><span class="ret-key ret-key--have" aria-hidden="true"></span>Year-end balance</span></figcaption>
+        </figure>
+      </div>
+
+      <!-- 4. How long it lasts -->
+      <div data-ret-panel="lasts" hidden>
+        <dl class="ret-metrics">
+          <div><dt>Your money lasts</dt><dd data-ret-l-duration>—</dd></div>
+          <div><dt>In months</dt><dd data-ret-l-months>—</dd></div>
+          <div><dt>Total withdrawn</dt><dd data-ret-l-total>—</dd></div>
+        </dl>
+        <p class="ret-note" data-ret-l-never hidden>The return on the remaining balance covers each withdrawal, so the balance holds and is not projected to fall to zero.</p>
+        <p class="ret-note" data-ret-l-limit hidden>The balance is still falling after 100 years, so it does run out eventually — beyond any horizon worth planning to. Projections stop at 100 years.</p>
+      </div>
+
+      <p class="ret-assumption">Projections assume a steady return and steady inflation, contributions credited yearly, and withdrawals taken monthly and rising with inflation. Real markets vary; this is an estimate for planning, not advice. Amounts are in US dollars (USD).</p>
     </div>
 
-    <InvalidResult
-      title="Check your entries"
-      message="Enter your current and retirement age, an expected return and a withdrawal rate."
-    />
+    <InvalidResult title="Check your entries" message="Fill in the fields for the question you selected, then calculate." />
 
     <ResultAnnouncement id="ret-live" />
   </ResultShell>
 </div>
 
 <style>
-  .ret-error {
-    margin: 0.3rem 0 0;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #b91c1c;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .ret-error {
-      color: #fca5a5;
-    }
-  }
-  :root[data-theme='dark'] .ret-error {
-    color: #fca5a5;
+  .ret-error { margin: 0.3rem 0 0; font-size: 0.78rem; font-weight: 600; color: #b91c1c; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .ret-error { color: #fca5a5; } }
+  :root[data-theme='dark'] .ret-error { color: #fca5a5; }
+  .ret-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+  .retirement > :global(*) { min-width: 0; }
+
+  /* ---- Chart series colours -------------------------------------------------
+     Two categorical slots bound to the ENTITY, so "what you will have" is the
+     same colour in the comparison bar, the legend and the balance chart. Both
+     steps were checked against the palette rules — lightness band, chroma floor,
+     colour-vision separation, normal-vision floor and >=3:1 contrast — on the
+     light AND dark surfaces, so one pair serves both rather than being flipped. */
+  .retirement {
+    --ret-have: #ea580c; /* burnt orange — the plan you are on */
+    --ret-need: #7c3aed; /* plum — the plan you need */
   }
 
-  .ret-horizon {
-    margin: 0.25rem 0 0;
-    font-size: 0.85rem;
-    color: var(--muted);
+  /* Mode selector */
+  .ret-modes { border: 0; margin: 0 0 0.75rem; padding: 0; }
+  .ret-modes__group { margin-top: 0.35rem; display: grid; gap: 0.35rem; grid-template-columns: 1fr; }
+  @media (min-width: 560px) { .ret-modes__group { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .ret-mode {
+    display: flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0.4rem 0.6rem;
+    border: 1px solid var(--line); border-radius: 0.6rem; cursor: pointer; background: var(--card);
   }
-  .ret-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: var(--muted);
+  .ret-mode input { flex: none; width: 1rem; height: 1rem; accent-color: var(--color-brand-600); }
+  .ret-mode__label { font-size: 0.85rem; font-weight: 700; color: var(--heading); line-height: 1.25; }
+  .ret-mode:has(input:checked) {
+    border-color: var(--color-brand-600);
+    background: color-mix(in srgb, var(--color-brand-600) 8%, var(--card));
   }
+  .ret-mode:has(input:focus-visible) { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+  .ret-mode__question { margin: 0.6rem 0 0; font-size: 0.85rem; font-weight: 600; color: var(--fg); }
 
-  .ret-income {
-    margin-top: 1.1rem;
-    border-radius: 0.6rem;
-    padding: 0.9rem 1rem;
-    background: var(--subtle);
-  }
-  .ret-income-label {
-    margin: 0;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
-  .ret-income-primary {
-    margin: 0.2rem 0 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--color-accent-600);
-  }
-  .ret-income-unit {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--muted);
-  }
-  .ret-income-secondary {
-    margin: 0.1rem 0 0;
-    font-size: 0.85rem;
-    color: var(--muted);
-  }
-
-  .ret-metrics {
-    margin: 0;
+  /* ONE grid for every field, rather than a grid per section. Three separate grids
+     each restarted a row, so in the modes that show an odd number of fields per
+     section a field was stranded alone on its row — three of them in "How to save".
+     With a single grid the sections' captions span both columns and the fields
+     either side of them pack two to a row. */
+  .ret-fields {
     display: grid;
-    gap: 0.25rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
   }
+  .ret-fields > .ret-section { grid-column: 1 / -1; }
+  .ret-fields > :global([hidden]) { display: none; }
+
+  /* Two fields to a row, with their inputs on a common baseline.
+     A field is a column whose LABEL absorbs the spare height, so when one label in
+     a row wraps to two lines and its neighbour does not, the two inputs still line
+     up instead of stepping. Tightening the label's leading is what keeps a wrapped
+     label from costing a whole extra row of scrolling. */
+  .ret-fields [data-field] { display: flex; flex-direction: column; }
+  .ret-fields [data-field] > .field-label { flex: 1 0 auto; }
+  .ret-fields .field-label { margin-bottom: 0.15rem; line-height: 1.25; }
+  .ret-unit-note { font-weight: 400; color: var(--muted); }
+  .ret-unit { flex: 0 1 8.5rem; min-width: 6rem; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 0; }
+  /* Below ~430px the pair cannot share a line without the number field collapsing,
+     so the unit drops underneath it rather than squeezing the value out of sight. */
+  @media (max-width: 430px) {
+    .ret-unit-stack { flex-wrap: wrap; }
+    .ret-unit-stack > input { flex: 1 1 100%; border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
+    .ret-unit { flex: 1 1 100%; margin-top: 0.35rem; border-radius: 0.75rem; border-left: 1px solid var(--line); }
+  }
+  /* The grid's own row-gap already separates the caption from the fields above it. */
+  .ret-section {
+    margin: 0.15rem 0 0; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--muted);
+  }
+
+  /* Result */
+  .ret-question { margin: 0 0 0.35rem; font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+  .ret-interpretation { margin: 0.6rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+  .ret-section-title {
+    margin: 1.25rem 0 0.5rem; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--muted);
+  }
+
+  .ret-compare { margin-top: 1rem; }
+  .ret-compare__row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; padding: 0.3rem 0; font-size: 0.95rem; }
+  .ret-compare__label { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--fg); font-weight: 600; }
+  .ret-compare__value { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--heading); white-space: nowrap; }
+  .ret-track { height: 12px; border-radius: 999px; background: color-mix(in srgb, var(--ret-need) 22%, var(--subtle)); overflow: hidden; }
+  .ret-track__fill { display: block; height: 100%; background: var(--ret-have); }
+  .ret-readiness { margin: 0.5rem 0 0; font-size: 0.9rem; color: var(--muted); }
+  .ret-readiness b { color: var(--heading); font-variant-numeric: tabular-nums; }
+  .ret-key { flex: none; width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .ret-key--have { background: var(--ret-have); }
+  .ret-key--need { background: var(--ret-need); }
+
+  .ret-ontrack {
+    margin: 0.9rem 0 0; padding: 0.6rem 0.8rem; border-radius: 0.6rem; font-size: 0.9rem; font-weight: 600;
+    color: var(--heading); background: color-mix(in srgb, var(--color-brand-600) 8%, var(--card));
+    border: 1px solid color-mix(in srgb, var(--color-brand-600) 30%, var(--line));
+  }
+  .ret-ontrack[hidden] { display: none; }
+
+  .ret-table-wrap { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 0.6rem; }
+  .ret-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .ret-table thead th { background: var(--subtle); padding: 0.45rem 0.7rem; font-weight: 600; text-align: left; color: var(--fg); white-space: nowrap; }
+  .ret-table th.ret-num, .ret-table td.ret-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* Let the label run on and the wrapper scroll, rather than squeezing it to one
+     word per line — a header broken across five lines is unreadable. */
+  .ret-table tbody th { text-align: left; font-weight: 600; color: var(--fg); white-space: nowrap; }
+  .ret-table tbody tr { border-top: 1px solid var(--line); }
+  .ret-table tbody th, .ret-table tbody td { padding: 0.45rem 0.7rem; }
+
+  .ret-metrics { margin: 1rem 0 0; display: grid; gap: 0.1rem 1.25rem; grid-template-columns: 1fr; }
+  @media (min-width: 520px) { .ret-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .ret-metrics > div {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem;
+    padding: 0.35rem 0; border-bottom: 1px solid var(--line); font-size: 0.92rem;
   }
-  .ret-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
-  .ret-metrics dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    color: var(--heading);
-    font-weight: 700;
-    white-space: nowrap;
-  }
+  .ret-metrics dt { color: var(--fg); font-weight: 600; }
+  .ret-metrics dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--heading); font-weight: 700; white-space: nowrap; }
+
+  .ret-chart { margin: 0; }
+  .ret-chart__plot { width: 100%; }
+  .ret-chart :global(.ret-chart__svg) { display: block; width: 100%; height: auto; }
+  .ret-chart :global(.ret-chart__grid) { stroke: var(--line); stroke-width: 1; }
+  .ret-chart :global(.ret-chart__tick) { fill: var(--muted); font-size: 9px; }
+  .ret-chart :global(.ret-chart__line) { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .ret-chart :global(.ret-chart__line--have) { stroke: var(--ret-have); }
+  .ret-chart :global(.ret-chart__line--need) { stroke: var(--ret-need); }
+  .ret-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.4rem; font-size: 0.8rem; color: var(--fg); }
+  .ret-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+  .ret-lead, .ret-note { margin: 0.6rem 0 0; font-size: 0.85rem; line-height: 1.45; color: var(--muted); }
+  .ret-assumption { margin: 1.1rem 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { retirementBinding } from '@lib/calculators/retirement-form';
-
-  let ns = 0; // module-global → static-id namespace suffix, one per multi-instance root
-
-  // When more than one Retirement calculator shares a document (e.g. an embed gallery), the
-  // server-static ids (the six fields + their error slots, the result shell, the live region)
-  // collide. Namespace THIS root's ids and repoint its in-root references so associations stay
-  // instance-local; a lone instance is left untouched. The runtime targets fields by [name] /
-  // [data-*], never these ids.
-  function uniquifyStaticIds(root: HTMLElement, suffix: string): void {
-    const remap = new Map<string, string>();
-    root.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
-      const next = `${el.id}-${suffix}`;
-      remap.set(el.id, next);
-      el.id = next;
-    });
-    const repoint = (attr: string) =>
-      root.querySelectorAll<HTMLElement>(`[${attr}]`).forEach((el) => {
-        const next = el
-          .getAttribute(attr)!
-          .split(/\s+/)
-          .map((token) => remap.get(token) ?? token)
-          .join(' ');
-        el.setAttribute(attr, next);
-      });
-    repoint('for');
-    repoint('aria-describedby');
-    repoint('aria-labelledby');
-    repoint('aria-controls');
-  }
+  import { retirementBinding, RETIREMENT_EXAMPLE_VALUES, MODE_LABELS, asMode } from '@lib/calculators/retirement-form';
 
   document.querySelectorAll<HTMLElement>('[data-retirement]').forEach((root) => {
-    if (document.querySelectorAll('[data-retirement]').length > 1) uniquifyStaticIds(root, `r${++ns}`);
-
     mountFormCalculator(root, retirementBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: RETIREMENT_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Retirement',
     });
 
-    // The binding clears the five personal fields on reset; the island restores the
-    // withdrawal-rate default (a non-personal structural assumption), analogous to the
-    // Sales Tax / Income Tax mode-default restore.
+    const modeRadios = Array.from(root.querySelectorAll<HTMLInputElement>('[data-ret-mode]'));
+    const question = root.querySelector<HTMLElement>('[data-ret-mode-question]');
+    const fields = Array.from(root.querySelectorAll<HTMLElement>('[data-ret-for]'));
+
+    // Presentation only: the runtime already recomputes on the radio's change event
+    // (the radios sit INSIDE the form). This just shows the fields the selected
+    // question actually reads — the binding validates only those, so a value left
+    // over from another question can never block this one.
+    const applyMode = () => {
+      const mode = asMode(modeRadios.find((r) => r.checked)?.value ?? 'plan');
+      if (question) question.textContent = MODE_LABELS[mode];
+      for (const el of fields) {
+        el.hidden = !(el.dataset.retFor ?? '').split(' ').includes(mode);
+      }
+    };
+    for (const r of modeRadios) r.addEventListener('change', applyMode);
+    applyMode();
+
+    // Reset restores the default question through the binding, so the visible
+    // field set has to follow it back.
     root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
-      const wd = root.querySelector<HTMLInputElement>('[name="withdrawalRatePct"]');
-      if (wd) wd.value = '4';
+      window.setTimeout(applyMode, 0);
     });
   });
 </script>

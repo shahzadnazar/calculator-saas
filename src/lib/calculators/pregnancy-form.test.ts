@@ -11,6 +11,7 @@ import {
   todayISO,
   pregnancyBinding,
   type PregnancyComputed,
+  type PregnancyValues,
 } from './pregnancy-form';
 
 /**
@@ -27,7 +28,23 @@ import {
  */
 
 const TODAY = '2024-06-01';
-const v = (lmp: string, today = TODAY) => ({ lmp, today });
+const BASE: PregnancyValues = {
+  method: 'lmp',
+  dueDate: '',
+  lmp: '',
+  cycleDays: '',
+  conception: '',
+  scanDate: '',
+  scanWeeks: '',
+  scanDays: '',
+  transferDate: '',
+  embryoAge: '5',
+  today: TODAY,
+};
+/** The LMP route, which most of these cases exercise. */
+const v = (lmp: string, today = TODAY): PregnancyValues => ({ ...BASE, lmp, today });
+/** Any route, for the five-method cases. */
+const vv = (over: Partial<PregnancyValues>): PregnancyValues => ({ ...BASE, ...over });
 const ok = (r: ReturnType<typeof validatePregnancy>) => r.ok === true;
 const err = (r: ReturnType<typeof validatePregnancy>) =>
   (r as { fieldErrors: Record<string, string> }).fieldErrors.lmp;
@@ -63,8 +80,8 @@ describe('pregnancy binding — validation (required → strict calendar → not
     }
   });
   it('rejects empty input with the required message', () => {
-    expect(err(validatePregnancy(v('')))).toBe('Enter your last menstrual period date.');
-    expect(err(validatePregnancy(v('   ')))).toBe('Enter your last menstrual period date.');
+    expect(err(validatePregnancy(v('')))).toBe('Enter the first day of your last menstrual period.');
+    expect(err(validatePregnancy(v('   ')))).toBe('Enter the first day of your last menstrual period.');
   });
   it('rejects impossible / malformed / non-canonical dates with the invalid-calendar message', () => {
     for (const bad of ['not-a-date', '2023-02-29', '2023-02-30', '2026-04-31', '2026-00-10', '2026-13-01', '2026-05-00', '2026-1-2', '20240101']) {
@@ -79,8 +96,8 @@ describe('pregnancy binding — validation (required → strict calendar → not
     expect(ok(validatePregnancy(v('2000-01-01')))).toBe(true);
   });
   it('applies precedence: required → invalid-calendar → future', () => {
-    expect(err(validatePregnancy(v('')))).toMatch(/Enter your last menstrual period date/); // required wins
-    expect(err(validatePregnancy({ lmp: '2027-02-30', today: TODAY }))).toBe('Enter a valid last menstrual period date.'); // impossible wins over future-year
+    expect(err(validatePregnancy(v('')))).toMatch(/Enter the first day of your last menstrual period/); // required wins
+    expect(err(validatePregnancy(v('2027-02-30')))).toBe('Enter a valid last menstrual period date.'); // impossible wins over future-year
     expect(err(validatePregnancy(v('2024-07-01')))).toMatch(/not in the future/); // valid-but-future
   });
 });
@@ -192,6 +209,31 @@ describe('pregnancy binding — presentation', () => {
     expect(p.dueDate).toBe('Oct 7, 2024');
     expect(p.interpretation).toBe('Based on the entered last menstrual period, you are 21 weeks and 5 days along — the 2nd trimester — with an estimated due date of Monday, October 7, 2024.');
   });
+  it('names the route the visitor actually took, not always the last period', () => {
+    const at = (over: Partial<PregnancyValues>) =>
+      presentPregnancy(computePregnancy(vv({ ...over, today: TODAY }))).interpretation;
+    expect(at({ method: 'due', dueDate: '2024-10-07' })).toMatch(/^From the due date you entered,/);
+    expect(at({ method: 'due', dueDate: '2024-10-07' })).toContain('with a due date of'); // theirs, not an estimate
+    expect(at({ method: 'lmp', lmp: '2024-01-01' })).toMatch(/^Based on the entered last menstrual period,/);
+    expect(at({ method: 'conception', conception: '2024-01-15' })).toMatch(/^Based on the conception date you entered,/);
+    expect(at({ method: 'ultrasound', scanDate: '2024-03-01', scanWeeks: '8', scanDays: '4' })).toMatch(
+      /^Based on the ultrasound you entered,/,
+    );
+    expect(at({ method: 'ivf', transferDate: '2024-01-20', embryoAge: '5' })).toMatch(
+      /^Based on the IVF transfer date you entered,/,
+    );
+    // Every route still lands on the same pregnancy, so the weeks-and-days agree.
+    const viaLmp = at({ method: 'lmp', lmp: '2024-01-01' });
+    for (const other of [
+      at({ method: 'conception', conception: '2024-01-15' }),
+      at({ method: 'ultrasound', scanDate: '2024-03-01', scanWeeks: '8', scanDays: '4' }),
+      at({ method: 'ivf', transferDate: '2024-01-20', embryoAge: '5' }),
+    ]) {
+      expect(other).toContain('you are 21 weeks and 5 days along');
+      expect(viaLmp).toContain('you are 21 weeks and 5 days along');
+    }
+  });
+
   it('same-day: 0w 0d hero, 1st trimester, 40 weeks to go', () => {
     const p = presentPregnancy(computePregnancy(v('2024-06-01')));
     expect(p.headline).toBe('0 weeks, 0 days');
@@ -228,23 +270,86 @@ describe('pregnancy binding — announcement (dominant + due date)', () => {
 /* ------------------------------------------------------------------ */
 
 describe('pregnancy binding — readValues / resetValues', () => {
-  const mockRoot = (lmp: string) => {
-    const input = { value: lmp };
-    return {
-      querySelector: (sel: string) => (sel === '[name="lmp"]' ? input : null),
-      __input: input,
-    } as unknown as HTMLElement & { __input: { value: string } };
+  /** A stand-in for the island's form: every dating field, plus the method radios. */
+  const mockRoot = (values: Partial<Record<string, string>>, checked: string) => {
+    const names = [
+      'dueDate',
+      'lmp',
+      'cycleDays',
+      'conception',
+      'scanDate',
+      'scanWeeks',
+      'scanDays',
+      'transferDate',
+      'embryoAge',
+    ];
+    const fields = Object.fromEntries(names.map((n) => [n, { value: values[n] ?? '' }]));
+    const radios = ['due', 'lmp', 'ultrasound', 'conception', 'ivf'].map((value) => ({
+      value,
+      checked: value === checked,
+    }));
+    const root = {
+      querySelector: (sel: string) => {
+        if (sel === '[name="method"]:checked') return radios.find((r) => r.checked) ?? null;
+        const m = /^\[name="([^"]+)"\]$/.exec(sel);
+        return m ? (fields[m[1]] ?? null) : null;
+      },
+      querySelectorAll: (sel: string) => (sel === '[name="method"]' ? radios : []),
+    } as unknown as HTMLElement;
+    return { root, fields, radios };
   };
 
-  it('reads the LMP and seeds today from the local calendar (ISO)', () => {
-    const read = pregnancyBinding.readValues(mockRoot('2024-03-15'));
+  it('reads the chosen method and its fields, and seeds today from the local calendar', () => {
+    const { root } = mockRoot({ lmp: '2024-03-15', cycleDays: '31' }, 'lmp');
+    const read = pregnancyBinding.readValues(root);
+    expect(read.method).toBe('lmp');
     expect(read.lmp).toBe('2024-03-15');
+    expect(read.cycleDays).toBe('31');
     expect(read.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(read.today).toBe(todayISO());
   });
-  it('reset clears the LMP field', () => {
-    const root = mockRoot('2024-03-15');
+
+  it('reads all five methods this calculator offers', () => {
+    for (const method of ['due', 'lmp', 'ultrasound', 'conception', 'ivf'] as const) {
+      const { root } = mockRoot({}, method);
+      expect(pregnancyBinding.readValues(root).method).toBe(method);
+    }
+  });
+
+  it('falls back to the first offered method rather than trusting an unknown radio value', () => {
+    const { root } = mockRoot({}, 'not-a-method');
+    expect(pregnancyBinding.readValues(root).method).toBe('due');
+  });
+
+  it('reset clears every dating field, restores the 5-day embryo and the Due Date method', () => {
+    const { root, fields, radios } = mockRoot(
+      {
+        dueDate: '2025-01-01',
+        lmp: '2024-03-15',
+        cycleDays: '31',
+        conception: '2024-04-01',
+        scanDate: '2024-05-01',
+        scanWeeks: '9',
+        scanDays: '2',
+        transferDate: '2024-04-10',
+        embryoAge: '3',
+      },
+      'ivf',
+    );
     pregnancyBinding.resetValues(root, 'personal');
-    expect((root as unknown as { __input: { value: string } }).__input.value).toBe('');
+    for (const name of [
+      'dueDate',
+      'lmp',
+      'cycleDays',
+      'conception',
+      'scanDate',
+      'scanWeeks',
+      'scanDays',
+      'transferDate',
+    ]) {
+      expect(fields[name].value).toBe('');
+    }
+    expect(fields.embryoAge.value).toBe('5');
+    expect(radios.filter((r) => r.checked).map((r) => r.value)).toEqual(['due']);
   });
 });

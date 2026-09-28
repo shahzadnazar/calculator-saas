@@ -14,6 +14,7 @@ const shell = (page: Page) => page.locator('#pg-result');
 const output = (page: Page) => page.locator('[data-generator-output]');
 const generateBtn = (page: Page) => page.locator('form[data-form] button[type="submit"]');
 const copyBtn = (page: Page) => page.locator('[data-copy]');
+const regenBtn = (page: Page) => page.locator('[data-regenerate]');
 const live = (page: Page) => page.locator('#pg-live');
 const readOutput = (page: Page) => page.inputValue('[data-generator-output]');
 const generate = (page: Page) => generateBtn(page).click();
@@ -25,10 +26,10 @@ test.beforeEach(async ({ page }) => {
 /* ---- Initial state ------------------------------------------------------ */
 
 test('loads with no password, an empty output, Copy disabled, Generate visible', async ({ page }) => {
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   await expect(output(page)).toHaveValue('');
   await expect(copyBtn(page)).toBeDisabled();
-  await expect(generateBtn(page)).toHaveText('Generate Password');
+  await expect(generateBtn(page)).toHaveText('Generate');
   await expect(generateBtn(page)).toBeVisible();
   await expect(live(page)).toHaveText('');
 });
@@ -47,11 +48,66 @@ test('generates a valid password with the selected classes, strength and Copy en
   await generate(page);
   await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
   const pw = await readOutput(page);
-  expect(pw).toHaveLength(16);
+  expect(pw).toHaveLength(10); // the reference's default length
   expect(/[A-Z]/.test(pw) && /[a-z]/.test(pw) && /[0-9]/.test(pw) && /[^A-Za-z0-9]/.test(pw)).toBe(true);
-  await expect(page.locator('.pg-strength')).not.toHaveText('—');
+  await expect(page.locator('[data-strength]')).not.toHaveText('—');
+  await expect(page.locator('[data-entropy]')).toHaveText(/^\d+\.\d bits$/);
   await expect(copyBtn(page)).toBeEnabled();
-  await expect(generateBtn(page)).toHaveText('Generate New Password');
+  await expect(regenBtn(page)).toBeVisible();
+});
+
+test('the default exclusions keep ambiguous characters and brackets out', async ({ page }) => {
+  await page.locator('#pg-length').fill('64');
+  await generate(page);
+  const pw = await readOutput(page);
+  expect(pw).toHaveLength(64);
+  for (const c of pw) expect('iIl1L|oO0`\'";:,.<>()[]{}').not.toContain(c);
+});
+
+test('turning the exclusions off lets those characters back in', async ({ page }) => {
+  await page.locator('input[name="excludeAmbiguous"]').click();
+  await page.locator('input[name="excludeBrackets"]').click();
+  await page.locator('#pg-length').fill('128');
+  await generate(page);
+  const pw = await readOutput(page);
+  expect(pw).toHaveLength(128);
+  // Over 128 draws from a 94-character pool, at least one previously excluded character appears.
+  expect([...pw].some((c) => 'iIl1L|oO0`\'";:,.<>()[]{}'.includes(c))).toBe(true);
+});
+
+test('no repeated characters gives every character once, and rejects an impossible length', async ({ page }) => {
+  await page.locator('input[name="noRepeats"]').click();
+  await page.locator('#pg-length').fill('40');
+  await generate(page);
+  const pw = await readOutput(page);
+  expect(new Set(pw).size).toBe(pw.length);
+
+  await page.locator('#pg-length').fill('120'); // longer than the pool allows
+  await generate(page);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(page.locator('[data-error-for="length"]')).toContainText('longest possible password');
+});
+
+test('the number box and the slider stay in step', async ({ page }) => {
+  const slider = page.locator('[data-length-slider]');
+  await page.locator('#pg-length').fill('24');
+  await expect(slider).toHaveValue('24');
+  await slider.fill('40');
+  await expect(page.locator('#pg-length')).toHaveValue('40');
+  await generate(page);
+  expect(await readOutput(page)).toHaveLength(40);
+});
+
+test('Regenerate draws another password from the same settings', async ({ page }) => {
+  await page.locator('#pg-length').fill('32');
+  await generate(page);
+  const first = await readOutput(page);
+  await regenBtn(page).click();
+  const second = await readOutput(page);
+  expect(second).not.toBe(first);
+  expect(second).toHaveLength(32);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(copyBtn(page)).toBeEnabled();
 });
 
 test('the generated password is never placed in the live region', async ({ page }) => {
@@ -99,7 +155,7 @@ test('generating with no character type selected shows an error and focuses the 
   await generate(page);
   await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
   await expect(page.locator('[data-error-for="charsets"]')).toHaveText('Select at least one character type.');
-  await expect(page.locator('input[name="upper"]')).toBeFocused();
+  await expect(page.locator('input[name="lower"]')).toBeFocused();
   await expect(output(page)).toHaveValue(''); // no fabricated output
 });
 
@@ -140,7 +196,8 @@ test('reset clears the output and strength, disables Copy, restores defaults', a
   await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
   await expect(output(page)).toHaveValue('');
   await expect(copyBtn(page)).toBeDisabled();
-  await expect(generateBtn(page)).toHaveText('Generate Password');
+  await expect(generateBtn(page)).toHaveText('Generate');
+  await expect(page.locator('#pg-length')).toHaveValue('10');
   await expect(live(page)).toHaveText('');
 });
 
@@ -211,5 +268,5 @@ test('renders in dark scheme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await generate(page);
   await expect(output(page)).not.toHaveValue('');
-  await expect(page.locator('.pg-strength')).toBeVisible();
+  await expect(page.locator('[data-strength]')).toBeVisible();
 });

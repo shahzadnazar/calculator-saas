@@ -1,145 +1,154 @@
 import { describe, it, expect } from 'vitest';
-import { dueDateFromLMP, conceptionFromLMP, gestationalAge, GESTATION_DAYS } from './due-date';
-import { toISODateUTC } from './date-duration';
-import { parseISODateUTC } from './age';
+import {
+  dueDateFromLMP,
+  conceptionFromLMP,
+  gestationalAge,
+  milestones,
+  lmpFromCycle,
+  lmpFromConception,
+  lmpFromUltrasound,
+  lmpFromIvfTransfer,
+  GESTATION_DAYS,
+  CONCEPTION_TO_BIRTH_DAYS,
+  REFERENCE_CYCLE_DAYS,
+  CYCLE_MIN,
+  CYCLE_MAX,
+  DATING_METHODS,
+  EMBRYO_AGES,
+} from './due-date';
 
 /**
- * Dedicated Due Date characterization (R14B1 Commit 1 — Gestational pilot).
- *
- * FREEZES the current behaviour of the shared gestational engine ahead of the
- * task-first migration; it does NOT change any module. The Due Date binding
- * (due-date-form.ts) layers required + future-LMP validation, a local-today seed,
- * and a past-due presentation policy ON TOP of these unchanged functions — this
- * file pins exactly what that binding wraps: strict-format ISO parsing (with the
- * frozen roll-over of out-of-range components), Naegele's LMP+280 due date, the
- * LMP+14 conception estimate, and gestationalAge(lmp, at) with an INJECTED `at`
- * (so the island's only clock-dependent code is fully testable without touching
- * `todayUTC`). The pure formula's future-`at` clamp stays frozen even though the
- * new binding rejects a future visitor LMP.
- *
- * Due Date cases were consolidated here out of batch-c.test.ts; the Pregnancy
- * cases remain in batch-c.test.ts.
+ * UTC midnight throughout, because that is how the calculators hold dates: `addDays` is
+ * epoch arithmetic, and only in UTC is every day exactly 86,400,000 ms. Testing in local
+ * time would pass here and drift across a daylight-saving boundary elsewhere.
  */
+const d = (iso: string) => {
+  const [y, m, day] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, day));
+};
+const iso = (x: Date) =>
+  `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}-${String(x.getUTCDate()).padStart(2, '0')}`;
 
-const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));
-const daysAfter = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
+describe('the four dating methods all land on the same rule', () => {
+  it('offers the reference’s four, in its order', () => {
+    expect(DATING_METHODS.map((m) => m.label)).toEqual([
+      'Last Period',
+      'Conception Date',
+      'Ultrasound',
+      'IVF Transfer Date',
+    ]);
+  });
 
-describe('due date — ISO date parsing (parseISODateUTC, frozen)', () => {
-  it('parses a valid YYYY-MM-DD as UTC midnight', () => {
-    const d = parseISODateUTC('2024-01-01');
-    expect(d).not.toBeNull();
-    expect(toISODateUTC(d!)).toBe('2024-01-01');
-    expect(d!.getUTCHours()).toBe(0);
-  });
-  it('parses a leap day', () => {
-    expect(toISODateUTC(parseISODateUTC('2024-02-29')!)).toBe('2024-02-29');
-  });
-  it('ROLLS OVER out-of-range day components (frozen: not rejected)', () => {
-    // Feb 30 2023 -> Date.UTC(2023,1,30) normalises to Mar 2 2023.
-    expect(toISODateUTC(parseISODateUTC('2023-02-30')!)).toBe('2023-03-02');
-  });
-  it('ROLLS OVER out-of-range month components (frozen: not rejected)', () => {
-    // month 13 -> Date.UTC(2023,12,1) normalises to Jan 1 2024.
-    expect(toISODateUTC(parseISODateUTC('2023-13-01')!)).toBe('2024-01-01');
-  });
-  it('returns null for malformed / non-matching text', () => {
-    expect(parseISODateUTC('')).toBeNull();
-    expect(parseISODateUTC('not-a-date')).toBeNull();
-    expect(parseISODateUTC('2024/01/01')).toBeNull();
-    expect(parseISODateUTC('20240101')).toBeNull();
-    expect(parseISODateUTC('2024-1-1')).toBeNull(); // requires zero-padding
-  });
-});
-
-describe('due date — Naegele due date (LMP + 280)', () => {
-  it('adds 280 days', () => {
+  it('Last Period: 280 days after the LMP', () => {
+    expect(iso(dueDateFromLMP(d('2026-01-01')))).toBe('2026-10-08');
     expect(GESTATION_DAYS).toBe(280);
-    expect(toISODateUTC(dueDateFromLMP(utc(2024, 1, 1)))).toBe('2024-10-07');
   });
-  it('crosses a leap day differently from a non-leap span', () => {
-    // 2024 span includes Feb 29 -> Oct 7; 2023 span (no Feb 29) -> Oct 8.
-    expect(toISODateUTC(dueDateFromLMP(utc(2024, 1, 1)))).toBe('2024-10-07');
-    expect(toISODateUTC(dueDateFromLMP(utc(2023, 1, 1)))).toBe('2023-10-08');
+
+  it('Conception Date: 266 days after conception, which is the same due date', () => {
+    const lmp = d('2026-01-01');
+    const conception = conceptionFromLMP(lmp);
+    expect(iso(conception)).toBe('2026-01-15');
+    expect(iso(dueDateFromLMP(lmpFromConception(conception)))).toBe(iso(dueDateFromLMP(lmp)));
+    expect(GESTATION_DAYS - 14).toBe(CONCEPTION_TO_BIRTH_DAYS);
   });
-  it('rolls month/year over correctly', () => {
-    expect(toISODateUTC(dueDateFromLMP(utc(2024, 6, 15)))).toBe('2025-03-22');
+
+  it('Ultrasound: the LMP is worked backwards from the age the scan reports', () => {
+    // A scan on 1 March saying 12 weeks 3 days puts the LMP 87 days earlier.
+    const lmp = lmpFromUltrasound(d('2026-03-01'), 12, 3);
+    expect(iso(lmp)).toBe('2025-12-04');
+    expect(gestationalAge(lmp, d('2026-03-01'))).toMatchObject({ weeks: 12, days: 3 });
+  });
+
+  it('IVF: a 3-day transfer is 263 days out, a 5-day transfer 261', () => {
+    const transfer = d('2026-01-01');
+    const day3 = dueDateFromLMP(lmpFromIvfTransfer(transfer, 3));
+    const day5 = dueDateFromLMP(lmpFromIvfTransfer(transfer, 5));
+    expect(Math.round((day3.getTime() - transfer.getTime()) / 86_400_000)).toBe(263);
+    expect(Math.round((day5.getTime() - transfer.getTime()) / 86_400_000)).toBe(261);
+    // The older embryo is further along, so it is due sooner.
+    expect(day5.getTime()).toBeLessThan(day3.getTime());
+    expect(EMBRYO_AGES.map((e) => e.value)).toEqual([3, 5]);
   });
 });
 
-describe('due date — conception estimate (LMP + 14)', () => {
-  it('adds 14 days', () => {
-    expect(toISODateUTC(conceptionFromLMP(utc(2024, 1, 1)))).toBe('2024-01-15');
+describe('cycle length', () => {
+  it('leaves a textbook cycle exactly where it was', () => {
+    expect(iso(lmpFromCycle(d('2026-01-01'), REFERENCE_CYCLE_DAYS))).toBe('2026-01-01');
   });
-  it('rolls over the month boundary', () => {
-    expect(toISODateUTC(conceptionFromLMP(utc(2024, 1, 20)))).toBe('2024-02-03');
+
+  it('pushes a long cycle later and pulls a short one earlier, day for day', () => {
+    // A 35-day cycle ovulates a week late, so the pregnancy is a week younger.
+    expect(iso(lmpFromCycle(d('2026-01-01'), 35))).toBe('2026-01-08');
+    expect(iso(lmpFromCycle(d('2026-01-01'), 21))).toBe('2025-12-25');
+  });
+
+  it('moves the due date by exactly the same number of days', () => {
+    const base = dueDateFromLMP(d('2026-01-01'));
+    const long = dueDateFromLMP(lmpFromCycle(d('2026-01-01'), 35));
+    expect(Math.round((long.getTime() - base.getTime()) / 86_400_000)).toBe(7);
+  });
+
+  it('falls back to the reference cycle rather than shifting by a nonsense one', () => {
+    expect(iso(lmpFromCycle(d('2026-01-01'), Number.NaN))).toBe('2026-01-01');
+    expect(iso(lmpFromCycle(d('2026-01-01'), 0))).toBe('2026-01-01');
+  });
+
+  it('publishes the span it accepts', () => {
+    expect([CYCLE_MIN, CYCLE_MAX]).toEqual([20, 45]);
   });
 });
 
-describe('due date — gestationalAge(lmp, at) with injected `at`', () => {
-  const lmp = utc(2024, 1, 1);
+describe('gestational age', () => {
+  const lmp = d('2026-01-01');
 
-  it('same-day LMP → zero progress, 280 days remaining', () => {
-    const g = gestationalAge(lmp, lmp);
-    expect(g).toEqual({ totalDays: 0, weeks: 0, days: 0, trimester: 1, progressPct: 0, daysRemaining: 280 });
+  it('counts whole weeks and days from the LMP', () => {
+    expect(gestationalAge(lmp, d('2026-01-01'))).toMatchObject({ weeks: 0, days: 0, trimester: 1 });
+    expect(gestationalAge(lmp, d('2026-02-05'))).toMatchObject({ weeks: 5, days: 0 });
+    expect(gestationalAge(lmp, d('2026-02-08'))).toMatchObject({ weeks: 5, days: 3 });
   });
 
-  it('ordinary 70 days → 10w 0d, trimester 1, 25% progress', () => {
-    const g = gestationalAge(lmp, daysAfter(lmp, 70));
-    expect(g.totalDays).toBe(70);
-    expect(g.weeks).toBe(10);
-    expect(g.days).toBe(0);
-    expect(g.trimester).toBe(1);
-    expect(g.progressPct).toBeCloseTo(25, 6);
-    expect(g.daysRemaining).toBe(210);
+  it('places the trimester boundaries at 13 and 27 weeks', () => {
+    expect(gestationalAge(lmp, milestones(lmp)[2].date).trimester).toBe(2);
+    expect(gestationalAge(lmp, milestones(lmp)[3].date).trimester).toBe(3);
+    expect(gestationalAge(lmp, addDays(lmp, 12 * 7 + 6)).trimester).toBe(1);
   });
 
-  it('non-zero days remainder → 10w 3d', () => {
-    const g = gestationalAge(lmp, daysAfter(lmp, 73));
-    expect(g.weeks).toBe(10);
-    expect(g.days).toBe(3);
-  });
-
-  it('future LMP clamps to zero (frozen pure behaviour)', () => {
-    const g = gestationalAge(utc(2024, 6, 1), utc(2024, 1, 1)); // at < lmp
-    expect(g.totalDays).toBe(0);
-    expect(g.weeks).toBe(0);
-    expect(g.trimester).toBe(1);
-    expect(g.progressPct).toBe(0);
-    expect(g.daysRemaining).toBe(280);
-  });
-
-  it('trimester boundary: 12w6d (90d) is trimester 1, 13w0d (91d) is trimester 2', () => {
-    const a = gestationalAge(lmp, daysAfter(lmp, 90));
-    expect(a).toMatchObject({ totalDays: 90, weeks: 12, days: 6, trimester: 1 });
-    const b = gestationalAge(lmp, daysAfter(lmp, 91));
-    expect(b).toMatchObject({ totalDays: 91, weeks: 13, days: 0, trimester: 2 });
-  });
-
-  it('trimester boundary: 26w6d (188d) is trimester 2, 27w0d (189d) is trimester 3', () => {
-    const a = gestationalAge(lmp, daysAfter(lmp, 188));
-    expect(a).toMatchObject({ weeks: 26, days: 6, trimester: 2 });
-    const b = gestationalAge(lmp, daysAfter(lmp, 189));
-    expect(b).toMatchObject({ weeks: 27, days: 0, trimester: 3 });
-  });
-
-  it('third-trimester state', () => {
-    expect(gestationalAge(lmp, daysAfter(lmp, 200)).trimester).toBe(3);
-  });
-
-  it('progress clamps at 100 and days-remaining at 0 exactly on the due date (280d)', () => {
-    const g = gestationalAge(lmp, daysAfter(lmp, 280));
-    expect(g.progressPct).toBe(100);
-    expect(g.daysRemaining).toBe(0);
-    expect(g.weeks).toBe(40);
-  });
-
-  it('past-due source behaviour (300d): progress clamps 100, daysRemaining 0, weeks unbounded', () => {
-    const g = gestationalAge(lmp, daysAfter(lmp, 300));
-    expect(g.totalDays).toBe(300);
-    expect(g.weeks).toBe(42);
-    expect(g.days).toBe(6);
-    expect(g.trimester).toBe(3);
-    expect(g.progressPct).toBe(100); // clamped
-    expect(g.daysRemaining).toBe(0); // clamped
+  it('never runs backwards or past the end', () => {
+    expect(gestationalAge(lmp, d('2025-06-01')).totalDays).toBe(0);
+    const past = gestationalAge(lmp, d('2027-06-01'));
+    expect(past.progressPct).toBe(100);
+    expect(past.daysRemaining).toBe(0);
   });
 });
+
+describe('milestones', () => {
+  const lmp = d('2026-01-01');
+  const m = milestones(lmp);
+
+  it('lists the pregnancy in order, from the LMP to the due date', () => {
+    expect(m.map((x) => x.label)).toEqual([
+      'Last menstrual period',
+      'Estimated conception',
+      'Second trimester begins',
+      'Third trimester begins',
+      'Full term begins',
+      'Estimated due date',
+    ]);
+    for (let i = 1; i < m.length; i++) {
+      expect(m[i].date.getTime()).toBeGreaterThan(m[i - 1].date.getTime());
+    }
+  });
+
+  it('quotes each one at its conventional week', () => {
+    expect(m.map((x) => x.weeks)).toEqual([0, 2, 13, 27, 39, 40]);
+  });
+
+  it('the due-date milestone is the due date', () => {
+    expect(iso(m[5].date)).toBe(iso(dueDateFromLMP(lmp)));
+  });
+});
+
+// Epoch arithmetic, matching the shared primitive exactly.
+function addDays(base: Date, days: number): Date {
+  return new Date(base.getTime() + days * 86_400_000);
+}

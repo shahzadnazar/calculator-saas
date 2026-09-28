@@ -18,6 +18,8 @@ export interface StatsResult {
   median: number;
   /** Most frequent value(s). Empty when every value is unique (no mode). */
   mode: number[];
+  /** How many times each mode appears. 0 when there is no mode. */
+  modeFrequency: number;
   min: number;
   max: number;
   range: number;
@@ -33,6 +35,10 @@ export interface StatsResult {
   sampleSD: number;
   /** Sum of squared deviations from the mean, Σ(x − mean)². */
   sumSquares: number;
+  /** The nth root of the product of the values. NaN unless every value is positive. */
+  geometricMean: number;
+  /** Σx² — the sum of the SQUARED values (not the squared sum, and not Σ(x − mean)²). */
+  sumOfSquaredValues: number;
   /** The input values sorted ascending (useful for plotting/inspection). */
   sorted: number[];
 }
@@ -58,10 +64,10 @@ function medianOfSorted(s: number[]): number {
 export function calculateStats(values: number[]): StatsResult {
   const n = values.length;
   const empty: StatsResult = {
-    count: n, sum: NaN, mean: NaN, median: NaN, mode: [], min: NaN, max: NaN, range: NaN,
-    q1: NaN, q3: NaN, iqr: NaN,
+    count: n, sum: NaN, mean: NaN, median: NaN, mode: [], modeFrequency: 0,
+    min: NaN, max: NaN, range: NaN, q1: NaN, q3: NaN, iqr: NaN,
     populationVariance: NaN, populationSD: NaN, sampleVariance: NaN, sampleSD: NaN,
-    sumSquares: NaN, sorted: [],
+    sumSquares: NaN, geometricMean: NaN, sumOfSquaredValues: NaN, sorted: [],
   };
   if (n === 0) return empty;
 
@@ -69,6 +75,7 @@ export function calculateStats(values: number[]): StatsResult {
   const sum = values.reduce((s, v) => s + v, 0);
   const mean = sum / n;
   const sumSquares = values.reduce((s, v) => s + (v - mean) ** 2, 0);
+  const sumOfSquaredValues = values.reduce((s, v) => s + v * v, 0);
   const populationVariance = sumSquares / n;
   const sampleVariance = n > 1 ? sumSquares / (n - 1) : NaN;
 
@@ -80,6 +87,16 @@ export function calculateStats(values: number[]): StatsResult {
   const mode = maxFreq <= 1
     ? []
     : [...freq.entries()].filter(([, c]) => c === maxFreq).map(([v]) => v).sort((a, b) => a - b);
+  const modeFrequency = mode.length ? maxFreq : 0;
+
+  /*
+   * Geometric mean: the nth root of the product, computed through logarithms so a long data set
+   * cannot overflow the product to Infinity on its way to a finite answer. It is defined only for
+   * strictly positive values — a zero collapses it and a negative makes it imaginary — so it is
+   * NaN otherwise rather than a number that would quietly mean nothing.
+   */
+  const allPositive = values.every((v) => v > 0);
+  const geometricMean = allPositive ? Math.exp(values.reduce((s, v) => s + Math.log(v), 0) / n) : NaN;
 
   // Quartiles via median of the lower/upper halves (excluding the median for odd n).
   const mid = Math.floor(n / 2);
@@ -97,6 +114,7 @@ export function calculateStats(values: number[]): StatsResult {
     mean,
     median: medianOfSorted(sorted),
     mode,
+    modeFrequency,
     min,
     max,
     range: max - min,
@@ -108,6 +126,8 @@ export function calculateStats(values: number[]): StatsResult {
     sampleVariance,
     sampleSD: Number.isNaN(sampleVariance) ? NaN : Math.sqrt(sampleVariance),
     sumSquares,
+    geometricMean,
+    sumOfSquaredValues,
     sorted,
   };
 }

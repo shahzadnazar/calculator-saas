@@ -115,8 +115,16 @@ export interface FormCalculatorBinding<V, R> {
   isUsableResult?(result: R): boolean;
   /** Clear personal values (`personal`) or everything incl. structure (`all`). */
   resetValues(root: HTMLElement, mode: ResetMode): void;
-  /** Convert entered values in place on a unit change. Optional. */
-  convertValues?(root: HTMLElement, fromUnit: string, toUnit: string): void;
+  /**
+   * Convert entered values in place on a unit change. Optional.
+   *
+   * `group` names the unit axis that changed, and is present ONLY for a form that scopes its units
+   * with `[data-unit-group]` (see `mountFormCalculator`). A single-axis form omits it, so a binding
+   * written before scoped groups existed keeps its three-parameter signature and behaves identically.
+   * `root` is always the calculator root — never the group element — so existing `[name=…]` lookups
+   * are unaffected.
+   */
+  convertValues?(root: HTMLElement, fromUnit: string, toUnit: string, group?: string): void;
 }
 
 export interface FormCalculatorOptions {
@@ -124,6 +132,17 @@ export interface FormCalculatorOptions {
   /** Task-specific primary label, e.g. "Calculate BMI". */
   calculateButtonLabel: string;
   persistStructuralPreferences?: boolean;
+  /**
+   * Opt in to a labelled worked EXAMPLE in the result panel on first load.
+   *
+   * `values` are example inputs in the binding's own value shape. The runtime
+   * computes them and calls the binding's `renderResult`, so the example reuses
+   * the calculator's OWN result markup and can never drift from the engine.
+   * The visitor's fields are never written to — they load and stay empty.
+   *
+   * Omitted by default: a calculator without it keeps its plain empty-first load.
+   */
+  example?: { values: unknown };
 }
 
 /**
@@ -158,7 +177,26 @@ export type FormTrigger =
   | { kind: 'submit' } // explicit Calculate
   | { kind: 'input' } // a field changed
   | { kind: 'unit' } // the unit system changed (structural)
-  | { kind: 'reset' };
+  | { kind: 'reset' }
+  /**
+   * Render a labelled worked EXAMPLE into the result panel on mount, computed
+   * from example values the calculator supplies — never from the visitor's
+   * fields, which stay empty.
+   *
+   * Only for a calculator that OPTS IN with the `example` option; every other
+   * calculator never reaches this trigger and keeps its plain empty-first load.
+   */
+  | { kind: 'showExample' }
+  /**
+   * Leave a server-rendered worked example and hand the panel to the visitor.
+   * `action` is the explicit "Start with my values" button (focus moves to the
+   * first field); `input` is the visitor simply starting to type, which must
+   * drop the example silently without stealing focus mid-keystroke.
+   *
+   * Only meaningful for a calculator that OPTS IN by rendering its shell in the
+   * `example` state; every other calculator never reaches this trigger.
+   */
+  | { kind: 'dismissExample'; source: 'action' | 'input' };
 
 export interface FormProbe {
   validation: ValidationResult;
@@ -175,7 +213,7 @@ export interface FormEffects {
   /** What to announce (the executor supplies the text). */
   announce: 'value' | 'error' | 'none';
   /** Where focus should go. */
-  focus: 'firstInvalid' | 'revealResult' | 'none';
+  focus: 'firstInvalid' | 'revealResult' | 'firstField' | 'none';
   /** Desired visibility of the "Changes update automatically." note. */
   liveNote: boolean;
   /** Apply field errors from validation, clear them, or leave them untouched. */
@@ -237,6 +275,64 @@ export function planFormAction(
           clearValues: true,
         },
       };
+
+    case 'showExample': {
+      // The example is OURS, not the visitor's: silent, never moves focus or
+      // scrolls, and never touches their (empty) fields.
+      const usable = probe != null && probe.validation.ok && probe.resultUsable;
+      if (!usable) {
+        // Our own example values failed to produce a usable result. Fall back to
+        // the ordinary empty-first load rather than showing a broken example.
+        return {
+          next: INITIAL_FORM_STATE,
+          effects: {
+            compute: false,
+            announce: 'none',
+            focus: 'none',
+            liveNote: false,
+            fieldErrors: 'clear',
+            clearValues: false,
+          },
+        };
+      }
+      return {
+        next: {
+          status: reduceResult(state.status, { type: 'showExample' }),
+          // An example is NOT the visitor's first calculation, so the live gate
+          // stays shut: they still make an explicit first Calculate.
+          hasCalculated: false,
+        },
+        effects: {
+          compute: true, // renderResult fills the calculator's OWN valid region
+          announce: 'none', // never announce a result the visitor did not ask for
+          focus: 'none',
+          liveNote: false,
+          fieldErrors: 'clear',
+          clearValues: false, // the visitor's fields are empty and stay empty
+        },
+      };
+    }
+
+    case 'dismissExample': {
+      // Protection: only the `example` state can be dismissed. From any other
+      // state this is a no-op, so a stray click can never wipe a real result.
+      if (state.status.state !== 'example') return noop(state, noteAfterCalc(state.hasCalculated));
+      return {
+        next: { status: reduceResult(state.status, { type: 'reset' }), hasCalculated: false },
+        effects: {
+          compute: false,
+          announce: 'none',
+          // The explicit action hands the visitor the first field; dismissal by
+          // typing must never move focus out from under the keystroke.
+          focus: trigger.source === 'action' ? 'firstField' : 'none',
+          liveNote: false,
+          fieldErrors: 'clear',
+          // The example lives only in the result panel — the visitor's fields are
+          // already empty, and on the `input` path they hold what was just typed.
+          clearValues: false,
+        },
+      };
+    }
 
     case 'submit': {
       if (!probe) return noop(state, noteAfterCalc(state.hasCalculated));
@@ -368,7 +464,14 @@ export function mountFormCalculator<V, R>(
   const resetBtn = root.querySelector<HTMLButtonElement>('[data-reset]');
   const ctx: FormRenderContext = { root, result: shell };
 
-  let state = INITIAL_FORM_STATE;
+  // Opt-in worked example: a calculator that server-renders its shell in the
+  // `example` state starts the machine there, so the runtime — not a parallel
+  // per-island script — owns the transition out of it. Every other calculator
+  // renders `empty` and keeps the historical initial state exactly.
+  const startsAsExample = shell.dataset.resultState === 'example';
+  let state: FormMachineState = startsAsExample
+    ? { status: reduceResult(INITIAL_STATUS, { type: 'showExample' }), hasCalculated: false }
+    : INITIAL_FORM_STATE;
   let settleTimer = 0;
   let debounceTimer = 0;
   let lastAnnounced = '';
@@ -378,26 +481,56 @@ export function mountFormCalculator<V, R>(
 
   /* -- unit (structural) state -------------------------------------- */
 
-  const activeUnitEl = root.querySelector<HTMLElement>(
-    '[data-unit].is-active, [data-unit][aria-checked="true"]',
-  );
-  let currentUnit = activeUnitEl?.dataset.unit;
-  const defaultUnit = currentUnit; // the safe structural default restored on reset
+  /**
+   * A form has one or more INDEPENDENT unit axes.
+   *
+   * With no `[data-unit-group]` present the whole root is a single unnamed axis — the original
+   * contract, unchanged: one active unit, every `[data-unit]` button and `[data-group]` panel in the
+   * form belongs to it, and `convertValues` is called with three arguments.
+   *
+   * When `[data-unit-group="<name>"]` containers ARE present, each one is its own axis: it owns only
+   * the buttons and panels inside it, holds its own active unit and its own reset default, and passes
+   * its name to `convertValues` so the binding knows which field changed. Switching one axis never
+   * touches another. (Once any group exists, every `[data-unit]` is expected to live inside one.)
+   */
+  interface UnitAxis {
+    /** The element whose subtree owns this axis' buttons and panels. */
+    scope: HTMLElement;
+    /** Group name, or undefined for the single unnamed axis. */
+    name?: string;
+    current?: string;
+    /** The safe structural default restored on reset. */
+    initial?: string;
+  }
 
-  const selectUnit = (nextUnit: string, convert: boolean) => {
-    const from = currentUnit;
-    root.querySelectorAll<HTMLElement>('[data-unit]').forEach((b) => {
+  const groupEls = Array.from(root.querySelectorAll<HTMLElement>('[data-unit-group]'));
+  const axes: UnitAxis[] = (groupEls.length ? groupEls : [root]).map((scope) => {
+    const active = scope.querySelector<HTMLElement>(
+      '[data-unit].is-active, [data-unit][aria-checked="true"]',
+    );
+    const unit = active?.dataset.unit;
+    return {
+      scope,
+      name: groupEls.length ? scope.dataset.unitGroup : undefined,
+      current: unit,
+      initial: unit,
+    };
+  });
+
+  const selectUnit = (axis: UnitAxis, nextUnit: string, convert: boolean) => {
+    const from = axis.current;
+    axis.scope.querySelectorAll<HTMLElement>('[data-unit]').forEach((b) => {
       const on = b.dataset.unit === nextUnit;
       b.classList.toggle('is-active', on);
       if (b.hasAttribute('aria-checked')) b.setAttribute('aria-checked', String(on));
     });
-    root.querySelectorAll<HTMLElement>('[data-group]').forEach((g) => {
+    axis.scope.querySelectorAll<HTMLElement>('[data-group]').forEach((g) => {
       g.hidden = g.dataset.group !== nextUnit;
     });
     if (convert && from && from !== nextUnit && binding.convertValues) {
-      binding.convertValues(root, from, nextUnit);
+      binding.convertValues(root, from, nextUnit, axis.name);
     }
-    currentUnit = nextUnit;
+    axis.current = nextUnit;
   };
 
   /* -- small DOM helpers -------------------------------------------- */
@@ -456,14 +589,32 @@ export function mountFormCalculator<V, R>(
     }
   };
 
+  /** The first field a visitor would type into — used only when they explicitly
+   *  ask to start with their own values. Skips hidden unit panels and disabled
+   *  controls so focus never lands somewhere invisible. */
+  const focusFirstField = () => {
+    const fields = Array.from(
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'),
+    );
+    const target = fields.find(
+      (el) => !el.disabled && el.type !== 'hidden' && el.offsetParent !== null,
+    );
+    target?.focus();
+  };
+
   /* -- run a plan --------------------------------------------------- */
 
   const run = (trigger: FormTrigger) => {
     let result: R | null = null;
     let probe: FormProbe | null = null;
 
-    if (trigger.kind !== 'reset') {
-      const values = binding.readValues(root);
+    if (trigger.kind !== 'reset' && trigger.kind !== 'dismissExample') {
+      // The example computes from ITS OWN values; every other trigger reads the
+      // visitor's fields. This is what keeps the fields empty behind an example.
+      const values =
+        trigger.kind === 'showExample'
+          ? (options.example!.values as V)
+          : binding.readValues(root);
       const validation = binding.validate(values);
       let resultUsable = false;
       if (validation.ok) {
@@ -484,8 +635,24 @@ export function mountFormCalculator<V, R>(
 
     // 2. Reset personal values + restore the safe structural (unit) default.
     if (effects.clearValues) binding.resetValues(root, 'personal');
-    if (trigger.kind === 'reset' && defaultUnit && currentUnit !== defaultUnit) {
-      selectUnit(defaultUnit, false); // values already cleared — no conversion
+    if (trigger.kind === 'reset') {
+      // Each axis returns to its OWN default, independently of the others.
+      for (const axis of axes) {
+        if (axis.initial && axis.current !== axis.initial) {
+          selectUnit(axis, axis.initial, false); // values already cleared — no conversion
+        }
+      }
+      /**
+       * Tell the island the form went back to its defaults.
+       *
+       * `resetValues` restores radios by setting `.checked` directly, which fires no event —
+       * so any island that SHOWS OR HIDES a field based on a radio (a hip measurement only
+       * women need, a body-fat box only one equation reads, an age box that swaps for a
+       * measured maximum) would be left displaying the state before the reset while the
+       * radios say otherwise. At worst that hides a field the form now requires. This event
+       * is the runtime saying "re-derive whatever you derived from these controls".
+       */
+      root.dispatchEvent(new CustomEvent('calculator:reset', { bubbles: false }));
     }
 
     // 3. Render the result / invalid guidance.
@@ -513,8 +680,14 @@ export function mountFormCalculator<V, R>(
 
     // 5b. Track the previous valid result per instance. Reset forgets it; an invalid
     //     update leaves the last valid result intact (never a false transition).
+    //     The EXAMPLE is deliberately never committed: it is not the visitor's
+    //     result, so their first real calculation must still read as a first
+    //     result ("Your healthy-weight range is…"), not as a transition from the
+    //     example ("…updated for male").
     if (trigger.kind === 'reset') description.reset();
-    else if (effects.compute && result != null) description.commit(result);
+    else if (trigger.kind !== 'showExample' && effects.compute && result != null) {
+      description.commit(result);
+    }
 
     // 6. Live note.
     if (note) note.hidden = !effects.liveNote;
@@ -522,6 +695,7 @@ export function mountFormCalculator<V, R>(
     // 7. Focus / scroll.
     if (effects.focus === 'firstInvalid') focusFirstInvalidField(root);
     else if (effects.focus === 'revealResult') revealResult(shell, { live: false, focus: true });
+    else if (effects.focus === 'firstField') focusFirstField();
 
     state = plan.next;
   };
@@ -535,27 +709,44 @@ export function mountFormCalculator<V, R>(
   };
 
   const onInput = () => {
+    // The visitor typing their own value ends the worked example immediately —
+    // before the live gate, which is closed until the first calculation.
+    if (state.status.state === 'example') {
+      window.clearTimeout(debounceTimer);
+      run({ kind: 'dismissExample', source: 'input' });
+      return;
+    }
     if (!isLiveActive(mode, state.hasCalculated)) return; // cheap gate before debounce
     window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(() => run({ kind: 'input' }), LIVE_DEBOUNCE_MS);
   };
 
   const onReset = () => run({ kind: 'reset' });
+  const onDismissExample = () => run({ kind: 'dismissExample', source: 'action' });
 
   form.addEventListener('submit', onSubmit);
   form.addEventListener('input', onInput);
   resetBtn?.addEventListener('click', onReset);
+  const dismissBtns = Array.from(root.querySelectorAll<HTMLElement>('[data-example-dismiss]'));
+  for (const btn of dismissBtns) btn.addEventListener('click', onDismissExample);
 
   // Unit switching: convert entered values in place, then recalculate live only
   // if a first calculation has already happened (the planner enforces this).
-  root.querySelectorAll<HTMLElement>('[data-unit]').forEach((r) => {
-    r.addEventListener('click', () => {
-      const u = r.dataset.unit;
-      if (!u || u === currentUnit) return;
-      selectUnit(u, true);
-      run({ kind: 'unit' });
+  for (const axis of axes) {
+    axis.scope.querySelectorAll<HTMLElement>('[data-unit]').forEach((r) => {
+      r.addEventListener('click', () => {
+        const u = r.dataset.unit;
+        if (!u || u === axis.current) return;
+        selectUnit(axis, u, true);
+        run({ kind: 'unit' });
+      });
     });
-  });
+  }
+
+  // Render the worked example once, AFTER wiring, so the dismiss action and the
+  // first-keystroke path are already live. A calculator that did not opt in
+  // never runs this and loads empty exactly as before.
+  if (options.example) run({ kind: 'showExample' });
 
   return {
     destroy() {
@@ -564,6 +755,7 @@ export function mountFormCalculator<V, R>(
       form.removeEventListener('submit', onSubmit);
       form.removeEventListener('input', onInput);
       resetBtn?.removeEventListener('click', onReset);
+      for (const btn of dismissBtns) btn.removeEventListener('click', onDismissExample);
     },
   };
 }

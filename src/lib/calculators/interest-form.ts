@@ -1,37 +1,49 @@
 /**
- * Interest form binding (R20A1 — task-first Interest migration; calculator-OWNED binding on the
- * UNCHANGED standard-form runtime).
+ * Interest form binding — the accumulation calculator's validation, computation
+ * guard and presentation. The pure model lives in `./interest`; nothing here does
+ * arithmetic the engine could do instead, and the schedule table and chart come from
+ * the shared accumulation helpers rather than a private copy.
  *
- * Interest owns NO formula module. This binding is the Interest-specific COMPOSITION layer over two
- * FROZEN engines — `calculateSimpleInterest` and `calculateCompoundInterest` (frozen by
- * simple-interest.test.ts / compound-interest.test.ts and by interest.test.ts's composition
- * characterization). The SAME principal / annual rate / years feed both engines; only the COMPOUND
- * side additionally receives the compounding frequency; the "compounding advantage" is
- * compound.totalInterest − simple.interest. No conversion math is reimplemented, neither engine is
- * modified (so Compound Interest / Investment / Savings / Retirement / the reference tables stay
- * behaviourally unchanged), and NO new shared Finance engine is created.
+ * FIELDS. The set matches the reference calculator one for one, in its order:
+ * initial investment · annual contribution · monthly contribution · contribute at the
+ * beginning or end of each compounding period · interest rate · compound ·
+ * investment length in years and months · tax rate · inflation rate.
  *
- * Product decisions (R20A1):
- *   • Task-first: principal / rate / years start EMPTY (the legacy island SSR-seeded a populated
- *     $10,000 / 5% / 10y result and recomputed live on every keystroke); the compounding frequency
- *     is a structural select defaulting to Monthly (restored on Reset); the result is EMPTY on the
- *     server AND after hydration, and the visitor presses Calculate for the first result
- *     (live-after-first).
- *   • Strict validation — NEVER `Number(value) || 0`. Principal, rate and years are each required,
- *     finite and >= 0 (the legacy inputs are all min="0"; a nonsensical NEGATIVE is a visitor error
- *     even though the frozen engines still compute negatives — UI policy only, the engines are
- *     untouched and interest.test.ts still freezes their negative behaviour). A valid ZERO in any
- *     field is a real result (a $0 earned), not an absent one.
- *   • Result: the COMPOUND interest earned is the dominant primary + the final balance; simple
- *     interest earned, simple final balance and the compounding advantage are supporting — ALL from
- *     the single composed result (no duplicated calculation).
- *   • NO isUsableResult — the complete-result guard lives in resultValue (a finite COMPOUND-interest
- *     sentinel), reconciling every displayed figure via a fresh recompute of both engines; a valid $0
- *     is the finite 0 the runtime's default gate accepts (validity is never a truthiness test).
+ * REQUIRED vs BLANK. Two inputs are always required — the initial investment and the
+ * interest rate — plus a term of at least one month. The contributions and the tax
+ * rate mean "none" when left blank, which is what an empty contribution box plainly
+ * means. That is an explicit empty-string branch, NOT `Number(v) || 0`: "abc" is
+ * still an error, and only a genuinely empty field reads as zero.
+ *
+ * TWO STRUCTURAL CONTROLS carry a default because a radio group and a select always
+ * have a value: the contribution timing (beginning, matching the reference) and the
+ * compounding frequency (annually). The inflation rate is the third, at 3% — an
+ * assumption the product already ships on the retirement calculator, not the
+ * visitor's own figure, and without it the buying-power line has nothing to say.
+ *
+ * THE GUARD. `resultValue` returns a NaN sentinel unless the ENTIRE result
+ * reconciles: principal against its two parts, the balance against principal plus
+ * interest, the interest split against the total, the yearly rows against the totals,
+ * and each yearly balance against the month that closes it. The runtime's finite gate
+ * then refuses to render a projection whose figures disagree.
  */
-import { calculateSimpleInterest } from './simple-interest';
-import { calculateCompoundInterest } from './compound-interest';
-import { formatCurrency } from '@lib/format';
+import {
+  MAX_INTEREST_MONTHS,
+  isCompoundFrequency,
+  isContributionTiming,
+  projectInterest,
+  type CompoundFrequency,
+  type ContributionTiming,
+  type InterestPlanResult,
+} from './interest';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+import {
+  drawAccumulationChart,
+  fillSchedule,
+  percentLabel,
+  share,
+  type YearStack,
+} from '@lib/result/accumulation';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -39,174 +51,340 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-export type CompoundFreq = '1' | '4' | '12' | '365';
-
-export const COMPOUND_FREQUENCIES: { value: CompoundFreq; label: string }[] = [
-  { value: '1', label: 'Annually' },
-  { value: '4', label: 'Quarterly' },
-  { value: '12', label: 'Monthly' },
-  { value: '365', label: 'Daily' },
-];
-const VALID_FREQ = new Set<string>(COMPOUND_FREQUENCIES.map((f) => f.value));
-
-export const DEFAULT_FREQUENCY: CompoundFreq = '12'; // Monthly
-
 export interface InterestValues {
-  principal: string;
+  initialInvestment: string;
+  annualContribution: string;
+  monthlyContribution: string;
+  contributeAt: string;
   annualRatePct: string;
+  compound: string;
   years: string;
-  compoundsPerYear: CompoundFreq;
+  months: string;
+  taxRatePct: string;
+  inflationRatePct: string;
 }
 
-/** The composed result — only values the current Interest calculator already displays or derives. */
 export interface InterestComputed {
-  principal: number;
-  annualRatePct: number;
-  years: number;
-  compoundsPerYear: number;
-  simpleInterest: number; // simple.interest
-  simpleFinal: number; // simple.total
-  compoundInterest: number; // compound.totalInterest — DOMINANT
-  compoundFinal: number; // compound.futureValue — final balance
-  advantage: number; // compound.totalInterest − simple.interest
+  plan: InterestPlanResult;
+  /** Kept alongside the plan so the buying-power line knows whether it has anything to say. */
+  inflationRatePct: number;
 }
 
-export const MSG = {
-  principalRequired: 'Enter a principal amount.',
-  principalInvalid: 'Enter a principal of zero or more.',
-  rateRequired: 'Enter an annual interest rate.',
-  rateInvalid: 'Enter a rate of zero or more.',
-  yearsRequired: 'Enter a number of years.',
-  yearsInvalid: 'Enter a number of years of zero or more.',
-} as const;
+/** The default inflation assumption, matching the reference and our retirement tool. */
+export const DEFAULT_INFLATION_PCT = '3';
 
 /* ------------------------------------------------------------------ */
-/* Parsing + validation (pure) — strict, never Number(v) || 0          */
+/* Parsing + validation (pure)                                         */
 /* ------------------------------------------------------------------ */
 
 type NumParse = 'empty' | 'invalid' | number;
-/** A finite value >= 0; empty is distinct from invalid. Zero valid; negative rejected (UI policy). */
-export function parseNonNegative(raw: string): NumParse {
-  const t = (raw ?? '').trim();
+
+/** Finite and at least zero. */
+function parseNonNegative(raw: string): NumParse {
+  const t = raw.trim();
   if (t === '') return 'empty';
   const n = Number(t);
   if (!Number.isFinite(n) || n < 0) return 'invalid';
   return n;
 }
 
-export function validateInterestValues(v: InterestValues): ValidationResult {
+/** Finite, within an inclusive band. */
+function parseWithin(raw: string, min: number, max: number): NumParse {
+  const t = raw.trim();
+  if (t === '') return 'empty';
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < min || n > max) return 'invalid';
+  return n;
+}
+
+/** A whole count of zero or more. Fractions are rejected, never rounded. */
+function parseWholeCount(raw: string): NumParse {
+  const t = raw.trim();
+  if (t === '') return 'empty';
+  const n = Number(t);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return 'invalid';
+  return n;
+}
+
+/**
+ * A field whose blank state means "none". Returns the fallback for an empty box and
+ * still reports a real error for anything unparseable — the distinction
+ * `Number(v) || 0` throws away.
+ */
+function optional(raw: string, parse: (s: string) => NumParse, fallback = 0): NumParse {
+  const parsed = parse(raw);
+  return parsed === 'empty' ? fallback : parsed;
+}
+
+export function validateInterestValues(values: InterestValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
-  const checks: [keyof InterestValues, string, string][] = [
-    ['principal', MSG.principalRequired, MSG.principalInvalid],
-    ['annualRatePct', MSG.rateRequired, MSG.rateInvalid],
-    ['years', MSG.yearsRequired, MSG.yearsInvalid],
-  ];
-  for (const [name, req, inv] of checks) {
-    const p = parseNonNegative(v[name] as string);
-    if (p === 'empty') fieldErrors[name] = req;
-    else if (p === 'invalid') fieldErrors[name] = inv;
+
+  const initial = parseNonNegative(values.initialInvestment);
+  if (initial === 'empty') fieldErrors.initialInvestment = 'Enter an initial investment.';
+  else if (initial === 'invalid')
+    fieldErrors.initialInvestment = 'Enter an initial investment of zero or more.';
+
+  const rate = parseNonNegative(values.annualRatePct);
+  if (rate === 'empty') fieldErrors.annualRatePct = 'Enter an interest rate.';
+  else if (rate === 'invalid') fieldErrors.annualRatePct = 'Enter an interest rate of zero or more.';
+
+  const annual = optional(values.annualContribution, parseNonNegative);
+  if (annual === 'invalid')
+    fieldErrors.annualContribution = 'Enter an annual contribution of zero or more.';
+
+  const monthly = optional(values.monthlyContribution, parseNonNegative);
+  if (monthly === 'invalid')
+    fieldErrors.monthlyContribution = 'Enter a monthly contribution of zero or more.';
+
+  const tax = optional(values.taxRatePct, (s) => parseWithin(s, 0, 100));
+  if (tax === 'invalid') fieldErrors.taxRatePct = 'Enter a tax rate from 0 to 100.';
+
+  const inflation = optional(values.inflationRatePct, (s) => parseWithin(s, 0, 100));
+  if (inflation === 'invalid') fieldErrors.inflationRatePct = 'Enter an inflation rate from 0 to 100.';
+
+  if (!isCompoundFrequency(values.compound)) {
+    fieldErrors.compound = 'Choose how often interest compounds.';
   }
-  // compoundsPerYear is a structurally-constrained select; readFrequency coerces an unknown value to
-  // the default, and completeInterestValue guards it defensively — so no visitor-facing field error.
+  if (!isContributionTiming(values.contributeAt)) {
+    fieldErrors.contributeAt = 'Choose when contributions are made.';
+  }
+
+  // The term is two boxes but one quantity, so it is validated as one. Each box must
+  // parse on its own; then the pair has to add up to a length worth projecting, and
+  // that verdict is reported against the years box the reader fills in first.
+  const years = optional(values.years, parseWholeCount);
+  if (years === 'invalid') fieldErrors.years = 'Enter a whole number of years.';
+  const months = optional(values.months, parseWholeCount);
+  if (months === 'invalid') fieldErrors.months = 'Enter a whole number of months.';
+
+  if (years !== 'invalid' && months !== 'invalid') {
+    const total = (years as number) * 12 + (months as number);
+    if (total < 1) fieldErrors.years = 'Enter an investment length of at least one month.';
+    else if (total > MAX_INTEREST_MONTHS)
+      fieldErrors.years = 'Enter an investment length of 100 years or less.';
+  }
+
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
-/* Computation (pure) — composes the two frozen engines               */
+/* Computation (pure)                                                  */
 /* ------------------------------------------------------------------ */
 
-export function computeInterest(v: InterestValues): InterestComputed {
-  const principal = Number(v.principal);
-  const annualRatePct = Number(v.annualRatePct);
-  const years = Number(v.years);
-  const compoundsPerYear = Number(v.compoundsPerYear);
-  const simple = calculateSimpleInterest({ principal, annualRatePct, years });
-  const compound = calculateCompoundInterest({ principal, annualRatePct, years, compoundsPerYear });
+/** Post-validation read: every branch here has already been proven parseable. */
+const num = (raw: string, fallback = 0): number => {
+  const t = raw.trim();
+  return t === '' ? fallback : Number(t);
+};
+
+export function computeInterest(values: InterestValues): InterestComputed {
+  const inflationRatePct = num(values.inflationRatePct);
   return {
-    principal,
-    annualRatePct,
-    years,
-    compoundsPerYear,
-    simpleInterest: simple.interest,
-    simpleFinal: simple.total,
-    compoundInterest: compound.totalInterest,
-    compoundFinal: compound.futureValue,
-    advantage: compound.totalInterest - simple.interest,
+    inflationRatePct,
+    plan: projectInterest({
+      initialInvestment: num(values.initialInvestment),
+      annualContribution: num(values.annualContribution),
+      monthlyContribution: num(values.monthlyContribution),
+      contributeAt: values.contributeAt as ContributionTiming,
+      annualRatePct: num(values.annualRatePct),
+      compound: values.compound as CompoundFrequency,
+      years: num(values.years),
+      months: num(values.months),
+      taxRatePct: num(values.taxRatePct),
+      inflationRatePct,
+    }),
   };
 }
 
 /* ------------------------------------------------------------------ */
-/* Complete-result guard (pure) — the resultValue sentinel             */
+/* The complete-result guard                                           */
 /* ------------------------------------------------------------------ */
 
-const FAIL = Number.NaN; // non-finite sentinel → the runtime's default finite gate rejects the result
+const FAIL = Number.NaN;
 
-/** The dominant COMPOUND interest earned — but ONLY when the whole composed result is coherent: a
- *  known frequency, finite non-negative inputs, every displayed figure finite, and a fresh recompute
- *  of BOTH engines reproducing all of them (including the advantage identity). A valid $0 (zero
- *  principal / rate / years) is the finite 0 the runtime's default gate accepts. */
-export function completeInterestValue(r: InterestComputed): number {
-  if (!VALID_FREQ.has(String(r.compoundsPerYear))) return FAIL;
-  if (!Number.isFinite(r.principal) || r.principal < 0) return FAIL;
-  if (!Number.isFinite(r.annualRatePct) || r.annualRatePct < 0) return FAIL;
-  if (!Number.isFinite(r.years) || r.years < 0) return FAIL;
+/** Absolute tolerance that scales with the figure — cents on small sums, more on large. */
+const reconTol = (value: number): number => Math.max(0.01, Math.abs(value) * 1e-9);
 
-  const fields = [r.simpleInterest, r.simpleFinal, r.compoundInterest, r.compoundFinal, r.advantage];
-  if (!fields.every((n) => Number.isFinite(n))) return FAIL;
+const allFinite = (...values: number[]): boolean => values.every((v) => Number.isFinite(v));
 
-  const s = calculateSimpleInterest({
-    principal: r.principal,
-    annualRatePct: r.annualRatePct,
-    years: r.years,
-  });
-  const c = calculateCompoundInterest({
-    principal: r.principal,
-    annualRatePct: r.annualRatePct,
-    years: r.years,
-    compoundsPerYear: r.compoundsPerYear,
-  });
+/**
+ * True only when a plan is wholly self-consistent. Every identity the result panel
+ * puts in front of a reader is checked here, so a set of figures that do not add up
+ * is never rendered.
+ */
+function planReconciles(p: InterestPlanResult): boolean {
   if (
-    s.interest !== r.simpleInterest ||
-    s.total !== r.simpleFinal ||
-    c.totalInterest !== r.compoundInterest ||
-    c.futureValue !== r.compoundFinal ||
-    c.totalInterest - s.interest !== r.advantage
-  ) {
-    return FAIL;
+    !allFinite(
+      p.endingBalance,
+      p.initialInvestment,
+      p.totalPrincipal,
+      p.totalContributions,
+      p.totalInterest,
+      p.interestOfInitial,
+      p.interestOfContributions,
+      p.totalTax,
+      p.buyingPower,
+    )
+  )
+    return false;
+
+  if (p.totalTax < 0 || p.interestOfInitial < 0 || p.initialInvestment < 0) return false;
+  if (p.termMonths < 1 || p.termMonths > MAX_INTEREST_MONTHS) return false;
+  if (p.months.length !== p.termMonths) return false;
+  if (p.annual.length !== Math.ceil(p.termMonths / 12)) return false;
+
+  // Principal is its two parts; the balance is principal plus interest.
+  if (
+    Math.abs(p.initialInvestment + p.totalContributions - p.totalPrincipal) >
+    reconTol(p.totalPrincipal)
+  )
+    return false;
+  if (Math.abs(p.totalPrincipal + p.totalInterest - p.endingBalance) > reconTol(p.endingBalance))
+    return false;
+  // The interest split has to re-sum, or the two lines under it are fiction.
+  if (
+    Math.abs(p.interestOfInitial + p.interestOfContributions - p.totalInterest) >
+    reconTol(p.totalInterest)
+  )
+    return false;
+  // Inflation never adds buying power; at 0% it leaves the balance untouched.
+  if (p.buyingPower > p.endingBalance + reconTol(p.endingBalance)) return false;
+
+  let deposits = 0;
+  let interest = 0;
+  let monthsCounted = 0;
+  for (const y of p.annual) {
+    if (!allFinite(y.deposit, y.interest, y.tax, y.balance)) return false;
+    if (y.monthCount < 1 || y.monthCount > 12) return false;
+    deposits += y.deposit;
+    interest += y.interest;
+    monthsCounted += y.monthCount;
+    const closing = p.months[monthsCounted - 1];
+    if (!closing || Math.abs(closing.balance - y.balance) > reconTol(y.balance)) return false;
   }
-  return r.compoundInterest; // finite; a valid $0 compound interest is the finite 0 the gate accepts
+  if (monthsCounted !== p.termMonths) return false;
+  // Every deposit in the schedule is the initial investment plus every contribution.
+  if (Math.abs(deposits - p.totalPrincipal) > reconTol(deposits)) return false;
+  if (Math.abs(interest - p.totalInterest) > reconTol(interest)) return false;
+  if (Math.abs(p.annual[p.annual.length - 1].balance - p.endingBalance) > reconTol(p.endingBalance))
+    return false;
+  return true;
 }
 
 /* ------------------------------------------------------------------ */
 /* Presentation (pure)                                                 */
 /* ------------------------------------------------------------------ */
 
-/** Concise announcement — the dominant compound interest earned + the final balance. */
-export function describeInterestResult(r: InterestComputed): string {
-  return `Compound interest earned: ${formatCurrency(r.compoundInterest)}; final balance ${formatCurrency(
-    r.compoundFinal,
-  )}.`;
+/** A USD amount in spoken form, e.g. "45320 dollars", "325 dollars and 50 cents". */
+export function spokenUSD(value: number): string {
+  const cents = Math.round(Math.abs(value) * 100);
+  const dollars = Math.floor(cents / 100);
+  const rem = cents % 100;
+  const d = `${dollars} dollar${dollars === 1 ? '' : 's'}`;
+  return rem === 0 ? d : `${d} and ${rem} cent${rem === 1 ? '' : 's'}`;
+}
+
+export function describeInterestResult(result: InterestComputed): string {
+  return `Your ending balance is ${spokenUSD(result.plan.endingBalance)}.`;
+}
+
+/**
+ * Each year's cumulative composition, for the stacked chart.
+ *
+ * Year 1's deposit column carries the initial investment, so it is stripped back out
+ * here — the chart separates what was put in from what the account earned, and
+ * leaving the opening sum inside "contributions" would double-count it.
+ */
+function yearStacks(plan: InterestPlanResult): YearStack[] {
+  const out: YearStack[] = [];
+  let contributions = 0;
+  let interest = 0;
+  for (const y of plan.annual) {
+    contributions += y.year === 1 ? y.deposit - plan.initialInvestment : y.deposit;
+    interest += y.interest;
+    out.push({
+      year: y.year,
+      initial: plan.initialInvestment,
+      contributions,
+      interest,
+      total: plan.initialInvestment + contributions + interest,
+    });
+  }
+  return out;
+}
+
+const SCHEDULE = { prefix: 'int', format: formatCurrency };
+
+function fillSchedules(scope: HTMLElement, plan: InterestPlanResult): void {
+  fillSchedule(
+    scope.querySelector<HTMLElement>('[data-int-rows="yearly"]'),
+    plan.annual.map((y) => ({
+      period: y.year,
+      deposit: y.deposit,
+      interest: y.interest,
+      balance: y.balance,
+    })),
+    SCHEDULE,
+  );
+  fillSchedule(
+    scope.querySelector<HTMLElement>('[data-int-rows="monthly"]'),
+    plan.months.map((m) => ({
+      period: m.month,
+      deposit: m.deposit,
+      interest: m.interest,
+      balance: m.balance,
+    })),
+    SCHEDULE,
+    true,
+  );
+}
+
+function chartLabel(plan: InterestPlanResult): string {
+  const years = plan.annual.length;
+  return (
+    `Balance grows to ${formatCurrency(plan.endingBalance)} over ${years} ` +
+    `year${years === 1 ? '' : 's'}, made up of ${formatCurrency(plan.initialInvestment)} ` +
+    `initial investment, ${formatCurrency(plan.totalContributions)} contributions and ` +
+    `${formatCurrency(plan.totalInterest)} interest. The same figures are in the schedule ` +
+    `table below.`
+  );
 }
 
 /* ------------------------------------------------------------------ */
 /* The binding                                                         */
 /* ------------------------------------------------------------------ */
 
-const control = (root: HTMLElement, name: string) =>
+const field = (root: HTMLElement, name: string) =>
   root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
 
-const readFrequency = (root: HTMLElement): CompoundFreq => {
-  const v = control(root, 'compoundsPerYear')?.value;
-  return v && VALID_FREQ.has(v) ? (v as CompoundFreq) : DEFAULT_FREQUENCY;
-};
+/** Fields cleared by Reset. The structural controls are restored, not cleared. */
+const CLEARED_FIELDS = [
+  'initialInvestment',
+  'annualContribution',
+  'monthlyContribution',
+  'annualRatePct',
+  'years',
+  'months',
+  'taxRatePct',
+] as const;
 
 export const interestBinding: FormCalculatorBinding<InterestValues, InterestComputed> = {
   readValues(root) {
+    const read = (name: string) => field(root, name)?.value ?? '';
     return {
-      principal: control(root, 'principal')?.value ?? '',
-      annualRatePct: control(root, 'annualRatePct')?.value ?? '',
-      years: control(root, 'years')?.value ?? '',
-      compoundsPerYear: readFrequency(root),
+      initialInvestment: read('initialInvestment'),
+      annualContribution: read('annualContribution'),
+      monthlyContribution: read('monthlyContribution'),
+      // Read by data attribute, not by name: the island renames radio group names per
+      // instance so two copies on one page do not share a group, and a name lookup
+      // would then find nothing.
+      contributeAt: root.querySelector<HTMLInputElement>('[data-int-timing]:checked')?.value ?? '',
+      annualRatePct: read('annualRatePct'),
+      compound: read('compound'),
+      years: read('years'),
+      months: read('months'),
+      taxRatePct: read('taxRatePct'),
+      inflationRatePct: read('inflationRatePct'),
     };
   },
 
@@ -214,37 +392,116 @@ export const interestBinding: FormCalculatorBinding<InterestValues, InterestComp
 
   compute: computeInterest,
 
-  /** Complete-result guard as the ordinary result value — no isUsableResult. */
-  resultValue: completeInterestValue,
+  /**
+   * The ending balance — but only once the whole result reconciles. Returning the NaN
+   * sentinel puts the shell in `invalid` rather than showing a projection whose parts
+   * contradict each other.
+   */
+  resultValue(result) {
+    return planReconciles(result.plan) ? result.plan.endingBalance : FAIL;
+  },
 
   describeResult: describeInterestResult,
 
   renderResult(result, context: FormRenderContext) {
+    const plan = result.plan;
     const scope = context.result;
-    const set = (sel: string, text: string) => {
-      const el = scope.querySelector<HTMLElement>(sel);
+    const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
+    const setText = (sel: string, text: string) => {
+      const el = q(sel);
       if (el) el.textContent = text;
     };
-    // Dominant: the compound interest earned (shown + spoken).
-    const dominant = formatCurrency(result.compoundInterest);
-    set('[data-result-when~="valid"] [data-result-value]', dominant);
-    set('[data-result-when~="valid"] [data-result-value-a11y]', dominant);
-    // Prominent: the compound final balance.
-    set('[data-int-final]', formatCurrency(result.compoundFinal));
-    // Supporting: simple interest, simple final balance, the compounding advantage.
-    set('[data-int-simple]', formatCurrency(result.simpleInterest));
-    set('[data-int-simple-final]', formatCurrency(result.simpleFinal));
-    set('[data-int-advantage]', formatCurrency(result.advantage));
+    const show = (sel: string, visible: boolean) => {
+      const el = q(sel);
+      if (el) el.hidden = !visible;
+    };
+    const setWidth = (sel: string, pct: number) => {
+      const el = q(sel);
+      if (el) el.style.width = `${pct}%`;
+    };
+
+    setText('[data-result-when~="valid"] [data-result-value]', formatCurrency(plan.endingBalance));
+    setText('[data-result-when~="valid"] [data-result-value-a11y]', spokenUSD(plan.endingBalance));
+
+    // The reference's seven lines, in its order.
+    setText('[data-int-ending]', formatCurrency(plan.endingBalance));
+    setText('[data-int-principal]', formatCurrency(plan.totalPrincipal));
+    setText('[data-int-contrib]', formatCurrency(plan.totalContributions));
+    setText('[data-int-interest]', formatCurrency(plan.totalInterest));
+    setText('[data-int-interest-initial]', formatCurrency(plan.interestOfInitial));
+    setText('[data-int-interest-contrib]', formatCurrency(plan.interestOfContributions));
+
+    // Buying power only says something when there is inflation to adjust for; at 0%
+    // it would restate the ending balance under a longer name.
+    const adjusted = result.inflationRatePct > 0;
+    show('[data-int-buying-row]', adjusted);
+    if (adjusted) setText('[data-int-buying]', formatCurrency(plan.buyingPower));
+
+    // Tax is an extra line that appears only when a tax rate was actually entered.
+    const taxed = plan.totalTax > 0;
+    show('[data-int-tax-row]', taxed);
+    if (taxed) setText('[data-int-tax]', formatCurrency(plan.totalTax));
+
+    // Proportion bar — three parts of one positive whole.
+    const stackable = plan.endingBalance > 0 && plan.totalInterest >= 0;
+    show('[data-int-split]', stackable);
+    if (stackable) {
+      const amounts: Record<string, number> = {
+        initial: plan.initialInvestment,
+        contrib: plan.totalContributions,
+        interest: plan.totalInterest,
+      };
+      for (const key of ['initial', 'contrib', 'interest']) {
+        const value = share(amounts[key], plan.endingBalance);
+        setWidth(`[data-int-seg-${key}]`, value * 100);
+        setText(`[data-int-share-${key}]`, percentLabel(value));
+        setText(`[data-int-share-${key}-amt]`, formatCurrencyRounded(amounts[key]));
+      }
+    }
+
+    const charted = drawAccumulationChart(q('[data-int-chart]'), yearStacks(plan), {
+      prefix: 'int',
+      format: formatCurrency,
+      label: chartLabel(plan),
+    });
+    show('[data-int-chart-figure]', charted);
+
+    fillSchedules(scope, plan);
+    show('[data-int-schedule-block]', plan.annual.length > 0);
   },
 
   resetValues(root, _mode: ResetMode) {
-    const set = (name: string, val: string) => {
-      const el = control(root, name);
-      if (el) el.value = val;
-    };
-    set('principal', '');
-    set('annualRatePct', '');
-    set('years', '');
-    set('compoundsPerYear', DEFAULT_FREQUENCY);
+    for (const name of CLEARED_FIELDS) {
+      const el = field(root, name);
+      if (el) el.value = '';
+    }
+    const compound = field(root, 'compound');
+    if (compound) compound.value = 'annually';
+    const inflation = field(root, 'inflationRatePct');
+    if (inflation) inflation.value = DEFAULT_INFLATION_PCT;
+    const beginning = root.querySelector<HTMLInputElement>('[data-int-timing][value="beginning"]');
+    if (beginning) beginning.checked = true;
   },
+};
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The labelled example shown on first load — the published worked case the engine
+ * tests pin to the cent, so the example a visitor sees is provably the same
+ * arithmetic the calculator will do with their own numbers.
+ */
+export const INTEREST_EXAMPLE_VALUES: InterestValues = {
+  initialInvestment: '20000',
+  annualContribution: '5000',
+  monthlyContribution: '0',
+  contributeAt: 'beginning',
+  annualRatePct: '5',
+  compound: 'annually',
+  years: '5',
+  months: '0',
+  taxRatePct: '0',
+  inflationRatePct: '3',
 };

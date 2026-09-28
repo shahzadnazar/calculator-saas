@@ -1,189 +1,245 @@
 import { describe, it, expect } from 'vitest';
 import {
+  MSG,
+  MAX_HR_MODES,
+  MHR_FORMULAS,
+  INTENSITY_SCALES,
+  INTENSITY_BANDS,
+  AGE_MIN,
+  AGE_MAX,
+  MAX_HR_MIN,
+  MAX_HR_MAX,
+  RESTING_MIN,
+  RESTING_MAX,
+  ageError,
+  measuredMaxError,
+  restingError,
   validateTargetHeartRateValues,
   computeTargetHeartRate,
-  targetHeartRateAnnouncement,
+  completeTargetHeartRateValue,
+  describeTargetHeartRateResult,
+  basisPhrase,
+  headline,
+  basisLine,
   targetHeartRateBinding,
-  methodOf,
-  METHOD_IDENTITY,
-  METHOD_CHANGE_ANNOUNCEMENT,
-  HEART_RATE_ZONES,
-  MAX_AGE_EXCLUSIVE,
+  TARGET_HEART_RATE_EXAMPLE_VALUES,
   type TargetHeartRateValues,
 } from './target-heart-rate-form';
 
-const values = (age: string, restingHr = ''): TargetHeartRateValues => ({ age, restingHr });
+/**
+ * The binding's pure surface. The zones live in the reviewed pure `target-heart-rate.ts`;
+ * here we pin the two entry modes, the optional resting rate, the headline wording and the
+ * whole-report guard.
+ */
 
-describe('target-heart-rate-form — age semantics (whole, > 0, < 220)', () => {
-  it('accepts a whole age with no resting heart rate', () => {
-    expect(validateTargetHeartRateValues(values('30'))).toEqual({ ok: true });
-  });
+const base: TargetHeartRateValues = {
+  mode: 'age',
+  age: '30',
+  measuredMaxHr: '',
+  restingHr: '70',
+  formula: 'haskell-fox',
+  scale: 'karvonen',
+};
+const v = (over: Partial<TargetHeartRateValues> = {}): TargetHeartRateValues => ({ ...base, ...over });
 
-  it('requires an age (empty)', () => {
-    const r = validateTargetHeartRateValues(values(''));
-    expect(!r.ok && r.fieldErrors?.age).toBe('Enter your age.');
-  });
+describe('the reference case', () => {
+  const r = computeTargetHeartRate(v());
 
-  it('rejects a non-whole age', () => {
-    expect(!validateTargetHeartRateValues(values('30.5')).ok).toBe(true);
-    const r = validateTargetHeartRateValues(values('abc'));
-    expect(!r.ok && r.fieldErrors?.age).toBe('Enter your age in whole years.');
-  });
-
-  it('rejects a zero or negative age as greater-than-zero', () => {
-    const zero = validateTargetHeartRateValues(values('0'));
-    expect(!zero.ok && zero.fieldErrors?.age).toBe('Enter an age greater than zero.');
-    expect(!validateTargetHeartRateValues(values('-5')).ok).toBe(true);
-  });
-
-  it('accepts ages up to 219 and rejects 220+ (max HR would be 0) — no narrower cap', () => {
-    expect(validateTargetHeartRateValues(values('1')).ok).toBe(true);
-    expect(validateTargetHeartRateValues(values('119')).ok).toBe(true); // the old arbitrary 120 cap is gone
-    expect(validateTargetHeartRateValues(values('219')).ok).toBe(true);
-    const at = validateTargetHeartRateValues(values(String(MAX_AGE_EXCLUSIVE))); // 220
-    expect(!at.ok && at.fieldErrors?.age).toBe('Enter an age below 220 years.');
-    expect(!validateTargetHeartRateValues(values('221')).ok).toBe(true);
-  });
-});
-
-describe('target-heart-rate-form — resting-HR semantics (empty ≠ zero)', () => {
-  it('empty resting HR is valid and selects the SIMPLE method', () => {
-    expect(validateTargetHeartRateValues(values('30', '')).ok).toBe(true);
-    expect(computeTargetHeartRate(values('30', '')).usedKarvonen).toBe(false);
-  });
-
-  it('an entered 0 is INVALID (not treated as empty)', () => {
-    const r = validateTargetHeartRateValues(values('30', '0'));
-    expect(!r.ok && r.fieldErrors?.restingHr).toBe(
-      'Enter a resting heart rate greater than zero, or leave it blank.',
+  it('reproduces its headline sentence word for word', () => {
+    expect(headline(r)).toBe(
+      'Target heart rate during aerobic exercise: 130 to 172 bpm (50 - 85% of heart rate reserve).',
     );
   });
 
-  it('a valid resting HR is valid and selects the KARVONEN method', () => {
-    expect(validateTargetHeartRateValues(values('30', '60')).ok).toBe(true);
-    expect(computeTargetHeartRate(values('30', '60')).usedKarvonen).toBe(true);
+  it('reproduces its five rows', () => {
+    expect(r.zones.map((z) => `${z.label} | ${z.scaleLabel} | ${z.low} - ${z.high}`)).toEqual([
+      'Very light | 50 - 60% | 130 - 142',
+      'Light | 60 - 70% | 142 - 154',
+      'Moderate | 70 - 80% | 154 - 166',
+      'Hard | 80 - 90% | 166 - 178',
+      'VO₂ Max (maximum) | 90 - 100% | 178 - 190',
+    ]);
   });
 
-  it('a non-whole resting HR is rejected', () => {
-    const r = validateTargetHeartRateValues(values('30', '60.5'));
-    expect(!r.ok && r.fieldErrors?.restingHr).toBe(
-      'Enter your resting heart rate in whole beats per minute, or leave it blank.',
-    );
-  });
-
-  it('a resting HR EQUAL to the maximum is invalid (would flatten/invert the zones)', () => {
-    // age 30 → maxHr 190.
-    const r = validateTargetHeartRateValues(values('30', '190'));
-    expect(!r.ok && r.fieldErrors?.restingHr).toBe('Enter a resting heart rate below your maximum of 190 bpm.');
-  });
-
-  it('a resting HR GREATER than the maximum is invalid; one below is valid', () => {
-    expect(!validateTargetHeartRateValues(values('30', '191')).ok).toBe(true);
-    expect(validateTargetHeartRateValues(values('30', '189')).ok).toBe(true);
-  });
-
-  it('does not run the cross-field max check when the age itself is invalid', () => {
-    const r = validateTargetHeartRateValues(values('', '300'));
-    expect(!r.ok && r.fieldErrors?.age).toBe('Enter your age.');
-    expect(!r.ok && r.fieldErrors?.restingHr).toBeUndefined();
-  });
-});
-
-describe('target-heart-rate-form — compute + method', () => {
-  it('simple method: no resting HR', () => {
-    const r = computeTargetHeartRate(values('30'));
+  it('shows the maximum and the reserve it worked from', () => {
     expect(r.maxHr).toBe(190);
-    expect(r.usedKarvonen).toBe(false);
-    expect(r.restingHr).toBeNull();
-    expect(r.zones[0].low).toBe(95); // round(190·0.5)
-    expect(methodOf(r)).toBe('simple');
-  });
-
-  it('Karvonen method: resting HR supplied', () => {
-    const r = computeTargetHeartRate(values('30', '60'));
-    expect(r.maxHr).toBe(190);
-    expect(r.usedKarvonen).toBe(true);
-    expect(r.restingHr).toBe(60);
-    expect(r.zones[0].low).toBe(125); // round((190−60)·0.5 + 60)
-    expect(methodOf(r)).toBe('karvonen');
-  });
-
-  it('resultValue exposes the maximum heart rate as the guarded magnitude', () => {
-    expect(targetHeartRateBinding.resultValue(computeTargetHeartRate(values('40')))).toBe(180);
-  });
-
-  it('visible method identity names each method precisely (never simple as Karvonen)', () => {
-    expect(METHOD_IDENTITY.simple).toBe('Percentage of estimated maximum heart rate');
-    expect(METHOD_IDENTITY.karvonen).toBe('Karvonen heart-rate-reserve method');
+    expect(r.reserve).toBe(120);
   });
 });
 
-describe('target-heart-rate-form — announcement (pure)', () => {
-  const simple = computeTargetHeartRate(values('30'));
-  const karvonen = computeTargetHeartRate(values('30', '60'));
+describe('the two ways to get a maximum heart rate', () => {
+  it('are the reference’s two, in its order', () => {
+    expect(MAX_HR_MODES.map((m) => m.label)).toEqual(['Estimate from age', 'Test result']);
+  });
 
-  it('an initial result speaks the standard max-HR + span line (both methods)', () => {
-    expect(targetHeartRateAnnouncement(simple, null)).toBe(
-      'Your estimated maximum heart rate is 190 beats per minute. Training zones span 95 to 190 beats per minute.',
+  it('a measured maximum is used instead of the equation', () => {
+    const r = computeTargetHeartRate(v({ mode: 'test', age: '30', measuredMaxHr: '200' }));
+    expect(r.maxHr).toBe(200);
+    expect(r.reserve).toBe(130);
+  });
+
+  it('each mode reads only its own box', () => {
+    // An age left behind in the form must not reach a test-result calculation, or vice versa.
+    expect(computeTargetHeartRate(v({ mode: 'test', age: '70', measuredMaxHr: '200' })).maxHr).toBe(200);
+    expect(computeTargetHeartRate(v({ mode: 'age', age: '30', measuredMaxHr: '200' })).maxHr).toBe(190);
+  });
+
+  it('validates only the box the mode is using', () => {
+    expect(validateTargetHeartRateValues(v({ mode: 'age', measuredMaxHr: '' })).ok).toBe(true);
+    expect(validateTargetHeartRateValues(v({ mode: 'test', age: '', measuredMaxHr: '190' })).ok).toBe(true);
+    const missing = validateTargetHeartRateValues(v({ mode: 'test', measuredMaxHr: '' }));
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.fieldErrors!.measuredMaxHr).toBe(MSG.maxMissing);
+  });
+});
+
+describe('validation', () => {
+  it('age is required, whole and in range', () => {
+    expect(ageError('')).toBe(MSG.ageMissing);
+    expect(ageError('30.5')).toBe(MSG.ageWhole);
+    expect(ageError('x')).toBe(MSG.ageWhole);
+    expect(ageError(String(AGE_MAX + 1))).toBe(MSG.ageRange);
+    expect(ageError(String(AGE_MIN))).toBe(null);
+  });
+
+  it('a measured maximum must be a plausible heart rate', () => {
+    expect(measuredMaxError('')).toBe(MSG.maxMissing);
+    expect(measuredMaxError(String(MAX_HR_MIN - 1))).toBe(MSG.maxRange);
+    expect(measuredMaxError(String(MAX_HR_MAX + 1))).toBe(MSG.maxRange);
+    expect(measuredMaxError('abc')).toBe(MSG.maxRange);
+    expect(measuredMaxError('190')).toBe(null);
+  });
+
+  it('a resting rate is optional, but a nonsense one is still refused', () => {
+    expect(restingError('')).toBe(null);
+    expect(restingError('   ')).toBe(null);
+    expect(restingError('70')).toBe(null);
+    expect(restingError(String(RESTING_MIN - 1))).toBe(MSG.restingRange);
+    expect(restingError(String(RESTING_MAX + 1))).toBe(MSG.restingRange);
+    expect(restingError('abc')).toBe(MSG.restingRange);
+  });
+
+  it('an empty form fails on the box the mode is using', () => {
+    const r = validateTargetHeartRateValues(v({ age: '', restingHr: '' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.fieldErrors!.age).toBe(MSG.ageMissing);
+  });
+});
+
+describe('the resting rate changes what the percentages are OF', () => {
+  it('says "heart rate reserve" when it has one', () => {
+    expect(basisPhrase(computeTargetHeartRate(v()))).toBe('heart rate reserve');
+  });
+
+  it('says "maximum heart rate" when it does not, and the numbers follow', () => {
+    const r = computeTargetHeartRate(v({ restingHr: '' }));
+    expect(basisPhrase(r)).toBe('maximum heart rate');
+    expect([r.aerobicLow, r.aerobicHigh]).toEqual([95, 162]);
+    expect(headline(r)).toBe(
+      'Target heart rate during aerobic exercise: 95 to 162 bpm (50 - 85% of maximum heart rate).',
     );
-    expect(targetHeartRateAnnouncement(karvonen, null)).toBe(
-      'Your estimated maximum heart rate is 190 beats per minute. Training zones span 125 to 190 beats per minute, using the Karvonen method with your resting heart rate.',
-    );
   });
 
-  it('switching methods after a first result speaks the concise method-change line', () => {
-    expect(targetHeartRateAnnouncement(karvonen, 'simple')).toBe(METHOD_CHANGE_ANNOUNCEMENT.karvonen);
-    expect(targetHeartRateAnnouncement(simple, 'karvonen')).toBe(METHOD_CHANGE_ANNOUNCEMENT.simple);
-  });
-
-  it('a same-method update keeps the standard line (not a method-change line)', () => {
-    expect(targetHeartRateAnnouncement(simple, 'simple')).toContain('Your estimated maximum heart rate is 190');
-    expect(targetHeartRateAnnouncement(karvonen, 'karvonen')).toContain('using the Karvonen method');
-  });
-
-  it('the method-change lines never announce the zone table', () => {
-    for (const text of Object.values(METHOD_CHANGE_ANNOUNCEMENT)) {
-      expect(text).not.toMatch(/Fat burn|Aerobic|Anaerobic|Warm up/);
+  it('never quietly reports one basis while using the other', () => {
+    for (const resting of ['', '40', '70']) {
+      const r = computeTargetHeartRate(v({ restingHr: resting }));
+      expect(headline(r)).toContain(basisPhrase(r));
+      expect(r.usesReserve).toBe(basisPhrase(r) === 'heart rate reserve');
     }
   });
 });
 
-describe('target-heart-rate-form — describeResult uses per-instance context (no module state)', () => {
-  const simple = computeTargetHeartRate(values('30'));
-  const karvonen = computeTargetHeartRate(values('30', '60'));
-  const b = targetHeartRateBinding;
-
-  it('a first-result context speaks the standard line', () => {
-    expect(b.describeResult(simple, { phase: 'first-result' })).toContain(
-      'Your estimated maximum heart rate is 190',
-    );
+describe('the settings', () => {
+  it('offer the three equations and the three scales', () => {
+    expect(MHR_FORMULAS).toHaveLength(3);
+    expect(INTENSITY_SCALES).toHaveLength(3);
+    expect(INTENSITY_BANDS).toHaveLength(5);
   });
 
-  it('a live method switch (previous result had the other method) speaks the method-change line', () => {
-    expect(b.describeResult(karvonen, { phase: 'live-update', previousResult: simple })).toBe(
-      METHOD_CHANGE_ANNOUNCEMENT.karvonen,
-    );
-    expect(b.describeResult(simple, { phase: 'live-update', previousResult: karvonen })).toBe(
-      METHOD_CHANGE_ANNOUNCEMENT.simple,
-    );
+  it('the equation moves every zone', () => {
+    expect(computeTargetHeartRate(v({ formula: 'tanaka' })).maxHr).toBe(187);
+    expect(computeTargetHeartRate(v({ formula: 'nes' })).maxHr).toBe(192);
   });
 
-  it('is stateless — interleaving calls (as two instances would) never drifts the output', () => {
-    const first = b.describeResult(simple, { phase: 'first-result' });
-    // A different "instance" describing a switch in between must not change this one.
-    b.describeResult(karvonen, { phase: 'live-update', previousResult: simple });
-    expect(b.describeResult(simple, { phase: 'first-result' })).toBe(first);
+  it('the scale moves no bpm at all', () => {
+    const bpm = (scale: TargetHeartRateValues['scale']) =>
+      computeTargetHeartRate(v({ scale })).zones.map((z) => [z.low, z.high]);
+    expect(bpm('borg')).toEqual(bpm('karvonen'));
+    expect(bpm('borg-cr10')).toEqual(bpm('karvonen'));
   });
 });
 
-describe('target-heart-rate-form — zone identity for the static skeleton', () => {
-  it('exposes the five documented zones (age-invariant), matching the pure module', () => {
-    expect(HEART_RATE_ZONES).toEqual([
-      { name: 'Warm up / recovery', lowPct: 50, highPct: 60 },
-      { name: 'Fat burn (light)', lowPct: 60, highPct: 70 },
-      { name: 'Aerobic (moderate)', lowPct: 70, highPct: 80 },
-      { name: 'Anaerobic (hard)', lowPct: 80, highPct: 90 },
-      { name: 'Maximum effort', lowPct: 90, highPct: 100 },
-    ]);
+describe('completeTargetHeartRateValue — the whole report or nothing', () => {
+  it('is finite for a complete entry, in either mode', () => {
+    expect(Number.isFinite(completeTargetHeartRateValue(computeTargetHeartRate(v())))).toBe(true);
+    expect(
+      Number.isFinite(completeTargetHeartRateValue(computeTargetHeartRate(v({ mode: 'test', measuredMaxHr: '190' })))),
+    ).toBe(true);
+  });
+
+  it('is NaN with neither an age nor a measurement', () => {
+    expect(Number.isNaN(completeTargetHeartRateValue(computeTargetHeartRate(v({ age: '' }))))).toBe(true);
+    expect(
+      Number.isNaN(completeTargetHeartRateValue(computeTargetHeartRate(v({ mode: 'test', measuredMaxHr: '' })))),
+    ).toBe(true);
+  });
+});
+
+describe('speech', () => {
+  it('announces the aerobic span only, never the table', () => {
+    const s = describeTargetHeartRateResult(computeTargetHeartRate(v()));
+    expect(s).toBe('Your target heart rate for aerobic exercise is 130 to 172 beats per minute.');
+    expect(s).not.toMatch(/very light|vo2|karvonen/i);
+  });
+});
+
+describe('the labelled example', () => {
+  it('is the reference’s case, at its default equation and scale', () => {
+    expect(TARGET_HEART_RATE_EXAMPLE_VALUES).toEqual({
+      mode: 'age',
+      age: '30',
+      measuredMaxHr: '',
+      restingHr: '70',
+      formula: 'haskell-fox',
+      scale: 'karvonen',
+    });
+    expect(validateTargetHeartRateValues(TARGET_HEART_RATE_EXAMPLE_VALUES)).toEqual({ ok: true });
+    expect(computeTargetHeartRate(TARGET_HEART_RATE_EXAMPLE_VALUES).aerobicLow).toBe(130);
+  });
+});
+
+describe('the binding wires the pure parts together', () => {
+  it('gates the result on the complete-report guard', () => {
+    expect(targetHeartRateBinding.resultValue).toBe(completeTargetHeartRateValue);
+    expect(targetHeartRateBinding.validate).toBe(validateTargetHeartRateValues);
+    expect(targetHeartRateBinding.compute).toBe(computeTargetHeartRate);
+  });
+});
+
+describe('basisLine — what the dominant figure is a percentage OF', () => {
+  it('names the reserve and where it came from', () => {
+    expect(basisLine(computeTargetHeartRate(v()))).toBe(
+      '50 - 85% of your heart rate reserve — the gap between your maximum of 190 bpm and your resting rate.',
+    );
+  });
+
+  it('names the maximum instead, and offers the better method, when there is no resting rate', () => {
+    expect(basisLine(computeTargetHeartRate(v({ restingHr: '' })))).toBe(
+      '50 - 85% of your maximum heart rate of 190 bpm. Add a resting heart rate for the more personal Karvonen figure.',
+    );
+  });
+
+  it('never repeats the dominant figure the panel already shows', () => {
+    const r = computeTargetHeartRate(v());
+    expect(basisLine(r)).not.toContain(String(r.aerobicLow));
+    expect(basisLine(r)).not.toContain(String(r.aerobicHigh));
+  });
+
+  it('says the same thing the reference sentence says, between them', () => {
+    for (const resting of ['', '70']) {
+      const r = computeTargetHeartRate(v({ restingHr: resting }));
+      expect(headline(r)).toContain(`${r.aerobicLow} to ${r.aerobicHigh} bpm`);
+      expect(basisLine(r)).toContain(basisPhrase(r));
+    }
   });
 });

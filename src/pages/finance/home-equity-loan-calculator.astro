@@ -5,8 +5,10 @@ import { getCalculator } from '@data/calculators';
 const calc = getCalculator('finance', 'home-equity-loan-calculator')!;
 const faqs = [
   { question: 'What is a home equity loan?', answer: 'A home equity loan lets you borrow a lump sum against the equity you have built in your home, repaid at a fixed rate over a fixed term. Because it is secured by your property, it usually carries a lower rate than unsecured borrowing — but your home is the collateral.' },
-  { question: 'How does a home equity loan work?', answer: 'You borrow a one-time lump sum based on your equity and the lender\'s loan-to-value limit, then repay it in equal monthly installments (principal plus interest) over the term, much like a second mortgage. The rate and payment are fixed for the life of the loan.' },
-  { question: 'How much can I borrow against my home?', answer: 'Lenders cap your combined borrowing at a percentage of your home value — the combined loan-to-value (CLTV) limit, often 80–85%. Your maximum is that percentage of the home value minus what you still owe on your first mortgage.' },
+  { question: 'How does a home equity loan work?', answer: 'You borrow a one-time lump sum, then repay it in equal monthly installments (principal plus interest) over the term, much like a second mortgage. The rate and payment are fixed for the life of the loan, so the amortization schedule is known from day one.' },
+  { question: 'How much can I borrow against my home?', answer: 'Lenders cap your combined borrowing at a percentage of your home value — the combined loan-to-value (CLTV) limit, often 80–85%. Your maximum is that percentage of the home value minus what you still owe on your first mortgage. The second calculator on this page works it out.' },
+  { question: 'What are home equity loan closing costs?', answer: 'Origination, appraisal, title and recording fees, typically 2–5% of the loan. Tick "Include closing costs" to enter them and see the real APR — the rate that reflects what you actually receive rather than what you nominally borrow.' },
+  { question: 'Is it cheaper to have closing costs deducted from the loan or pay them upfront?', answer: 'Neither — they cost the same. Whether the fee comes out of the loan or out of your pocket, you are down the same money against the same payments, so the real APR is identical. The only difference is whether you need cash on the day of closing.' },
   { question: 'What is a home equity loan versus a HELOC?', answer: 'A home equity loan gives you a lump sum at a fixed rate with fixed payments. A HELOC is a revolving line of credit you draw from as needed, usually at a variable rate. This calculator models the fixed-payment lump-sum loan.' },
   { question: 'Are home equity loans a good idea?', answer: 'They can be sensible for large, one-time costs — a renovation that adds value, or consolidating higher-interest debt — because the rate is lower than credit cards or personal loans. They are riskier for discretionary spending, since missing payments can put your home at risk.' },
   { question: 'Can you refinance a home equity loan?', answer: 'Yes. You can refinance a home equity loan into a new one, roll it into a HELOC, or fold it into a cash-out refinance of your first mortgage — usually to get a lower rate or a different term. Weigh any closing costs against the savings.' },
@@ -15,19 +17,25 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  reviewMetadata={{ reviewedDate: '2026-08-03' }}
-  intro="Estimate how much you can borrow against your home equity and the monthly payment on a home equity loan."
+  rail
+  reviewMetadata={{ reviewedDate: '2026-08-27' }}
+  intro="Work out the monthly payment, total cost and amortization schedule of a home equity loan — and, optionally, how much your equity lets you borrow in the first place."
   faqs={faqs}
 >
   <HomeEquityLoanCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter your <strong>home value</strong> and current <strong>mortgage balance</strong> — the gap is your equity.</li>
-      <li>Set the lender's <strong>maximum loan-to-value</strong> (the CLTV cap, often 80–85%).</li>
-      <li>Enter the <strong>loan amount you want</strong>, an <strong>interest rate</strong> and a <strong>term</strong> in years.</li>
-      <li>Read your equity, the most you could borrow within the cap, and the monthly payment — the tool flags a request that exceeds the limit.</li>
+      <li>Enter the <strong>loan amount</strong> you want, the <strong>interest rate</strong> and the <strong>term</strong> in years.</li>
+      <li>Press <strong>Calculate</strong> to see the monthly payment, the total of every payment and the interest inside it.</li>
+      <li>Optionally tick <strong>Include closing costs</strong> to enter the fees and see what the loan really costs.</li>
+      <li>Read the amortization schedule — annual or monthly — to see how each payment splits between interest and principal.</li>
     </ol>
+    <p>
+      If you do not yet know how much you can borrow, the second calculator on this page
+      estimates it from your home's value, your mortgage balance and your lender's
+      loan-to-value limit.
+    </p>
 
     <h2>Equity versus what you can borrow</h2>
     <p>
@@ -37,33 +45,62 @@ const faqs = [
       borrowing room is that capped total minus the mortgage you already carry, which is usually
       well below your full equity.
     </p>
+    <p>
+      On a <strong>$600,000</strong> home with <strong>$250,000</strong> still owed, you hold
+      <strong>$350,000</strong> of equity. At an <strong>80%</strong> cap the lender will allow
+      $480,000 of total debt against the house, so subtracting the existing mortgage leaves
+      <strong>$230,000</strong> to borrow — well short of the equity, at a current loan-to-value of
+      <strong>41.7%</strong>.
+    </p>
 
     <h2>The formulas</h2>
-    <p>The calculator works out three figures:</p>
+    <p>The payment is ordinary fixed-rate amortization:</p>
+    <p><strong>M = L · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></p>
+    <ul>
+      <li><strong>L</strong> — the loan amount</li>
+      <li><strong>r</strong> — the monthly rate (annual rate ÷ 12)</li>
+      <li><strong>n</strong> — the number of payments (years × 12)</li>
+    </ul>
+    <p>And the borrowing limit is a subtraction:</p>
     <ul>
       <li><strong>Equity = home value − mortgage balance</strong></li>
       <li><strong>Max borrow = home value × max LTV − mortgage balance</strong></li>
-      <li><strong>Payment = L · r · (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</strong></li>
     </ul>
-    <p>
-      In the payment formula, <strong>L</strong> is the loan amount you request, <strong>r</strong>
-      is the monthly rate (annual rate ÷ 12), and <strong>n</strong> is the number of payments
-      (years × 12) — the same fixed-rate amortization used for a mortgage.
-    </p>
 
     <h2>A worked example</h2>
     <p>
-      Say your home is worth <strong>$400,000</strong> and you still owe <strong>$250,000</strong>.
-      Your equity is <strong>$150,000</strong>, but you can't borrow all of it. At an
-      <strong>85% CLTV</strong> limit, total debt against the home is capped at
-      0.85 × $400,000 = $340,000. Subtract the $250,000 you already owe and about
-      <strong>$90,000</strong> is available to borrow.
+      Borrow <strong>$150,000</strong> at <strong>8%</strong> over <strong>15 years</strong>. The
+      monthly payment is <strong>$1,433.48</strong>. Across all
+      <strong>180 payments</strong> you hand over <strong>$258,026.06</strong>, of which
+      <strong>$108,026.06</strong> is interest — <strong>42%</strong> of everything you pay.
     </p>
     <p>
-      Borrow that <strong>$90,000</strong> at <strong>8%</strong> over <strong>15 years</strong> and
-      the payment is about <strong>$860.09 a month</strong>, with roughly <strong>$64,816</strong>
-      of interest over the full term. Lenders also weigh your income, credit and debt-to-income
-      ratio, so your approved amount may be lower than the equity-based maximum.
+      The schedule shows why. In year one, <strong>$11,804.97</strong> of your payments goes to
+      interest and only <strong>$5,396.77</strong> to the balance. By year seven the split has
+      moved to <strong>$8,494.04</strong> interest against <strong>$8,707.70</strong> principal,
+      and from there the balance falls away quickly. Nothing about the payment changes — only what
+      it is buying.
+    </p>
+
+    <h2>Closing costs and the real rate</h2>
+    <p>
+      A quoted rate is not what the loan costs you. Home equity closing costs — origination,
+      appraisal, title, recording — typically run <strong>2–5%</strong> of the loan, and they buy
+      you nothing. Tick <strong>Include closing costs</strong> and the calculator shows the
+      <strong>real APR</strong>: the rate that reflects the cash you actually receive rather than
+      the figure on the paperwork.
+    </p>
+    <p>
+      On that same $150,000 loan, <strong>$7,500</strong> of closing costs means you walk away with
+      <strong>$142,500</strong> but repay the full $150,000 on the same schedule. That turns an
+      <strong>8%</strong> loan into a real <strong>8.86%</strong> one — the fee costs you the
+      better part of a point for fifteen years.
+    </p>
+    <p>
+      Whether the fee is <strong>deducted from the loan</strong> or <strong>paid upfront</strong>
+      makes no difference to that number, and it is worth being clear about why: either way you are
+      down $7,500 against an identical stream of payments. The only thing that changes is whether
+      you need the cash on the day. Shop the fees as hard as you shop the rate.
     </p>
 
     <h2>Home equity loan versus HELOC</h2>
@@ -101,8 +138,9 @@ const faqs = [
     <ul>
       <li>The loan is <strong>secured by your home</strong>, so missed payments can put the property at risk — a higher-stakes trade than unsecured borrowing.</li>
       <li>It is best suited to <strong>large, one-time costs</strong> that add value or replace higher-interest debt, not discretionary spending.</li>
-      <li>Watch for <strong>closing costs and fees</strong>, which this calculator does not include — weigh them against the interest you would save.</li>
-      <li>The estimate uses one fixed rate and does not model taxes, insurance or a lender's income and credit checks.</li>
+      <li><strong>Closing costs</strong> are optional above, and worth entering — the real APR they produce is the number to compare between lenders.</li>
+      <li>The estimate uses one fixed rate and does not model taxes, insurance, or a lender's income and credit checks.</li>
+      <li>The borrowing limit is an equity calculation only — your approved amount also depends on income, credit score and debt-to-income ratio.</li>
     </ul>
 
     <p>

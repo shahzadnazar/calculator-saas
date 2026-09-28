@@ -22,6 +22,23 @@ const live = (page: Page) => page.locator('#mc-live');
 const submit = (page: Page) => page.locator('[data-mc-submit]');
 const region = (page: Page, when: string) => page.locator(`#mc-result [data-result-when~="${when}"]`);
 const fieldError = (page: Page, name: string) => page.locator(`[data-error-for="${name}"]`);
+const downInput = (page: Page) => page.locator('[name="downPayment"]');
+// Scoped to the DOWN PAYMENT group — three groups now share the form, so an unscoped
+// [data-unit] selector is ambiguous by design.
+const unitBtn = (page: Page, unit: 'amount' | 'percent') =>
+  page.locator(`[data-unit-group="downPayment"] [data-unit="${unit}"]`);
+// The selector sits inline on the input's right edge and the ACTIVE button is the unit
+// indicator — there is no separate affix span for a dual-unit field.
+const affix = (page: Page, unit: 'amount' | 'percent') =>
+  page.locator(`[data-unit-group="downPayment"] [data-unit="${unit}"]`);
+const loanAmount = (page: Page) => page.locator('[data-mc-loan]');
+const taxInput = (page: Page) => page.locator('[name="propertyTaxAnnual"]');
+const pmiInput = (page: Page) => page.locator('[name="pmiAnnualRate"]');
+/** A unit button INSIDE one group — the whole point is that groups do not share buttons. */
+const groupUnit = (page: Page, group: string, unit: 'amount' | 'percent') =>
+  page.locator(`[data-unit-group="${group}"] [data-unit="${unit}"]`);
+const groupAffix = (page: Page, group: string, unit: 'amount' | 'percent') =>
+  page.locator(`[data-unit-group="${group}"] [data-unit="${unit}"]`);
 
 const fillCore = async (
   page: Page,
@@ -49,11 +66,11 @@ test('loads empty: blank fields, term defaults to 30, empty result, Calculate Mo
   await expect(page.locator('[name="downPayment"]')).toHaveValue('');
   await expect(page.locator('[name="annualInterestRate"]')).toHaveValue('');
   await expect(page.locator('[name="loanTermYears"]')).toHaveValue('30');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   await expect(submit(page)).toHaveText('Calculate Mortgage Payment');
   await expect(downPct(page)).toBeHidden();
   // Initial: no schedule rows, no result, no announcement.
-  await expect(rows(page)).toHaveCount(0);
+  await expect(rows(page)).not.toHaveCount(0); // the example prepares its own schedule
   await expect(live(page)).toHaveText('');
 });
 
@@ -174,8 +191,11 @@ test('the schedule is a disclosure, closed by default, revealing Year/Principal/
   await expect(rows(page).first()).toBeHidden(); // collapsed
   await disclosure(page).locator('summary').click();
   await expect(rows(page)).toHaveCount(30);
-  // First yearly row is Year 1 with a decreasing balance below the loan amount.
-  await expect(rows(page).first().locator('th')).toHaveText('1');
+  // First yearly row is Year 1 with a decreasing balance below the loan amount. The period cell now
+  // also carries the dated window, so assert the serial number followed by that range.
+  const firstPeriod = rows(page).first().locator('th');
+  const firstRange = await firstPeriod.locator('.mc-cell__range').textContent();
+  await expect(firstPeriod).toHaveText(`1${firstRange}`);
 });
 
 test('no NaN / Infinity / undefined leaks into the rendered result', async ({ page }) => {
@@ -430,7 +450,7 @@ for (const GUIDE of ['/guides/rent-vs-buy-a-home', '/guides/how-much-house-can-y
       await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('[data-mortgage]')).toHaveCount(1);
       await expect(page.locator('[name="homePrice"]')).toHaveValue('');
-      await expect(page.locator('#mc-result')).toHaveAttribute('data-result-state', 'empty');
+      await expect(page.locator('#mc-result')).toHaveAttribute('data-result-state', 'example');
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1); // no duplicated H1
     });
 
@@ -446,3 +466,582 @@ for (const GUIDE of ['/guides/rent-vs-buy-a-home', '/guides/how-much-house-can-y
     });
   });
 }
+
+/* ---- Down-payment unit ($ / %) ------------------------------------------- */
+
+/**
+ * The down payment may be entered as dollars OR as a percent of the home price. Both feed the SAME
+ * engine: the binding normalises a percent to absolute dollars before calculateMortgage runs, so
+ * equivalent entries must agree exactly. Dollars is the structural default.
+ *
+ * These cover the DOM half of the feature — the unit switch, the affix, the per-unit input step and
+ * the conversion wiring — which the node-environment unit tests deliberately do not reach (the pure
+ * arithmetic lives in convertDownPayment / downPaymentAmount and is tested directly there).
+ */
+test.describe('down-payment unit toggle', () => {
+  test('starts empty with $ selected, the $ control active and the dollar step', async ({ page }) => {
+    await expect(page.locator('[name="homePrice"]')).toHaveValue('');
+    await expect(downInput(page)).toHaveValue('');
+    await expect(unitBtn(page, 'amount')).toHaveClass(/is-active/);
+    await expect(unitBtn(page, 'amount')).toHaveAttribute('aria-checked', 'true');
+    await expect(unitBtn(page, 'percent')).toHaveAttribute('aria-checked', 'false');
+    await expect(affix(page, 'amount')).toHaveClass(/is-active/);
+    await expect(affix(page, 'percent')).not.toHaveClass(/is-active/);
+    await expect(downInput(page)).toHaveAttribute('step', '1000');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  });
+
+  test('$80,000 on a $400,000 home gives a $320,000 loan', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(loanAmount(page)).toContainText('320,000');
+  });
+
+  test('20% on a $400,000 home gives the SAME loan and monthly payment as $80,000', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    const dollarLoan = await loanAmount(page).textContent();
+    const dollarPayment = await primary(page).textContent();
+
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await page.fill('[name="homePrice"]', '400000');
+    await unitBtn(page, 'percent').click();
+    await page.fill('[name="downPayment"]', '20');
+    await page.selectOption('[name="loanTermYears"]', '30');
+    await page.fill('[name="annualInterestRate"]', '6.5');
+    await submit(page).click();
+
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(loanAmount(page)).toHaveText(dollarLoan!);
+    await expect(primary(page)).toHaveText(dollarPayment!);
+    await expect(loanAmount(page)).toContainText('320,000');
+  });
+
+  test('switching $ → % converts $80,000 to 20 and swaps the control + step', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await page.fill('[name="downPayment"]', '80000');
+    await unitBtn(page, 'percent').click();
+
+    await expect(downInput(page)).toHaveValue('20');
+    await expect(unitBtn(page, 'percent')).toHaveClass(/is-active/);
+    await expect(affix(page, 'percent')).toHaveClass(/is-active/);
+    await expect(affix(page, 'amount')).not.toHaveClass(/is-active/);
+    await expect(downInput(page)).toHaveAttribute('step', '0.1');
+  });
+
+  test('switching % → $ converts 20 back to 80000 and restores the control + step', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await unitBtn(page, 'percent').click();
+    await page.fill('[name="downPayment"]', '20');
+    await unitBtn(page, 'amount').click();
+
+    await expect(downInput(page)).toHaveValue('80000');
+    await expect(affix(page, 'amount')).toHaveClass(/is-active/);
+    await expect(affix(page, 'percent')).not.toHaveClass(/is-active/);
+    await expect(downInput(page)).toHaveAttribute('step', '1000');
+  });
+
+  test('a $ → % → $ round trip returns the original amount', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await page.fill('[name="downPayment"]', '80000');
+    await unitBtn(page, 'percent').click();
+    await expect(downInput(page)).toHaveValue('20');
+    await unitBtn(page, 'amount').click();
+    await expect(downInput(page)).toHaveValue('80000');
+  });
+
+  test('the live readout shows the OTHER unit in each mode', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await page.fill('[name="downPayment"]', '80000');
+    await expect(downPct(page)).toHaveText('20% down');
+    await unitBtn(page, 'percent').click();
+    await expect(downPct(page)).toContainText('$80,000');
+  });
+
+  test('150% is rejected as a field error and does not calculate', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await unitBtn(page, 'percent').click();
+    await page.fill('[name="downPayment"]', '150');
+    await page.selectOption('[name="loanTermYears"]', '30');
+    await page.fill('[name="annualInterestRate"]', '6.5');
+    await submit(page).click();
+
+    await expect(fieldError(page, 'downPayment')).toBeVisible();
+    await expect(fieldError(page, 'downPayment')).toContainText('100%');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  });
+
+  test('100% down is a valid zero mortgage in percent mode', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await unitBtn(page, 'percent').click();
+    await page.fill('[name="downPayment"]', '100');
+    await page.selectOption('[name="loanTermYears"]', '30');
+    await page.fill('[name="annualInterestRate"]', '6.5');
+    await submit(page).click();
+
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(rows(page)).toHaveCount(0);
+  });
+
+  test('Reset restores the $ default, its step and an empty field', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await unitBtn(page, 'percent').click();
+    await expect(downInput(page)).toHaveAttribute('step', '0.1');
+
+    await page.locator('[data-reset]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(downInput(page)).toHaveValue('');
+    await expect(unitBtn(page, 'amount')).toHaveClass(/is-active/);
+    await expect(affix(page, 'amount')).toHaveClass(/is-active/);
+    await expect(downInput(page)).toHaveAttribute('step', '1000');
+  });
+});
+
+/* ---- Worked example (below the tool) ------------------------------------- */
+
+/**
+ * The example is clearly-labelled educational content BELOW the calculator — the visitor's own fields
+ * stay empty (ratified product decision #1). Every figure is computed at build time by the same
+ * calculateMortgage the calculator uses, so these assertions fail if the prose is ever hardcoded away
+ * from the engine.
+ */
+test('the worked example renders engine-computed figures and leaves the fields empty', async ({ page }) => {
+  const body = page.locator('body');
+  await expect(body).toContainText('A worked example');
+  await expect(body).toContainText('$400,000'); // home price
+  await expect(body).toContainText('$80,000'); // 20% down, derived
+  await expect(body).toContainText('$320,000'); // loan amount, derived
+  await expect(body).toContainText('$2,022.62'); // monthly P&I from calculateMortgage
+  await expect(body).toContainText('$408,142'); // total interest from calculateMortgage
+
+  // The example never leaks into the visitor's own inputs or result.
+  await expect(page.locator('[name="homePrice"]')).toHaveValue('');
+  await expect(downInput(page)).toHaveValue('');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+});
+
+/* ---- Property tax + PMI units, and group independence -------------------- */
+
+/**
+ * Three INDEPENDENT unit groups share one form: down payment and property tax against the home
+ * price, PMI against the loan. Each has its own active unit, its own affix, its own step and its own
+ * reset default, and switching one must never disturb another — the property the scoped
+ * `[data-unit-group]` runtime axis exists to guarantee.
+ */
+test.describe('multiple unit groups', () => {
+  test('each group starts at its own default unit', async ({ page }) => {
+    await openCosts(page);
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/); // engine-native
+  });
+
+  test('property tax converts $4,800 ↔ 1.2% against the home price', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await taxInput(page).fill('4800');
+    await groupUnit(page, 'propertyTax', 'percent').click();
+    await expect(taxInput(page)).toHaveValue('1.2');
+    await expect(groupAffix(page, 'propertyTax', 'percent')).toHaveClass(/is-active/);
+    await expect(taxInput(page)).toHaveAttribute('step', '0.1');
+
+    await groupUnit(page, 'propertyTax', 'amount').click();
+    await expect(taxInput(page)).toHaveValue('4800');
+    await expect(groupAffix(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(taxInput(page)).toHaveAttribute('step', '100');
+  });
+
+  test('PMI converts 1% ↔ $3,200 against the LOAN amount', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await pmiInput(page).fill('1');
+    await groupUnit(page, 'pmi', 'amount').click();
+    await expect(pmiInput(page)).toHaveValue('3200'); // 1% of the $320,000 loan
+    await groupUnit(page, 'pmi', 'percent').click();
+    await expect(pmiInput(page)).toHaveValue('1');
+  });
+
+  test('PMI does NOT convert when the loan amount cannot be resolved', async ({ page }) => {
+    await openCosts(page);
+    await pmiInput(page).fill('1'); // no home price entered yet
+    await groupUnit(page, 'pmi', 'amount').click();
+    await expect(pmiInput(page)).toHaveValue('1'); // left exactly as typed, never guessed
+  });
+
+  test('switching DOWN PAYMENT does not change property tax or PMI', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await page.fill('[name="downPayment"]', '80000');
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+
+    await groupUnit(page, 'downPayment', 'percent').click();
+
+    await expect(page.locator('[name="downPayment"]')).toHaveValue('20'); // converted
+    await expect(taxInput(page)).toHaveValue('4800'); // untouched
+    await expect(pmiInput(page)).toHaveValue('1'); // untouched
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/);
+  });
+
+  test('switching PROPERTY TAX does not change down payment or PMI', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await page.fill('[name="downPayment"]', '80000');
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+
+    await groupUnit(page, 'propertyTax', 'percent').click();
+
+    await expect(taxInput(page)).toHaveValue('1.2'); // converted
+    await expect(page.locator('[name="downPayment"]')).toHaveValue('80000'); // untouched
+    await expect(pmiInput(page)).toHaveValue('1'); // untouched
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/);
+  });
+
+  test('switching PMI does not change down payment or property tax', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await page.fill('[name="downPayment"]', '80000');
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+
+    await groupUnit(page, 'pmi', 'amount').click();
+
+    await expect(pmiInput(page)).toHaveValue('3200'); // converted
+    await expect(page.locator('[name="downPayment"]')).toHaveValue('80000'); // untouched
+    await expect(taxInput(page)).toHaveValue('4800'); // untouched
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+  });
+
+  test('equivalent entries in ALL THREE alternate units give the identical result', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+    await submit(page).click();
+    const nativeTotal = await primary(page).textContent();
+    const nativeLoan = await loanAmount(page).textContent();
+
+    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+    await page.fill('[name="homePrice"]', '400000');
+    await groupUnit(page, 'downPayment', 'percent').click();
+    await page.fill('[name="downPayment"]', '20');
+    await page.selectOption('[name="loanTermYears"]', '30');
+    await page.fill('[name="annualInterestRate"]', '6.5');
+    await openCosts(page);
+    await groupUnit(page, 'propertyTax', 'percent').click();
+    await taxInput(page).fill('1.2');
+    await groupUnit(page, 'pmi', 'amount').click();
+    await pmiInput(page).fill('3200');
+    await submit(page).click();
+
+    await expect(primary(page)).toHaveText(nativeTotal!);
+    await expect(loanAmount(page)).toHaveText(nativeLoan!);
+  });
+
+  test('Reset restores EVERY group to its own default independently', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+    await submit(page).click();
+
+    await groupUnit(page, 'downPayment', 'percent').click();
+    await groupUnit(page, 'propertyTax', 'percent').click();
+    await groupUnit(page, 'pmi', 'amount').click();
+
+    await page.locator('[data-reset]').click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/); // its OWN default
+  });
+
+  test('property tax entered as a percent follows a changed home price', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await groupUnit(page, 'propertyTax', 'percent').click();
+    await taxInput(page).fill('1.2');
+    await submit(page).click();
+    const at400 = await primary(page).textContent();
+
+    await page.fill('[name="homePrice"]', '500000');
+    await expect(primary(page)).not.toHaveText(at400!); // 1.2% of the NEW price, not frozen dollars
+    await expect(taxInput(page)).toHaveValue('1.2'); // the entered percent is preserved
+  });
+});
+
+/* ---- Start date + other costs -------------------------------------------- */
+
+test.describe('start date', () => {
+  test('sits beside the down payment and defaults to the visitor\'s current month/year', async ({ page }) => {
+    const now = new Date();
+    await expect(page.locator('[name="startMonth"]')).toHaveValue(String(now.getMonth() + 1));
+    await expect(page.locator('[name="startYear"]')).toHaveValue(String(now.getFullYear()));
+    // Same row as the down payment: neither field is full-width on its own.
+    const down = await page.locator('[name="downPayment"]').boundingBox();
+    const month = await page.locator('[name="startMonth"]').boundingBox();
+    expect(down!.y).toBeLessThan(month!.y + month!.height);
+    expect(month!.y).toBeLessThan(down!.y + down!.height);
+    expect(month!.x).toBeGreaterThan(down!.x + down!.width);
+  });
+
+  test('dates each yearly row after its serial number, adding no column', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await page.selectOption('[name="startMonth"]', '8');
+    await page.fill('[name="startYear"]', '2026');
+    await submit(page).click();
+    await disclosure(page).locator('summary').click();
+
+    await expect(rows(page).first().locator('th')).toHaveText('18/26–7/27');
+    await expect(rows(page).nth(1).locator('th')).toHaveText('28/27–7/28');
+    // The dated range lives INSIDE the period cell — the table still has four columns.
+    await expect(rows(page).first().locator('td')).toHaveCount(3);
+  });
+
+  test('does not change the calculated result', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    const before = await primary(page).textContent();
+    await page.selectOption('[name="startMonth"]', '1');
+    await page.fill('[name="startYear"]', '2030');
+    await expect(primary(page)).toHaveText(before!);
+  });
+});
+
+test.describe('other costs', () => {
+  test('adds to the monthly total', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    const before = await primary(page).textContent();
+    await openCosts(page);
+    await page.fill('[name="otherCostsAnnual"]', '1200');
+    await expect(page.locator('[data-mc-other]')).toHaveText('$100.00');
+    await expect(primary(page)).not.toHaveText(before!);
+  });
+
+  test('$4,000 and 1% of a $400,000 home give the same total', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await page.fill('[name="otherCostsAnnual"]', '4000');
+    await submit(page).click();
+    const asDollars = await primary(page).textContent();
+
+    await groupUnit(page, 'otherCosts', 'percent').click();
+    await expect(page.locator('[name="otherCostsAnnual"]')).toHaveValue('1'); // converted
+    await expect(primary(page)).toHaveText(asDollars!);
+  });
+
+  test('its unit switch does not disturb the other three groups', async ({ page }) => {
+    await page.fill('[name="homePrice"]', '400000');
+    await openCosts(page);
+    await page.fill('[name="downPayment"]', '80000');
+    await taxInput(page).fill('4800');
+    await pmiInput(page).fill('1');
+    await page.fill('[name="otherCostsAnnual"]', '4000');
+
+    await groupUnit(page, 'otherCosts', 'percent').click();
+
+    await expect(page.locator('[name="downPayment"]')).toHaveValue('80000');
+    await expect(taxInput(page)).toHaveValue('4800');
+    await expect(pmiInput(page)).toHaveValue('1');
+    await expect(groupUnit(page, 'downPayment', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'propertyTax', 'amount')).toHaveClass(/is-active/);
+    await expect(groupUnit(page, 'pmi', 'percent')).toHaveClass(/is-active/);
+  });
+
+  test('rejects above 100%', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await groupUnit(page, 'otherCosts', 'percent').click();
+    await page.fill('[name="otherCostsAnnual"]', '150');
+    await submit(page).click();
+    await expect(fieldError(page, 'otherCostsAnnual')).toContainText('100%');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  });
+});
+
+/* ---- Optional extras: increases, extra payments, biweekly --------------- */
+
+/**
+ * Everything in this block is OPT-IN. The first test is the load-bearing one:
+ * an ordinary mortgage must reach none of it, so the result a visitor who ignores
+ * the panel sees is exactly the result they saw before these options existed.
+ */
+const openExtras = (page: Page) => page.locator('summary', { hasText: 'Increases & extra payments' }).click();
+const extraBlock = (page: Page) => page.locator('[data-mc-extra-block]');
+const costsBlock = (page: Page) => page.locator('[data-mc-costs-block]');
+const biweeklyBlock = (page: Page) => page.locator('[data-mc-biweekly-block]');
+
+test.describe('mortgage: optional increases & extra payments', () => {
+  test('the panel is closed and every extras block is hidden on an ordinary mortgage', async ({ page }) => {
+    await expect(page.locator('[data-mc-extras]')).not.toHaveAttribute('open', /.*/);
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(extraBlock(page)).toBeHidden();
+    await expect(costsBlock(page)).toBeHidden();
+    await expect(biweeklyBlock(page)).toBeHidden();
+    await expect(page.locator('[data-mc-total-interest]')).toHaveText('$408,142');
+  });
+
+  test('an untouched extra-payment row looks unconfigured: no amount AND no date', async ({ page }) => {
+    await openExtras(page);
+    const start = await page.locator('[name="startYear"]').inputValue();
+    for (const name of ['extraMonthlyYear', 'extraYearlyYear', 'extraOneTime1Year']) {
+      // Blank, with the repayment start offered only as a PLACEHOLDER — nothing is filled in,
+      // so three dated payments can never appear to be scheduled.
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+      await expect(page.locator(`[name="${name}"]`)).toHaveAttribute('placeholder', start);
+    }
+    for (const name of ['extraMonthlyMonth', 'extraYearlyMonth', 'extraOneTime1Month']) {
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+      await expect(page.locator(`[name="${name}"] option:checked`)).toHaveText('Loan start');
+    }
+    for (const name of ['extraMonthlyAmount', 'extraYearlyAmount', 'extraOneTime1Amount']) {
+      await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
+    }
+  });
+
+  test('an amount with no date applies from the first payment', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await page.fill('[name="extraMonthlyAmount"]', '300');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(page.locator('[data-mc-extra-interest-saved]')).toHaveText('$138,446');
+  });
+
+  test('an extra monthly payment shortens the loan and reports what it saves', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await page.fill('[name="extraMonthlyAmount"]', '300');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(extraBlock(page)).toBeVisible();
+    await expect(page.locator('[data-mc-extra-total]')).toHaveText('$75,952');
+    await expect(page.locator('[data-mc-extra-interest-saved]')).toHaveText('$138,446');
+    await expect(page.locator('[data-mc-extra-months-saved]')).toHaveText('8 years 10 months');
+    await expect(page.locator('[data-mc-extra-payoff]')).toHaveText('21 years 2 months');
+    // The headline monthly payment is the CONTRACTUAL one — extra is voluntary, not owed.
+    await expect(page.locator('[data-mc-pi]')).toHaveText('$2,022.62');
+    await expect(page.locator('[data-mc-total-interest]')).toHaveText('$269,696');
+  });
+
+  test('an annual cost increase reports the rising totals and leaves the loan alone', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await page.fill('[name="propertyTaxAnnual"]', '3600');
+    await submit(page).click();
+    const flatInterest = await page.locator('[data-mc-total-interest]').innerText();
+    const flatPayment = await primary(page).innerText();
+
+    await openExtras(page);
+    await page.fill('[name="propertyTaxIncreasePct"]', '3');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(costsBlock(page)).toBeVisible();
+    await expect(page.locator('[data-mc-costs-tax]')).toHaveText('$171,271');
+    await expect(page.locator('[data-mc-costs-total]')).not.toHaveText('—');
+    // Year one is the amount as entered, so neither the payment nor the loan moves.
+    await expect(primary(page)).toHaveText(flatPayment);
+    await expect(page.locator('[data-mc-total-interest]')).toHaveText(flatInterest);
+  });
+
+  test('the biweekly comparison appears only when ticked', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await expect(biweeklyBlock(page)).toBeHidden();
+    await page.check('[name="showBiweekly"]');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(biweeklyBlock(page)).toBeVisible();
+    await expect(page.locator('[data-mc-bw-payment]')).toHaveText('$1,011.31'); // half the monthly P&I
+    await expect(page.locator('[data-mc-bw-payoff]')).toHaveText('24 years 2 months');
+    await expect(page.locator('[data-mc-bw-interest-saved]')).toHaveText('$93,997');
+    await page.uncheck('[name="showBiweekly"]');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(biweeklyBlock(page)).toBeHidden();
+  });
+
+  test('a one-time payment lands in the month it is dated', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await page.fill('[name="extraOneTime1Amount"]', '20000');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(extraBlock(page)).toBeVisible();
+    await expect(page.locator('[data-mc-extra-total]')).toHaveText('$20,000');
+    await expect(page.locator('[data-mc-extra-months-saved]')).not.toHaveText('none');
+  });
+
+  test('further one-time rows arrive on request, hidden until then', async ({ page }) => {
+    await openExtras(page);
+    await expect(page.locator('[data-mc-onetime="1"]')).toBeVisible();
+    await expect(page.locator('[data-mc-onetime="2"]')).toBeHidden();
+    await page.locator('[data-mc-add-onetime]').click();
+    await expect(page.locator('[data-mc-onetime="2"]')).toBeVisible();
+    await expect(page.locator('[data-mc-onetime="3"]')).toBeHidden();
+  });
+
+  test('the extras validate: increases 0–100, amounts >= 0, a typed year in range', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openExtras(page);
+    await page.fill('[name="propertyTaxIncreasePct"]', '101');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(fieldError(page, 'propertyTaxIncreasePct')).toContainText('0 to 100%');
+
+    await page.fill('[name="propertyTaxIncreasePct"]', '3');
+    await page.fill('[name="extraMonthlyAmount"]', '-5');
+    await submit(page).click();
+    await expect(fieldError(page, 'extraMonthlyAmount')).toContainText('zero or more');
+
+    await page.fill('[name="extraMonthlyAmount"]', '200');
+    await page.fill('[name="extraMonthlyYear"]', '1899');
+    await submit(page).click();
+    await expect(fieldError(page, 'extraMonthlyYear')).toContainText('1900 to 2200');
+  });
+
+  test('reset clears the extras, re-hides the added rows and unticks biweekly', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await submit(page).click();
+    await openExtras(page);
+    await page.fill('[name="extraMonthlyAmount"]', '300');
+    await page.fill('[name="propertyTaxIncreasePct"]', '3');
+    await page.check('[name="showBiweekly"]');
+    await page.locator('[data-mc-add-onetime]').click();
+    await page.waitForTimeout(DEBOUNCE);
+    await page.locator('[data-reset]').click();
+    await expect(page.locator('[name="extraMonthlyAmount"]')).toHaveValue('');
+    await expect(page.locator('[name="propertyTaxIncreasePct"]')).toHaveValue('');
+    await expect(page.locator('[name="showBiweekly"]')).not.toBeChecked();
+    await expect(page.locator('[data-mc-onetime="2"]')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  });
+
+  test('never renders NaN, Infinity or undefined with every option in play', async ({ page }) => {
+    await fillCore(page, '400000', '80000', '30', '6.5');
+    await openCosts(page);
+    await page.fill('[name="propertyTaxAnnual"]', '3600');
+    await page.fill('[name="homeInsuranceAnnual"]', '1200');
+    await page.fill('[name="hoaMonthly"]', '50');
+    await openExtras(page);
+    await page.fill('[name="propertyTaxIncreasePct"]', '3');
+    await page.fill('[name="homeInsuranceIncreasePct"]', '5');
+    await page.fill('[name="hoaIncreasePct"]', '2');
+    await page.fill('[name="extraMonthlyAmount"]', '250');
+    await page.fill('[name="extraYearlyAmount"]', '2000');
+    await page.fill('[name="extraOneTime1Amount"]', '10000');
+    await page.check('[name="showBiweekly"]');
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    for (const b of [extraBlock, costsBlock, biweeklyBlock]) await expect(b(page)).toBeVisible();
+    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+  });
+});

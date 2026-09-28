@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* --------------------------------------------------------------------------
-   Inter (self-hosted variable, latin subset)
+   Inter — self-hosted variable font, Latin subset
    -------------------------------------------------------------------------- */
 
 @font-face {
@@ -22,15 +22,15 @@
 }
 
 /* ==========================================================================
-   AllCalculators — Design System
+   BestCalculate — Design System
 
    Visual direction:
-   Plum + Rose + Apricot
+   Purple + Cyan + Indigo
 
-   Plum   = primary brand / actions / links
-   Rose   = secondary accent
-   Apricot = subtle warmth / highlights
-   Neutral = clean calculator-focused surfaces
+   Purple = primary brand, actions and links
+   Cyan   = secondary accent and highlights
+   Indigo = supporting accent
+   Neutral surfaces keep calculators readable
    ========================================================================== */
 
 @theme {
@@ -38,54 +38,75 @@
      Typography
      ------------------------------------------------------------------------ */
 
-  --font-sans: "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui,
-    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
-    sans-serif;
+  --font-sans:
+    "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 
-  --font-mono: "SFMono-Regular", ui-monospace, "JetBrains Mono",
-    "Roboto Mono", Menlo, Consolas, monospace;
+  --font-mono:
+    "SFMono-Regular", ui-monospace, "JetBrains Mono", "Roboto Mono", Menlo,
+    Consolas, monospace;
 
   /* ------------------------------------------------------------------------
-     Brand — Plum
+     Brand — Purple
      ------------------------------------------------------------------------ */
 
-  --color-brand-50: #FAF5FF;
-  --color-brand-100: #F3E8FF;
-  --color-brand-200: #E9D5FF;
-  --color-brand-300: #D8B4FE;
-  --color-brand-400: #C084FC;
-  --color-brand-500: #A855F7;
-  --color-brand-600: #7C3AED;
-  --color-brand-700: #6D28D9;
-  --color-brand-800: #5B21B6;
-  --color-brand-900: #4C1D95;
-  --color-brand-950: #2E1065;
+  --color-brand-50: #faf7ff;
+  --color-brand-100: #f2eaff;
+  --color-brand-200: #372a43;
+  --color-brand-300: #d4b5ff;
+  --color-brand-400: #b985ff;
+  --color-brand-500: #9855f5;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+  --color-brand-800: #5b21b6;
+  --color-brand-900: #4c1d95;
+  --color-brand-950: #2e1065;
 
   /* ------------------------------------------------------------------------
-     Accent — Rose
+     Accent — Cyan blue
      ------------------------------------------------------------------------ */
 
-  --color-accent-400: #FB7185;
-  --color-accent-500: #F43F5E;
-  --color-accent-600: #E11D48;
-  --color-accent-700: #BE123C;
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-600: #0891b2;
+  --color-accent-700: #0e7490;
 
   /* ------------------------------------------------------------------------
-     Warm highlight — Apricot
+     Logo mark — the "=" key and the corner dot
+     ------------------------------------------------------------------------
+     A pink that appears nowhere else in the interface, and that is deliberate:
+     it belongs to the mark, not to the UI accent scale, so no component borrows
+     it. Tokens rather than literals so the component, the favicon, the app
+     icons and the OG cards all read the mark's colours from one place.
      ------------------------------------------------------------------------ */
 
-  --color-warm-400: #FDBA74;
-  --color-warm-500: #F97316;
-  --color-warm-600: #EA580C;
-  --color-warm-700: #C2410C;
+  --color-mark-key-from: #f77fc0;
+  --color-mark-key-to: #ec4899;
+  --color-mark-dot: #f43f5e;
 
   /* ------------------------------------------------------------------------
-     Semantic
+     Supporting accent — Indigo
+     ------------------------------------------------------------------------ */
+
+  --color-warm-400: #818cf8;
+  --color-warm-500: #6366f1;
+  --color-warm-600: #4f46e5;
+  --color-warm-700: #4338ca;
+
+  /* ------------------------------------------------------------------------
+     Semantic colors
+
+     Danger remains red intentionally because errors and destructive actions
+     must remain immediately recognizable.
      ------------------------------------------------------------------------ */
 
   --color-success: #059669;
-  --color-warning: #D97706;
-  --color-danger: #DC2626;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
 
   /* ------------------------------------------------------------------------
      Semantic surfaces
@@ -108,59 +129,98 @@
    ========================================================================== */
 
 :root {
-  /* Very light warm-neutral background.
-     Keeps the purple from becoming visually overwhelming. */
-  --page: #FCFAFD;
+  /* Main surfaces */
+  --page: #fcfbfe;
+  --card: #ffffff;
+  --subtle: #f7f5fa;
+  --line: #e7e1ec;
 
-  /* Clean white cards */
-  --card: #FFFFFF;
+  /* Typography */
+  --fg: #51465a;
+  --muted: #766b80;
+  --heading: #2b193d;
 
-  /* Slightly tinted surface */
-  --subtle: #F7F3FA;
+  /* Theme-aware interactive surfaces */
+  --interactive-soft: #f4effc;
+  --interactive-hover: #eee5fa;
+  --interactive-active: #e6d9f7;
+  --interactive-border: #d7c7eb;
 
-  /* Soft neutral-purple border */
-  --line: #E9E1EF;
+  /* Theme-aware header surfaces */
+  --header-bg: rgb(255 255 255 / 0.9);
+  --header-hover: #f2ebfb;
+  --header-active: #eadff8;
 
-  /* Body text */
-  --fg: #51465A;
-
-  /* Secondary text */
-  --muted: #766B80;
-
-  /* Deep plum heading */
-  --heading: #2B193D;
+  /* Theme-aware focus treatment */
+  --focus-ring: rgb(124 58 237 / 0.2);
 
   color-scheme: light;
 }
 
 /* ==========================================================================
-   Runtime theme variables — Dark
+   Runtime theme variables — Automatic dark mode
    ========================================================================== */
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --page: #110B17;
-    --card: #1B1223;
-    --subtle: #26192F;
-    --line: #3A2944;
+    /* Dark plum surfaces instead of flat grey */
+    --page: #0e0a14;
+    --card: #17111f;
+    --subtle: #211829;
+    --line: #372a43;
 
-    --fg: #D8CFDE;
-    --muted: #A99BAF;
-    --heading: #FAF7FC;
+    /* Typography */
+    --fg: #ded6e5;
+    --muted: #aa9daf;
+    --heading: #fcf9ff;
+
+    /* Purple-tinted interactive surfaces */
+    --interactive-soft: #241831;
+    --interactive-hover: #2d1d3e;
+    --interactive-active: #38244c;
+    --interactive-border: #52386c;
+
+    /* Header surfaces */
+    --header-bg: rgb(23 17 31 / 0.9);
+    --header-hover: #2a1b3b;
+    --header-active: #342149;
+
+    /* Focus treatment */
+    --focus-ring: rgb(168 85 247 / 0.3);
 
     color-scheme: dark;
   }
 }
 
-:root[data-theme="dark"] {
-  --page: #110B17;
-  --card: #1B1223;
-  --subtle: #26192F;
-  --line: #3A2944;
+/* ==========================================================================
+   Runtime theme variables — Manually selected dark mode
+   ========================================================================== */
 
-  --fg: #D8CFDE;
-  --muted: #A99BAF;
-  --heading: #FAF7FC;
+:root[data-theme="dark"] {
+  /* Dark plum surfaces instead of flat grey */
+  --page: #0e0a14;
+  --card: #17111f;
+  --subtle: #211829;
+  --line: #372a43;
+
+  /* Typography */
+  --fg: #ded6e5;
+  --muted: #aa9daf;
+  --heading: #fcf9ff;
+
+  /* Purple-tinted interactive surfaces */
+  --interactive-soft: #241831;
+  --interactive-hover: #2d1d3e;
+  --interactive-active: #38244c;
+  --interactive-border: #52386c;
+
+  /* Header surfaces */
+  --header-bg: rgb(23 17 31 / 0.9);
+  --header-hover: #2a1b3b;
+  --header-active: #342149;
+
+  /* Focus treatment */
+  --focus-ring: rgb(168 85 247 / 0.3);
 
   color-scheme: dark;
 }
@@ -244,8 +304,8 @@
 
   /* Text selection */
   ::selection {
-    background: var(--color-brand-200);
-    color: var(--color-brand-950);
+    background: var(--interactive-active);
+    color: var(--heading);
   }
 }
 
@@ -269,6 +329,166 @@
     .wrap {
       padding-inline: 1.5rem;
     }
+  }
+
+  /* ------------------------------------------------------------------------
+     Browse header
+     ------------------------------------------------------------------------ */
+
+  .browse-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 1.5rem;
+  }
+
+  .browse-crumbs__count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .browse-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+  }
+
+  .browse-head__label {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .browse-head__search {
+    flex: 1 1 20rem;
+    max-width: 26rem;
+    min-width: 0;
+  }
+
+  @media (max-width: 34rem) {
+    .browse-head__search {
+      max-width: none;
+    }
+  }
+
+  .browse-lede__search {
+    margin-top: 12px;
+    max-width: 34rem;
+  }
+
+  /* ------------------------------------------------------------------------
+     Grid items inside a calculator must be allowed to shrink
+     ------------------------------------------------------------------------
+     A CSS Grid item defaults to `min-width: auto`, which refuses to go narrower
+     than its own min-content. One unbreakable child is then enough to push the
+     whole column past the viewport: a <select> sized to its longest option
+     ("Extra Active: very intense exercise daily, or physical job"), a wide radio
+     row, a table. On a 320px phone that showed as the protein, fat-intake,
+     target-heart-rate and percentage calculators scrolling sideways by 16-32px.
+
+     Nothing in the tool area wants that floor — every panel is width constrained
+     and wraps on its own — so the items are told they may shrink. Scoped to the
+     workspace rather than set globally, because elsewhere a min-content floor is
+     sometimes exactly what a layout relies on.
+
+     Two selectors, because two conventions exist: Tailwind's `.grid` utility, and
+     the islands' own named grid wrappers (`it-grid`, `sk-grid`). Income Tax used
+     the second, which is why its sticky result column still forced a 16px
+     sideways scroll at 320px after the first pass fixed the Tailwind ones.
+     ------------------------------------------------------------------------ */
+
+  .tool-shell__core .grid > *,
+  .tool-shell__core [class$='-grid'] > * {
+    min-width: 0;
+  }
+
+  /* A <select> is the usual offender: it sizes to its widest OPTION and ignores
+     its container. It keeps that natural width wherever there is room. */
+  .tool-shell__core select {
+    max-width: 100%;
+  }
+
+
+  /* ------------------------------------------------------------------------
+     Tool shell — calculator and optional side rail
+     ------------------------------------------------------------------------ */
+
+  .tool-shell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 2rem;
+    min-width: 0;
+    container-type: inline-size;
+  }
+
+  .tool-shell__core {
+    flex: 1 1 600px;
+    min-width: 0;
+  }
+
+  .tool-rail {
+    flex: 1 1 100%;
+    min-width: 0;
+    display: grid;
+    gap: 1.25rem;
+    align-content: start;
+  }
+
+  @container (min-width: 1040px) {
+    .tool-rail {
+      flex: 0 0 300px;
+      position: sticky;
+      top: 1rem;
+    }
+  }
+
+  .tool-rail__slot {
+    min-height: 280px;
+  }
+
+  @container (min-width: 1040px) {
+    .tool-rail__slot {
+      min-height: clamp(
+        140px,
+        calc(100vh - 536px - var(--tool-rail-extra, 0px)),
+        280px
+      );
+    }
+  }
+
+  .tool-rail__heading {
+    margin: 0 0 0.35rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+
+  .tool-rail__links ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tool-rail__links li {
+    line-height: 1.55;
+  }
+
+  .tool-rail__links a {
+    color: var(--color-brand-600);
+  }
+
+  .tool-rail__links a:hover {
+    color: var(--color-brand-500);
+    text-decoration: underline;
   }
 
   /* ------------------------------------------------------------------------
@@ -296,6 +516,11 @@
       var(--color-brand-500) 45%,
       var(--line)
     );
+
+    box-shadow:
+      0 2px 4px rgb(43 25 61 / 0.06),
+      0 12px 28px -14px
+        color-mix(in srgb, var(--color-brand-700) 24%, transparent);
   }
 
   /* ------------------------------------------------------------------------
@@ -309,7 +534,7 @@
 
     background: color-mix(
       in srgb,
-      var(--color-brand-500) 11%,
+      var(--color-brand-500) 12%,
       transparent
     );
 
@@ -344,53 +569,61 @@
     justify-content: center;
     gap: 0.5rem;
 
-    font-weight: 600;
-    border-radius: 0.625rem;
+    min-height: 2.75rem;
     padding: 0.625rem 1.1rem;
 
+    border: 1px solid transparent;
+    border-radius: 0.625rem;
+
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
     cursor: pointer;
 
     transition:
+      color 0.15s ease,
       background-color 0.15s ease,
       transform 0.15s ease,
       box-shadow 0.15s ease,
       border-color 0.15s ease;
-
-    text-decoration: none;
-    border: 1px solid transparent;
-    line-height: 1.2;
   }
 
   .btn:active {
     transform: translateY(1px);
   }
 
-  /* Primary button — Plum */
+  /* Primary button */
 
   .btn-primary {
+    color: #ffffff;
     background: var(--color-brand-600);
-    color: #FFFFFF;
 
     box-shadow:
-      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
       0 1px 2px rgb(43 25 61 / 0.16);
   }
 
   .btn-primary:hover {
     background: var(--color-brand-700);
+
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 6px 16px
+        color-mix(in srgb, var(--color-brand-700) 24%, transparent);
   }
 
   /* Secondary button */
 
   .btn-secondary {
-    background: var(--card);
     color: var(--heading);
+    background: var(--card);
     border-color: var(--line);
   }
 
   .btn-secondary:hover {
-    border-color: var(--color-brand-400);
-    color: var(--color-brand-700);
+    color: var(--color-brand-500);
+    background: var(--interactive-hover);
+    border-color: var(--interactive-border);
   }
 
   /* ------------------------------------------------------------------------
@@ -399,45 +632,60 @@
 
   .field-label {
     display: block;
+    margin-bottom: 0.35rem;
+    color: var(--heading);
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--heading);
-    margin-bottom: 0.35rem;
   }
 
   .field {
     width: 100%;
+    padding: 0.6rem 0.75rem;
+    /* An <input> reaches 44px from padding alone, but a <select>'s intrinsic content box is a
+       fraction shorter and landed on 43px across the fleet. One rule holds every .field
+       control on the 44px target instead of each island patching its own selects. */
+    min-height: 2.75rem;
+
+    color: var(--fg);
     background: var(--card);
+
     border: 1px solid var(--line);
     border-radius: 0.625rem;
 
-    padding: 0.6rem 0.75rem;
-
-    color: var(--fg);
     font-size: 1rem;
 
     transition:
       border-color 0.15s ease,
+      background-color 0.15s ease,
       box-shadow 0.15s ease;
+  }
+
+  .field:hover {
+    border-color: var(--interactive-border);
   }
 
   .field:focus {
     outline: none;
     border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
 
-    box-shadow:
-      0 0 0 3px var(--color-brand-100);
+  .field::placeholder {
+    color: var(--muted);
+    opacity: 0.8;
   }
 
   .field-affix {
     display: inline-flex;
     align-items: center;
 
+    padding-inline: 0.65rem;
+
     color: var(--muted);
     background: var(--subtle);
+
     border: 1px solid var(--line);
 
-    padding-inline: 0.65rem;
     font-size: 0.9rem;
   }
 
@@ -446,8 +694,8 @@
      ------------------------------------------------------------------------ */
 
   .prose {
-    color: var(--fg);
     max-width: 68ch;
+    color: var(--fg);
   }
 
   .prose > * + * {
@@ -455,17 +703,17 @@
   }
 
   .prose h2 {
-    font-size: 1.5rem;
-    font-weight: 700;
     margin-top: 2.25rem;
     margin-bottom: 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 700;
   }
 
   .prose h3 {
-    font-size: 1.2rem;
-    font-weight: 700;
     margin-top: 1.75rem;
     margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: 700;
   }
 
   .prose p,
@@ -496,6 +744,10 @@
     text-underline-offset: 2px;
   }
 
+  .prose a:hover {
+    color: var(--color-accent-600);
+  }
+
   .prose strong {
     color: var(--heading);
   }
@@ -505,18 +757,17 @@
      ------------------------------------------------------------------------ */
 
   .prose table {
+    display: block;
     width: 100%;
     margin-top: 1.25rem;
+    overflow-x: auto;
     border-collapse: collapse;
     font-size: 0.9375rem;
-
-    display: block;
-    overflow-x: auto;
   }
 
   .prose thead th {
-    background: var(--subtle);
     color: var(--heading);
+    background: var(--subtle);
     font-weight: 700;
     text-align: left;
     white-space: nowrap;
@@ -524,9 +775,13 @@
 
   .prose th,
   .prose td {
-    border: 1px solid var(--line);
     padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
     vertical-align: top;
+  }
+
+  .prose tbody tr:hover {
+    background: var(--interactive-soft);
   }
 
   /* ------------------------------------------------------------------------

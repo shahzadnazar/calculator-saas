@@ -1,269 +1,332 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Volume calculator — R12C1 task-first migration (geometry shape-picker, 2 of 2). Wraps the UNCHANGED
- * calculateVolume; the complete-result guard lives in the binding's resultValue (a NaN sentinel — NO
- * isUsableResult). Task-first: empty dimensions, "Calculate Volume" for the first result,
- * live-after-first. The SHAPE is a structural select with per-shape conditional fields (shape-scoped
- * names, inactive groups hidden + disabled; default CUBE); the UNIT is interpretive (cubic label, never
- * converts). Volume is an INDEPENDENT product following the Area pattern.
+ * Volume — the reference's ELEVEN independent calculators on one page.
+ *
+ * Written to run over every shape rather than a favourite one, because all eleven share a single
+ * binding: a regression in the shared layer would otherwise be caught for the sphere and missed for
+ * the other ten.
+ *
+ * The figures in "the reference's own results" are the values the reference prints for the stated
+ * inputs. Three of them pin down rules that are easy to get wrong: the Tube's `22.5π` (the π line
+ * appears for any terminating coefficient, not only whole numbers), the Cube's single-line layout,
+ * and the Spherical Cap's TWO answers from a pair of radii.
  */
 const ROUTE = '/math/volume-calculator';
 const DEBOUNCE = 300;
 
-const shell = (page: Page) => page.locator('#vo-result');
-const primary = (page: Page) => page.locator('#vo-result [data-result-value]');
-const unitCubed = (page: Page) => page.locator('[data-vo-unit-cubed]');
-const interpretation = (page: Page) => page.locator('[data-vo-interpretation]');
-const live = (page: Page) => page.locator('#vo-live');
-const submit = (page: Page) => page.locator('[data-vo-submit]');
-const region = (page: Page, when: string) => page.locator(`#vo-result [data-result-when~="${when}"]`);
-const group = (page: Page, shape: string) => page.locator(`[data-vo-group="${shape}"]`);
-const dim = (page: Page, shape: string, key: string) => page.locator(`[name="${shape}.${key}"]`);
-const fieldError = (page: Page, name: string) => page.locator(`[data-error-for="${name}"]`);
+type Shape = { key: string; title: string; dims: (string | null)[]; answer: string };
 
-// shape → dimensions + the formatNumber(volume, 3) the result should render.
-const SHAPES: Record<string, { dims: Record<string, string>; volume: string }> = {
-  cube: { dims: { side: '4' }, volume: '64' },
-  box: { dims: { length: '8', width: '5', height: '2' }, volume: '80' },
-  sphere: { dims: { radius: '3' }, volume: '113.097' },
-  cylinder: { dims: { radius: '2', height: '5' }, volume: '62.832' },
-  cone: { dims: { radius: '3', height: '6' }, volume: '56.549' },
-  pyramid: { dims: { length: '6', width: '4', height: '9' }, volume: '72' },
-  capsule: { dims: { radius: '3', height: '6' }, volume: '282.743' },
-};
+/** Every shape with the reference's own inputs, in metres, and the figure it prints. */
+const SHAPES: Shape[] = [
+  { key: 'sphere', title: 'Sphere', dims: ['33'], answer: '150532.55358941' },
+  { key: 'cone', title: 'Cone', dims: ['11', '22'], answer: '2787.6398812853' },
+  { key: 'cube', title: 'Cube', dims: ['5'], answer: '125' },
+  { key: 'cylinder', title: 'Cylinder', dims: ['22', '7'], answer: '10643.715910362' },
+  { key: 'rectangular-tank', title: 'Rectangular Tank', dims: ['8', '34', '66'], answer: '17952' },
+  { key: 'capsule', title: 'Capsule', dims: ['5', '8'], answer: '1151.9173063163' },
+  { key: 'spherical-cap', title: 'Spherical Cap', dims: ['7', '9', null], answer: '276.88296304275' },
+  { key: 'conical-frustum', title: 'Conical Frustum', dims: ['2', '4', '5'], answer: '146.60765716752' },
+  { key: 'ellipsoid', title: 'Ellipsoid', dims: ['4', '6', '5'], answer: '502.65482457437' },
+  { key: 'square-pyramid', title: 'Square Pyramid', dims: ['3', '5'], answer: '15' },
+  { key: 'tube', title: 'Tube', dims: ['4', '1', '6'], answer: '70.68583470577' },
+];
 
-const selectShape = async (page: Page, shape: string) => page.selectOption('[name="shape"]', shape);
-const fillShape = async (page: Page, shape: string) => {
-  await selectShape(page, shape);
-  for (const [k, v] of Object.entries(SHAPES[shape].dims)) await dim(page, shape, k).fill(v);
-};
+const box = (page: Page, key: string) => page.locator(`[data-vl-shape="${key}"]`);
+const shell = (page: Page, key: string) => box(page, key).locator('[data-result-state]');
+const value = (page: Page, key: string) => box(page, key).locator('[data-result-value]');
+const finals = (page: Page, key: string) => box(page, key).locator('.vl-step--final');
+const steps = (page: Page, key: string) => box(page, key).locator('.vl-steps > *');
+const field = (page: Page, key: string, name: string) => box(page, key).locator(`[name="${name}"]`);
+const errorFor = (page: Page, key: string, name: string) =>
+  box(page, key).locator(`[data-error-for="${name}"]`);
+const submit = (page: Page, s: Shape) =>
+  box(page, s.key).getByRole('button', { name: `Calculate ${s.title}`, exact: true });
+const clear = (page: Page, key: string) => box(page, key).getByRole('button', { name: 'Clear' });
+
+/** Fill a shape's dimensions (a null leaves the field blank), then press its own button. */
+async function calc(page: Page, s: Shape, values = s.dims, units?: string[]) {
+  const names = await box(page, s.key)
+    .locator('[data-field]')
+    .evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.field!));
+  for (let i = 0; i < names.length; i += 1) {
+    await field(page, s.key, names[i]).fill(values[i] ?? '');
+    if (units) await field(page, s.key, `${names[i]}Unit`).selectOption(units[i]);
+  }
+  await submit(page, s).click();
+}
 
 test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
-/* ---- Initial state ------------------------------------------------------ */
+test.describe('the page offers eleven separate calculators', () => {
+  test('renders one section per shape, each with its own form, button and result', async ({ page }) => {
+    await expect(page.locator('[data-vl-shape]')).toHaveCount(11);
+    for (const s of SHAPES) {
+      await expect(box(page, s.key).locator('form[data-form]')).toHaveCount(1);
+      await expect(shell(page, s.key)).toHaveCount(1);
+      await expect(submit(page, s)).toBeVisible();
+      await expect(box(page, s.key).getByRole('heading', { name: s.title, exact: true })).toBeVisible();
+    }
+  });
 
-test('loads task-first: cube + m, empty dims, empty result, Calculate Volume, no auto-calc', async ({ page }) => {
-  await expect(page.locator('[name="shape"]')).toHaveValue('cube');
-  await expect(page.locator('[name="unit"]')).toHaveValue('m');
-  await expect(dim(page, 'cube', 'side')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(submit(page)).toHaveText('Calculate Volume');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  test('every shape starts with empty measurements and a labelled example', async ({ page }) => {
+    for (const s of SHAPES) {
+      await expect(shell(page, s.key)).toHaveAttribute('data-result-state', 'example');
+      const inputs = box(page, s.key).locator('input[type=number]');
+      for (let i = 0; i < (await inputs.count()); i += 1) {
+        await expect(inputs.nth(i)).toHaveValue('');
+      }
+    }
+  });
+
+  test('keeps the result inside the same card as the form', async ({ page }) => {
+    for (const s of SHAPES) {
+      const inside = await box(page, s.key).evaluate((el) => {
+        const card = el.querySelector('.card');
+        const result = el.querySelector('[data-result-shell]');
+        return !!card && !!result && card.contains(result);
+      });
+      expect(inside).toBe(true);
+    }
+  });
+
+  test('gives each measurement its own unit control, defaulting to meters', async ({ page }) => {
+    for (const s of SHAPES) {
+      const selects = box(page, s.key).locator('select');
+      const count = await selects.count();
+      expect(count).toBe(s.dims.length);
+      for (let i = 0; i < count; i += 1) await expect(selects.nth(i)).toHaveValue('m');
+    }
+  });
 });
 
-test('each shape reveals ONLY its required fields; inactive groups are hidden and disabled', async ({ page }) => {
-  for (const shape of Object.keys(SHAPES)) {
-    await selectShape(page, shape);
-    await expect(group(page, shape)).toBeVisible();
-    for (const key of Object.keys(SHAPES[shape].dims)) await expect(dim(page, shape, key)).toBeEnabled();
-    const other = shape === 'sphere' ? 'cube' : 'sphere';
-    await expect(group(page, other)).toBeHidden();
-    await expect(dim(page, other, Object.keys(SHAPES[other].dims)[0])).toBeDisabled();
+test.describe("the reference's own results", () => {
+  for (const s of SHAPES) {
+    test(`${s.title} matches the reference figure`, async ({ page }) => {
+      await calc(page, s);
+      await expect(shell(page, s.key)).toHaveAttribute('data-result-state', 'valid');
+      await expect(value(page, s.key)).toHaveText(s.answer);
+    });
   }
 });
 
-/* ---- Ordinary calculation, every shape ---------------------------------- */
-
-for (const [shape, { volume }] of Object.entries(SHAPES)) {
-  test(`ordinary ${shape}: dominant volume ${volume} m³`, async ({ page }) => {
-    await fillShape(page, shape);
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(primary(page)).toHaveText(volume);
-    await expect(unitCubed(page)).toHaveText('m³');
+test.describe('the working', () => {
+  test('the sphere shows its formula, substitution, pi multiple and answer', async ({ page }) => {
+    await calc(page, SHAPES[0]);
+    await expect(steps(page, 'sphere')).toHaveText([
+      'Volume = 4/3 πr³',
+      '= 4/3 × π × 33³',
+      '= 47916π',
+      '= 150532.55358941 meters³',
+    ]);
   });
-}
 
-test('the interpretation names the shape and cubed unit', async ({ page }) => {
-  await fillShape(page, 'cube');
-  await submit(page).click();
-  await expect(interpretation(page)).toHaveText('The volume of the selected cube is 64 m³.');
+  test('the cone OMITS the pi line, because its coefficient does not terminate', async ({ page }) => {
+    await calc(page, SHAPES[1]);
+    await expect(steps(page, 'cone')).toHaveText([
+      'Volume = 1/3 πr²h',
+      '= 1/3 × π × 11² × 22',
+      '= 2787.6398812853 meters³',
+    ]);
+  });
+
+  test('the tube SHOWS a non-integer pi multiple', async ({ page }) => {
+    await calc(page, SHAPES[10]);
+    await expect(steps(page, 'tube')).toContainText(['22.5π']);
+  });
+
+  test('the cube prints on a single line, and its result value is the number alone', async ({ page }) => {
+    await calc(page, SHAPES[2]);
+    await expect(steps(page, 'cube')).toHaveText(['Volume = 5³ = 125 meters³']);
+    await expect(value(page, 'cube')).toHaveText('125');
+  });
+
+  test('every shape ends its working on a figure carrying the cubed unit', async ({ page }) => {
+    for (const s of SHAPES) {
+      await calc(page, s);
+      await expect(finals(page, s.key).last()).toContainText('meters³');
+    }
+  });
 });
 
-/* ---- Unit (interpretive, never converts) -------------------------------- */
+test.describe('the spherical cap takes any two values', () => {
+  const cap = SHAPES.find((s) => s.key === 'spherical-cap')!;
 
-test('the cubed unit label matches the selected unit', async ({ page }) => {
-  await selectShape(page, 'cube');
-  await page.selectOption('[name="unit"]', 'ft');
-  await fillShape(page, 'cube');
-  await submit(page).click();
-  await expect(unitCubed(page)).toHaveText('ft³');
-  await expect(interpretation(page)).toContainText('ft³');
+  test('gives TWO answers from the two radii, and works each through', async ({ page }) => {
+    await calc(page, cap, ['7', '9', null]);
+    await expect(shell(page, cap.key)).toHaveAttribute('data-result-state', 'valid');
+    await expect(steps(page, cap.key).first()).toHaveText('Two possible results:');
+    await expect(box(page, cap.key)).toContainText('276.88296304275');
+    await expect(box(page, cap.key)).toContainText('2776.7450962465');
+    await expect(steps(page, cap.key)).toContainText(['Steps:']);
+    await expect(box(page, cap.key)).toContainText('3.3431457505076 or 14.656854249492');
+  });
+
+  test('gives ONE answer from a base radius and a height', async ({ page }) => {
+    await calc(page, cap, ['7', null, '4']);
+    await expect(shell(page, cap.key)).toHaveAttribute('data-result-state', 'valid');
+    // R = (7² + 4²) / (2 × 4) = 8.125; V = 1/3 π × 4² × (3 × 8.125 − 4).
+    await expect(value(page, cap.key)).toHaveText('341.38640169009');
+  });
+
+  test('gives ONE answer from a ball radius and a height', async ({ page }) => {
+    await calc(page, cap, [null, '9', '4']);
+    await expect(shell(page, cap.key)).toHaveAttribute('data-result-state', 'valid');
+    await expect(value(page, cap.key)).toHaveText('385.36869884035');
+  });
+
+  test('asks for two values when given only one', async ({ page }) => {
+    await calc(page, cap, ['7', null, null]);
+    await expect(shell(page, cap.key)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(box(page, cap.key).locator('[data-result-when~="invalid"]')).toContainText('any two');
+  });
+
+  test('rejects a base wider than the ball it sits on', async ({ page }) => {
+    await calc(page, cap, ['10', '9', null]);
+    await expect(shell(page, cap.key)).toHaveAttribute('data-result-state', 'invalid');
+  });
+
+  test('rejects a cap taller than the ball is wide', async ({ page }) => {
+    await calc(page, cap, [null, '9', '19']);
+    await expect(shell(page, cap.key)).toHaveAttribute('data-result-state', 'invalid');
+  });
 });
 
-test('unit change BEFORE the first result does not calculate but relabels the dimension unit', async ({ page }) => {
-  await page.selectOption('[name="unit"]', 'ft');
-  await expect(group(page, 'cube').locator('[data-vo-dim-unit]').first()).toHaveText('ft');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+test.describe('units', () => {
+  test('converts each measurement into the first field unit', async ({ page }) => {
+    const tank = SHAPES.find((s) => s.key === 'rectangular-tank')!;
+    // 1 m by 50 cm by 200 cm is 1 × 0.5 × 2 = 1 m³.
+    await calc(page, tank, ['1', '50', '200'], ['m', 'cm', 'cm']);
+    await expect(value(page, tank.key)).toHaveText('1');
+    await expect(box(page, tank.key).locator('[data-vl-mixed]')).toBeVisible();
+  });
+
+  test('reports in the unit of the first field, cubed', async ({ page }) => {
+    await calc(page, SHAPES[2], ['5'], ['ft']);
+    await expect(finals(page, 'cube')).toContainText('feet³');
+  });
+
+  test('says nothing about mixed units when every unit matches', async ({ page }) => {
+    await calc(page, SHAPES[2]);
+    await expect(box(page, 'cube').locator('[data-vl-mixed]')).toBeHidden();
+  });
 });
 
-test('unit change AFTER the first result relabels without converting the entered numbers', async ({ page }) => {
-  await fillShape(page, 'cube');
-  await submit(page).click();
-  await expect(primary(page)).toHaveText('64');
-  await page.selectOption('[name="unit"]', 'ft');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(dim(page, 'cube', 'side')).toHaveValue('4');
-  await expect(primary(page)).toHaveText('64');
-  await expect(unitCubed(page)).toHaveText('ft³');
+test.describe('validation', () => {
+  test('asks for a value before objecting to it, and focuses the first empty field', async ({ page }) => {
+    await submit(page, SHAPES[0]).click();
+    await expect(shell(page, 'sphere')).toHaveAttribute('data-result-state', 'invalid');
+    await expect(errorFor(page, 'sphere', 'd1')).toHaveText('Enter a value.');
+    await expect(field(page, 'sphere', 'd1')).toBeFocused();
+  });
+
+  test('rejects a zero or negative measurement', async ({ page }) => {
+    await calc(page, SHAPES[1], ['0', '5']);
+    await expect(errorFor(page, 'cone', 'd1')).toHaveText('Enter a number greater than zero.');
+  });
+
+  test('rejects a tube bore that is not smaller than the pipe', async ({ page }) => {
+    await calc(page, SHAPES[10], ['4', '5', '6']);
+    await expect(shell(page, 'tube')).toHaveAttribute('data-result-state', 'invalid');
+    await expect(box(page, 'tube').locator('[data-result-when~="invalid"]')).toContainText(
+      'inner diameter',
+    );
+  });
+
+  test('never renders NaN, Infinity or a raw error', async ({ page }) => {
+    for (const s of SHAPES) {
+      await submit(page, s).click();
+      await expect(box(page, s.key)).not.toContainText(/NaN|Infinity|undefined/);
+      await calc(page, s, s.dims.map(() => '0'));
+      await expect(box(page, s.key)).not.toContainText(/NaN|Infinity|undefined/);
+    }
+  });
 });
 
-/* ---- Shape switching ---------------------------------------------------- */
+test.describe('the eleven stay independent', () => {
+  test('calculating one shape leaves the others untouched', async ({ page }) => {
+    await calc(page, SHAPES[0]);
+    await expect(value(page, 'sphere')).toHaveText('150532.55358941');
+    for (const s of SHAPES.slice(1)) {
+      await expect(shell(page, s.key)).toHaveAttribute('data-result-state', 'example');
+    }
+    await calc(page, SHAPES[2]);
+    await expect(value(page, 'cube')).toHaveText('125');
+    await expect(value(page, 'sphere')).toHaveText('150532.55358941');
+  });
 
-test('shape change BEFORE the first result reveals fields but does not calculate', async ({ page }) => {
-  await selectShape(page, 'sphere');
-  await expect(group(page, 'sphere')).toBeVisible();
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  test('clearing one shape leaves the others alone', async ({ page }) => {
+    await calc(page, SHAPES[0]);
+    await calc(page, SHAPES[2]);
+    await clear(page, 'sphere').click();
+    await expect(field(page, 'sphere', 'd1')).toHaveValue('');
+    await expect(value(page, 'cube')).toHaveText('125');
+  });
 });
 
-test('a valid shape switch after the first result recalculates (values retained across switches)', async ({ page }) => {
-  await fillShape(page, 'sphere');
-  await submit(page).click();
-  await expect(primary(page)).toHaveText('113.097');
-  await fillShape(page, 'cube');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(primary(page)).toHaveText('64');
-  await selectShape(page, 'sphere'); // radius (3) retained while inactive
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('113.097');
+test.describe('recalculation and clear', () => {
+  test('does not calculate before the primary action, then updates live', async ({ page }) => {
+    await expect(box(page, 'cube').locator('[data-live-note]')).toBeHidden();
+    await field(page, 'cube', 'd1').fill('3');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page, 'cube')).not.toHaveAttribute('data-result-state', 'valid');
+
+    await submit(page, SHAPES[2]).click();
+    await expect(value(page, 'cube')).toHaveText('27');
+    await expect(box(page, 'cube').locator('[data-live-note]')).toBeVisible();
+
+    await field(page, 'cube', 'd1').fill('4');
+    await expect(value(page, 'cube')).toHaveText('64');
+  });
+
+  test('Clear empties every measurement and restores the default unit', async ({ page }) => {
+    const tank = SHAPES.find((s) => s.key === 'rectangular-tank')!;
+    await calc(page, tank, ['8', '34', '66'], ['ft', 'ft', 'ft']);
+    await clear(page, tank.key).click();
+    for (const name of ['d1', 'd2', 'd3']) {
+      await expect(field(page, tank.key, name)).toHaveValue('');
+      await expect(field(page, tank.key, `${name}Unit`)).toHaveValue('m');
+    }
+  });
 });
 
-test('switching to a shape with missing fields clears the stale result', async ({ page }) => {
-  await fillShape(page, 'cube');
-  await submit(page).click();
-  await expect(primary(page)).toHaveText('64');
-  await selectShape(page, 'box'); // length/width/height never entered
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(region(page, 'valid')).toBeHidden();
-});
+test.describe('accessibility', () => {
+  test('gives each calculator exactly one live region and no duplicate ids', async ({ page }) => {
+    await expect(page.locator('[data-vl-shape] [aria-live]')).toHaveCount(11);
+    const duplicates = await page.evaluate(() => {
+      const seen = new Set<string>();
+      const dup: string[] = [];
+      document.querySelectorAll('[id]').forEach((el) => {
+        if (seen.has(el.id)) dup.push(el.id);
+        seen.add(el.id);
+      });
+      return dup;
+    });
+    expect(duplicates).toEqual([]);
+  });
 
-/* ---- Validation --------------------------------------------------------- */
+  test('labels every control', async ({ page }) => {
+    const unlabelled = await page.$$eval('[data-vl-shape] input, [data-vl-shape] select', (els) =>
+      els
+        .filter((e) => !e.getAttribute('aria-label') && !document.querySelector(`label[for="${e.id}"]`))
+        .map((e) => (e as HTMLInputElement).name),
+    );
+    expect(unlabelled).toEqual([]);
+  });
 
-test('an empty submission focuses the first active dimension and shows its error', async ({ page }) => {
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(fieldError(page, 'cube.side')).toBeVisible();
-  await expect(fieldError(page, 'cube.side')).toContainText('greater than zero');
-  await expect(dim(page, 'cube', 'side')).toBeFocused();
-});
+  test('associates each error with its field', async ({ page }) => {
+    await submit(page, SHAPES[0]).click();
+    const described = await field(page, 'sphere', 'd1').getAttribute('aria-describedby');
+    const errorId = await errorFor(page, 'sphere', 'd1').getAttribute('id');
+    expect(described?.split(/\s+/)).toContain(errorId);
+  });
 
-test('zero / negative dimensions are field errors', async ({ page }) => {
-  await selectShape(page, 'box');
-  await dim(page, 'box', 'length').fill('0');
-  await dim(page, 'box', 'width').fill('-4');
-  await dim(page, 'box', 'height').fill('2');
-  await submit(page).click();
-  await expect(fieldError(page, 'box.length')).toBeVisible();
-  await expect(fieldError(page, 'box.width')).toBeVisible();
-});
-
-test('field errors are associated via aria-describedby / data-error-for', async ({ page }) => {
-  await submit(page).click();
-  const input = dim(page, 'cube', 'side');
-  await expect(input).toHaveAttribute('aria-invalid', 'true');
-  await expect(input).toHaveAttribute('aria-describedby', 'vo-cube-side-error');
-  await expect(page.locator('#vo-cube-side-error')).toHaveAttribute('data-error-for', 'cube.side');
-});
-
-test('inactive shapes never receive errors', async ({ page }) => {
-  await submit(page).click(); // cube active, invalid
-  await expect(fieldError(page, 'box.length')).toBeHidden();
-  await expect(dim(page, 'box', 'length')).not.toHaveAttribute('aria-invalid', 'true');
-});
-
-/* ---- Interaction -------------------------------------------------------- */
-
-test('after the first result, editing updates live and keeps focus on the edited field', async ({ page }) => {
-  await fillShape(page, 'box');
-  await submit(page).click();
-  await expect(primary(page)).toHaveText('80');
-  const h = dim(page, 'box', 'height');
-  await h.focus();
-  await h.fill('4');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(primary(page)).toHaveText('160');
-  await expect(h).toBeFocused();
-});
-
-test('the announcement states only the dominant volume', async ({ page }) => {
-  await fillShape(page, 'cube');
-  await submit(page).click();
-  await expect(live(page)).toHaveText('The calculated volume is 64 cubic metres.');
-});
-
-test('reset restores cube + m, clears fields, result and announcement, and does not calculate', async ({ page }) => {
-  await fillShape(page, 'capsule');
-  await submit(page).click();
-  await expect(primary(page)).toHaveText('282.743');
-
-  await page.locator('[data-reset]').click();
-  await expect(page.locator('[name="shape"]')).toHaveValue('cube');
-  await expect(page.locator('[name="unit"]')).toHaveValue('m');
-  await expect(group(page, 'cube')).toBeVisible();
-  await expect(group(page, 'capsule')).toBeHidden();
-  await expect(dim(page, 'cube', 'side')).toHaveValue('');
-  await expect(dim(page, 'capsule', 'radius')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(live(page)).toHaveText('');
-});
-
-test('keyboard submission (Enter from a dimension) computes', async ({ page }) => {
-  await selectShape(page, 'sphere');
-  const radius = dim(page, 'sphere', 'radius');
-  await radius.fill('3');
-  await radius.press('Enter');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('113.097');
-});
-
-test('no NaN / Infinity / undefined renders for an ordinary result', async ({ page }) => {
-  await fillShape(page, 'capsule');
-  await submit(page).click();
-  expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
-});
-
-/* ---- Responsive / embed / monetization ---------------------------------- */
-
-test('desktop shows the dominant volume within the first viewport at 1366×768', async ({ page }) => {
-  await page.setViewportSize({ width: 1366, height: 768 });
-  await fillShape(page, 'cube');
-  await submit(page).click();
-  await expect(primary(page)).toBeInViewport();
-});
-
-test('mobile does not overflow horizontally', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  await fillShape(page, 'box');
-  await submit(page).click();
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
-});
-
-test('renders in dark scheme', async ({ page }) => {
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await fillShape(page, 'cube');
-  await submit(page).click();
-  await expect(primary(page)).toBeVisible();
-});
-
-test('the generated embed route mounts the same interactive island', async ({ page }) => {
-  await page.goto('/embed/math/volume-calculator', { waitUntil: 'domcontentloaded' });
-  await page.selectOption('[name="shape"]', 'cube');
-  await page.fill('[name="cube.side"]', '4');
-  await page.locator('[data-vo-submit]').click();
-  await expect(page.locator('#vo-result [data-result-value]')).toHaveText('64');
-});
-
-test('the live page carries no monetization output', async ({ page }) => {
-  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-  expect(await page.content()).not.toContain('data-mon-');
+  test('is operable by keyboard alone', async ({ page }) => {
+    await field(page, 'cube', 'd1').focus();
+    await page.keyboard.type('5');
+    await submit(page, SHAPES[2]).press('Enter');
+    await expect(value(page, 'cube')).toHaveText('125');
+  });
 });

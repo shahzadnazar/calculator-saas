@@ -1,206 +1,209 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSimpleInterest } from './simple-interest';
-import { formatCurrency } from '@lib/format';
+import {
+  MAX_TERM_YEARS,
+  UNITS_PER_YEAR,
+  calculateSimpleInterest,
+  isTimeUnit,
+  solveSimpleInterest,
+  type SimpleInterestInput,
+} from './simple-interest';
 
 /**
- * Simple-interest formula characterization (R9A1 Commit 1).
+ * Simple interest, frozen against the published reference case: $20,000 at 3% a year
+ * for 10 years earns $6,000 and ends at $26,000.
  *
- * Locks the EXACT current behaviour of `calculateSimpleInterest` — I = P · r · t with
- * `principal = Math.max(0, principal || 0)` (principal clamped to ≥ 0) and rate/years passed
- * through `|| 0` (NOT clamped) — before the task-first binding adds its own validation.
- *
- * Three layers are kept deliberately separate and only the FIRST is frozen here:
- *   • frozen formula behaviour — this file (no production change in Commit 1),
- *   • binding validation — simple-interest-form.ts (Commit 2) may REJECT negatives / non-finite
- *     inputs even though the pure formula tolerates them, so those cases never reach compute,
- *   • displayed USD rounding — presentation-only (`formatCurrency`), shown here to be independent
- *     of the full-precision math.
- *
- * Characterization only: no production code changes, no output changes.
+ * The four modes are one formula rearranged, so the strongest check is that they agree
+ * with each other: solving for any variable and feeding the answer back must return
+ * the case you started from.
  */
 
-describe('calculateSimpleInterest — ordinary cases', () => {
-  it('representative principal, rate and years: exact interest and total', () => {
-    const r = calculateSimpleInterest({ principal: 1000, annualRatePct: 5, years: 3 });
-    expect(r.interest).toBe(150); // 1000 × 0.05 × 3
-    expect(r.total).toBe(1150); // principal + interest
+const REF: SimpleInterestInput = {
+  solveFor: 'balance',
+  principal: 20000,
+  endBalance: 0,
+  ratePerUnitPct: 3,
+  rateUnit: 'year',
+  term: 10,
+  termUnit: 'year',
+};
+const at = (over: Partial<SimpleInterestInput> = {}): SimpleInterestInput => ({ ...REF, ...over });
+const money = (n: number) => Math.round(n * 100) / 100;
+
+describe('the reference case', () => {
+  const r = solveSimpleInterest(REF);
+
+  it('earns the interest and reaches the balance the reference reports', () => {
+    expect(money(r.interest)).toBe(6000);
+    expect(money(r.endBalance)).toBe(26000);
+    expect(r.unsolvable).toBe(false);
   });
 
-  it('the island default sample (5,000 / 5% / 3y) earns 750 for a 5,750 total', () => {
-    expect(calculateSimpleInterest({ principal: 5000, annualRatePct: 5, years: 3 })).toEqual({
-      interest: 750,
-      total: 5750,
-    });
+  it('normalises the rate and term to years', () => {
+    expect(r.annualRatePct).toBe(3);
+    expect(r.termYears).toBe(10);
   });
 
-  it('decimal principal and decimal rate keep full precision', () => {
-    const r = calculateSimpleInterest({ principal: 2500.5, annualRatePct: 3.75, years: 2.5 });
-    expect(r.interest).toBe(234.421875); // 2500.5 × 0.0375 × 2.5, exactly representable
-    expect(r.total).toBe(2734.921875);
+  it('builds the published schedule — a flat $600 a year', () => {
+    expect(r.schedule).toHaveLength(10);
+    for (const row of r.schedule) expect(money(row.interest)).toBe(600);
+    expect(r.schedule.map((y) => money(y.balance))).toEqual([
+      20600, 21200, 21800, 22400, 23000, 23600, 24200, 24800, 25400, 26000,
+    ]);
   });
 
-  it('a fractional duration is linear in time (half a year is half the interest)', () => {
-    const full = calculateSimpleInterest({ principal: 1000, annualRatePct: 4.2, years: 1 });
-    const half = calculateSimpleInterest({ principal: 1000, annualRatePct: 4.2, years: 0.5 });
-    expect(half.interest).toBeCloseTo(full.interest / 2, 10);
-    expect(half.interest).toBe(21); // 1000 × 0.042 × 0.5
-    expect(half.total).toBe(1021);
+  it('the schedule closes on the end balance', () => {
+    expect(money(r.schedule[9].balance)).toBe(money(r.endBalance));
+  });
+});
+
+describe('the four modes are one formula rearranged', () => {
+  const balance = solveSimpleInterest(REF);
+
+  it('solving for the principal returns the principal', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'principal', endBalance: balance.endBalance }));
+    expect(money(r.principal)).toBe(20000);
+    expect(money(r.solved)).toBe(20000);
   });
 
-  it('formula identity holds: interest = principal × rate/100 × years, total = principal + interest', () => {
-    for (const c of [
-      { principal: 1000, annualRatePct: 5, years: 3 },
-      { principal: 250, annualRatePct: 2.5, years: 7 },
-      { principal: 99999, annualRatePct: 6.125, years: 1.5 },
-    ]) {
-      const r = calculateSimpleInterest(c);
-      expect(r.interest).toBeCloseTo(c.principal * (c.annualRatePct / 100) * c.years, 9);
-      expect(r.total).toBeCloseTo(c.principal + r.interest, 9);
+  it('solving for the term returns the term', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'term', endBalance: balance.endBalance }));
+    expect(r.termYears).toBeCloseTo(10, 9);
+    expect(r.solved).toBeCloseTo(10, 9);
+  });
+
+  it('solving for the rate returns the rate', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'rate', endBalance: balance.endBalance }));
+    expect(r.annualRatePct).toBeCloseTo(3, 9);
+    expect(r.solved).toBeCloseTo(3, 9);
+  });
+
+  it('every mode reports the same interest and balance for the same case', () => {
+    const modes = (['principal', 'term', 'rate'] as const).map((solveFor) =>
+      solveSimpleInterest(at({ solveFor, endBalance: 26000 })),
+    );
+    for (const r of modes) {
+      expect(money(r.interest)).toBe(6000);
+      expect(money(r.endBalance)).toBe(26000);
+      expect(money(r.principal)).toBe(20000);
     }
   });
-});
 
-describe('calculateSimpleInterest — zero cases', () => {
-  it('zero principal → no interest, zero total', () => {
-    expect(calculateSimpleInterest({ principal: 0, annualRatePct: 5, years: 3 })).toEqual({ interest: 0, total: 0 });
-  });
-
-  it('zero rate with a positive principal and duration → no interest, total = principal', () => {
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: 0, years: 3 })).toEqual({
-      interest: 0,
-      total: 1000,
-    });
-  });
-
-  it('zero duration with a positive principal and rate → no interest, total = principal', () => {
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: 5, years: 0 })).toEqual({
-      interest: 0,
-      total: 1000,
-    });
-  });
-
-  it('all inputs zero → an all-zero result', () => {
-    expect(calculateSimpleInterest({ principal: 0, annualRatePct: 0, years: 0 })).toEqual({ interest: 0, total: 0 });
+  it('solves the published inverse cases from a $30,000 balance', () => {
+    const p = solveSimpleInterest(at({ solveFor: 'principal', endBalance: 30000 }));
+    expect(money(p.solved)).toBe(23076.92);
+    const t = solveSimpleInterest(at({ solveFor: 'term', endBalance: 30000 }));
+    expect(t.solved).toBeCloseTo(16.6667, 4);
+    const rate = solveSimpleInterest(at({ solveFor: 'rate', endBalance: 30000 }));
+    expect(rate.solved).toBeCloseTo(5, 9);
   });
 });
 
-describe('calculateSimpleInterest — current negative behaviour (frozen; the binding rejects these)', () => {
-  it('negative principal is CLAMPED to zero (Math.max(0, …)) → all-zero result', () => {
-    expect(calculateSimpleInterest({ principal: -1000, annualRatePct: 5, years: 3 })).toEqual({
-      interest: 0,
-      total: 0,
-    });
+describe('units', () => {
+  it('a rate per month is twelve times the rate per year', () => {
+    const perMonth = solveSimpleInterest(at({ ratePerUnitPct: 0.25, rateUnit: 'month' }));
+    expect(perMonth.annualRatePct).toBeCloseTo(3, 9);
+    expect(money(perMonth.endBalance)).toBe(26000);
   });
 
-  it('negative rate is NOT clamped → negative interest, total below principal', () => {
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: -5, years: 3 })).toEqual({
-      interest: -150,
-      total: 850,
-    });
+  it('a term in months is the same term', () => {
+    const inMonths = solveSimpleInterest(at({ term: 120, termUnit: 'month' }));
+    expect(inMonths.termYears).toBeCloseTo(10, 9);
+    expect(money(inMonths.endBalance)).toBe(26000);
   });
 
-  it('negative duration is NOT clamped → negative interest', () => {
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: 5, years: -3 })).toEqual({
-      interest: -150,
-      total: 850,
-    });
+  it('a monthly rate against a term in years is not multiplied as it stands', () => {
+    // The mistake this guards: 0.25 × 10 = 2.5% instead of the true 30%.
+    const mixed = solveSimpleInterest(at({ ratePerUnitPct: 0.25, rateUnit: 'month', term: 10, termUnit: 'year' }));
+    expect(money(mixed.interest)).toBe(6000);
+    expect(money(mixed.interest)).not.toBe(500);
   });
 
-  it('a negative rate AND a negative duration multiply to POSITIVE interest', () => {
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: -5, years: -3 })).toEqual({
-      interest: 150,
-      total: 1150,
-    });
+  it('a solved term comes back in the unit it was asked for', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'term', endBalance: 26000, termUnit: 'month' }));
+    expect(r.termYears).toBeCloseTo(10, 9);
+    expect(r.solved).toBeCloseTo(120, 6);
   });
 
-  it('an all-negative input still clamps principal first → all-zero result', () => {
-    expect(calculateSimpleInterest({ principal: -1000, annualRatePct: -5, years: -3 })).toEqual({
-      interest: 0,
-      total: 0,
-    });
-  });
-});
-
-describe('calculateSimpleInterest — non-finite inputs (frozen; the binding rejects these)', () => {
-  it('NaN principal collapses via `|| 0` to a zero principal → all-zero result (finite)', () => {
-    const r = calculateSimpleInterest({ principal: NaN, annualRatePct: 5, years: 3 });
-    expect(r).toEqual({ interest: 0, total: 0 });
-    expect(Number.isFinite(r.interest)).toBe(true);
+  it('a solved rate comes back in the unit it was quoted in', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'rate', endBalance: 26000, rateUnit: 'month' }));
+    expect(r.annualRatePct).toBeCloseTo(3, 9);
+    expect(r.solved).toBeCloseTo(0.25, 9);
   });
 
-  it('NaN rate collapses via `|| 0` → no interest, total = principal (finite)', () => {
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: NaN, years: 3 })).toEqual({
-      interest: 0,
-      total: 1000,
-    });
-  });
-
-  it('NaN years collapses via `|| 0` → no interest, total = principal (finite)', () => {
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: 5, years: NaN })).toEqual({
-      interest: 0,
-      total: 1000,
-    });
-  });
-
-  it('Infinity principal with a positive rate and duration → Infinity interest and total', () => {
-    const r = calculateSimpleInterest({ principal: Infinity, annualRatePct: 5, years: 3 });
-    expect(r.interest).toBe(Infinity);
-    expect(r.total).toBe(Infinity);
-  });
-
-  it('Infinity principal with a ZERO rate produces NaN (Infinity × 0)', () => {
-    const r = calculateSimpleInterest({ principal: Infinity, annualRatePct: 0, years: 3 });
-    expect(Number.isNaN(r.interest)).toBe(true);
-    expect(Number.isNaN(r.total)).toBe(true);
-  });
-
-  it('Infinity principal with a ZERO duration produces NaN (Infinity × 0)', () => {
-    const r = calculateSimpleInterest({ principal: Infinity, annualRatePct: 5, years: 0 });
-    expect(Number.isNaN(r.interest)).toBe(true);
-    expect(Number.isNaN(r.total)).toBe(true);
-  });
-
-  it('Infinity rate or Infinity duration → Infinity interest and total', () => {
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: Infinity, years: 3 }).interest).toBe(Infinity);
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: 5, years: Infinity }).interest).toBe(Infinity);
-  });
-
-  it('-Infinity principal clamps to 0 (Math.max) → all-zero result; -Infinity rate stays -Infinity', () => {
-    expect(calculateSimpleInterest({ principal: -Infinity, annualRatePct: 5, years: 3 })).toEqual({
-      interest: 0,
-      total: 0,
-    });
-    expect(calculateSimpleInterest({ principal: 1000, annualRatePct: -Infinity, years: 3 }).interest).toBe(-Infinity);
+  it('weeks and days use the conventional counts', () => {
+    expect(UNITS_PER_YEAR).toEqual({ year: 1, month: 12, week: 52, day: 365 });
+    expect(isTimeUnit('week')).toBe(true);
+    expect(isTimeUnit('fortnight')).toBe(false);
   });
 });
 
-describe('calculateSimpleInterest — precision vs. displayed USD rounding', () => {
-  it('retains full binary precision internally, including float dust', () => {
-    const r = calculateSimpleInterest({ principal: 100, annualRatePct: 3.33, years: 1 });
-    expect(r.interest).toBeCloseTo(3.33, 10);
-    expect(r.interest).not.toBe(3.33); // 3.3300000000000005 — dust is preserved, not pre-rounded
+describe('when there is no answer', () => {
+  it('no rate leaves the term undetermined', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'term', endBalance: 26000, ratePerUnitPct: 0 }));
+    expect(r.unsolvable).toBe(true);
   });
 
-  it('currency rounding is presentation-only: `formatCurrency` rounds to the cent, the math does not', () => {
-    const r = calculateSimpleInterest({ principal: 100, annualRatePct: 3.33, years: 1 });
-    expect(formatCurrency(r.interest)).toBe('$3.33'); // display rounds
-    const r2 = calculateSimpleInterest({ principal: 2500.5, annualRatePct: 3.75, years: 2.5 });
-    expect(r2.interest).toBe(234.421875); // full precision retained
-    expect(formatCurrency(r2.interest)).toBe('$234.42'); // display rounds to the cent
+  it('no term leaves the rate undetermined', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'rate', endBalance: 26000, term: 0 }));
+    expect(r.unsolvable).toBe(true);
   });
 
-  it('every finite, non-negative input yields finite interest and total (the binding-validated domain)', () => {
-    for (const c of [
-      { principal: 0, annualRatePct: 0, years: 0 },
-      { principal: 5000, annualRatePct: 5, years: 3 },
-      { principal: 0.01, annualRatePct: 0.01, years: 0.01 },
-      { principal: 1_000_000, annualRatePct: 25, years: 40 },
-    ]) {
-      const r = calculateSimpleInterest(c);
-      expect(Number.isFinite(r.interest)).toBe(true);
-      expect(Number.isFinite(r.total)).toBe(true);
-      expect(r.interest).toBeGreaterThanOrEqual(0);
-      expect(r.total).toBeGreaterThanOrEqual(c.principal);
-    }
+  it('a balance below the principal cannot come from a positive rate', () => {
+    expect(solveSimpleInterest(at({ solveFor: 'term', endBalance: 15000 })).unsolvable).toBe(true);
+    expect(solveSimpleInterest(at({ solveFor: 'rate', endBalance: 15000 })).unsolvable).toBe(true);
+  });
+
+  it('solving for a term or rate needs a principal to measure against', () => {
+    expect(solveSimpleInterest(at({ solveFor: 'term', principal: 0, endBalance: 26000 })).unsolvable).toBe(true);
+    expect(solveSimpleInterest(at({ solveFor: 'rate', principal: 0, endBalance: 26000 })).unsolvable).toBe(true);
+  });
+
+  it('a term beyond the cap is not an answer', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'term', endBalance: 1000000, ratePerUnitPct: 0.01 }));
+    expect(r.unsolvable).toBe(true);
+  });
+
+  it('a non-finite input never produces a number', () => {
+    expect(solveSimpleInterest(at({ principal: Number.NaN })).unsolvable).toBe(true);
+    expect(solveSimpleInterest(at({ term: Number.POSITIVE_INFINITY })).unsolvable).toBe(true);
+  });
+
+  it('an unsolvable result carries no figures to print by mistake', () => {
+    const r = solveSimpleInterest(at({ solveFor: 'rate', term: 0, endBalance: 26000 }));
+    for (const v of [r.principal, r.endBalance, r.interest, r.solved]) expect(Number.isNaN(v)).toBe(true);
+    expect(r.schedule).toEqual([]);
+  });
+});
+
+describe('the shapes at the edges', () => {
+  it('a zero rate earns nothing and ends where it started', () => {
+    const r = solveSimpleInterest(at({ ratePerUnitPct: 0 }));
+    expect(money(r.interest)).toBe(0);
+    expect(money(r.endBalance)).toBe(20000);
+    expect(r.schedule).toHaveLength(10);
+  });
+
+  it('a zero term earns nothing and has no schedule', () => {
+    const r = solveSimpleInterest(at({ term: 0 }));
+    expect(money(r.endBalance)).toBe(20000);
+    expect(r.schedule).toEqual([]);
+  });
+
+  it('a part-year term gets a short final row', () => {
+    const r = solveSimpleInterest(at({ term: 2.5 }));
+    expect(r.schedule).toHaveLength(3);
+    expect(money(r.schedule[2].interest)).toBe(300); // half of $600
+    expect(money(r.schedule[2].balance)).toBe(money(r.endBalance));
+  });
+
+  it('a term right on the cap is still an answer', () => {
+    const r = solveSimpleInterest(at({ term: MAX_TERM_YEARS }));
+    expect(r.unsolvable).toBe(false);
+    expect(r.schedule).toHaveLength(MAX_TERM_YEARS);
+  });
+
+  it('the classic forward form still works for callers that only want it', () => {
+    expect(calculateSimpleInterest(20000, 3, 10)).toEqual({ interest: 6000, total: 26000 });
+    expect(calculateSimpleInterest(-100, 5, 1).interest).toBe(0);
   });
 });

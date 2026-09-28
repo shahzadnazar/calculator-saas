@@ -155,3 +155,155 @@ describe('salary: reference-table compatibility (referenceTables.ts salary-conve
     }
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* The pay-schedule table                                              */
+/* ------------------------------------------------------------------ */
+
+import {
+  PERIODS_PER_YEAR,
+  WEEKS_PER_YEAR,
+  computePaySchedule,
+  isUnadjustedFrequency,
+  type PayFrequency,
+  type PayScheduleInput,
+} from './salary';
+
+/**
+ * Frozen against the published reference case: $50 an hour, 40 hours over 5 days, with
+ * 10 holidays and 15 vacation days, gives $104,000 unadjusted and $94,000 adjusted.
+ */
+const REF: PayScheduleInput = {
+  amount: 50,
+  frequency: 'hourly',
+  hoursPerWeek: 40,
+  daysPerWeek: 5,
+  holidaysPerYear: 10,
+  vacationDaysPerYear: 15,
+};
+const sched = (over: Partial<PayScheduleInput> = {}) => computePaySchedule({ ...REF, ...over });
+const money = (n: number) => Math.round(n * 100) / 100;
+
+describe('the published reference table', () => {
+  const r = sched();
+
+  it('counts the year the way the reference counts it', () => {
+    expect(WEEKS_PER_YEAR).toBe(52);
+    expect(r.workDaysPerYear).toBe(260);
+    expect(r.paidDaysPerYear).toBe(235);
+    expect(r.hoursPerDay).toBe(8);
+    expect(r.unsolvable).toBe(false);
+  });
+
+  it('prints every unadjusted figure the reference prints', () => {
+    expect(money(r.unadjusted.hourly)).toBe(50);
+    expect(money(r.unadjusted.daily)).toBe(400);
+    expect(money(r.unadjusted.weekly)).toBe(2000);
+    expect(money(r.unadjusted.biweekly)).toBe(4000);
+    expect(Math.round(r.unadjusted.semimonthly)).toBe(4333);
+    expect(Math.round(r.unadjusted.monthly)).toBe(8667);
+    expect(money(r.unadjusted.quarterly)).toBe(26000);
+    expect(money(r.unadjusted.annual)).toBe(104000);
+  });
+
+  it('prints every adjusted figure the reference prints', () => {
+    expect(money(r.adjusted.hourly)).toBe(45.19);
+    expect(money(r.adjusted.daily)).toBe(361.54);
+    expect(Math.round(r.adjusted.weekly)).toBe(1808);
+    expect(Math.round(r.adjusted.biweekly)).toBe(3615);
+    expect(Math.round(r.adjusted.semimonthly)).toBe(3917);
+    expect(Math.round(r.adjusted.monthly)).toBe(7833);
+    expect(money(r.adjusted.quarterly)).toBe(23500);
+    expect(money(r.adjusted.annual)).toBe(94000);
+  });
+
+  it('every row of a column is that column annual divided down', () => {
+    for (const col of [r.unadjusted, r.adjusted]) {
+      expect(money(col.quarterly * 4)).toBe(money(col.annual));
+      expect(money(col.monthly * 12)).toBe(money(col.annual));
+      expect(money(col.semimonthly * 24)).toBe(money(col.annual));
+      expect(money(col.biweekly * 26)).toBe(money(col.annual));
+      expect(money(col.weekly * 52)).toBe(money(col.annual));
+      expect(money(col.daily * 260)).toBe(money(col.annual));
+      expect(money(col.hourly * 2080)).toBe(money(col.annual));
+    }
+  });
+
+  it('time off is the only difference between the columns', () => {
+    expect(money(r.adjusted.annual)).toBe(money(r.unadjusted.daily * r.paidDaysPerYear));
+    // No time off at all, and the two columns are the same table.
+    const none = sched({ holidaysPerYear: 0, vacationDaysPerYear: 0 });
+    expect(money(none.adjusted.annual)).toBe(money(none.unadjusted.annual));
+  });
+});
+
+describe('which column the entered figure lands in', () => {
+  it('an hourly or daily figure is pay for time worked', () => {
+    expect(isUnadjustedFrequency('hourly')).toBe(true);
+    expect(isUnadjustedFrequency('daily')).toBe(true);
+    for (const f of ['weekly', 'biweekly', 'semimonthly', 'monthly', 'quarterly', 'annual'] as PayFrequency[]) {
+      expect(isUnadjustedFrequency(f)).toBe(false);
+    }
+  });
+
+  it('a daily entry gives the same table as the hourly one it equals', () => {
+    const byDay = sched({ frequency: 'daily', amount: 400 });
+    expect(money(byDay.unadjusted.annual)).toBe(104000);
+    expect(money(byDay.adjusted.annual)).toBe(94000);
+  });
+
+  it('a salary entry is taken as already covering the time off', () => {
+    // $94,000 a year IS the adjusted figure, so it must reproduce the reference case.
+    const byYear = sched({ frequency: 'annual', amount: 94000 });
+    expect(money(byYear.adjusted.annual)).toBe(94000);
+    expect(money(byYear.unadjusted.annual)).toBe(104000);
+    expect(money(byYear.unadjusted.hourly)).toBe(50);
+  });
+
+  it('round-trips through every salary frequency', () => {
+    const periods = PERIODS_PER_YEAR;
+    for (const [f, n] of Object.entries(periods) as [keyof typeof periods, number][]) {
+      const r = sched({ frequency: f as PayFrequency, amount: 94000 / n });
+      expect(money(r.adjusted.annual)).toBe(94000);
+      expect(money(r.unadjusted.annual)).toBe(104000);
+    }
+  });
+});
+
+describe('schedules that do not describe a year', () => {
+  it('refuses a week with no hours or no days', () => {
+    expect(sched({ hoursPerWeek: 0 }).unsolvable).toBe(true);
+    expect(sched({ daysPerWeek: 0 }).unsolvable).toBe(true);
+  });
+
+  it('refuses more time off than there are days to take', () => {
+    expect(sched({ holidaysPerYear: 200, vacationDaysPerYear: 100 }).unsolvable).toBe(true);
+    expect(sched({ holidaysPerYear: 260, vacationDaysPerYear: 0 }).unsolvable).toBe(true);
+  });
+
+  it('refuses a non-finite entry', () => {
+    expect(sched({ amount: Number.NaN }).unsolvable).toBe(true);
+    expect(sched({ hoursPerWeek: Number.POSITIVE_INFINITY }).unsolvable).toBe(true);
+  });
+
+  it('carries no figures to print by mistake when unsolvable', () => {
+    const r = sched({ daysPerWeek: 0 });
+    for (const col of [r.unadjusted, r.adjusted]) {
+      for (const v of Object.values(col)) expect(Number.isNaN(v)).toBe(true);
+    }
+  });
+
+  it('a zero amount is a real answer, not a failure', () => {
+    const r = sched({ amount: 0 });
+    expect(r.unsolvable).toBe(false);
+    expect(r.unadjusted.annual).toBe(0);
+    expect(r.adjusted.annual).toBe(0);
+  });
+
+  it('an odd but workable schedule still computes', () => {
+    const r = sched({ hoursPerWeek: 37.5, daysPerWeek: 5 });
+    expect(r.unsolvable).toBe(false);
+    expect(r.hoursPerDay).toBe(7.5);
+    expect(money(r.unadjusted.annual)).toBe(money(50 * 7.5 * 260));
+  });
+});

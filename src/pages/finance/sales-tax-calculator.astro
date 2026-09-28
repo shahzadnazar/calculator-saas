@@ -9,32 +9,32 @@ const faqs = [
   {
     question: 'How do I calculate sales tax?',
     answer:
-      'Multiply the pre-tax price by the tax rate (as a decimal) to get the tax amount, then add it to the price for the total. For example, $100 at 7.25% is $7.25 tax and $107.25 total.',
+      'Multiply the before-tax price by the rate as a decimal to get the tax, then add it on. $100 at 6.5% is $6.50 of tax and $106.50 at the till. Leave the After Tax Price blank here and the calculator does exactly that.',
+  },
+  {
+    question: 'How do I work out the price before tax?',
+    answer:
+      'Divide the total by one plus the rate — not by subtracting the rate, which is the common mistake. $106.50 at 6.5% is 106.50 ÷ 1.065 = $100.00, whereas taking 6.5% off $106.50 would wrongly give $99.58. Leave Before Tax Price blank and the calculator divides for you.',
+  },
+  {
+    question: 'How do I find the tax rate from two prices?',
+    answer:
+      'Subtract to get the tax, then divide by the before-tax price: ($106.50 − $100.00) ÷ $100.00 = 6.5%. Leave Sales Tax Rate blank and enter the other two. This is the quickest way to read the rate off a receipt.',
   },
   {
     question: 'What is sales tax?',
     answer:
-      'Sales tax is a percentage added at the point of sale, collected by the seller and passed to the government. In the US it is set by state and local jurisdictions (there is no national sales tax), so the combined rate depends on where the sale happens.',
-  },
-  {
-    question: 'How do I find the price before tax from a total?',
-    answer:
-      'Divide the tax-inclusive total by (1 + rate). For a $107.25 total at 7.25%, the pre-tax price is 107.25 ÷ 1.0725 = $100. Use the "Remove tax" mode above to do this automatically.',
+      'A percentage added at the point of sale, collected by the seller and passed to the government. The United States has no national sales tax — it is set by state and local jurisdictions, so the combined rate depends on where the sale happens and can differ between two shops a few miles apart.',
   },
   {
     question: 'Which states have no sales tax?',
     answer:
-      'Five states have no statewide sales tax — New Hampshire, Oregon, Montana, Alaska and Delaware (the "NOMAD" states). Alaska has no state sales tax but allows local ones, so some Alaskan cities still charge it.',
+      'Five have no statewide sales tax: Alaska, Delaware, Montana, New Hampshire and Oregon. Alaska is the exception that matters — local boroughs there can and do levy their own, so "no sales tax" is only true statewide.',
   },
   {
-    question: 'Are all purchases taxed?',
+    question: 'Is sales tax the same as VAT?',
     answer:
-      'No. Many states exempt or reduce tax on necessities such as groceries and prescription medicine, and rules vary widely by jurisdiction. Enter the rate that actually applies to your item and location.',
-  },
-  {
-    question: 'What sales tax rate should I use?',
-    answer:
-      'Use the combined state-plus-local rate that applies where the purchase is made. Rates range from 0% to over 10% once local taxes are included, so the correct figure depends on the exact city or county.',
+      'No. Sales tax is charged once, at the final sale to the consumer. VAT is collected in stages along the supply chain, with each business reclaiming what it paid, and is usually quoted inside the shelf price rather than added at the till.',
   },
 ];
 ---
@@ -42,7 +42,8 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Add sales tax to a price, or work backwards to find the pre-tax amount and tax included in a total. Enter any tax rate."
+  rail
+  intro="Fill in any two of before-tax price, sales tax rate and after-tax price, and the third one is worked out."
   faqs={faqs}
   reviewMetadata={{ reviewedDate: '2026-07-18' }}
 >
@@ -51,70 +52,62 @@ const faqs = [
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Choose a mode: <strong>Add tax</strong> to go from a pre-tax price to a total, or <strong>Remove tax</strong> to pull the pre-tax price out of a tax-inclusive total.</li>
-      <li>Enter the <strong>amount</strong> — the pre-tax price when adding, or the receipt total when removing.</li>
-      <li>Enter the <strong>sales-tax rate</strong> as a percentage (the combined state-plus-local rate where the sale happens).</li>
-      <li>Press <strong>Calculate</strong> to see the tax, the pre-tax amount and the total — all three, whichever mode you are in.</li>
+      <li>Fill in <strong>any two</strong> of the three: before-tax price, sales tax rate,
+        after-tax price.</li>
+      <li>Leave the third one <strong>blank</strong> — that is the one worked out.</li>
+      <li>Press <strong>Calculate</strong> to see all three figures together, with the tax on its
+        own line as both a percentage and an amount.</li>
     </ol>
-
-    <h2>Adding vs. removing tax</h2>
     <p>
-      The two modes run the calculation in opposite directions. Use <strong>Add tax</strong> when
-      you know the shelf price and want the checkout total. Use <strong>Remove tax</strong> when a
-      receipt shows a single tax-inclusive figure and you need to split out how much of it was tax
-      — the everyday case for expense reports, VAT-style bookkeeping and reclaiming tax on
-      business purchases.
+      There is no mode to choose. The blank box <em>is</em> the mode, which means the tool can
+      never be set to one thing while you are typing another.
     </p>
 
-    <h2>The formulas</h2>
-    <p>Adding tax is a straight markup on the pre-tax price:</p>
+    <h2>The three questions this answers</h2>
+    <p>They are one equation — <strong>after = before × (1 + rate)</strong> — read three ways.</p>
     <ul>
-      <li><strong>Tax</strong> = price × (rate ÷ 100)</li>
-      <li><strong>Total</strong> = price + tax</li>
-    </ul>
-    <p>Removing tax is the reverse — you cannot just subtract the rate, because the tax was charged on the smaller pre-tax figure, not the total:</p>
-    <ul>
-      <li><strong>Pre-tax price</strong> = total ÷ (1 + rate ÷ 100)</li>
-      <li><strong>Tax included</strong> = total − pre-tax price</li>
+      <li><strong>What will this cost at the till?</strong> Leave After Tax Price blank.
+        $100 at 6.5% adds $6.50, so you pay <strong>$106.50</strong>.</li>
+      <li><strong>What was the price before tax?</strong> Leave Before Tax Price blank.
+        $106.50 ÷ 1.065 = <strong>$100.00</strong>.</li>
+      <li><strong>What rate was I charged?</strong> Leave Sales Tax Rate blank.
+        ($106.50 − $100.00) ÷ $100.00 = <strong>6.5%</strong>.</li>
     </ul>
 
-    <h2>A worked example</h2>
+    <h2>The mistake worth avoiding</h2>
     <p>
-      A $100 item at a 7.25% rate has $100 × 0.0725 = <strong>$7.25</strong> in tax, for a
-      <strong>$107.25</strong> total. Working backwards from a $107.25 receipt: $107.25 ÷ 1.0725 =
-      <strong>$100</strong> before tax, so $7.25 was tax. Note why subtracting 7.25% of $107.25
-      gives the wrong answer — that would be $7.78, because the rate applies to the $100 base, not
-      the tax-inclusive total.
+      To go from a tax-inclusive total back to the price before tax, you <strong>divide by
+      1 + the rate</strong>. You do not subtract the rate. Taking 6.5% off $106.50 gives $99.58,
+      which is wrong by 42 cents, because that 6.5% was a percentage of the smaller number to
+      begin with. The gap grows with the rate: at 20%, the same mistake on a $120 receipt gives
+      $96 instead of $100 — out by $4.
     </p>
 
-    <h2>States with no sales tax</h2>
+    <h2>Where the rate comes from</h2>
     <p>
-      Five states levy no statewide sales tax — <strong>New Hampshire, Oregon, Montana, Alaska and
-      Delaware</strong> (remembered as "NOMAD"). Alaska is the asterisk: it has no state rate but
-      lets cities and boroughs add their own, so a purchase there may still be taxed locally.
-      Everywhere else, the combined state-and-local rate applies.
+      The United States has no national sales tax. Each state sets its own, and counties and
+      cities add theirs on top, so what you pay is a <strong>combined</strong> rate that can
+      differ between two shops a few miles apart. Rates also vary by what you are buying —
+      groceries, prescriptions and clothing are treated differently from state to state.
+    </p>
+    <p>
+      Five states levy no statewide sales tax: <strong>Alaska, Delaware, Montana, New Hampshire
+      and Oregon</strong>. Alaska is the one to watch, because its boroughs can still charge
+      their own.
     </p>
 
-    <h2>Choosing the right rate</h2>
+    <h2>Sales tax is not VAT</h2>
     <p>
-      There is no national U.S. sales tax; the rate is set by state, county and city, so the figure
-      that applies is the <strong>combined</strong> rate at the point of sale. Once local taxes are
-      added, rates range from 0% to over 10%, and many states exempt or reduce tax on necessities
-      such as groceries and prescription medicine. Enter the rate that actually applies to your item
-      and location rather than a statewide headline number.
+      Sales tax is charged once, at the final sale to the consumer. <strong>VAT</strong> is
+      collected in stages along the supply chain, with each business reclaiming the tax it paid,
+      and it is normally quoted <em>inside</em> the shelf price rather than added at the till.
+      The arithmetic here works for either — a VAT-inclusive price is just an after-tax price —
+      but the two systems are not interchangeable.
     </p>
-
-    <h2>What this tool does not do</h2>
-    <ul>
-      <li><strong>It does not know your local rate.</strong> You supply the percentage; look up the correct combined rate for the exact address.</li>
-      <li><strong>It does not handle item-level exemptions.</strong> If part of a cart is taxable and part is exempt, calculate each portion separately.</li>
-      <li><strong>It assumes a single flat rate</strong> — not tiered or category-specific rates that a few jurisdictions apply.</li>
-    </ul>
     <p>
-      Rates and exemptions differ by jurisdiction; confirm the correct combined rate for your
-      location. To split a tip on a taxed restaurant bill, see the
-      <a href="/finance/tip-calculator">tip calculator</a>. This tool is for estimation only and is
-      not tax advice.
+      To work a rate into a bigger purchase, the <a href="/finance/auto-loan-calculator">auto loan
+      calculator</a> applies state sales tax to a vehicle price. These figures are for general
+      use, not tax advice.
     </p>
   </Fragment>
 </CalculatorLayout>

@@ -1,349 +1,372 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Retirement calculator — R18B3 task-first migration (finance complex-form; SHARED compound
- * engine frozen). Wraps the UNCHANGED calculateRetirement (delegating to calculateCompoundInterest)
- * via its OWN retirement-form.ts binding on the UNCHANGED standard-form runtime. Task-first,
- * summary-only: personal fields start EMPTY (withdrawal rate prefilled 4%), the result is empty
- * on the server AND after hydration (the legacy island prefilled a $25k/$500/6% scenario and
- * auto-calculated). The dominant result is the projected nest egg; estimated income + contributions
- * + growth are supporting; the latent yearly series is NOT rendered. Ages are whole years with
- * retirement > current; savings + contribution collectively fund the projection. Compound values
- * are asserted by PROPERTIES; only zero-growth cases are pinned exactly. NO isUsableResult.
+ * Retirement calculator — the four retirement questions on one form.
+ *
+ * Task-first: personal fields start EMPTY behind a labelled worked example, the
+ * visitor presses "Calculate Retirement" for the first result, live-after-first
+ * thereafter. Mode is a native radio group INSIDE the form, so the shared runtime
+ * recomputes on a mode change like any other input and mode state stays ephemeral.
+ * The complete-result guard lives in the binding's resultValue (a NaN sentinel —
+ * NO isUsableResult).
+ *
+ * The figures asserted here are the published reference case: age 35, retiring at
+ * 67, life expectancy 85, $70,000 income rising 3% a year, 75% of it wanted in
+ * retirement, 6% return, 3% inflation, $30,000 saved and 10% of income saved from
+ * here. The engine's own tests pin the same case to the cent.
  */
 const ROUTE = '/finance/retirement-calculator';
-const EMBED = '/embed/finance/retirement-calculator';
-const DEBOUNCE = 300;
+const DEBOUNCE = 350;
 
 const shell = (page: Page) => page.locator('#ret-result');
-const primary = (page: Page) => page.locator('#ret-result [data-result-when~="valid"] [data-result-value]').first();
-const summaryLabel = (page: Page) => page.locator('#ret-result [data-result-summary-label]');
-const years = (page: Page) => page.locator('[data-ret-years]');
-const monthlyIncome = (page: Page) => page.locator('[data-ret-monthly-income]');
-const annualIncome = (page: Page) => page.locator('[data-ret-annual-income]');
-const contrib = (page: Page) => page.locator('[data-ret-contrib]');
-const earn = (page: Page) => page.locator('[data-ret-earn]');
-const interpretation = (page: Page) => page.locator('[data-ret-interpretation]');
-const live = (page: Page) => page.locator('#ret-live');
-const submit = (page: Page) => page.getByRole('button', { name: 'Calculate Retirement' });
+const primary = (page: Page) => page.locator('#ret-result [data-result-when~="valid"] [data-result-value]');
 const region = (page: Page, when: string) => page.locator(`#ret-result [data-result-when~="${when}"]`);
-const invalidMsg = (page: Page) => page.locator('#ret-result [data-result-invalid-message]');
+const live = (page: Page) => page.locator('#ret-live');
+const submit = (page: Page) => page.locator('[data-ret-submit]');
+const fieldError = (page: Page, name: string) => page.locator(`[data-error-for="${name}"]`);
+const panel = (page: Page, mode: string) => page.locator(`[data-ret-panel="${mode}"]`);
+const field = (page: Page, name: string) => page.locator(`[data-field="${name}"]`);
 
-type Inp = Partial<{ currentAge: string; retirementAge: string; currentSavings: string; monthlyContribution: string; annualReturnPct: string; withdrawalRatePct: string }>;
-const fillAll = async (page: Page, i: Inp) => {
-  for (const [name, v] of Object.entries(i)) await page.locator(`[name="${name}"]`).fill(v as string);
+const REFERENCE = {
+  currentAge: '35',
+  retirementAge: '67',
+  lifeExpectancy: '85',
+  currentIncome: '70000',
+  currentSavings: '30000',
 };
-const calc = async (page: Page, i: Inp) => {
-  await fillAll(page, i);
-  await submit(page).click();
+const fillReference = async (page: Page) => {
+  for (const [name, value] of Object.entries(REFERENCE)) await page.fill(`[name="${name}"]`, value);
 };
-const ORD: Inp = { currentAge: '30', retirementAge: '65', currentSavings: '25000', monthlyContribution: '500', annualReturnPct: '6' };
 
-test.describe('retirement: task-first', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  });
-
-  /* ---- SSR / hydration parity ---- */
-
-  test('the server-rendered result region equals the hydrated one — empty, no baked-in projection', async ({ page }) => {
-    const raw = await (await page.request.get(ROUTE)).text();
-    const server = await page.evaluate((html) => {
-      const d = new DOMParser().parseFromString(html, 'text/html');
-      return {
-        state: d.querySelector('#ret-result')?.getAttribute('data-result-state') ?? null,
-        primary: d.querySelector('#ret-result [data-result-when~="valid"] [data-result-value]')?.textContent?.trim() ?? null,
-      };
-    }, raw);
-    await page.goto(ROUTE, { waitUntil: 'networkidle' });
-    expect(server.state).toBe('empty');
-    expect(server.primary).toBe('—');
-    expect(server.primary).toBe((await primary(page).textContent())?.trim());
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  });
-
-  /* ---- initial state ---- */
-
-  test('loads empty — personal fields blank, withdrawal rate prefilled 4, no result', async ({ page }) => {
-    for (const n of ['currentAge', 'retirementAge', 'currentSavings', 'monthlyContribution', 'annualReturnPct']) {
-      await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
-    }
-    await expect(page.locator('[name="withdrawalRatePct"]')).toHaveValue('4');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
-    await expect(live(page)).toHaveText('');
-  });
-
-  test('does not calculate before the first submission', async ({ page }) => {
-    await fillAll(page, ORD);
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  });
-
-  /* ---- computation ---- */
-
-  test('ordinary projection: nest egg, horizon, income, breakdown, interpretation, announcement', async ({ page }) => {
-    await calc(page, ORD);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(summaryLabel(page)).toHaveText('Projected retirement balance');
-    await expect(primary(page)).toHaveText(/^\$[\d,]+\.\d{2}$/); // a real currency figure
-    await expect(years(page)).toHaveText('35');
-    await expect(monthlyIncome(page)).toHaveText(/^\$[\d,]+\.\d{2}$/);
-    await expect(annualIncome(page)).toHaveText(/^\$[\d,]+$/);
-    await expect(contrib(page)).toHaveText('$210,000'); // 500 × 12 × 35 (contributions are exact)
-    await expect(interpretation(page)).toContainText('withdrawal rate');
-    await expect(live(page)).toHaveText(/^Projected retirement balance: \$[\d,]+\.\d{2}\.$/);
-    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
-  });
-
-  test('a zero-growth projection is exact: $100k, 0% return, 0 contribution → $100,000 nest egg, $4,000/yr income', async ({ page }) => {
-    await calc(page, { currentAge: '40', retirementAge: '60', currentSavings: '100000', monthlyContribution: '0', annualReturnPct: '0', withdrawalRatePct: '4' });
-    await expect(primary(page)).toHaveText('$100,000.00');
-    await expect(annualIncome(page)).toHaveText('$4,000');
-    await expect(monthlyIncome(page)).toHaveText('$333.33');
-    await expect(earn(page)).toHaveText('$0'); // no growth
-  });
-
-  test('zero return with contributions: growth is $0 and the nest egg is savings + contributions', async ({ page }) => {
-    await calc(page, { currentAge: '30', retirementAge: '40', currentSavings: '50000', monthlyContribution: '200', annualReturnPct: '0' });
-    await expect(primary(page)).toHaveText('$74,000.00'); // 50000 + 10×12×200
-    await expect(contrib(page)).toHaveText('$24,000');
-    await expect(earn(page)).toHaveText('$0');
-  });
-
-  test('zero current savings is funded by contributions alone', async ({ page }) => {
-    await calc(page, { currentAge: '30', retirementAge: '40', currentSavings: '0', monthlyContribution: '300', annualReturnPct: '5' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(primary(page)).toHaveText(/^\$[\d,]+\.\d{2}$/);
-    await expect(contrib(page)).toHaveText('$36,000'); // 300 × 12 × 10
-  });
-
-  test('zero contribution grows only the current savings', async ({ page }) => {
-    await calc(page, { currentAge: '30', retirementAge: '40', currentSavings: '50000', monthlyContribution: '0', annualReturnPct: '5' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(contrib(page)).toHaveText('$0');
-  });
-
-  /* ---- validation ---- */
-
-  test('an empty submission focuses the first required field', async ({ page }) => {
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="currentAge"]')).toHaveText('Enter your current age.');
-    await expect(page.locator('[name="currentAge"]')).toBeFocused();
-  });
-
-  test('retirement age not greater than current age is a cross-field form error', async ({ page }) => {
-    await calc(page, { currentAge: '65', retirementAge: '60', currentSavings: '50000', annualReturnPct: '5' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(invalidMsg(page)).toContainText('Retirement age must be greater than your current age');
-    // equal ages too
-    await page.locator('[name="retirementAge"]').fill('65');
-    await submit(page).click();
-    await expect(invalidMsg(page)).toContainText('Retirement age must be greater than your current age');
-  });
-
-  test('a zero-funded projection (0 savings, 0 contribution) is a VALID all-zero result, not a funding error', async ({ page }) => {
-    await calc(page, { currentAge: '30', retirementAge: '65', currentSavings: '0', monthlyContribution: '0', annualReturnPct: '6', withdrawalRatePct: '4' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(primary(page)).toHaveText('$0.00');
-    await expect(years(page)).toHaveText('35'); // horizon still valid
-    await expect(monthlyIncome(page)).toHaveText('$0.00');
-    await expect(annualIncome(page)).toHaveText('$0');
-    await expect(contrib(page)).toHaveText('$0');
-    await expect(earn(page)).toHaveText('$0');
-    await expect(live(page)).toHaveText('Projected retirement balance: $0.00.');
-    expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
-  });
-
-  test('empty savings and empty contribution also produce the valid $0.00 projection', async ({ page }) => {
-    await page.locator('[name="currentAge"]').fill('40');
-    await page.locator('[name="retirementAge"]').fill('60');
-    await page.locator('[name="annualReturnPct"]').fill('5'); // savings + contribution left empty → 0
-    await submit(page).click();
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(primary(page)).toHaveText('$0.00');
-    await expect(earn(page)).toHaveText('$0');
-  });
-
-  test('an age above 120 is accepted — no invented upper cap', async ({ page }) => {
-    await calc(page, { currentAge: '125', retirementAge: '130', currentSavings: '5000', monthlyContribution: '50', annualReturnPct: '4' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-    await expect(years(page)).toHaveText('5');
-    await expect(primary(page)).toHaveText(/^\$[\d,]+\.\d{2}$/);
-  });
-
-  test('a negative return is rejected with its field error', async ({ page }) => {
-    await calc(page, { currentAge: '30', retirementAge: '65', currentSavings: '25000', annualReturnPct: '-5' });
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(page.locator('[data-error-for="annualReturnPct"]')).toHaveText('Enter an annual return of zero or more.');
-    await expect(page.locator('[name="annualReturnPct"]')).toBeFocused();
-  });
-
-  /* ---- live-after-first / invalidate / reset ---- */
-
-  test('after the first result, editing recalculates live without moving focus', async ({ page }) => {
-    await calc(page, ORD);
-    const before = await primary(page).textContent();
-    await page.locator('[name="monthlyContribution"]').fill('1000'); // higher contribution → bigger nest egg
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(primary(page)).not.toHaveText(before ?? '');
-    await expect(contrib(page)).toHaveText('$420,000'); // 1000 × 12 × 35
-    await expect(page.locator('[name="monthlyContribution"]')).toBeFocused();
-  });
-
-  test('live-after-first works starting FROM a zero result: adding savings updates it live', async ({ page }) => {
-    await calc(page, { currentAge: '30', retirementAge: '40', currentSavings: '0', monthlyContribution: '0', annualReturnPct: '0', withdrawalRatePct: '4' });
-    await expect(primary(page)).toHaveText('$0.00');
-    await page.locator('[name="currentSavings"]').fill('10000');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(primary(page)).toHaveText('$10,000.00'); // 0% return, no contribution → savings unchanged over 10 yrs
-    await expect(page.locator('[name="currentSavings"]')).toBeFocused();
-  });
-
-  test('an invalid live edit clears the stale result, keeping focus', async ({ page }) => {
-    await calc(page, ORD);
-    await expect(region(page, 'valid')).toBeVisible();
-    await page.locator('[name="retirementAge"]').fill('20'); // now retirement < current
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-    await expect(region(page, 'valid')).toBeHidden();
-    await expect(page.locator('[name="retirementAge"]')).toBeFocused();
-  });
-
-  test('reset clears the personal fields, restores the 4% withdrawal rate, empties the result', async ({ page }) => {
-    await calc(page, ORD);
-    await expect(primary(page)).not.toHaveText('—');
-    await page.click('[data-reset]');
-    for (const n of ['currentAge', 'retirementAge', 'currentSavings', 'monthlyContribution', 'annualReturnPct']) {
-      await expect(page.locator(`[name="${n}"]`)).toHaveValue('');
-    }
-    await expect(page.locator('[name="withdrawalRatePct"]')).toHaveValue('4');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(live(page)).toHaveText('');
-  });
-
-  /* ---- keyboard / responsive / theme / embed / monetization ---- */
-
-  test('keyboard submission works from a field', async ({ page }) => {
-    await fillAll(page, ORD);
-    await page.locator('[name="annualReturnPct"]').press('Enter');
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  });
-
-  test('desktop shows the projected balance within the first viewport at 1366×768', async ({ page }) => {
-    await page.setViewportSize({ width: 1366, height: 768 });
-    await calc(page, ORD);
-    await expect(primary(page)).toBeInViewport();
-  });
-
-  test('mobile does not overflow horizontally', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-    await calc(page, ORD);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow).toBeLessThanOrEqual(1);
-  });
-
-  test('renders in dark scheme', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await calc(page, ORD);
-    await expect(primary(page)).toBeVisible();
-  });
-
-  test('the generated embed mounts the same island (empty SSR, no auto-calc, then a projection)', async ({ page }) => {
-    await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#ret-result')).toHaveAttribute('data-result-state', 'empty');
-    await page.locator('[name="currentAge"]').fill('30');
-    await page.waitForTimeout(DEBOUNCE);
-    await expect(page.locator('#ret-result')).toHaveAttribute('data-result-state', 'empty'); // no auto-calc
-    await page.locator('[name="retirementAge"]').fill('60');
-    await page.locator('[name="currentSavings"]').fill('100000');
-    await page.locator('[name="monthlyContribution"]').fill('0');
-    await page.locator('[name="annualReturnPct"]').fill('0');
-    await page.getByRole('button', { name: 'Calculate Retirement' }).click();
-    await expect(page.locator('#ret-result')).toHaveAttribute('data-result-state', 'valid');
-    await expect(page.locator('#ret-result [data-result-when~="valid"] [data-result-value]').first()).toHaveText('$100,000.00');
-  });
-
-  test('the live page carries no monetization output', async ({ page }) => {
-    await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-    expect(await page.content()).not.toContain('data-mon-');
-  });
+test.beforeEach(async ({ page }) => {
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
-/* -------------------- same-document two-instance isolation -------------------- */
+/* ---- Initial state ------------------------------------------------------ */
 
-test.describe('retirement: same-document instance isolation', () => {
-  const FIXTURE = 'http://localhost:4399/__retirement-two-instance-fixture';
-
-  async function mountTwo(page: Page) {
-    const raw = await (await page.request.get('http://localhost:4399/finance/retirement-calculator')).text();
-    const parts = await page.evaluate((html) => {
-      const d = new DOMParser().parseFromString(html, 'text/html');
-      const root = d.querySelector('[data-retirement]');
-      const links = [...d.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.getAttribute('href'));
-      const script = [...d.querySelectorAll('script[type="module"][src]')]
-        .map((s) => s.getAttribute('src'))
-        .find((src) => /RetirementCalculator/.test(src ?? ''));
-      return { rootHTML: root?.outerHTML ?? '', links, script };
-    }, raw);
-    const doc =
-      `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
-      parts.links.map((h) => `<link rel="stylesheet" href="${h}">`).join('') +
-      `</head><body><div id="inst-a">${parts.rootHTML}</div><div id="inst-b">${parts.rootHTML}</div>` +
-      `<script type="module" src="${parts.script}"></script></body></html>`;
-    await page.route('**/__retirement-two-instance-fixture', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: doc }));
-    await page.goto(FIXTURE, { waitUntil: 'networkidle' });
-    await expect(page.locator('#inst-a [data-retirement]')).toHaveCount(1);
-    await expect(page.locator('#inst-b [data-retirement]')).toHaveCount(1);
+test('loads with empty personal fields, the planning assumptions filled, and a labelled example', async ({ page }) => {
+  for (const name of ['currentAge', 'retirementAge', 'lifeExpectancy', 'currentIncome', 'currentSavings', 'otherMonthlyIncome']) {
+    await expect(page.locator(`[name="${name}"]`)).toHaveValue('');
   }
+  // Assumptions are not the visitor's figures — an empty expected return is unanswerable.
+  await expect(page.locator('[name="annualReturnPct"]')).toHaveValue('6');
+  await expect(page.locator('[name="inflationPct"]')).toHaveValue('3');
+  await expect(page.locator('[name="incomeIncreasePct"]')).toHaveValue('3');
+  await expect(page.locator('[name="incomeNeededPct"]')).toHaveValue('75');
+  await expect(page.locator('[name="futureSavingsPct"]')).toHaveValue('10');
+  await expect(page.locator('[name="mode"][value="plan"]')).toBeChecked();
+  await expect(submit(page)).toHaveText('Calculate Retirement');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  await expect(region(page, 'valid')).toBeVisible();
+  await expect(live(page)).toHaveText('');
+});
 
-  test('two instances have no duplicate ids and every reference resolves in its own instance', async ({ page }) => {
-    await mountTwo(page);
-    const duplicates = await page.evaluate(() => {
-      const counts: Record<string, number> = {};
-      for (const el of document.querySelectorAll('[id]')) counts[el.id] = (counts[el.id] || 0) + 1;
-      return Object.entries(counts).filter(([, n]) => n > 1).map(([id]) => id);
-    });
-    expect(duplicates).toEqual([]);
-    const ok = await page.evaluate(() => {
-      for (const scope of ['#inst-a', '#inst-b']) {
-        const root = document.querySelector(scope)!;
-        for (const el of root.querySelectorAll('[aria-describedby]')) {
-          const refs = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
-          for (const id of refs) {
-            const t = document.getElementById(id);
-            if (!t || !t.closest(scope)) return false;
-          }
-        }
-      }
-      return true;
-    });
-    expect(ok).toBe(true);
-  });
+test('does not calculate before the first submission', async ({ page }) => {
+  await page.fill('[name="currentAge"]', '35');
+  await page.fill('[name="retirementAge"]', '67');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+});
 
-  test('calculating and resetting one instance never touches the other', async ({ page }) => {
-    await mountTwo(page);
-    const A = (sel: string) => page.locator(`#inst-a ${sel}`);
-    const B = (sel: string) => page.locator(`#inst-b ${sel}`);
-    const fill = async (scope: (s: string) => ReturnType<Page['locator']>) => {
-      await scope('[name="currentAge"]').fill('40');
-      await scope('[name="retirementAge"]').fill('60');
-      await scope('[name="currentSavings"]').fill('100000');
-      await scope('[name="monthlyContribution"]').fill('0');
-      await scope('[name="annualReturnPct"]').fill('0');
-      await scope('button[type="submit"]').click();
-    };
-    await fill(A);
-    await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$100,000.00');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+test('offers the four retirement questions and names the selected one', async ({ page }) => {
+  for (const mode of ['plan', 'save', 'withdraw', 'lasts']) {
+    await expect(page.locator(`[name="mode"][value="${mode}"]`)).toHaveCount(1);
+  }
+  await expect(page.locator('[data-ret-mode-question]')).toHaveText('How much do you need to retire?');
+  await page.check('[name="mode"][value="lasts"]');
+  await expect(page.locator('[data-ret-mode-question]')).toHaveText('How long can your money last?');
+});
 
-    await fill(B);
-    await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$100,000.00');
+/* ---- 1. How much do you need to retire? -------------------------------- */
 
-    await A('[data-reset]').click();
-    await expect(A('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty');
-    await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('$100,000.00'); // B unaffected
-  });
+test('the plan reproduces the published reference figures', async ({ page }) => {
+  await fillReference(page);
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(primary(page)).toHaveText('$1.88M');
+  await expect(page.locator('[data-ret-need]')).toHaveText('$1.88M');
+  await expect(page.locator('[data-ret-have]')).toHaveText('$1.10M');
+  await expect(page.locator('[data-ret-readiness]')).toHaveText('58%');
+  // The income each pot buys, in the dollars of the day and in today's money.
+  await expect(page.locator('[data-ret-need-income]')).toHaveText('$11,266');
+  await expect(page.locator('[data-ret-need-income-today]')).toHaveText('$4,375');
+  await expect(page.locator('[data-ret-have-income]')).toHaveText('$6,589');
+  await expect(page.locator('[data-ret-have-income-today]')).toHaveText('$2,559');
+  expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+});
+
+test('the plan says what reaching the target would take, three ways', async ({ page }) => {
+  await fillReference(page);
+  await submit(page).click();
+  await expect(page.locator('[data-ret-save-block]')).toBeVisible();
+  await expect(page.locator('[data-ret-save-heading]')).toHaveText('How can you save $1.88M?');
+  await expect(page.locator('[data-ret-save-monthly]')).toHaveText('$1,504');
+  await expect(page.locator('[data-ret-save-annual]')).toHaveText('$18,534');
+  await expect(page.locator('[data-ret-save-pct]')).toHaveText('18.62%');
+});
+
+test('the balance-by-age chart draws both plans with a legend and a text alternative', async ({ page }) => {
+  await fillReference(page);
+  await submit(page).click();
+  await expect(page.locator('[data-ret-chart] polyline')).toHaveCount(2);
+  const svg = page.locator('[data-ret-chart] svg');
+  await expect(svg).toHaveAttribute('role', 'img');
+  await expect(svg).toHaveAttribute('aria-label', /Year-end balance by age/);
+  // Identity never rests on colour alone.
+  await expect(page.locator('[data-ret-panel="plan"] .ret-legend')).toContainText('If you save what you will have');
+  await expect(page.locator('[data-ret-panel="plan"] .ret-legend')).toContainText('If you save what you need');
+});
+
+test('a plan that already covers the target says so instead of asking for more', async ({ page }) => {
+  await fillReference(page);
+  await page.fill('[name="currentSavings"]', '3000000');
+  await submit(page).click();
+  await expect(page.locator('[data-ret-ontrack]')).toBeVisible();
+  await expect(page.locator('[data-ret-save-block]')).toBeHidden();
+});
+
+test('other retirement income lowers what the pot must fund, leaving the plan itself alone', async ({ page }) => {
+  await fillReference(page);
+  await submit(page).click();
+  const have = await page.locator('[data-ret-have]').innerText();
+  await page.fill('[name="otherMonthlyIncome"]', '3000');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(page.locator('[data-ret-need]')).not.toHaveText('$1.88M');
+  await expect(page.locator('[data-ret-have]')).toHaveText(have);
+});
+
+test('a dollar target and the equivalent percent reach the same answer', async ({ page }) => {
+  await fillReference(page);
+  await submit(page).click();
+  const need = await page.locator('[data-ret-need]').innerText();
+  // 75% of the income at retirement, entered as dollars a year.
+  await page.selectOption('[name="incomeNeededUnit"]', 'amount');
+  await page.fill('[name="incomeNeededPct"]', String(70000 * Math.pow(1.03, 32) * 0.75));
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(page.locator('[data-ret-need]')).toHaveText(need);
+});
+
+/* ---- The other three questions ----------------------------------------- */
+
+test('switching question swaps the fields, and only the selected one is answered', async ({ page }) => {
+  // Plan mode reads the income fields; "how long does it last" does not.
+  await expect(field(page, 'currentIncome')).toBeVisible();
+  await expect(field(page, 'potAmount')).toBeHidden();
+  await page.check('[name="mode"][value="lasts"]');
+  await expect(field(page, 'currentIncome')).toBeHidden();
+  await expect(field(page, 'potAmount')).toBeVisible();
+  await expect(field(page, 'monthlyWithdrawal')).toBeVisible();
+  await expect(field(page, 'annualReturnPct')).toBeVisible(); // shared by every question
+});
+
+test('how can you save: a target, and what it takes to reach it', async ({ page }) => {
+  await page.check('[name="mode"][value="save"]');
+  await page.fill('[name="currentAge"]', '35');
+  await page.fill('[name="retirementAge"]', '67');
+  await page.fill('[name="amountNeeded"]', '600000');
+  await page.fill('[name="currentSavings"]', '30000');
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(panel(page, 'save')).toBeVisible();
+  await expect(panel(page, 'plan')).toBeHidden();
+  await expect(primary(page)).toHaveText('$363');
+  await expect(page.locator('[data-ret-save2-annual]')).toHaveText('$4,471');
+  await expect(page.locator('[data-ret-save2-alone]')).toHaveText('$194K');
+  await expect(page.locator('[data-ret-save2-years]')).toHaveText('32');
+});
+
+test('how much can you withdraw: the pot, and the income it supports', async ({ page }) => {
+  await page.check('[name="mode"][value="withdraw"]');
+  await page.fill('[name="currentAge"]', '35');
+  await page.fill('[name="retirementAge"]', '67');
+  await page.fill('[name="lifeExpectancy"]', '85');
+  await page.fill('[name="currentSavings"]', '30000');
+  await page.fill('[name="monthlyContribution"]', '500');
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(panel(page, 'withdraw')).toBeVisible();
+  await expect(primary(page)).toHaveText('$4,521');
+  await expect(page.locator('[data-ret-w-annual]')).toHaveText('$54,257');
+  await expect(page.locator('[data-ret-w-years]')).toHaveText('18');
+  await expect(page.locator('[data-ret-chart-w] polyline')).toHaveCount(1);
+});
+
+test('how long can your money last: a duration, and the case where it never runs out', async ({ page }) => {
+  await page.check('[name="mode"][value="lasts"]');
+  await page.fill('[name="potAmount"]', '600000');
+  await page.fill('[name="monthlyWithdrawal"]', '5000');
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(panel(page, 'lasts')).toBeVisible();
+  await expect(primary(page)).toHaveText('15 years 3 months');
+  await expect(page.locator('[data-ret-l-months]')).toHaveText('183');
+  await expect(page.locator('[data-ret-l-never]')).toBeHidden();
+
+  // $2,000 a month is below the hold point, so the balance grows and never runs out.
+  await page.fill('[name="monthlyWithdrawal"]', '2000');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(primary(page)).toHaveText('Indefinitely');
+  await expect(page.locator('[data-ret-l-never]')).toBeVisible();
+  await expect(page.locator('[data-ret-l-limit]')).toBeHidden();
+  expect(await region(page, 'valid').innerText()).not.toMatch(/NaN|Infinity|undefined/);
+});
+
+/**
+ * The band between the true hold point (B·rm/(1+rm) = $2,985.07 here) and the
+ * naive B·rm ($3,000) is where a wrong threshold promises money that runs out.
+ * $2,990 sits inside it: the balance falls, slowly, so the calculator must NOT
+ * say "Indefinitely" — it says how long, and why.
+ */
+test('a withdrawal just above the hold point is never sold as permanent', async ({ page }) => {
+  await page.check('[name="mode"][value="lasts"]');
+  await page.fill('[name="potAmount"]', '600000');
+  await page.fill('[name="monthlyWithdrawal"]', '2990');
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await expect(primary(page)).toHaveText('Over 100 years');
+  await expect(page.locator('[data-ret-l-never]')).toBeHidden();
+  await expect(page.locator('[data-ret-l-limit]')).toBeVisible();
+  await expect(page.locator('[data-ret-l-limit]')).toContainText('still falling');
+
+  // $2,995 is barely higher again, and empties the account inside the projection.
+  await page.fill('[name="monthlyWithdrawal"]', '2995');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(primary(page)).toHaveText('95 years 5 months');
+  await expect(page.locator('[data-ret-l-never]')).toBeHidden();
+  await expect(page.locator('[data-ret-l-limit]')).toBeHidden();
+});
+
+test('the total withdrawn is the real sum, including a short final month', async ({ page }) => {
+  await page.check('[name="mode"][value="lasts"]');
+  await page.fill('[name="potAmount"]', '600000');
+  await page.fill('[name="monthlyWithdrawal"]', '5000');
+  await submit(page).click();
+  // 183 months at $5,000 would be $915,000; the last month pays only what is left.
+  await expect(page.locator('[data-ret-l-total]')).toHaveText('$911,128.18');
+  await expect(page.locator('[data-ret-l-months]')).toHaveText('183');
+});
+
+/* ---- Validation --------------------------------------------------------- */
+
+test('validation is scoped to the selected question', async ({ page }) => {
+  // A blank age blocks the plan...
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  await expect(fieldError(page, 'currentAge')).toBeVisible();
+
+  // ...but must not block a question that never reads it.
+  await page.check('[name="mode"][value="lasts"]');
+  await page.fill('[name="potAmount"]', '600000');
+  await page.fill('[name="monthlyWithdrawal"]', '5000');
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+});
+
+test('ages must run forwards, and the messages say which way', async ({ page }) => {
+  await fillReference(page);
+  await page.fill('[name="retirementAge"]', '30');
+  await submit(page).click();
+  await expect(fieldError(page, 'retirementAge')).toContainText('greater than your current age');
+  await page.fill('[name="retirementAge"]', '67');
+  await page.fill('[name="lifeExpectancy"]', '60');
+  await submit(page).click();
+  await expect(fieldError(page, 'lifeExpectancy')).toContainText('greater than your retirement age');
+});
+
+test('a fractional or out-of-range age is rejected, never rounded', async ({ page }) => {
+  await fillReference(page);
+  for (const bad of ['35.5', '-1', '121']) {
+    await page.fill('[name="currentAge"]', bad);
+    await submit(page).click();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(fieldError(page, 'currentAge')).toBeVisible();
+  }
+});
+
+test('a 0% return is valid; a negative one is not', async ({ page }) => {
+  await fillReference(page);
+  await page.fill('[name="annualReturnPct"]', '0');
+  await submit(page).click();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+  await page.fill('[name="annualReturnPct"]', '-1');
+  await submit(page).click();
+  await expect(fieldError(page, 'annualReturnPct')).toContainText('zero or more');
+});
+
+/* ---- Live update / reset ------------------------------------------------ */
+
+test('after the first result, edits update live and keep focus on the field', async ({ page }) => {
+  await fillReference(page);
+  await submit(page).click();
+  await page.fill('[name="currentSavings"]', '100000');
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(page.locator('[data-ret-have]')).not.toHaveText('$1.10M');
+  await expect(page.locator('[name="currentSavings"]')).toBeFocused();
+});
+
+test('reset clears the personal fields, restores the assumptions and the default question', async ({ page }) => {
+  await page.check('[name="mode"][value="lasts"]');
+  await page.fill('[name="potAmount"]', '600000');
+  await page.fill('[name="monthlyWithdrawal"]', '5000');
+  await submit(page).click();
+  await page.fill('[name="annualReturnPct"]', '9');
+  await page.click('[data-reset]');
+  await expect(page.locator('[name="potAmount"]')).toHaveValue('');
+  await expect(page.locator('[name="monthlyWithdrawal"]')).toHaveValue('');
+  await expect(page.locator('[name="annualReturnPct"]')).toHaveValue('6');
+  await expect(page.locator('[name="mode"][value="plan"]')).toBeChecked();
+  await expect(field(page, 'currentIncome')).toBeVisible();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+  await expect(live(page)).toHaveText('');
+});
+
+/* ---- Keyboard / responsive / theme / monetization ----------------------- */
+
+test('keyboard submission works from a field', async ({ page }) => {
+  await fillReference(page);
+  await page.locator('[name="currentSavings"]').press('Enter');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+});
+
+test('the question radios are reachable and operable from the keyboard', async ({ page }) => {
+  await page.locator('[name="mode"][value="plan"]').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('[name="mode"][value="save"]')).toBeChecked();
+});
+
+test('desktop shows the dominant result within the first viewport at 1366×768', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await fillReference(page);
+  await submit(page).click();
+  await expect(primary(page)).toBeInViewport();
+});
+
+test('mobile does not overflow horizontally', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
+  await fillReference(page);
+  await submit(page).click();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test('renders in dark scheme', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await fillReference(page);
+  await submit(page).click();
+  await expect(primary(page)).toBeVisible();
+});
+
+test('the generated embed mounts the same interactive island', async ({ page }) => {
+  await page.goto('/embed/finance/retirement-calculator', { waitUntil: 'domcontentloaded' });
+  await fillReference(page);
+  await page.locator('[data-ret-submit]').click();
+  await expect(page.locator('#ret-result [data-result-when~="valid"] [data-result-value]')).toHaveText('$1.88M');
+});
+
+test('the live page carries no monetization output', async ({ page }) => {
+  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
+  expect(await page.content()).not.toContain('data-mon-');
 });

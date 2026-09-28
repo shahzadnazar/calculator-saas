@@ -19,16 +19,32 @@
  * descriptive grid below and the Reset lifecycle are identical for both routes.
  * There is no StandardDeviationCalculator and no generic multi-stat abstraction.
  */
-import { DEFAULT_PRIMARY, type StatPrimary } from '@lib/calculators/statistics-form';
+import { DEFAULT_PRIMARY, type StatPrimary, STATISTICS_EXAMPLE_VALUES } from '@lib/calculators/statistics-form';
+import { STAT_KEYS, statKeyDef, type StatFunction } from '@lib/calculators/statistics-keypad';
 import ResultShell from '@components/result/ResultShell.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 
 interface Props {
   primary?: StatPrimary;
+  /** Show the reference's accumulator keypad above the list box. Defaults on for the summary route. */
+  keypad?: boolean;
 }
-const { primary = DEFAULT_PRIMARY } = Astro.props;
+const { primary = DEFAULT_PRIMARY, keypad } = Astro.props;
+const showKeypad = keypad ?? primary === 'summary';
+
+/**
+ * The keypad, in the reference's own arrangement: three digit columns, then the plain statistic and
+ * its squared-data counterpart. The bottom row carries the data controls.
+ */
+const KEY_ROWS: { digits: (string | 'dot' | 'exp')[]; stats: [StatFunction, StatFunction] }[] = [
+  { digits: ['7', '8', '9'], stats: ['mean', 'meanOfSquares'] },
+  { digits: ['4', '5', '6'], stats: ['sum', 'sumOfSquares'] },
+  { digits: ['1', '2', '3'], stats: ['popSD', 'popVar'] },
+  { digits: ['0', 'dot', 'exp'], stats: ['sampleSD', 'sampleVar'] },
+];
 
 const isSd = primary === 'sd';
 const actionLabel = isSd ? 'Calculate Standard Deviation' : 'Calculate Statistics';
@@ -44,51 +60,97 @@ const hero = isSd
   : [
       { key: 'mean', label: 'Mean', dominant: true },
       { key: 'median', label: 'Median', dominant: false },
-      { key: 'mode', label: 'Mode', dominant: false },
+      { key: 'modeValue', label: 'Mode', dominant: false },
     ];
 
-// The full descriptive grid — IDENTICAL for both routes.
-const groups = [
-  {
-    title: 'Central tendency',
-    rows: [
-      { key: 'mean', label: 'Mean (average)' },
-      { key: 'median', label: 'Median' },
-      { key: 'mode', label: 'Mode' },
-    ],
-  },
-  {
-    title: 'Dispersion',
-    rows: [
-      { key: 'sampleSD', label: 'Sample SD (s)' },
-      { key: 'popSD', label: 'Population SD (σ)' },
-      { key: 'sampleVar', label: 'Sample variance (s²)' },
-      { key: 'popVar', label: 'Population variance (σ²)' },
-      { key: 'range', label: 'Range' },
-      { key: 'iqr', label: 'Interquartile range (IQR)' },
-    ],
-  },
-  {
-    title: 'Five-number summary',
-    rows: [
-      { key: 'min', label: 'Minimum' },
-      { key: 'q1', label: 'Q1 (25th percentile)' },
-      { key: 'median', label: 'Median (Q2)' },
-      { key: 'q3', label: 'Q3 (75th percentile)' },
-      { key: 'max', label: 'Maximum' },
-    ],
-  },
-  {
-    title: 'Totals',
-    rows: [
-      { key: 'count', label: 'Count (n)' },
-      { key: 'sum', label: 'Sum' },
-    ],
-  },
+/*
+ * The result table — IDENTICAL for both routes, and in the reference's own order, with the
+ * reference's own row names. The reference wraps this table in a numeric keypad with buttons
+ * labelled x̄², Σx², CAD and GM; the table is the part that answers the question, so here the
+ * input is a plain list of numbers and the table stands on its own.
+ */
+const summaryRows = [
+  { key: 'count', label: 'Count' },
+  { key: 'sum', label: 'Sum' },
+  { key: 'mean', label: 'Mean (Average)' },
+  { key: 'median', label: 'Median' },
+  { key: 'mode', label: 'Mode' },
+  { key: 'max', label: 'Largest' },
+  { key: 'min', label: 'Smallest' },
+  { key: 'range', label: 'Range' },
+  { key: 'gm', label: 'Geometric Mean' },
+  { key: 'popSD', label: 'Standard Deviation (σ)' },
+  { key: 'popVar', label: 'Variance (σ²)' },
+  { key: 'sampleSD', label: 'Sample Standard Deviation (s)' },
+  { key: 'sampleVar', label: 'Sample Variance (s²)' },
+];
+
+/** Beyond the reference: the quartiles, which the reference does not report at all. */
+const quartileRows = [
+  { key: 'q1', label: 'Q1 (25th percentile)' },
+  { key: 'q3', label: 'Q3 (75th percentile)' },
+  { key: 'iqr', label: 'Interquartile range (IQR)' },
 ];
 ---
 
-<div class="statistics mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-5 lg:items-start" data-stats data-primary={primary}>
+{showKeypad && (
+  <section class="sk mx-auto w-full max-w-5xl" data-stats-keypad aria-labelledby="sk-heading">
+    <h2 class="sk-title" id="sk-heading">Enter values one at a time</h2>
+    <p class="sk-lede">
+      Type a number, press <strong>ADD</strong>, then press a statistic to read it back. Got a list
+      to paste instead? Use the box below.
+    </p>
+
+    <div class="card sk-card">
+      <div class="sk-stage">
+        <div class="sk-panel">
+          <div class="sk-display">
+            <span class="sk-display__note" data-sk-note></span>
+            <span class="sk-display__value" data-sk-display>0</span>
+          </div>
+
+          <div class="sk-grid" role="group" aria-label="Statistics keypad">
+            {KEY_ROWS.map((row) => (
+              <>
+                {row.digits.map((d) =>
+                  d === 'dot' ? (
+                    <button type="button" class="sk-key" data-sk-key="dot" aria-label="Decimal point">.</button>
+                  ) : d === 'exp' ? (
+                    <button type="button" class="sk-key sk-key--util" data-sk-key="exp" aria-label="Times ten to the power of">EXP</button>
+                  ) : (
+                    <button type="button" class="sk-key" data-sk-key={`digit:${d}`}>{d}</button>
+                  ),
+                )}
+                {row.stats.map((fn) => (
+                  <button type="button" class="sk-key sk-key--fn" data-sk-key={`stat:${fn}`} aria-label={statKeyDef(fn).aria}>
+                    <span class="sk-key__symbol" aria-hidden="true">{statKeyDef(fn).symbol}</span>
+                    <span class="sk-key__name" aria-hidden="true">{statKeyDef(fn).name}</span>
+                  </button>
+                ))}
+              </>
+            ))}
+
+            <button type="button" class="sk-key sk-key--util" data-sk-key="clearAll" aria-label="Clear all data">CAD</button>
+            <button type="button" class="sk-key sk-key--util" data-sk-key="clearEntry" aria-label="Clear the current entry">C</button>
+            <button type="button" class="sk-key sk-key--add" data-sk-key="add">ADD</button>
+            <button type="button" class="sk-key sk-key--util" data-sk-key="sign" aria-label="Change sign">±</button>
+            <button type="button" class="sk-key sk-key--fn" data-sk-key="stat:gm" aria-label={statKeyDef('gm').aria}>
+              <span class="sk-key__symbol" aria-hidden="true">GM</span>
+              <span class="sk-key__name" aria-hidden="true">Geometric mean</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sk-data">
+          <p class="sk-data__head">Data set (<span data-sk-count>0</span>)</p>
+          <ol class="sk-list" data-sk-list aria-label="Values you have added"></ol>
+          <p class="sk-data__empty" data-sk-empty>Nothing added yet.</p>
+        </div>
+      </div>
+      <output class="sr-only" data-sk-live aria-live="polite"></output>
+    </div>
+  </section>
+)}<div class="statistics mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-5 lg:items-start" data-stats data-primary={primary}>
   <!-- Inputs -->
   <form class="card p-4 lg:col-span-2" data-form novalidate aria-label={`${noun} calculator`}>
     <label class="field-label" for="stat-input">Data set</label>
@@ -115,6 +177,7 @@ const groups = [
   <!-- Result -->
   <div class="lg:col-span-3">
     <ResultShell id="stat-result" state="empty" density="complex" label={`${noun} result`} minHeight="18rem">
+    <ExampleNotice />
       <EmptyResult message={isSd
         ? 'Enter a data set and calculate to see the sample and population standard deviation, variance and the full summary.'
         : 'Enter a data set and calculate to see the mean, median, mode and the full five-number summary.'} />
@@ -126,7 +189,7 @@ const groups = [
             <div class="stat-hero">
               <p class="stat-hero__label">{h.label}</p>
               <p
-                class:list={['stat-hero__value tabular-nums', h.dominant ? 'text-4xl' : 'text-2xl']}
+                class:list={['stat-hero__value tabular-nums', h.dominant && 'stat-hero__value--lead']}
                 data-stat={h.key}
                 data-result-value={h.dominant ? '' : undefined}
               >—</p>
@@ -134,22 +197,34 @@ const groups = [
           ))}
         </div>
 
-        <!-- Full descriptive grid (identical for both routes) -->
-        <div class="mt-4 grid gap-3 sm:grid-cols-2">
-          {groups.map((g) => (
-            <div class="stat-group">
-              <h3 class="stat-group__title">{g.title}</h3>
-              <dl class="mt-2 space-y-1.5 text-sm">
-                {g.rows.map((row) => (
-                  <div class="flex items-center justify-between gap-4">
-                    <dt style="color: var(--muted)">{row.label}</dt>
-                    <dd class="font-semibold tabular-nums" style="color: var(--heading)" data-stat={row.key}>—</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          ))}
-        </div>
+        <!-- The reference's table, in the reference's order (identical for both routes) -->
+        <table class="stat-table">
+          <caption class="sr-only">Descriptive statistics for the data set</caption>
+          <tbody>
+            {summaryRows.map((row) => (
+              <tr>
+                <th scope="row">{row.label}</th>
+                <td data-stat={row.key}>—</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <p class="stat-sorted"><span class="stat-sorted__label">Sorted data:</span> <span data-stat="sorted">—</span></p>
+
+        <details class="stat-more">
+          <summary>Quartiles</summary>
+          <table class="stat-table stat-table--plain">
+            <tbody>
+              {quartileRows.map((row) => (
+                <tr>
+                  <th scope="row">{row.label}</th>
+                  <td data-stat={row.key}>—</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
 
         <p class="stat-interpretation" data-stat-interpretation></p>
         <p class="stat-assumptions">Sample figures (s, s²) divide by n − 1; population figures (σ, σ²) divide by n. Quartiles use the median-of-halves method (Tukey's hinges).</p>
@@ -166,6 +241,180 @@ const groups = [
 </div>
 
 <style>
+  /* ---- The accumulator keypad ---------------------------------- */
+  .sk { margin-bottom: 1.25rem; }
+  .sk-title {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--heading);
+  }
+  .sk-lede {
+    margin: 0.1rem 0 0.45rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  /* Calculator-sized, not page-wide, and aligned with the list box below rather than centred away
+     from it. Stretched across a wide layout the keys grow to twice the size of anything you would
+     press, and the data panel drifts away from the keypad feeding it. */
+  .sk-card { padding: 0.6rem; max-width: 46rem; }
+
+  /* Keypad and data list side by side, as the reference arranges them; the list drops underneath
+     when the card is too narrow to hold both without squeezing the keys. */
+  .sk-stage {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.7rem;
+  }
+  /* The keypad keeps a keypad's width; the data panel takes what is left beside it. */
+  .sk-panel { flex: 0 1 23rem; min-width: 0; }
+  .sk-data {
+    flex: 1 1 11rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+    padding: 0.5rem 0.55rem;
+  }
+
+  /* The note lives ON the display, the way a calculator prints its mode beside the number. It used
+     to be a line under the panel, which cost thirty pixels of the first screen for a line that is
+     usually empty. */
+  .sk-display {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.2rem 0.6rem;
+    padding: 0.35rem 0.6rem;
+    margin-bottom: 0.45rem;
+    border-radius: 0.6rem;
+    background: var(--color-brand-600);
+    color: #fff;
+    min-height: 2.5rem;
+  }
+  .sk-display__note {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.74rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: rgb(255 255 255 / 0.85);
+  }
+  .sk-display__value {
+    flex: 0 1 auto;
+    margin-left: auto;
+    font-size: clamp(1.1rem, 4.4vw, 1.5rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+
+  .sk-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.25rem;
+  }
+  .sk-key {
+    display: grid;
+    place-items: center;
+    gap: 0;
+    /* 44px stays the floor — the tap-target rule, not a spacing choice. */
+    min-height: 2.75rem;
+    padding: 0.15rem 0.15rem;
+    line-height: 1.05;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    background: var(--card);
+    color: var(--heading);
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
+  }
+  .sk-key:hover { border-color: var(--color-brand-300); }
+  .sk-key:active { transform: translateY(1px); }
+  .sk-key--util { background: var(--subtle); }
+  .sk-key--add {
+    background: var(--color-brand-600);
+    color: #fff;
+    border-color: transparent;
+  }
+  .sk-key--add:hover { background: var(--color-brand-700); border-color: transparent; }
+  /* A function key carries its name under its symbol: "Σx²" is not a label most people read. */
+  .sk-key--fn {
+    background: var(--subtle);
+    font-size: 0.92rem;
+  }
+  .sk-key__name {
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1;
+  }
+  @media (max-width: 26rem) {
+    .sk-key__name { display: none; }
+  }
+
+  .sk-data__head {
+    margin: 0 0 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+  }
+  .sk-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.1rem;
+    max-height: 14rem;
+    overflow-y: auto;
+  }
+  .sk-data__empty {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .statistics-page :global(.sk-row),
+  .sk :global(.sk-row) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    padding: 0.1rem 0.1rem 0.1rem 0.3rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.88rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    font-weight: 600;
+  }
+  .sk :global(.sk-row__remove) {
+    display: grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .sk :global(.sk-row__remove:hover) {
+    background: var(--subtle);
+    color: var(--color-danger);
+  }
+
   .stat-field-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
@@ -188,23 +437,95 @@ const groups = [
     background: color-mix(in srgb, var(--card) 55%, transparent);
   }
   .stat-hero__label { font-size: 0.72rem; font-weight: 600; color: var(--muted); }
-  .stat-hero__value { margin-top: 0.15rem; font-weight: 800; line-height: 1.1; color: var(--color-brand-700); }
+  /* A figure carried to fourteen significant figures is a long word. At display size it used to
+     force the whole workspace wider than a phone, so it scales with the viewport and is allowed to
+     break — the precision is the point, and it must not cost a horizontal scrollbar. */
+  .stat-hero__value {
+    margin-top: 0.15rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--color-brand-700);
+    font-size: clamp(1.05rem, 4.6vw, 1.5rem);
+    overflow-wrap: anywhere;
+  }
+  .stat-hero__value--lead { font-size: clamp(1.35rem, 6vw, 2.25rem); }
   :root[data-theme='dark'] .stat-hero__value { color: var(--color-brand-400); }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) .stat-hero__value { color: var(--color-brand-400); }
   }
 
-  .stat-group {
-    border: 1px solid var(--line);
-    border-radius: 0.75rem;
-    padding: 0.85rem 0.9rem;
+  /* One table, one row per statistic — the reference's own layout, and the reason it is readable
+     without the keypad above it. */
+  .stat-table {
+    margin-top: 1rem;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
   }
-  .stat-group__title {
-    font-size: 0.72rem;
+  .stat-table th,
+  .stat-table td {
+    padding: 0.45rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    vertical-align: baseline;
+  }
+  .stat-table th {
+    font-weight: 600;
+    color: var(--fg);
+    white-space: nowrap;
+  }
+  .stat-table td {
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    color: var(--heading);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .stat-table tbody tr:nth-child(odd) {
+    background: color-mix(in srgb, var(--card) 55%, transparent);
+  }
+  .stat-table--plain { margin-top: 0.4rem; font-size: 0.85rem; }
+  .stat-table--plain tbody tr:nth-child(odd) { background: none; }
+
+  /* On a phone two columns leave a fourteen-figure standard deviation four characters wide, so it
+     breaks across three lines in the middle of a number. The label goes above the figure instead
+     and the figure gets the full width. */
+  @media (max-width: 30rem) {
+    .stat-table tr {
+      display: block;
+      border-bottom: 1px solid var(--line);
+    }
+    .stat-table th,
+    .stat-table td {
+      display: block;
+      border-bottom: 0;
+      white-space: normal;
+    }
+    .stat-table th {
+      padding-bottom: 0.05rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .stat-table td { padding-top: 0; }
+  }
+
+  .stat-sorted {
+    margin: 0.7rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--fg);
+    overflow-wrap: anywhere;
+  }
+  .stat-sorted__label { font-weight: 600; color: var(--muted); }
+
+  .stat-more { margin-top: 0.8rem; }
+  .stat-more > summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 700;
     color: var(--muted);
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
   }
 
   .stat-interpretation { margin: 1rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
@@ -213,12 +534,106 @@ const groups = [
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { statisticsBinding } from '@lib/calculators/statistics-form';
+  import { statisticsBinding, STATISTICS_EXAMPLE_VALUES, formatStat } from '@lib/calculators/statistics-form';
+  import {
+    INITIAL_KEYPAD,
+    pressKey,
+    type KeypadKey,
+    type KeypadState,
+    type StatFunction,
+  } from '@lib/calculators/statistics-keypad';
+
+  /** `data-sk-key` → the key the pure machine understands. Unknown attributes are ignored. */
+  function parseKeyAttr(raw: string): KeypadKey | null {
+    if (raw.startsWith('digit:')) return { kind: 'digit', value: raw.slice(6) };
+    if (raw.startsWith('stat:')) return { kind: 'stat', fn: raw.slice(5) as StatFunction };
+    switch (raw) {
+      case 'dot': return { kind: 'dot' };
+      case 'exp': return { kind: 'exp' };
+      case 'sign': return { kind: 'sign' };
+      case 'add': return { kind: 'add' };
+      case 'clearEntry': return { kind: 'clearEntry' };
+      case 'clearAll': return { kind: 'clearAll' };
+      default: return null;
+    }
+  }
+
+  /** The keypad: a thin executor over the pure state machine. It owns no arithmetic. */
+  function mountKeypad(root: HTMLElement): void {
+    let state: KeypadState = INITIAL_KEYPAD;
+    const display = root.querySelector<HTMLElement>('[data-sk-display]');
+    const note = root.querySelector<HTMLElement>('[data-sk-note]');
+    const list = root.querySelector<HTMLElement>('[data-sk-list]');
+    const count = root.querySelector<HTMLElement>('[data-sk-count]');
+    const empty = root.querySelector<HTMLElement>('[data-sk-empty]');
+    const live = root.querySelector<HTMLElement>('[data-sk-live]');
+
+    function render(announce: boolean): void {
+      if (display) display.textContent = state.display;
+      if (note) note.textContent = state.note;
+      if (count) count.textContent = String(state.data.length);
+      if (empty) empty.hidden = state.data.length > 0;
+      if (list) {
+        // Built with text APIs only — never markup from a string.
+        list.textContent = '';
+        state.data.forEach((value, i) => {
+          const row = document.createElement('li');
+          row.className = 'sk-row';
+          const label = document.createElement('span');
+          label.textContent = formatStat(value);
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'sk-row__remove';
+          remove.textContent = '×';
+          remove.setAttribute('aria-label', `Remove ${formatStat(value)}`);
+          remove.addEventListener('click', () => apply({ kind: 'remove', index: i }));
+          row.append(label, remove);
+          list.appendChild(row);
+        });
+      }
+      // One restrained announcement, and only for something that actually happened.
+      if (live && announce) live.textContent = state.note;
+    }
+
+    function apply(key: KeypadKey): void {
+      const next = pressKey(state, key, formatStat);
+      const announce = next.note !== state.note && next.note !== '';
+      state = next;
+      render(announce);
+    }
+
+    root.querySelectorAll<HTMLElement>('[data-sk-key]').forEach((btn) => {
+      const key = parseKeyAttr(btn.dataset.skKey ?? '');
+      if (key) btn.addEventListener('click', () => apply(key));
+    });
+
+    // Typing works too — a keypad you can only click is slower than the box below it.
+    root.addEventListener('keydown', (event) => {
+      const e = event as KeyboardEvent;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      let key: KeypadKey | null = null;
+      if (/^[0-9]$/.test(e.key)) key = { kind: 'digit', value: e.key };
+      else if (e.key === '.') key = { kind: 'dot' };
+      else if (e.key === 'Backspace') key = { kind: 'backspace' };
+      else if (e.key === 'Escape') key = { kind: 'clearEntry' };
+      else if (e.key === 'Enter' && !(e.target as HTMLElement)?.closest('[data-sk-key]')) {
+        key = { kind: 'add' };
+      }
+      if (!key) return;
+      e.preventDefault();
+      apply(key);
+    });
+
+    render(false);
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-stats-keypad]').forEach(mountKeypad);
 
   document.querySelectorAll<HTMLElement>('[data-stats]').forEach((root) => {
     const isSd = root.getAttribute('data-primary') === 'sd';
     mountFormCalculator(root, statisticsBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: STATISTICS_EXAMPLE_VALUES },
       calculateButtonLabel: isSd ? 'Calculate Standard Deviation' : 'Calculate Statistics',
     });
 

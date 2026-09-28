@@ -189,6 +189,119 @@ describe('planFormAction — reset', () => {
 });
 
 /* ------------------------------------------------------------------ */
+/* Worked example on first load (opt-in)                                */
+/* ------------------------------------------------------------------ */
+
+describe('planFormAction — showExample', () => {
+  it('renders the example into the result panel', () => {
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    expect(plan.next.status).toEqual({ state: 'example', activity: 'idle' });
+    expect(plan.effects.compute).toBe(true); // renderResult fills the OWN valid region
+    expect(plan.effects.fieldErrors).toBe('clear');
+  });
+
+  it('is SILENT and never moves focus — the page must land where it loaded', () => {
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    expect(plan.effects.announce).toBe('none');
+    expect(plan.effects.focus).toBe('none');
+  });
+
+  it('NEVER writes the visitor\'s fields — they stay empty behind the example', () => {
+    for (const probe of [OK, INVALID, NON_FINITE, null]) {
+      const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, probe, opts('live-after-first'));
+      expect(plan.effects.clearValues).toBe(false);
+    }
+  });
+
+  it('does NOT open the live gate — the visitor still makes an explicit first calculation', () => {
+    const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    expect(plan.next.hasCalculated).toBe(false);
+    expect(isLiveActive('live-after-first', plan.next.hasCalculated)).toBe(false);
+    // So a field edit from here dismisses rather than live-computing.
+    const typed = planFormAction(plan.next, { kind: 'dismissExample', source: 'input' }, null, opts('live-after-first'));
+    expect(typed.next.status.state).toBe('empty');
+  });
+
+  it('shows no live note — nothing updates automatically until the first calculation', () => {
+    expect(
+      planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first')).effects.liveNote,
+    ).toBe(false);
+  });
+
+  it('degrades to a plain empty load if our own example values fail', () => {
+    for (const probe of [INVALID, NON_FINITE, null]) {
+      const plan = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, probe, opts('live-after-first'));
+      expect(plan.next).toEqual(INITIAL_FORM_STATE); // never a broken example, never an error
+      expect(plan.effects.compute).toBe(false);
+      expect(plan.effects.announce).toBe('none');
+      expect(plan.effects.fieldErrors).toBe('clear');
+    }
+  });
+
+  it('an explicit Calculate from the example produces the visitor\'s own result', () => {
+    const shown = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    const calculated = planFormAction(shown.next, { kind: 'submit' }, OK, opts('live-after-first'));
+    expect(calculated.next.status.state).toBe('valid');
+    expect(calculated.next.hasCalculated).toBe(true);
+    expect(calculated.effects.announce).toBe('value'); // the visitor's OWN result IS announced
+  });
+
+  it('Reset from an example returns to a blank empty form', () => {
+    const shown = planFormAction(INITIAL_FORM_STATE, { kind: 'showExample' }, OK, opts('live-after-first'));
+    const reset = planFormAction(shown.next, { kind: 'reset' }, null, opts('live-after-first'));
+    expect(reset.next).toEqual(INITIAL_FORM_STATE);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Worked-example dismissal (opt-in)                                    */
+/* ------------------------------------------------------------------ */
+
+describe('planFormAction — dismissExample', () => {
+  const EXAMPLE = S('example', 'idle', false);
+
+  it('the explicit action leaves the example for empty and hands over the first field', () => {
+    const plan = planFormAction(EXAMPLE, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+    expect(plan.next).toEqual({ status: { state: 'empty', activity: 'idle' }, hasCalculated: false });
+    expect(plan.effects.focus).toBe('firstField');
+    expect(plan.effects.compute).toBe(false);
+    expect(plan.effects.announce).toBe('none');
+    expect(plan.effects.liveNote).toBe(false);
+    expect(plan.effects.fieldErrors).toBe('clear');
+  });
+
+  it('never clears the visitor\'s values — the example lives only in the result panel', () => {
+    for (const source of ['action', 'input'] as const) {
+      const plan = planFormAction(EXAMPLE, { kind: 'dismissExample', source }, null, opts('live-after-first'));
+      expect(plan.effects.clearValues).toBe(false);
+    }
+  });
+
+  it('dismissal by typing goes to empty WITHOUT moving focus mid-keystroke', () => {
+    const plan = planFormAction(EXAMPLE, { kind: 'dismissExample', source: 'input' }, null, opts('live-after-first'));
+    expect(plan.next).toEqual({ status: { state: 'empty', activity: 'idle' }, hasCalculated: false });
+    expect(plan.effects.focus).toBe('none');
+  });
+
+  it('does not open the live gate — the visitor still makes an explicit first calculation', () => {
+    const plan = planFormAction(EXAMPLE, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+    expect(plan.next.hasCalculated).toBe(false);
+    expect(isLiveActive('live-after-first', plan.next.hasCalculated)).toBe(false);
+  });
+
+  it('is a no-op from every other state, so it can never wipe a real result', () => {
+    for (const state of [S('valid', 'just-updated', true), S('invalid', 'idle', true), INITIAL_FORM_STATE]) {
+      const plan = planFormAction(state, { kind: 'dismissExample', source: 'action' }, null, opts('live-after-first'));
+      expect(plan.next).toEqual(state);
+      expect(plan.effects.compute).toBe(false);
+      expect(plan.effects.clearValues).toBe(false);
+      expect(plan.effects.fieldErrors).toBe('none');
+      expect(plan.effects.focus).toBe('none');
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /* Per-instance result-description tracker (R7C-2D.1)                   */
 /* ------------------------------------------------------------------ */
 

@@ -1,0 +1,142 @@
+---
+import CalculatorLayout from '@layouts/CalculatorLayout.astro';
+import VatCalculator from '@components/islands/VatCalculator.astro';
+import { getCalculator } from '@data/calculators';
+
+const calc = getCalculator('finance', 'vat-calculator')!;
+
+const faqs = [
+  {
+    question: 'How do I add VAT to a price?',
+    answer:
+      'Multiply the net price by the rate as a decimal to get the VAT, then add it on. A net price of 1,200 at 20% carries 240 of VAT and comes to 1,440 gross. Enter the rate and the net price here and leave the other two blank.',
+  },
+  {
+    question: 'How do I remove VAT from a price?',
+    answer:
+      'Divide the gross price by one plus the rate — do not subtract the rate, which is the usual mistake. At 20%, 1,440 ÷ 1.2 = 1,200 net, so the VAT was 240. Taking 20% off 1,440 would wrongly give 1,152. Enter the rate and the gross price and leave the rest blank.',
+  },
+  {
+    question: 'How do I work out the VAT rate from two prices?',
+    answer:
+      'Subtract to get the VAT, then divide by the net price: (1,440 − 1,200) ÷ 1,200 = 20%. Enter the net and gross prices and leave the rate and tax amount blank.',
+  },
+  {
+    question: 'What is the difference between net and gross price?',
+    answer:
+      'The net price is the price before VAT — what the seller keeps. The gross price is the price including VAT — what the buyer actually pays. The difference between them is the tax amount, which the seller collects and passes to the tax authority.',
+  },
+  {
+    question: 'What is VAT?',
+    answer:
+      'Value-added tax is a consumption tax collected in stages along the supply chain. Each business charges VAT on what it sells and reclaims the VAT on what it buys, so the tax lands on the final consumer. More than 170 countries operate one, and in most of them the shelf price already includes it.',
+  },
+  {
+    question: 'Is VAT the same as sales tax?',
+    answer:
+      'No. Sales tax is charged once, at the final sale, and is normally added at the till. VAT is collected at every stage of the supply chain with businesses reclaiming what they paid, and is usually quoted inside the shelf price. The arithmetic on a single sale is the same, but the systems are not interchangeable.',
+  },
+  {
+    question: 'What is a zero rate, and is it the same as being exempt?',
+    answer:
+      'No. Zero-rated goods are taxable at 0%, so the seller charges no VAT but can still reclaim the VAT on their own costs. Exempt goods sit outside the system entirely, and the seller cannot reclaim. Enter a rate of 0 here and the calculator treats it as a real answer, not an error.',
+  },
+  {
+    question: 'Which currency does this calculator use?',
+    answer:
+      'None — deliberately. VAT is levied in more than 170 countries and the arithmetic is identical in all of them, so figures are shown as plain numbers. Read them in whatever currency you entered.',
+  },
+];
+---
+
+<CalculatorLayout
+  calculator={calc}
+  presentation="task-first"
+  rail
+  intro="Fill in any two of VAT rate, net price, gross price and tax amount, and the other two are worked out."
+  faqs={faqs}
+  reviewMetadata={{ reviewedDate: '2026-08-30' }}
+>
+  <VatCalculator />
+
+  <Fragment slot="content">
+    <h2>How to use this calculator</h2>
+    <ol>
+      <li>Fill in <strong>any two</strong> of the four: VAT rate, net price, gross price, tax
+        amount.</li>
+      <li>Leave the other two <strong>blank</strong> — those are the ones worked out.</li>
+      <li>Press <strong>Calculate VAT</strong> to see all four figures together, with the two the
+        calculator supplied marked <em>worked out</em>.</li>
+    </ol>
+    <p>
+      There is no mode to choose. The blank boxes <em>are</em> the mode, which means the tool can
+      never be set to one thing while you are typing another.
+    </p>
+
+    <h2>The six questions this answers</h2>
+    <p>
+      A VAT sale is two equations — <strong>tax = net × rate</strong> and <strong>gross = net +
+      tax</strong> — so any two of the four figures fix the other two. That gives six ways in.
+    </p>
+    <ul>
+      <li><strong>Rate + net price.</strong> Invoicing: 1,200 at 20% adds 240, so the gross is
+        <strong>1,440</strong>.</li>
+      <li><strong>Rate + gross price.</strong> Reading a receipt: 1,440 ÷ 1.2 = <strong>1,200</strong>
+        net, with 240 of VAT.</li>
+      <li><strong>Rate + tax amount.</strong> Reconciling: 240 of VAT at 20% means a net price of
+        <strong>1,200</strong>.</li>
+      <li><strong>Net + gross price.</strong> Checking a quote: (1,440 − 1,200) ÷ 1,200 =
+        <strong>20%</strong>.</li>
+      <li><strong>Net price + tax amount.</strong> The gross is <strong>1,440</strong> and the rate
+        was 20%.</li>
+      <li><strong>Gross price + tax amount.</strong> The net is <strong>1,200</strong>, which is the
+        figure your bookkeeping needs.</li>
+    </ul>
+
+    <h2>The mistake worth avoiding</h2>
+    <p>
+      To go from a VAT-inclusive price back to the price before VAT, you <strong>divide by 1 + the
+      rate</strong>. You do not subtract the rate. At 20%, taking 20% off a gross price of 1,440
+      gives 1,152 — wrong by 48, because that 20% was a percentage of the smaller net figure to
+      begin with. The gap widens with the rate: at 27%, Hungary's standard rate, the same mistake
+      on a gross of 1,270 gives 927.10 instead of 1,000, out by nearly 73.
+    </p>
+
+    <h2>Net, gross and the tax in between</h2>
+    <p>
+      The <strong>net price</strong> is what the seller keeps. The <strong>gross price</strong> is
+      what the buyer pays. The difference is the <strong>tax amount</strong> — money the seller
+      collects on the tax authority's behalf and never owns. An invoice normally states all three,
+      which is why this calculator shows all four figures rather than only the one you asked for.
+    </p>
+
+    <h2>How VAT differs from sales tax</h2>
+    <p>
+      VAT is collected in stages. A component maker charges VAT to a manufacturer, who charges it
+      to a retailer, who charges it to you — but each business reclaims the VAT it paid, so only
+      the final consumer bears the whole amount. That staged trail is why VAT is harder to evade
+      than a single-point tax, and why it is the more common system worldwide.
+    </p>
+    <p>
+      <a href="/finance/sales-tax-calculator">Sales tax</a>, used in the United States, is charged
+      once at the final sale and added at the till rather than shown in the shelf price. The
+      single-sale arithmetic is identical, so either calculator will give you the same numbers —
+      but the systems, the paperwork and who reclaims what are quite different.
+    </p>
+
+    <h2>Rates vary widely</h2>
+    <p>
+      Standard rates across the EU run from 17% to 27%, the UK charges 20%, and many countries run
+      reduced rates on food, books, children's clothing, medicine and public transport. Some goods
+      are <strong>zero-rated</strong>, taxed at 0% but still inside the system, which is not the
+      same as being <strong>exempt</strong> and outside it. Always use the rate that applies to the
+      goods and the country in question.
+    </p>
+    <p>
+      Because rates differ everywhere, this calculator asks you for the rate rather than guessing
+      it, and shows amounts as plain numbers with no currency symbol. These figures are for general
+      use, not tax advice — check the current rate with the relevant tax authority before filing
+      anything.
+    </p>
+  </Fragment>
+</CalculatorLayout>

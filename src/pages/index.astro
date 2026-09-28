@@ -3,6 +3,8 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Icon from '@components/Icon.astro';
 import PhysicalCalculator from '@components/calc/PhysicalCalculator.astro';
+import CalculatorSearch from '@components/search/CalculatorSearch.astro';
+import { SEARCH_INDEX_URL } from '@lib/search';
 import { SITE } from '@config/site';
 import {
   getCalculator,
@@ -76,18 +78,18 @@ const valueProps = [
       <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
         <!-- Left: headline + search + popular quick-links -->
         <div class="text-center lg:text-left">
-          <form action="/calculators" method="get" class="mx-auto mt-7 flex max-w-xl gap-2 lg:mx-0">
-            <label class="sr-only" for="hero-search">Search calculators</label>
-            <input
+          <!-- The hero search is the SAME combobox the rest of the site uses, not a second
+               implementation: one index, one ranking engine, one set of behaviours. It stays a real
+               GET form to /calculators, so it works with JavaScript off; the client controller
+               upgrades it in place to a live dropdown that filters as the visitor types. -->
+          <div class="mx-auto mt-7 max-w-xl lg:mx-0">
+            <CalculatorSearch
               id="hero-search"
-              name="q"
-              type="search"
-              class="field"
+              indexUrl={SEARCH_INDEX_URL}
+              loadStrategy="interaction"
               placeholder="Search: mortgage, BMI, scientific, percentage…"
-              autocomplete="off"
             />
-            <button type="submit" class="btn btn-primary shrink-0">Search</button>
-          </form>
+          </div>
 
            <div class="mt-5 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
             <span class="text-sm font-semibold" style="color: var(--muted)">Popular:</span>
@@ -219,7 +221,7 @@ const valueProps = [
   <!-- Value props -->
   <section class="border-y" style="border-color: var(--line); background: var(--card)">
     <div class="wrap py-14">
-      <h2 class="text-center text-2xl font-bold">Why AllCalculators</h2>
+      <h2 class="text-center text-2xl font-bold">Why {SITE.name}</h2>
       <ul class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {
           valueProps.map((v) => (

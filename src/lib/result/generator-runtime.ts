@@ -47,6 +47,14 @@ export interface GeneratorOptions {
   regenerateButtonLabel?: string;
   liveRegeneration?: boolean;
   invalidateOutputOnSettingsChange?: boolean;
+  /**
+   * Opt in to a labelled worked EXAMPLE output on first load. `settings` are
+   * example settings in the binding's own shape; the runtime generates from them
+   * and calls `renderOutput`, so the example reuses the generator's OWN output
+   * markup. The example is never announced, stored, logged or transmitted, and
+   * it never counts as the visitor's first generation.
+   */
+  example?: { settings: unknown };
 }
 
 /* ------------------------------------------------------------------ */
@@ -65,7 +73,21 @@ export const INITIAL_GENERATOR_STATE: GeneratorMachineState = {
   hasGenerated: false,
 };
 
-export type GeneratorTrigger = { kind: 'generate' } | { kind: 'settingsChange' } | { kind: 'reset' };
+export type GeneratorTrigger =
+  | { kind: 'generate' }
+  | { kind: 'settingsChange' }
+  | { kind: 'reset' }
+  /**
+   * Render a labelled worked EXAMPLE output on mount, generated from example
+   * settings the island supplies — never from the visitor's controls, which keep
+   * their own defaults. Opt-in via the `example` option.
+   */
+  | { kind: 'showExample' }
+  /**
+   * Leave the example and hand the panel to the visitor: the explicit
+   * "Start with my values" action, or their first settings change.
+   */
+  | { kind: 'dismissExample'; source: 'action' | 'input' };
 
 export interface GeneratorProbe {
   validation: ValidationResult;
@@ -128,6 +150,31 @@ export function planGeneratorAction(
   options: { liveRegeneration: boolean; invalidateOutputOnSettingsChange: boolean },
 ): GeneratorPlan {
   switch (trigger.kind) {
+    case 'showExample':
+      // The example is OURS, not the visitor's: silent, no focus move, and it does
+      // NOT count as a generation (so the button keeps saying "Generate").
+      if (!probe || !probe.validation.ok) {
+        return build(INITIAL_GENERATOR_STATE, {
+          generate: false, announce: 'none', focus: 'none', fieldErrors: 'clear', clearSettings: false,
+        });
+      }
+      return build(
+        { status: reduceResult(state.status, { type: 'showExample' }), stale: false, hasGenerated: false },
+        { generate: true, announce: 'none', focus: 'none', fieldErrors: 'clear', clearSettings: false },
+      );
+
+    case 'dismissExample':
+      // Protection: only an example can be dismissed.
+      if (state.status.state !== 'example') {
+        return build(state, {
+          generate: false, announce: 'none', focus: 'none', fieldErrors: 'none', clearSettings: false,
+        });
+      }
+      return build(
+        { status: reduceResult(state.status, { type: 'reset' }), stale: false, hasGenerated: false },
+        { generate: false, announce: 'none', focus: 'none', fieldErrors: 'clear', clearSettings: false },
+      );
+
     case 'reset':
       return build(
         { status: reduceResult(state.status, { type: 'reset' }), stale: false, hasGenerated: false },
@@ -284,10 +331,18 @@ export function mountGeneratorCalculator<S, O>(
     let output: O | null = null;
     let probe: GeneratorProbe | null = null;
 
-    if (trigger.kind !== 'reset') {
-      const settings = binding.readSettings(root);
+    if (trigger.kind !== 'reset' && trigger.kind !== 'dismissExample') {
+      // The example generates from ITS OWN settings; every other trigger reads the
+      // visitor's controls.
+      const settings =
+        trigger.kind === 'showExample'
+          ? (options.example!.settings as S)
+          : binding.readSettings(root);
       probe = { validation: binding.validateSettings(settings) };
-      if (probe.validation.ok && (trigger.kind === 'generate' || liveRegeneration)) {
+      if (
+        probe.validation.ok &&
+        (trigger.kind === 'generate' || trigger.kind === 'showExample' || liveRegeneration)
+      ) {
         output = binding.generate(settings);
       }
     }
@@ -370,20 +425,37 @@ export function mountGeneratorCalculator<S, O>(
     }
   };
 
+  // Changing a setting while the example shows ends it, rather than marking the
+  // example stale — the example was never the visitor's output to invalidate.
+  const onSettingsOrDismiss = () => {
+    if (state.status.state === 'example') {
+      run({ kind: 'dismissExample', source: 'input' });
+      return;
+    }
+    onSettings();
+  };
+  const onDismissExample = () => run({ kind: 'dismissExample', source: 'action' });
+
   form.addEventListener('submit', onSubmit);
-  form.addEventListener('input', onSettings);
-  form.addEventListener('change', onSettings);
+  form.addEventListener('input', onSettingsOrDismiss);
+  form.addEventListener('change', onSettingsOrDismiss);
   resetBtn?.addEventListener('click', onReset);
   copyBtn?.addEventListener('click', onCopy);
+  const dismissBtns = Array.from(root.querySelectorAll<HTMLElement>('[data-example-dismiss]'));
+  for (const btn of dismissBtns) btn.addEventListener('click', onDismissExample);
+
+  // Render the worked example once, AFTER wiring.
+  if (options.example) run({ kind: 'showExample' });
 
   return {
     destroy() {
       window.clearTimeout(settleTimer);
       form.removeEventListener('submit', onSubmit);
-      form.removeEventListener('input', onSettings);
-      form.removeEventListener('change', onSettings);
+      form.removeEventListener('input', onSettingsOrDismiss);
+      form.removeEventListener('change', onSettingsOrDismiss);
       resetBtn?.removeEventListener('click', onReset);
       copyBtn?.removeEventListener('click', onCopy);
+      for (const btn of dismissBtns) btn.removeEventListener('click', onDismissExample);
     },
   };
 }

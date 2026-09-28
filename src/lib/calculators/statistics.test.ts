@@ -16,15 +16,97 @@ import { calculateStats, parseNumberList } from './statistics';
 
 /** Every field the result contract exposes, frozen so a shape change is caught. */
 const STATS_KEYS = [
-  'count', 'iqr', 'max', 'mean', 'median', 'min', 'mode',
+  'count', 'geometricMean', 'iqr', 'max', 'mean', 'median', 'min', 'mode', 'modeFrequency',
   'populationSD', 'populationVariance', 'q1', 'q3', 'range',
-  'sampleSD', 'sampleVariance', 'sorted', 'sum', 'sumSquares',
+  'sampleSD', 'sampleVariance', 'sorted', 'sum', 'sumSquares', 'sumOfSquaredValues',
 ] as const;
 
 describe('statistics — result contract', () => {
-  it('exposes exactly the 17 StatsResult fields (no more, no fewer)', () => {
+  it('exposes exactly the 20 StatsResult fields (no more, no fewer)', () => {
     const r = calculateStats([1, 2, 3]);
     expect(Object.keys(r).sort()).toEqual([...STATS_KEYS].sort());
+  });
+});
+
+/**
+ * The reference's own worked example, printed from its page: 10, 2, 38, 23, 38, 23, 21, 23.
+ * Every figure below was read off the reference and reproduced independently before being asserted.
+ */
+describe('statistics — the reference data set', () => {
+  const r = calculateStats([10, 2, 38, 23, 38, 23, 21, 23]);
+  const sig = (v: number) => Number(v.toPrecision(14));
+
+  it('counts, sums and averages as the reference does', () => {
+    expect(r.count).toBe(8);
+    expect(r.sum).toBe(178);
+    expect(r.mean).toBe(22.25);
+    expect(r.median).toBe(23);
+  });
+
+  it('reports the mode with the number of times it appears', () => {
+    expect(r.mode).toEqual([23]);
+    expect(r.modeFrequency).toBe(3);
+  });
+
+  it('reports the extremes and the range', () => {
+    expect(r.max).toBe(38);
+    expect(r.min).toBe(2);
+    expect(r.range).toBe(36);
+  });
+
+  it('matches the reference geometric mean to fourteen significant figures', () => {
+    expect(sig(r.geometricMean)).toBe(17.119851726053);
+  });
+
+  it('matches the reference population and sample dispersion', () => {
+    expect(sig(r.populationSD)).toBe(11.508149286484);
+    expect(sig(r.populationVariance)).toBe(132.4375);
+    expect(sig(r.sampleSD)).toBe(12.302729081677);
+    expect(sig(r.sampleVariance)).toBe(151.35714285714);
+  });
+
+  it('sorts the data as the reference lists it', () => {
+    expect(r.sorted).toEqual([2, 10, 21, 23, 23, 23, 38, 38]);
+  });
+
+  it('sums the SQUARED values, which is not the squared sum', () => {
+    expect(r.sumOfSquaredValues).toBe(5020); // 10² + 2² + 38² + … ; the squared sum would be 31684
+    expect(r.sumSquares).not.toBe(r.sumOfSquaredValues); // Σ(x − mean)² is a different quantity
+  });
+});
+
+describe('statistics — geometric mean', () => {
+  it('is the nth root of the product', () => {
+    expect(calculateStats([1, 3, 9]).geometricMean).toBeCloseTo(3, 12);
+    expect(calculateStats([4, 9]).geometricMean).toBeCloseTo(6, 12);
+  });
+
+  it('equals the value itself for a single positive value', () => {
+    expect(calculateStats([7]).geometricMean).toBeCloseTo(7, 12);
+  });
+
+  it('is undefined — not zero, not imaginary — when a value is zero or negative', () => {
+    expect(calculateStats([0, 4, 9]).geometricMean).toBeNaN();
+    expect(calculateStats([-2, 4, 9]).geometricMean).toBeNaN();
+  });
+
+  it('survives a data set whose product would overflow to Infinity', () => {
+    const big = Array.from({ length: 400 }, () => 1e10);
+    expect(calculateStats(big).geometricMean).toBeCloseTo(1e10, -5);
+  });
+});
+
+describe('statistics — mode frequency', () => {
+  it('is zero when every value is unique', () => {
+    const r = calculateStats([1, 2, 3]);
+    expect(r.mode).toEqual([]);
+    expect(r.modeFrequency).toBe(0);
+  });
+
+  it('reports the shared frequency when several values tie', () => {
+    const r = calculateStats([1, 1, 2, 2, 3]);
+    expect(r.mode).toEqual([1, 2]);
+    expect(r.modeFrequency).toBe(2);
   });
 });
 

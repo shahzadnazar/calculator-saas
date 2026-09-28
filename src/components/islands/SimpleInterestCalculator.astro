@@ -1,131 +1,175 @@
 ---
 /**
- * Simple-interest calculator island (R9A1 — standard-form wave, calculator #17; product family
- * FINANCE-SIMPLE, on the standard-form runtime UNCHANGED — no isUsableResult).
+ * Simple interest island — one formula, solved for whichever variable is missing.
  *
- * Task-first, direct-intent: a single mode, no structural selectors. All fields start EMPTY,
- * the result is empty (an instruction, not the legacy $5,000 / 5% / 3-year sample), and the
- * visitor presses "Calculate Simple Interest" for the first result. Live-after-first afterwards.
- * Compute, validation, state, the single announcement, focus and Reset are owned by the shared
- * runtime (UNCHANGED) + the simple-interest binding (@lib/calculators/simple-interest-form).
+ * Four tabs, because with simple interest nothing compounds and every variable is as
+ * easy to solve for as any other: pick the one you do not know and the other three
+ * become the question. The mode is a radio group styled as tabs, so it works with the
+ * keyboard and with JavaScript disabled, and only the three fields the mode needs are
+ * on screen at once.
  *
- * Interest earned is the DOMINANT result; the total amount is the secondary breakdown. Amounts
- * are US dollars (USD). This island is also embedded by the guide
- * src/content/guides/simple-interest-explained.mdx — it injects no page H1 or breadcrumb, so it
- * renders cleanly inside guide prose as well as on the calculator page and the /embed route.
+ * The rate and the term each carry their own unit, because a rate quoted per month
+ * against a term in years is a real combination and multiplying them as they stand is
+ * off by a factor of twelve. The binding normalises both before computing.
+ *
+ * The result gives the end balance and the interest, then writes out the arithmetic —
+ * the formula is short enough to check by hand, and someone using this usually wants
+ * to see it done rather than trusted. Below that, the ring, the accumulation graph and
+ * the year-by-year schedule.
+ *
+ * Compute, validation, state, focus and the announcement belong to the shared form
+ * runtime and the simple-interest binding; the schedule and the stacked chart come
+ * from `@lib/result/accumulation`.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
 import ResultValue from '@components/result/ResultValue.astro';
-import ResultInterpretation from '@components/result/ResultInterpretation.astro';
 import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { TIME_UNITS } from '@lib/calculators/simple-interest';
+import { RATE_UNIT_LABELS, SOLVE_MODES, TERM_UNIT_LABELS } from '@lib/calculators/simple-interest-form';
 ---
 
-<div class="simpleinterest mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-simple-interest>
+<div class="si mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2 md:items-start" data-si>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Simple interest calculator">
-    <div class="space-y-4">
-      <div data-field="principal">
-        <label class="field-label" for="si-principal">Principal amount in USD</label>
-        <div class="flex">
+    <fieldset class="si-modes">
+      <legend class="sr-only">What to calculate</legend>
+      <div class="si-tabs">
+        {SOLVE_MODES.map((m) => (
+          <label class="si-tab">
+            <input type="radio" name="solveFor" value={m.value} checked={m.value === 'balance'} />
+            <span>{m.label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+
+    <div class="si-fields">
+      <!-- End balance: asked for by every mode but Balance. -->
+      <div class="si-row" data-field="endBalance" data-si-row-for="principal term rate">
+        <label class="field-label" for="si-balance">End balance</label>
+        <div class="flex si-row__control">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="si-principal"
-            name="principal"
-            type="number"
-            min="0"
-            step="100"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 5000"
-            aria-describedby="si-principal-error"
-          />
+          <input class="field rounded-l-none" id="si-balance" name="endBalance" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 30000" aria-describedby="si-balance-error" />
         </div>
-        <p class="si-field-error" id="si-principal-error" data-error-for="principal" hidden></p>
       </div>
+      <p class="si-error" id="si-balance-error" data-error-for="endBalance" hidden></p>
 
-      <div data-field="annualRatePct">
-        <label class="field-label" for="si-rate">Annual interest rate</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="si-rate"
-            name="annualRatePct"
-            type="number"
-            min="0"
-            step="0.1"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 5"
-            aria-describedby="si-rate-error"
-          />
-          <span class="field-affix rounded-r-lg border-l-0">%</span>
+      <div class="si-row" data-field="principal" data-si-row-for="balance term rate">
+        <label class="field-label" for="si-principal">Principal</label>
+        <div class="flex si-row__control">
+          <span class="field-affix rounded-l-lg border-r-0">$</span>
+          <input class="field rounded-l-none" id="si-principal" name="principal" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 20000" aria-describedby="si-principal-error" />
         </div>
-        <p class="si-field-error" id="si-rate-error" data-error-for="annualRatePct" hidden></p>
       </div>
+      <p class="si-error" id="si-principal-error" data-error-for="principal" hidden></p>
 
-      <div data-field="years">
-        <label class="field-label" for="si-years">Time</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="si-years"
-            name="years"
-            type="number"
-            min="0"
-            step="0.5"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 3"
-            aria-describedby="si-years-error"
-          />
-          <span class="field-affix rounded-r-lg border-l-0">years</span>
+      <div class="si-row" data-field="ratePerUnitPct" data-si-row-for="balance principal term rate">
+        <label class="field-label" for="si-rate">Interest rate</label>
+        <div class="si-row__control si-pair">
+          <div class="flex si-pair__value" data-si-value-for="balance principal term">
+            <input class="field rounded-r-none" id="si-rate" name="ratePerUnitPct" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="e.g. 3" aria-describedby="si-rate-error" />
+            <span class="field-affix rounded-r-lg border-l-0">%</span>
+          </div>
+          <span class="si-answer-in" data-si-answer-for="rate" hidden>Answer</span>
+          <select class="field si-pair__unit" name="rateUnit" aria-label="Interest rate period">
+            {TIME_UNITS.map((u) => <option value={u} selected={u === 'year'}>{RATE_UNIT_LABELS[u]}</option>)}
+          </select>
         </div>
-        <p class="si-field-error" id="si-years-error" data-error-for="years" hidden></p>
       </div>
+      <p class="si-error" id="si-rate-error" data-error-for="ratePerUnitPct" hidden></p>
+
+      <div class="si-row" data-field="term" data-si-row-for="balance principal rate term">
+        <label class="field-label" for="si-term">Term</label>
+        <div class="si-row__control si-pair">
+          <div class="si-pair__value" data-si-value-for="balance principal rate">
+            <input class="field w-full" id="si-term" name="term" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" placeholder="e.g. 10" aria-describedby="si-term-error" />
+          </div>
+          <span class="si-answer-in" data-si-answer-for="term" hidden>Answer</span>
+          <select class="field si-pair__unit" name="termUnit" aria-label="Term unit">
+            {TIME_UNITS.map((u) => <option value={u} selected={u === 'year'}>{TERM_UNIT_LABELS[u]}</option>)}
+          </select>
+        </div>
+      </div>
+      <p class="si-error" id="si-term-error" data-error-for="term" hidden></p>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary">Calculate Simple Interest</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <div class="mt-3 flex items-center gap-3">
+      <button type="submit" class="btn btn-primary" data-si-submit>Calculate</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
     </div>
     <p class="si-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell
-    id="si-result"
-    state="empty"
-    density="standard"
-    label="Simple interest result"
-    minHeight="20rem"
-    placeholderAlignment="center"
-  >
-    <EmptyResult message="Enter a principal amount, annual interest rate, and time period to calculate simple interest." />
+  <ResultShell id="si-result" state="empty" density="complex" label="Simple interest result" minHeight="20rem">
+    <ExampleNotice />
+    <EmptyResult message="Choose what to work out, fill in the other three values, then press Calculate." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Interest earned">
+      <ResultSummary label="End Balance">
         <ResultValue value="—" size="text-4xl" />
       </ResultSummary>
-      <ResultInterpretation>
-        <span data-si-interpretation></span>
-      </ResultInterpretation>
 
-      <ResultBreakdown title="Breakdown">
+      <ResultBreakdown title="Results">
         <dl class="si-metrics">
-          <div><dt>Total amount</dt><dd data-si-total>—</dd></div>
+          <div data-si-solved-row hidden><dt data-si-solved-label>—</dt><dd data-si-solved>—</dd></div>
+          <div><dt>End Balance</dt><dd data-si-balance>—</dd></div>
+          <div><dt>Total Interest</dt><dd data-si-interest>—</dd></div>
         </dl>
-        <p class="si-note">Interest and total are in US dollars (USD).</p>
+
+        <!-- The formula is short enough to check by hand, so it is shown being done. -->
+        <div class="si-steps">
+          <p class="si-figure__title">Calculation steps</p>
+          <div data-si-steps></div>
+        </div>
+
+        <figure class="si-donut" data-si-donut-figure hidden>
+          <figcaption class="si-figure__title">Breakdown</figcaption>
+          <div class="si-donut__row">
+            <div class="si-donut__plot" data-si-donut></div>
+            <ul class="si-legend">
+              <li><span class="si-key si-key--principal" aria-hidden="true"></span>Principal <b data-si-share-principal>—</b></li>
+              <li><span class="si-key si-key--interest" aria-hidden="true"></span>Interest <b data-si-share-interest>—</b></li>
+            </ul>
+          </div>
+        </figure>
+
+        <figure class="si-chart" data-si-chart-figure hidden>
+          <figcaption class="si-figure__title">Balance accumulation graph</figcaption>
+          <div class="si-chart__plot" data-si-chart></div>
+          <p class="si-legend si-legend--chart">
+            <span><span class="si-key si-key--principal" aria-hidden="true"></span>Principal</span>
+            <span><span class="si-key si-key--interest" aria-hidden="true"></span>Interest</span>
+          </p>
+        </figure>
+
+        <div class="si-schedule" data-si-schedule hidden>
+          <p class="si-figure__title">Schedule</p>
+          <div class="si-table-wrap">
+            <table class="si-table">
+              <caption class="sr-only">Interest earned and the balance at the end of each year.</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="si-th-period">Year</th>
+                  <th scope="col" class="si-num">Interest</th>
+                  <th scope="col" class="si-num">Balance</th>
+                </tr>
+              </thead>
+              <tbody data-si-rows></tbody>
+            </table>
+          </div>
+        </div>
       </ResultBreakdown>
     </div>
 
     <InvalidResult
       title="Check your entries"
-      message="Enter a principal amount, an annual interest rate, and a time period in years to calculate."
+      message="Fill in the three values the chosen tab asks for. Simple interest only ever adds, so an end balance must be at least the principal."
     />
 
     <ResultAnnouncement id="si-live" />
@@ -133,32 +177,77 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 </div>
 
 <style>
-  .si-field-error {
-    margin-top: 0.3rem;
+  /* Two series, one validated step per scheme: plum for the money you put in, burnt
+     orange for what it earns — the same pairing the borrowing calculators use. */
+  .si {
+    --si-principal: #7c3aed;
+    --si-interest: #ea580c;
+  }
+
+  .si > :global(*) { min-width: 0; }
+  .si .field-label { margin-bottom: 0; line-height: 1.25; }
+
+  /* The four modes as tabs. Real radios underneath, so they are keyboard-operable
+     and survive a page with no JavaScript. */
+  .si-modes { border: 0; padding: 0; margin: 0 0 0.85rem; }
+  .si-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .si-tab { position: relative; display: inline-flex; /* the label is the tap target */ min-height: 2.75rem; align-items: center; }
+  .si-tab input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; }
+  .si-tab span {
+    display: inline-block;
+    padding: 0.3rem 0.85rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .si-tab:has(input:checked) span { background: var(--color-brand-600); border-color: var(--color-brand-600); color: #fff; }
+  .si-tab:has(input:focus-visible) span { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .si-fields { display: grid; gap: 0.45rem; }
+  .si-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+    align-items: center;
+  }
+  .si-row[hidden] { display: none; }
+  .si-row__control { min-width: 0; }
+  @media (min-width: 30rem) {
+    .si-row { grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr); gap: 0.6rem; }
+  }
+
+  /* A value and its unit, side by side. On the tab that solves for this field the
+     value goes but the unit stays — it is what the answer comes back in, and hiding
+     it would leave invisible state deciding the output. */
+  .si-pair { display: flex; align-items: center; gap: 0.4rem; }
+  .si-answer-in {
+    flex: 1 1 auto;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--muted);
+  }
+  .si-answer-in[hidden] { display: none; }
+  .si-pair__value { flex: 1 1 auto; min-width: 0; }
+  .si-pair__unit { flex: 0 0 8rem; }
+
+  .si-error {
+    margin: 0.05rem 0 0.2rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
+  .si-error[hidden] { display: none; }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .si-field-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .si-error { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .si-field-error {
-    color: #fca5a5;
-  }
+  :root[data-theme='dark'] .si-error { color: #fca5a5; }
 
-  .si-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
+  .si-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
-  .si-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
-  }
+  .si-metrics { margin: 0; display: grid; gap: 0.2rem; }
   .si-metrics > div {
     display: flex;
     align-items: baseline;
@@ -166,12 +255,10 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     gap: 0.75rem;
     padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
-  .si-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
+  .si-metrics > div[hidden] { display: none; }
+  .si-metrics dt { color: var(--fg); font-weight: 600; }
   .si-metrics dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
@@ -179,21 +266,147 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     font-weight: 700;
     white-space: nowrap;
   }
-  .si-note {
-    margin: 0.7rem 0 0;
-    font-size: 0.8rem;
+
+  .si-figure__title {
+    margin: 0 0 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--muted);
   }
+
+  /* The working. Built with the DOM API, so the inner classes must be global. */
+  .si-steps { margin-top: 0.9rem; }
+  .si-steps :global(.si-step) {
+    display: grid;
+    gap: 0.05rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .si-steps :global(.si-step:last-child) { margin-bottom: 0; }
+  .si-steps :global(.si-step__expression) { color: var(--fg); }
+  .si-steps :global(.si-step__value) { color: var(--heading); font-weight: 700; padding-left: 1.5rem; }
+
+  .si-donut { margin: 1rem 0 0; }
+  .si-donut__row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .si-donut__plot { flex: 0 0 auto; width: 11.5rem; }
+  .si-donut :global(.si-donut__svg) { display: block; width: 100%; height: auto; }
+  .si-donut :global(.si-donut__arc--principal) { stroke: var(--si-principal); }
+  .si-donut :global(.si-donut__arc--interest) { stroke: var(--si-interest); }
+  /* Labels wear text ink, never the series colour. */
+  .si-donut :global(.si-donut__label) { fill: var(--heading); font-size: 11px; font-weight: 700; }
+
+  .si-chart { margin: 1rem 0 0; }
+  .si-chart__plot { width: 100%; }
+  .si-chart :global(.si-chart__svg) { display: block; width: 100%; height: auto; }
+  .si-chart :global(.si-chart__grid) { stroke: var(--line); stroke-width: 1; }
+  .si-chart :global(.si-chart__tick) { fill: var(--muted); font-size: 9px; }
+  .si-chart :global(.si-chart__seg--initial) { fill: var(--si-principal); }
+  .si-chart :global(.si-chart__seg--interest) { fill: var(--si-interest); }
+
+  .si-legend {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+    flex: 1 1 9rem;
+    min-width: 0;
+  }
+  .si-legend--chart { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
+  .si-legend li,
+  .si-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .si-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .si-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+  .si-key--principal { background: var(--si-principal); }
+  .si-key--interest { background: var(--si-interest); }
+
+  .si-schedule { margin-top: 1.1rem; }
+  .si-schedule[hidden] { display: none; }
+  .si-table-wrap { max-height: 20rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
+  .si-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.82rem; }
+  .si-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 700;
+    color: var(--heading);
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .si-table th.si-th-period { width: 4rem; }
+  /* Rows are built with the DOM API, so these must be global. */
+  .si-table :global(.si-cell) { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); }
+  .si-table :global(.si-cell--period) { font-weight: 600; color: var(--fg); text-align: left; }
+  .si-table th.si-num,
+  .si-table :global(td.si-num) { text-align: right; font-variant-numeric: tabular-nums; }
+  /* This schedule has no deposit column — simple interest adds nothing along the way. */
+  .si-table :global(td.si-col-deposit) { display: none; }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { simpleInterestBinding } from '@lib/calculators/simple-interest-form';
+  import { simpleInterestBinding, SIMPLE_INTEREST_EXAMPLE_VALUES } from '@lib/calculators/simple-interest-form';
 
-  document.querySelectorAll<HTMLElement>('[data-simple-interest]').forEach((root) => {
+  document.querySelectorAll<HTMLElement>('[data-si]').forEach((root) => {
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+
+    // Each row declares which modes ask for it, so the mode only has to hide the
+    // one field that has become the answer.
+    const shows = (el: HTMLElement, attr: string, mode: string) =>
+      (el.dataset[attr] ?? '').split(' ').includes(mode);
+
+    const syncMode = () => {
+      const mode = root.querySelector<HTMLInputElement>('[name="solveFor"]:checked')?.value ?? 'balance';
+
+      // A row disappears only where the mode needs neither its value nor its unit.
+      root.querySelectorAll<HTMLElement>('[data-si-row-for]').forEach((row) => {
+        row.hidden = !shows(row, 'siRowFor', mode);
+      });
+      // Within a surviving row, the value goes when it is the answer; its unit stays.
+      root.querySelectorAll<HTMLElement>('[data-si-value-for]').forEach((cell) => {
+        cell.hidden = !shows(cell, 'siValueFor', mode);
+      });
+      root.querySelectorAll<HTMLElement>('[data-si-answer-for]').forEach((tag) => {
+        tag.hidden = !shows(tag, 'siAnswerFor', mode);
+      });
+
+      // A field the mode no longer asks about must not keep an error from one that did.
+      root.querySelectorAll<HTMLInputElement>('[data-field] input[name]').forEach((input) => {
+        const visible = input.offsetParent !== null || input.getClientRects().length > 0;
+        if (visible) return;
+        input.removeAttribute('aria-invalid');
+        const error = root.querySelector<HTMLElement>(`[data-error-for="${input.name}"]`);
+        if (error) {
+          error.textContent = '';
+          error.hidden = true;
+        }
+      });
+    };
+    syncMode();
+
     mountFormCalculator(root, simpleInterestBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate Simple Interest',
+      example: { values: SIMPLE_INTEREST_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate',
     });
+
+    // Switching mode changes the question, so a result computed for the old one must
+    // not be left standing beside the new fields.
+    root.querySelectorAll<HTMLInputElement>('[name="solveFor"]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        syncMode();
+        if (shell?.dataset.resultState === 'valid') shell.dataset.resultState = 'empty';
+      });
+    });
+
+    root.querySelector('[data-reset]')?.addEventListener('click', () => queueMicrotask(syncMode));
   });
 </script>

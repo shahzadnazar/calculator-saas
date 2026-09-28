@@ -1,275 +1,303 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Triangle calculator — R10D1 standard-form wave (calculator #22; product family GEOMETRY, runtime
- * unchanged, no isUsableResult). The final geometry migration. SSS: three side lengths → area
- * (dominant) + perimeter, angles and classification. Covers the task-first doctrine end-to-end plus
- * the CROSS-FIELD triangle-inequality domain error: one form-level message (no side uniquely blamed),
- * focus returned to Side A on explicit submit, the "sum of any two sides…" hint shown only for that
- * domain case, and the valid→invalid→valid live transitions (stale result replaced, focus kept on the
- * edited field). Task-first ORDER + first-viewport are additionally asserted by task-first-layout.spec.
+ * Triangle — one calculator, six fields, any three of them.
+ *
+ * The reference's own worked case (a = 1, b = 1, C = 60°) is asserted line for line, because it is
+ * the only output of this tool we have seen printed. Beyond that the spec covers what makes a solver
+ * different from a formula: the five cases, the ambiguous SSA that has two answers, the pi
+ * expressions the reference invites in radian mode, and every way of giving it three values it
+ * cannot use.
  */
 const ROUTE = '/math/triangle-calculator';
-const DEBOUNCE = 300;
+const DEBOUNCE = 320;
 
-const shell = (page: Page) => page.locator('#tri-result');
-const primary = (page: Page) => page.locator('#tri-result [data-result-value]');
-const unitLabel = (page: Page) => page.locator('#tri-result [data-result-unit]');
-const summaryLabel = (page: Page) => page.locator('#tri-result [data-result-summary-label]');
-const interpretation = (page: Page) => page.locator('#tri-result [data-tri-interpretation]');
-const perimeter = (page: Page) => page.locator('#tri-result [data-tri-perimeter]');
-const angleA = (page: Page) => page.locator('#tri-result [data-tri-angle-a]');
-const angleB = (page: Page) => page.locator('#tri-result [data-tri-angle-b]');
-const angleC = (page: Page) => page.locator('#tri-result [data-tri-angle-c]');
-const sideType = (page: Page) => page.locator('#tri-result [data-tri-side-type]');
-const angleTypeEl = (page: Page) => page.locator('#tri-result [data-tri-angle-type]');
-const invalidMsg = (page: Page) => page.locator('#tri-result [data-result-invalid-message]');
-const domainHint = (page: Page) => page.locator('#tri-result [data-tri-domain-hint]');
-const liveRegion = (page: Page) => page.locator('#tri-live');
-const submit = (page: Page) => page.getByRole('button', { name: 'Solve Triangle' });
-const resetBtn = (page: Page) => page.getByRole('button', { name: 'Reset' });
-const region = (page: Page, when: string) => page.locator(`#tri-result [data-result-when~="${when}"]`);
+type Values = Partial<Record<'a' | 'b' | 'c' | 'angleA' | 'angleB' | 'angleC' | 'angleUnit', string>>;
+const FIELDS = ['a', 'b', 'c', 'angleA', 'angleB', 'angleC'] as const;
 
-const calc = async (page: Page, a: string, b: string, c: string) => {
-  await page.fill('[name="a"]', a);
-  await page.fill('[name="b"]', b);
-  await page.fill('[name="c"]', c);
+const root = (page: Page) => page.locator('[data-triangle]');
+const shell = (page: Page) => root(page).locator('[data-result-state]');
+const field = (page: Page, name: string) => root(page).locator(`[name="${name}"]`);
+const errorFor = (page: Page, name: string) => root(page).locator(`[data-error-for="${name}"]`);
+const kinds = (page: Page) => root(page).locator('.tri-kind');
+const lines = (page: Page) => root(page).locator('.tri-line');
+const solutions = (page: Page) => root(page).locator('.tri-solution');
+const figures = (page: Page) => root(page).locator('.tri-figure');
+const submit = (page: Page) => root(page).getByRole('button', { name: 'Calculate Triangle' });
+const clear = (page: Page) => root(page).getByRole('button', { name: 'Clear' });
+
+async function calc(page: Page, v: Values) {
+  for (const name of FIELDS) await field(page, name).fill(v[name] ?? '');
+  await field(page, 'angleUnit').selectOption(v.angleUnit ?? 'deg');
   await submit(page).click();
-};
+}
+
+/** Every printed line, whitespace collapsed, for exact comparison. */
+const allLines = (page: Page) =>
+  lines(page).evaluateAll((els) => els.map((e) => e.textContent!.replace(/\s+/g, ' ').trim()));
 
 test.beforeEach(async ({ page }) => {
   await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
 });
 
-/* ---- Initial state ------------------------------------------------------ */
+test.describe('the form', () => {
+  test('offers six fields around a diagram, all empty, with degrees selected', async ({ page }) => {
+    for (const name of FIELDS) await expect(field(page, name)).toHaveValue('');
+    await expect(field(page, 'angleUnit')).toHaveValue('deg');
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    await expect(root(page).locator('.tri-diagram')).toBeVisible();
+  });
 
-test('loads empty: blank sides, empty result, Solve Triangle visible', async ({ page }) => {
-  await expect(page.locator('[name="a"]')).toHaveValue('');
-  await expect(page.locator('[name="b"]')).toHaveValue('');
-  await expect(page.locator('[name="c"]')).toHaveValue('');
-  await expect(submit(page)).toBeVisible();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(liveRegion(page)).toHaveText('');
+  test('labels every field so the shape is not the only cue', async ({ page }) => {
+    const unlabelled = await page.$$eval('[data-triangle] input, [data-triangle] select', (els) =>
+      els
+        .filter((e) => !e.getAttribute('aria-label') && !document.querySelector(`label[for="${e.id}"]`))
+        .map((e) => (e as HTMLInputElement).name),
+    );
+    expect(unlabelled).toEqual([]);
+  });
 });
 
-test('does not calculate before the first submission', async ({ page }) => {
-  await page.fill('[name="a"]', '3');
-  await page.fill('[name="b"]', '4');
-  await page.fill('[name="c"]', '5');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+test.describe("the reference's own worked case", () => {
+  test('a = 1, b = 1, C = 60° prints every line the reference prints', async ({ page }) => {
+    await calc(page, { a: '1', b: '1', angleC: '60' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(kinds(page)).toHaveText(['Equilateral Triangle']);
+
+    const printed = await allLines(page);
+    for (const want of [
+      'Side a = 1',
+      'Side b = 1',
+      'Side c = 1',
+      'Angle ∠A = 60° = 1.0472 rad = π/3',
+      'Angle ∠B = 60° = 1.0472 rad = π/3',
+      'Angle ∠C = 60° = 1.0472 rad = π/3',
+      'Area = 0.43301',
+      'Perimeter p = 3',
+      'Semiperimeter s = 1.5',
+      'Height ha = 0.86603',
+      'Height hb = 0.86603',
+      'Height hc = 0.86603',
+      'Median ma = 0.86603',
+      'Median mb = 0.86603',
+      'Median mc = 0.86603',
+      'Inradius r = 0.28868',
+      'Circumradius R = 0.57735',
+      'Vertex coordinates = A[0, 0] B[1, 0] C[0.5, 0.86603]',
+      'Centroid = [0.5, 0.28868]',
+      'Inscribed circle center = [0.5, 0.28868]',
+      'Circumscribed circle center = [0.5, 0.28868]',
+    ]) {
+      expect(printed).toContain(want);
+    }
+  });
+
+  test('draws the solved triangle', async ({ page }) => {
+    await calc(page, { a: '1', b: '1', angleC: '60' });
+    await expect(figures(page)).toHaveCount(1);
+  });
 });
 
-/* ---- Valid results ------------------------------------------------------ */
+test.describe('the five cases', () => {
+  test('SSS solves the 3-4-5 right triangle', async ({ page }) => {
+    await calc(page, { a: '3', b: '4', c: '5' });
+    await expect(kinds(page)).toHaveText(['Right Scalene Triangle']);
+    expect(await allLines(page)).toContain('Area = 6');
+    expect(await allLines(page)).toContain('Angle ∠C = 90° = 1.5708 rad = π/2');
+  });
 
-test('valid 3-4-5: area dominant + perimeter/angles/classification breakdown', async ({ page }) => {
-  await calc(page, '3', '4', '5');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(summaryLabel(page)).toHaveText('Triangle area');
-  await expect(primary(page)).toHaveText('6');
-  await expect(unitLabel(page)).toHaveText('square units');
-  await expect(perimeter(page)).toHaveText('12');
-  await expect(angleA(page)).toHaveText('36.87°');
-  await expect(angleB(page)).toHaveText('53.13°');
-  await expect(angleC(page)).toHaveText('90°');
-  await expect(sideType(page)).toHaveText('Scalene');
-  await expect(angleTypeEl(page)).toHaveText('Right');
-  await expect(interpretation(page)).toHaveText('This is a right scalene triangle with an area of 6 square units.');
-  // Area reads much larger than a breakdown cell.
-  const areaSize = await primary(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  const cellSize = await perimeter(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(areaSize).toBeGreaterThan(cellSize * 1.5);
+  test('SAS solves from two sides and the angle between them', async ({ page }) => {
+    // Sides 3 and 4 with a right angle between them is the same 3-4-5 triangle.
+    await calc(page, { a: '3', b: '4', angleC: '90' });
+    await expect(kinds(page)).toHaveText(['Right Scalene Triangle']);
+    expect(await allLines(page)).toContain('Side c = 5');
+    expect(await allLines(page)).toContain('Area = 6');
+  });
+
+  test('ASA solves from one side and the two angles beside it', async ({ page }) => {
+    await calc(page, { c: '5', angleA: '36.87', angleB: '53.13' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(kinds(page)).toHaveText(['Right Scalene Triangle']);
+  });
+
+  test('AAS solves from one side and two angles including its own', async ({ page }) => {
+    await calc(page, { a: '3', angleA: '36.87', angleB: '53.13' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    const printed = await allLines(page);
+    expect(printed.some((l) => l.startsWith('Side c = 4.999') || l === 'Side c = 5')).toBe(true);
+  });
 });
 
-test('an equilateral triangle is acute with three equal angles', async ({ page }) => {
-  await calc(page, '5', '5', '5');
-  await expect(primary(page)).toHaveText('10.825');
-  await expect(angleA(page)).toHaveText('60°');
-  await expect(sideType(page)).toHaveText('Equilateral');
-  await expect(angleTypeEl(page)).toHaveText('Acute');
-  await expect(interpretation(page)).toHaveText('This is an acute equilateral triangle. All three angles are equal.');
+test.describe('SSA, the ambiguous case', () => {
+  test('shows BOTH triangles and says why there are two', async ({ page }) => {
+    await calc(page, { a: '5', b: '8', angleA: '30' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
+    await expect(solutions(page)).toHaveCount(2);
+    await expect(figures(page)).toHaveCount(2);
+    await expect(root(page).locator('.tri-ambiguous')).toContainText('two different triangles');
+    await expect(root(page).locator('.tri-solution__index')).toHaveText([
+      'First triangle',
+      'Second triangle',
+    ]);
+  });
+
+  test('the two really are different triangles', async ({ page }) => {
+    await calc(page, { a: '5', b: '8', angleA: '30' });
+    const areas = (await allLines(page)).filter((l) => l.startsWith('Area ='));
+    expect(areas).toHaveLength(2);
+    expect(areas[0]).not.toBe(areas[1]);
+  });
+
+  test('shows ONE triangle when only one is possible', async ({ page }) => {
+    await calc(page, { a: '9', b: '8', angleA: '30' });
+    await expect(solutions(page)).toHaveCount(1);
+    await expect(root(page).locator('.tri-ambiguous')).toHaveCount(0);
+  });
+
+  test('reports none when the side cannot reach', async ({ page }) => {
+    await calc(page, { a: '2', b: '8', angleA: '30' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+  });
 });
 
-test('an isosceles acute triangle (5-5-6)', async ({ page }) => {
-  await calc(page, '5', '5', '6');
-  await expect(primary(page)).toHaveText('12');
-  await expect(sideType(page)).toHaveText('Isosceles');
-  await expect(angleTypeEl(page)).toHaveText('Acute');
-  await expect(interpretation(page)).toContainText('two equal sides');
+test.describe('radians', () => {
+  test('accepts a pi expression, as the reference invites', async ({ page }) => {
+    await calc(page, { a: '1', b: '1', angleC: 'pi/3', angleUnit: 'rad' });
+    await expect(kinds(page)).toHaveText(['Equilateral Triangle']);
+    expect(await allLines(page)).toContain('Area = 0.43301');
+  });
+
+  test('accepts a plain radian value', async ({ page }) => {
+    await calc(page, { a: '1', b: '1', angleC: '1.0471975512', angleUnit: 'rad' });
+    await expect(kinds(page)).toHaveText(['Equilateral Triangle']);
+  });
+
+  test('refuses an expression it cannot read rather than evaluating it', async ({ page }) => {
+    await calc(page, { a: '1', b: '1', angleC: '2*pi/3', angleUnit: 'rad' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(errorFor(page, 'angleC')).toBeVisible();
+  });
+
+  test('switches the suffix beside each angle field', async ({ page }) => {
+    await expect(root(page).locator('[data-tri-angle-suffix]').first()).toHaveText('°');
+    await field(page, 'angleUnit').selectOption('rad');
+    await expect(root(page).locator('[data-tri-angle-suffix]').first()).toHaveText('rad');
+  });
 });
 
-test('an obtuse isosceles triangle (5-5-9)', async ({ page }) => {
-  await calc(page, '5', '5', '9');
-  await expect(primary(page)).toHaveText('9.808');
-  await expect(angleC(page)).toHaveText('128.32°');
-  await expect(angleTypeEl(page)).toHaveText('Obtuse');
-  await expect(interpretation(page)).toHaveText('This is an obtuse isosceles triangle with two equal sides.');
+test.describe('validation', () => {
+  test('asks for exactly three values', async ({ page }) => {
+    await calc(page, { a: '3', b: '4' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(root(page).locator('[data-result-when~="invalid"]')).toContainText(
+      'exactly three values',
+    );
+  });
+
+  test('asks for at least one side', async ({ page }) => {
+    await calc(page, { angleA: '60', angleB: '60', angleC: '60' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(root(page).locator('[data-result-when~="invalid"]')).toContainText(
+      'at least one side',
+    );
+  });
+
+  test('rejects three sides that cannot meet', async ({ page }) => {
+    await calc(page, { a: '1', b: '2', c: '10' });
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
+    await expect(root(page).locator('[data-result-when~="invalid"]')).toContainText(
+      'No triangle has those measurements',
+    );
+  });
+
+  test('rejects angles that cannot fit', async ({ page }) => {
+    await calc(page, { a: '5', angleA: '120', angleB: '70' });
+    await expect(root(page).locator('[data-result-when~="invalid"]')).toContainText(
+      'less than 180',
+    );
+  });
+
+  test('rejects a zero or negative side with a field error', async ({ page }) => {
+    await calc(page, { a: '0', b: '4', c: '5' });
+    await expect(errorFor(page, 'a')).toHaveText('Enter a length greater than zero.');
+  });
+
+  test('rejects an angle outside a triangle with a field error', async ({ page }) => {
+    await calc(page, { a: '3', b: '4', angleC: '200' });
+    await expect(errorFor(page, 'angleC')).toBeVisible();
+  });
+
+  test('never renders NaN, Infinity or a raw error', async ({ page }) => {
+    for (const v of [{}, { a: '3', b: '4' }, { a: '1', b: '2', c: '10' }, { a: '0', b: '1', c: '1' }]) {
+      await calc(page, v);
+      await expect(root(page)).not.toContainText(/NaN|Infinity|undefined/);
+    }
+  });
 });
 
-test('decimal side lengths (3.5-4.5-5.5)', async ({ page }) => {
-  await calc(page, '3.5', '4.5', '5.5');
-  await expect(primary(page)).toHaveText('7.855');
-  await expect(perimeter(page)).toHaveText('13.5');
-  await expect(sideType(page)).toHaveText('Scalene');
-  await expect(angleTypeEl(page)).toHaveText('Acute');
+test.describe('recalculation and clear', () => {
+  test('does not calculate before the primary action, then updates live', async ({ page }) => {
+    await expect(root(page).locator('[data-live-note]')).toBeHidden();
+    await field(page, 'a').fill('3');
+    await field(page, 'b').fill('4');
+    await field(page, 'c').fill('5');
+    await page.waitForTimeout(DEBOUNCE);
+    await expect(shell(page)).not.toHaveAttribute('data-result-state', 'valid');
+
+    await submit(page).click();
+    await expect(kinds(page)).toHaveText(['Right Scalene Triangle']);
+    await expect(root(page).locator('[data-live-note]')).toBeVisible();
+
+    await field(page, 'c').fill('6');
+    await expect(kinds(page)).toHaveText(['Obtuse Scalene Triangle']);
+  });
+
+  test('Clear empties every field and restores degrees', async ({ page }) => {
+    await calc(page, { a: '1', b: '1', angleC: 'pi/3', angleUnit: 'rad' });
+    await clear(page).click();
+    for (const name of FIELDS) await expect(field(page, name)).toHaveValue('');
+    await expect(field(page, 'angleUnit')).toHaveValue('deg');
+    await expect(root(page).locator('[data-tri-angle-suffix]').first()).toHaveText('°');
+  });
 });
 
-/* ---- Field validation --------------------------------------------------- */
+test.describe('accessibility', () => {
+  test('has one live region and no duplicate ids', async ({ page }) => {
+    await expect(root(page).locator('[aria-live]')).toHaveCount(1);
+    const duplicates = await page.evaluate(() => {
+      const seen = new Set<string>();
+      const dup: string[] = [];
+      document.querySelectorAll('[id]').forEach((el) => {
+        if (seen.has(el.id)) dup.push(el.id);
+        seen.add(el.id);
+      });
+      return dup;
+    });
+    expect(duplicates).toEqual([]);
+  });
 
-test('an empty explicit submission focuses Side A and associates the error', async ({ page }) => {
-  await submit(page).click();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  const a = page.locator('[name="a"]');
-  await expect(a).toBeFocused();
-  await expect(a).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.locator('[data-error-for="a"]')).toHaveText('Enter Side A greater than zero.');
-});
+  test('associates each error with its field', async ({ page }) => {
+    await calc(page, { a: '0', b: '4', c: '5' });
+    const described = await field(page, 'a').getAttribute('aria-describedby');
+    const errorId = await errorFor(page, 'a').getAttribute('id');
+    expect(described?.split(/\s+/)).toContain(errorId);
+  });
 
-test('zero and negative sides are rejected as field errors', async ({ page }) => {
-  await calc(page, '0', '4', '5');
-  await expect(page.locator('[data-error-for="a"]')).toHaveText('Enter Side A greater than zero.');
-  await calc(page, '3', '-4', '5');
-  await expect(page.locator('[data-error-for="b"]')).toHaveText('Enter Side B greater than zero.');
-});
+  test('is operable by keyboard alone', async ({ page }) => {
+    await field(page, 'a').focus();
+    await page.keyboard.type('3');
+    await field(page, 'b').fill('4');
+    await field(page, 'c').fill('5');
+    await submit(page).press('Enter');
+    await expect(kinds(page)).toHaveText(['Right Scalene Triangle']);
+  });
 
-/* ---- Triangle-inequality domain error ----------------------------------- */
-
-test('a degenerate 1-1-2 is a domain error: form message + hint, no side uniquely blamed', async ({ page }) => {
-  await calc(page, '1', '1', '2');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(invalidMsg(page)).toHaveText('These side lengths cannot form a triangle.');
-  await expect(domainHint(page)).toBeVisible();
-  await expect(domainHint(page)).toHaveText('The sum of any two sides must be greater than the third side.');
-  // No individual side is marked invalid for an inequality-only failure.
-  for (const n of ['a', 'b', 'c']) await expect(page.locator(`[name="${n}"]`)).not.toHaveAttribute('aria-invalid', 'true');
-  // Focus returns to Side A (the runtime cannot, since no field is invalid).
-  await expect(page.locator('[name="a"]')).toBeFocused();
-});
-
-test('an impossible 1-1-5 is a domain error and shows no partial result', async ({ page }) => {
-  await calc(page, '1', '1', '5');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(invalidMsg(page)).toHaveText('These side lengths cannot form a triangle.');
-  await expect(region(page, 'valid')).toBeHidden(); // no area/angles/perimeter shown
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-});
-
-test('the domain failure is announced once, concisely', async ({ page }) => {
-  await calc(page, '1', '1', '2');
-  await expect(liveRegion(page)).toHaveText('These side lengths cannot form a triangle.');
-  await expect(liveRegion(page)).not.toContainText(/area|perimeter|°/i); // no geometry, just the domain message
-});
-
-test('a field error does NOT show the triangle-formation hint', async ({ page }) => {
-  await calc(page, '', '4', '5');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(domainHint(page)).toBeHidden();
-});
-
-/* ---- Live transitions --------------------------------------------------- */
-
-test('live valid→invalid: the stale result is replaced by the domain error, focus stays on the edited field', async ({ page }) => {
-  await calc(page, '3', '4', '5'); // valid, area 6
-  await expect(primary(page)).toHaveText('6');
-  await page.fill('[name="c"]', '100'); // 3 + 4 <= 100 → impossible
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await expect(invalidMsg(page)).toHaveText('These side lengths cannot form a triangle.');
-  await expect(region(page, 'valid')).toBeHidden(); // no stale area
-  await expect(domainHint(page)).toBeVisible();
-  await expect(page.locator('[name="c"]')).toBeFocused(); // focus not yanked to Side A on a live edit
-});
-
-test('live invalid→valid recovery restores the result', async ({ page }) => {
-  await calc(page, '3', '4', '5');
-  await page.fill('[name="c"]', '100');
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'invalid');
-  await page.fill('[name="c"]', '5'); // back to a valid triangle
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'valid');
-  await expect(primary(page)).toHaveText('6');
-});
-
-/* ---- Announcement + Reset + integrity ------------------------------------ */
-
-test('announces the dominant area + classification only', async ({ page }) => {
-  await calc(page, '3', '4', '5');
-  await expect(liveRegion(page)).toHaveText('The triangle area is 6 square units. It is a right scalene triangle.');
-  await expect(liveRegion(page)).not.toContainText(/perimeter|°/i); // no perimeter, no per-angle degree values
-});
-
-test('reset clears the sides, hint and result, returns to empty', async ({ page }) => {
-  await calc(page, '1', '1', '2'); // domain error state
-  await expect(domainHint(page)).toBeVisible();
-  await resetBtn(page).click();
-  await expect(page.locator('[name="a"]')).toHaveValue('');
-  await expect(page.locator('[name="b"]')).toHaveValue('');
-  await expect(page.locator('[name="c"]')).toHaveValue('');
-  await expect(domainHint(page)).toBeHidden();
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(liveRegion(page)).toHaveText('');
-});
-
-test('keyboard submission works, and no NaN / Infinity / undefined renders', async ({ page }) => {
-  await page.fill('[name="a"]', '3');
-  await page.fill('[name="b"]', '4');
-  await page.fill('[name="c"]', '5');
-  await page.locator('[name="c"]').press('Enter');
-  await expect(primary(page)).toHaveText('6');
-  await expect(shell(page)).not.toContainText(/NaN|Infinity|undefined/);
-});
-
-/* ---- Responsive / theme ------------------------------------------------- */
-
-test('desktop shows the dominant area within the first viewport at 1366×768', async ({ page }) => {
-  await page.setViewportSize({ width: 1366, height: 768 });
-  await calc(page, '3', '4', '5');
-  await expect(primary(page)).toBeInViewport();
-});
-
-test('mobile stacks sides → result and does not overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
-  const formBox = (await page.locator('form[data-form]').boundingBox())!;
-  const resultTop = (await shell(page).boundingBox())!.y;
-  expect(resultTop).toBeGreaterThanOrEqual(formBox.y + formBox.height - 1);
-  await calc(page, '3', '4', '5');
-  await expect(primary(page)).toHaveText('6');
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
-});
-
-test('renders in dark scheme', async ({ page }) => {
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await calc(page, '3', '4', '5');
-  await expect(primary(page)).toBeVisible();
-});
-
-/* ---- Embed + monetization + content corrections ------------------------- */
-
-test('the embed route mounts the same interactive island', async ({ page }) => {
-  await page.goto('/embed/math/triangle-calculator', { waitUntil: 'domcontentloaded' });
-  await page.fill('[name="a"]', '3');
-  await page.fill('[name="b"]', '4');
-  await page.fill('[name="c"]', '5');
-  await page.getByRole('button', { name: 'Solve Triangle' }).click();
-  await expect(page.locator('#tri-result [data-result-value]')).toHaveText('6');
-  await page.fill('[name="c"]', '100'); // live → impossible
-  await page.waitForTimeout(DEBOUNCE);
-  await expect(page.locator('#tri-result [data-result-invalid-message]')).toHaveText('These side lengths cannot form a triangle.');
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
-});
-
-test('the live page carries no monetization output', async ({ page }) => {
-  await expect(page.locator('[data-mon-region]')).toHaveCount(0);
-  expect(await page.content()).not.toContain('data-mon-');
-});
-
-test('the refined description and the base-and-height FAQ clarification shipped', async ({ page }) => {
-  const html = await page.content();
-  expect(html).toContain("Calculate a triangle's area, perimeter, angles and classification from three side lengths.");
-  expect(html).toContain('it does not take a base-and-height input');
+  test('does not overflow on a phone', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await calc(page, { a: '3', b: '4', c: '5' });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
 });

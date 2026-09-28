@@ -1,32 +1,35 @@
 /**
- * Salary form binding (R19A1 — task-first Salary migration; calculator-OWNED binding on the UNCHANGED
- * standard-form runtime).
+ * Salary form binding — the reference's pay-schedule table, on the UNCHANGED standard-form
+ * runtime.
  *
- * Wraps the UNCHANGED `convertSalary` (frozen by salary.test.ts) — a pure pay-period converter that
- * normalises any one figure to an annual total and derives the six equivalents. Everything here is at
- * the VALIDATION / PRESENTATION boundary; no conversion math is reimplemented, salary.ts is untouched
- * (so `referenceTables.ts` → the salary-conversion-table reference page stay behaviourally unchanged),
- * and there is no shared Finance engine involved (Salary has no dependency on the compound-interest /
- * interest cluster).
+ * The visitor enters ONE figure at ONE frequency plus their working year, and gets every
+ * other frequency back, twice: ignoring time off, and with holidays and vacation priced in.
+ * All of the arithmetic lives in `computePaySchedule` (salary.ts, unit-tested); everything
+ * here is at the VALIDATION / PRESENTATION boundary.
  *
- * Product decisions (R19A1):
- *   • Task-first: the pay AMOUNT starts EMPTY; the pay unit defaults to hourly (the legacy default and
- *     the "hourly to salary" headline use case); the three schedule assumptions keep their structural
- *     defaults (40 hrs / 5 days / 52 weeks, restored on Reset); the result is EMPTY, and the visitor
- *     presses Convert for the first result (live-after-first).
- *   • Strict validation — NEVER `Number(value) || 0`. Amount required, finite and >= 0 (a nonsensical
- *     NEGATIVE salary is a visitor error even though the frozen formula still computes negatives —
- *     UI policy only, the formula is untouched); a valid $0 is a real result, not an absent one. The
- *     three assumptions are required, finite and > 0 (a positive schedule; decimals like 37.5 hrs are
- *     allowed — the geometry-dimension precedent; no invented upper cap).
- *   • Result: the ANNUAL salary is the dominant primary; monthly / biweekly / weekly / daily / hourly
- *     are supporting — ALL from the single frozen SalaryResult (no duplicated conversion).
- *   • NO isUsableResult — the complete-result guard lives in resultValue (a finite ANNUAL sentinel),
- *     reconciling every displayed field via a convertSalary recompute; a valid $0 annual is the finite
- *     0 the runtime's default gate accepts.
+ * `convertSalary` is deliberately untouched — it is frozen by salary.test.ts and still feeds
+ * the salary-conversion reference table, which asks a simpler question than this one.
+ *
+ * Product decisions:
+ *   • The pay AMOUNT starts EMPTY. The five schedule fields carry the reference's own
+ *     documented assumptions (40 hours over 5 days, 10 holidays, 15 vacation days), which
+ *     are OURS, not the visitor's figures, and are restored on Reset.
+ *   • Strict validation, never `Number(v) || 0`. A $0 salary is a real answer; a negative one
+ *     is a visitor error. Hours and days must be positive, days no more than seven, and the
+ *     time off must leave at least one day of the year to work.
+ *   • The dominant figure is the ADJUSTED annual salary — what the year actually pays once
+ *     holidays and vacation are accounted for. The eight-by-two table is the breakdown.
+ *   • No isUsableResult: the complete-result guard is `resultValue`, which returns a
+ *     non-finite sentinel unless every one of the sixteen figures reconciles.
  */
-import { convertSalary, type PayUnit, type SalaryResult } from './salary';
-import { formatCurrency } from '@lib/format';
+import {
+  WEEKS_PER_YEAR,
+  computePaySchedule,
+  type PayColumn,
+  type PayFrequency,
+  type PayScheduleResult,
+} from './salary';
+import { formatCurrency, formatCurrencyRounded } from '@lib/format';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -34,46 +37,67 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-export const PAY_UNITS: { value: PayUnit; label: string }[] = [
-  { value: 'hourly', label: 'per hour' },
-  { value: 'daily', label: 'per day' },
-  { value: 'weekly', label: 'per week' },
-  { value: 'biweekly', label: 'biweekly' },
-  { value: 'monthly', label: 'per month' },
-  { value: 'annual', label: 'per year' },
+/** The select, worded as the sentence reads it: "$50 per Hour". */
+export const PAY_FREQUENCIES: { value: PayFrequency; label: string }[] = [
+  { value: 'hourly', label: 'Hour' },
+  { value: 'daily', label: 'Day' },
+  { value: 'weekly', label: 'Week' },
+  { value: 'biweekly', label: 'Bi-week' },
+  { value: 'semimonthly', label: 'Semi-month' },
+  { value: 'monthly', label: 'Month' },
+  { value: 'quarterly', label: 'Quarter' },
+  { value: 'annual', label: 'Year' },
 ];
-const VALID_UNITS = new Set<PayUnit>(PAY_UNITS.map((u) => u.value));
+const VALID_FREQUENCIES = new Set<PayFrequency>(PAY_FREQUENCIES.map((f) => f.value));
 
-export const DEFAULT_UNIT: PayUnit = 'hourly';
+/** The rows of the result table, in the reference's order. */
+export const PAY_ROWS: { key: keyof PayColumn; label: string; cents: boolean }[] = [
+  { key: 'hourly', label: 'Hourly', cents: true },
+  { key: 'daily', label: 'Daily', cents: true },
+  { key: 'weekly', label: 'Weekly', cents: false },
+  { key: 'biweekly', label: 'Bi-weekly', cents: false },
+  { key: 'semimonthly', label: 'Semi-monthly', cents: false },
+  { key: 'monthly', label: 'Monthly', cents: false },
+  { key: 'quarterly', label: 'Quarterly', cents: false },
+  { key: 'annual', label: 'Annual', cents: false },
+];
+
+export const DEFAULT_FREQUENCY: PayFrequency = 'hourly';
 export const DEFAULT_HOURS_PER_WEEK = '40';
 export const DEFAULT_DAYS_PER_WEEK = '5';
-export const DEFAULT_WEEKS_PER_YEAR = '52';
+export const DEFAULT_HOLIDAYS = '10';
+export const DEFAULT_VACATION_DAYS = '15';
 
 export interface SalaryValues {
   amount: string;
-  unit: PayUnit;
+  frequency: PayFrequency;
   hoursPerWeek: string;
   daysPerWeek: string;
-  weeksPerYear: string;
+  holidaysPerYear: string;
+  vacationDaysPerYear: string;
 }
 
-export interface SalaryComputed extends SalaryResult {
-  unit: PayUnit;
+export interface SalaryComputed extends PayScheduleResult {
   amount: number;
+  frequency: PayFrequency;
   hoursPerWeek: number;
   daysPerWeek: number;
-  weeksPerYear: number;
+  holidaysPerYear: number;
+  vacationDaysPerYear: number;
 }
 
 export const MSG = {
-  amountRequired: 'Enter a pay amount.',
-  amountInvalid: 'Enter a pay amount of zero or more.',
+  amountRequired: 'Enter a salary amount.',
+  amountInvalid: 'Enter a salary amount of zero or more.',
   hoursRequired: 'Enter the hours worked per week.',
   hoursInvalid: 'Enter hours per week greater than zero.',
   daysRequired: 'Enter the days worked per week.',
-  daysInvalid: 'Enter days per week greater than zero.',
-  weeksRequired: 'Enter the weeks worked per year.',
-  weeksInvalid: 'Enter weeks per year greater than zero.',
+  daysInvalid: 'Enter between one and seven days per week.',
+  holidaysRequired: 'Enter the holidays per year.',
+  holidaysInvalid: 'Enter zero holidays or more.',
+  vacationRequired: 'Enter the vacation days per year.',
+  vacationInvalid: 'Enter zero vacation days or more.',
+  noDaysLeft: 'Holidays and vacation days together leave no working days in the year.',
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -81,110 +105,134 @@ export const MSG = {
 /* ------------------------------------------------------------------ */
 
 type NumParse = 'empty' | 'invalid' | number;
-/** A finite amount >= 0; empty is distinct from invalid. Zero valid; negative rejected (UI policy). */
-export function parseAmount(raw: string): NumParse {
+
+/** Finite and >= 0; empty is distinct from invalid. Zero valid, negative rejected. */
+export function parseNonNegative(raw: string): NumParse {
   const t = (raw ?? '').trim();
   if (t === '') return 'empty';
   const n = Number(t);
   if (!Number.isFinite(n) || n < 0) return 'invalid';
   return n;
 }
-/** A finite schedule assumption > 0 (decimals allowed; no upper cap). */
-export function parsePositive(raw: string): NumParse {
+
+/** Finite and > 0, optionally capped. Decimals allowed — a 37.5-hour week is a real week. */
+export function parsePositive(raw: string, max?: number): NumParse {
   const t = (raw ?? '').trim();
   if (t === '') return 'empty';
   const n = Number(t);
   if (!Number.isFinite(n) || n <= 0) return 'invalid';
+  if (max !== undefined && n > max) return 'invalid';
   return n;
 }
 
 export function validateSalaryValues(v: SalaryValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
 
-  const amount = parseAmount(v.amount);
+  const amount = parseNonNegative(v.amount);
   if (amount === 'empty') fieldErrors.amount = MSG.amountRequired;
   else if (amount === 'invalid') fieldErrors.amount = MSG.amountInvalid;
 
-  const checks: [keyof SalaryValues, string, string][] = [
-    ['hoursPerWeek', MSG.hoursRequired, MSG.hoursInvalid],
-    ['daysPerWeek', MSG.daysRequired, MSG.daysInvalid],
-    ['weeksPerYear', MSG.weeksRequired, MSG.weeksInvalid],
-  ];
-  for (const [name, req, inv] of checks) {
-    const p = parsePositive(v[name] as string);
-    if (p === 'empty') fieldErrors[name] = req;
-    else if (p === 'invalid') fieldErrors[name] = inv;
+  const hours = parsePositive(v.hoursPerWeek);
+  if (hours === 'empty') fieldErrors.hoursPerWeek = MSG.hoursRequired;
+  else if (hours === 'invalid') fieldErrors.hoursPerWeek = MSG.hoursInvalid;
+
+  const days = parsePositive(v.daysPerWeek, 7);
+  if (days === 'empty') fieldErrors.daysPerWeek = MSG.daysRequired;
+  else if (days === 'invalid') fieldErrors.daysPerWeek = MSG.daysInvalid;
+
+  const holidays = parseNonNegative(v.holidaysPerYear);
+  if (holidays === 'empty') fieldErrors.holidaysPerYear = MSG.holidaysRequired;
+  else if (holidays === 'invalid') fieldErrors.holidaysPerYear = MSG.holidaysInvalid;
+
+  const vacation = parseNonNegative(v.vacationDaysPerYear);
+  if (vacation === 'empty') fieldErrors.vacationDaysPerYear = MSG.vacationRequired;
+  else if (vacation === 'invalid') fieldErrors.vacationDaysPerYear = MSG.vacationInvalid;
+
+  // Only worth asking once the three numbers it needs are all real.
+  if (typeof days === 'number' && typeof holidays === 'number' && typeof vacation === 'number') {
+    if (holidays + vacation >= WEEKS_PER_YEAR * days) {
+      return { ok: false, fieldErrors, formError: MSG.noDaysLeft };
+    }
   }
 
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
-/* Computation (pure) — pass-through to the frozen source              */
+/* Computation (pure)                                                  */
 /* ------------------------------------------------------------------ */
 
 export function computeSalary(v: SalaryValues): SalaryComputed {
   const amount = Number(v.amount);
   const hoursPerWeek = Number(v.hoursPerWeek);
   const daysPerWeek = Number(v.daysPerWeek);
-  const weeksPerYear = Number(v.weeksPerYear);
-  const r = convertSalary({ amount, unit: v.unit, hoursPerWeek, daysPerWeek, weeksPerYear });
-  return { ...r, unit: v.unit, amount, hoursPerWeek, daysPerWeek, weeksPerYear };
+  const holidaysPerYear = Number(v.holidaysPerYear);
+  const vacationDaysPerYear = Number(v.vacationDaysPerYear);
+  const r = computePaySchedule({
+    amount,
+    frequency: v.frequency,
+    hoursPerWeek,
+    daysPerWeek,
+    holidaysPerYear,
+    vacationDaysPerYear,
+  });
+  return { ...r, amount, frequency: v.frequency, hoursPerWeek, daysPerWeek, holidaysPerYear, vacationDaysPerYear };
 }
 
 /* ------------------------------------------------------------------ */
-/* Complete-result guard (pure) — the resultValue sentinel             */
+/* Complete-result guard (pure)                                        */
 /* ------------------------------------------------------------------ */
 
-const FAIL = Number.NaN; // non-finite sentinel → the runtime's default finite gate rejects the result
+const FAIL = Number.NaN;
 
-/** The ANNUAL figure — but ONLY when the whole result is coherent: a known unit, a finite non-negative
- *  amount, positive assumptions, every one of the six equivalents finite, and a convertSalary recompute
- *  reproducing them. A valid $0 (amount 0) is a finite annual 0 the default gate accepts. */
+/**
+ * The adjusted annual salary — but only when the WHOLE table holds up. Sixteen numbers are
+ * about to go on screen; one of them being NaN while the headline looks fine is exactly the
+ * failure this gate exists to stop.
+ */
 export function completeSalaryValue(r: SalaryComputed): number {
-  if (!VALID_UNITS.has(r.unit)) return FAIL;
+  if (r.unsolvable) return FAIL;
+  if (!VALID_FREQUENCIES.has(r.frequency)) return FAIL;
   if (!Number.isFinite(r.amount) || r.amount < 0) return FAIL;
-  if (!(r.hoursPerWeek > 0) || !(r.daysPerWeek > 0) || !(r.weeksPerYear > 0)) return FAIL;
+  if (!(r.hoursPerWeek > 0) || !(r.daysPerWeek > 0)) return FAIL;
+  if (!(r.paidDaysPerYear > 0)) return FAIL;
 
-  const fields: number[] = [r.hourly, r.daily, r.weekly, r.biweekly, r.monthly, r.annual];
-  if (!fields.every((n) => Number.isFinite(n))) return FAIL;
-
-  const c = convertSalary({
-    amount: r.amount,
-    unit: r.unit,
-    hoursPerWeek: r.hoursPerWeek,
-    daysPerWeek: r.daysPerWeek,
-    weeksPerYear: r.weeksPerYear,
-  });
-  if (
-    c.hourly !== r.hourly ||
-    c.daily !== r.daily ||
-    c.weekly !== r.weekly ||
-    c.biweekly !== r.biweekly ||
-    c.monthly !== r.monthly ||
-    c.annual !== r.annual
-  ) {
-    return FAIL;
+  for (const col of [r.unadjusted, r.adjusted]) {
+    for (const { key } of PAY_ROWS) {
+      const v = col[key];
+      if (!Number.isFinite(v) || v < 0) return FAIL;
+    }
   }
-  return r.annual; // finite; a valid $0 annual is the finite 0 the default gate accepts
+  // Time off can never make the year pay more than ignoring it would.
+  if (r.adjusted.annual > r.unadjusted.annual + 1e-9) return FAIL;
+  return r.adjusted.annual;
 }
 
 /* ------------------------------------------------------------------ */
 /* Presentation (pure)                                                 */
 /* ------------------------------------------------------------------ */
 
-/** The supporting equivalents, in scan order beneath the dominant annual figure. */
-export const SUPPORTING: { key: keyof SalaryResult; label: string }[] = [
-  { key: 'monthly', label: 'Monthly' },
-  { key: 'biweekly', label: 'Biweekly' },
-  { key: 'weekly', label: 'Weekly' },
-  { key: 'daily', label: 'Daily' },
-  { key: 'hourly', label: 'Hourly' },
-];
+/** Rates carry cents; the longer periods are whole dollars, as the reference prints them. */
+export function formatPay(value: number, cents: boolean): string {
+  if (!Number.isFinite(value)) return '—';
+  return cents ? formatCurrency(value) : formatCurrencyRounded(value);
+}
 
-/** Concise announcement — the dominant annual figure only. A valid $0 announces normally. */
+/** "10 days", "1 day". */
+function days(n: number): string {
+  return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n)} ${n === 1 ? 'day' : 'days'}`;
+}
+
+export function interpretSalary(r: SalaryComputed): string {
+  const off = r.holidaysPerYear + r.vacationDaysPerYear;
+  if (off === 0) {
+    return `Over ${days(r.workDaysPerYear)} of work a year with no holidays or vacation, that is ${formatCurrencyRounded(r.adjusted.annual)} a year.`;
+  }
+  return `${days(off)} of holidays and vacation leave ${days(r.paidDaysPerYear)} worked out of ${days(r.workDaysPerYear)}, so the year pays ${formatCurrencyRounded(r.adjusted.annual)} rather than ${formatCurrencyRounded(r.unadjusted.annual)}.`;
+}
+
 export function describeSalaryResult(r: SalaryComputed): string {
-  return `Annual salary: ${formatCurrency(r.annual)}.`;
+  return `Adjusted annual salary: ${formatCurrencyRounded(r.adjusted.annual)}.`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -194,19 +242,20 @@ export function describeSalaryResult(r: SalaryComputed): string {
 const control = (root: HTMLElement, name: string) =>
   root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
 
-const readUnit = (root: HTMLElement): PayUnit => {
-  const v = control(root, 'unit')?.value as PayUnit | undefined;
-  return v && VALID_UNITS.has(v) ? v : DEFAULT_UNIT;
+const readFrequency = (root: HTMLElement): PayFrequency => {
+  const v = control(root, 'frequency')?.value as PayFrequency | undefined;
+  return v && VALID_FREQUENCIES.has(v) ? v : DEFAULT_FREQUENCY;
 };
 
 export const salaryBinding: FormCalculatorBinding<SalaryValues, SalaryComputed> = {
   readValues(root) {
     return {
       amount: control(root, 'amount')?.value ?? '',
-      unit: readUnit(root),
+      frequency: readFrequency(root),
       hoursPerWeek: control(root, 'hoursPerWeek')?.value ?? '',
       daysPerWeek: control(root, 'daysPerWeek')?.value ?? '',
-      weeksPerYear: control(root, 'weeksPerYear')?.value ?? '',
+      holidaysPerYear: control(root, 'holidaysPerYear')?.value ?? '',
+      vacationDaysPerYear: control(root, 'vacationDaysPerYear')?.value ?? '',
     };
   },
 
@@ -214,7 +263,6 @@ export const salaryBinding: FormCalculatorBinding<SalaryValues, SalaryComputed> 
 
   compute: computeSalary,
 
-  /** Complete-result guard as the ordinary result value — no isUsableResult. */
   resultValue: completeSalaryValue,
 
   describeResult: describeSalaryResult,
@@ -225,13 +273,15 @@ export const salaryBinding: FormCalculatorBinding<SalaryValues, SalaryComputed> 
       const el = scope.querySelector<HTMLElement>(sel);
       if (el) el.textContent = text;
     };
-    // Dominant: the annual salary (shown + spoken).
-    const annual = formatCurrency(result.annual);
-    set('[data-result-when~="valid"] [data-result-value]', annual);
-    set('[data-result-when~="valid"] [data-result-value-a11y]', annual);
-    // Supporting equivalents — every value from the single frozen SalaryResult.
-    for (const { key } of SUPPORTING) {
-      set(`[data-sal-${key}]`, formatCurrency(result[key]));
+
+    const headline = formatCurrencyRounded(result.adjusted.annual);
+    set('[data-result-when~="valid"] [data-result-value]', headline);
+    set('[data-result-when~="valid"] [data-result-value-a11y]', headline);
+    set('[data-sal-interpretation]', interpretSalary(result));
+
+    for (const { key, cents } of PAY_ROWS) {
+      set(`[data-sal-unadjusted="${key}"]`, formatPay(result.unadjusted[key], cents));
+      set(`[data-sal-adjusted="${key}"]`, formatPay(result.adjusted[key], cents));
     }
   },
 
@@ -241,9 +291,24 @@ export const salaryBinding: FormCalculatorBinding<SalaryValues, SalaryComputed> 
       if (el) el.value = val;
     };
     set('amount', '');
-    set('unit', DEFAULT_UNIT);
+    set('frequency', DEFAULT_FREQUENCY);
     set('hoursPerWeek', DEFAULT_HOURS_PER_WEEK);
     set('daysPerWeek', DEFAULT_DAYS_PER_WEEK);
-    set('weeksPerYear', DEFAULT_WEEKS_PER_YEAR);
+    set('holidaysPerYear', DEFAULT_HOLIDAYS);
+    set('vacationDaysPerYear', DEFAULT_VACATION_DAYS);
   },
+};
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/** The reference's own case, so the panel opens on a figure anyone can check. */
+export const SALARY_EXAMPLE_VALUES: SalaryValues = {
+  amount: '50',
+  frequency: 'hourly',
+  hoursPerWeek: DEFAULT_HOURS_PER_WEEK,
+  daysPerWeek: DEFAULT_DAYS_PER_WEEK,
+  holidaysPerYear: DEFAULT_HOLIDAYS,
+  vacationDaysPerYear: DEFAULT_VACATION_DAYS,
 };

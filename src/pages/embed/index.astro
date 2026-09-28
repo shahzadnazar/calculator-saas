@@ -4,6 +4,7 @@ import Breadcrumbs from '@components/Breadcrumbs.astro';
 import { EMBEDDABLE } from '@config/monetization';
 import { breadcrumbSchema } from '@lib/schema';
 import { getLiveCalculators, calculatorPath } from '@data/calculators';
+import { SITE } from '@config/site';
 
 const crumbs = [
   { name: 'Home', path: '/' },
@@ -34,7 +35,7 @@ const demoSrc = '/embed/finance/tip-calculator';
 
 <BaseLayout
   title="Embed Our Calculators on Your Site — Free"
-  description="Add any AllCalculators tool to your own website for free with one line of code. Mobile-friendly, always up to date, and auto-resizing — just keep the attribution link."
+  description={`Add any ${SITE.name} tool to your own website for free with one line of code. Mobile-friendly, always up to date, and auto-resizing — just keep the attribution link.`}
   path="/embed"
   jsonLd={[breadcrumbSchema(crumbs)]}
 >
@@ -91,7 +92,7 @@ const demoSrc = '/embed/finance/tip-calculator';
       <div class="mt-4 overflow-hidden rounded-2xl border" style="border-color: var(--line)">
         <iframe
           src={demoSrc}
-          title="Tip Calculator by AllCalculators"
+          title={`Tip Calculator by ${SITE.name}`}
           loading="lazy"
           style="width:100%;border:0;height:560px;display:block"
           id="allcalc-demo"></iframe>

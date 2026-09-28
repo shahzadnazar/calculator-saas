@@ -1,6 +1,8 @@
 ---
 import CalculatorLayout from '@layouts/CalculatorLayout.astro';
 import PaceCalculator from '@components/islands/PaceCalculator.astro';
+import MultipointPaceCalculator from '@components/islands/MultipointPaceCalculator.astro';
+import FinishTimeCalculator from '@components/islands/FinishTimeCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('health', 'pace-calculator')!;
 const faqs = [
@@ -9,23 +11,37 @@ const faqs = [
   { question: 'How do I pace myself when running?', answer: 'Start slightly slower than your goal pace and aim for even or negative splits — the second half as fast as or faster than the first. Going out too hard is the most common reason runs fall apart; a steady effort almost always yields a better finish time.' },
   { question: 'What is a pace run?', answer: 'A pace run (or tempo run) is a sustained effort at or near your goal race pace, used to train your body to hold that speed comfortably. It sits between easy running and hard intervals in intensity.' },
   { question: 'How are the equivalent finish times calculated?', answer: 'The calculator applies your current pace evenly across each distance — these are equivalent times at the same pace, not race predictions. Real race times rise slightly over longer distances as fatigue sets in, so treat a marathon time projected from a 5K pace as optimistic.' },
+  { question: 'Can I work out a distance or a time instead of a pace?', answer: 'Yes. Choose Pace, Time or Distance under Calculate and fill in the other two. The box being worked out locks so it cannot be both the question and the answer, and the result is written back into it afterwards so you can switch target and carry it straight into the next calculation.' },
+  { question: 'What is the Multipoint Pace Calculator for?', answer: 'It shows how your pace changed across a run rather than averaging it away. Enter the distance and the clock time at several points — as your watch reads them at a marker — and it gives the pace of each leg between them alongside your running average. That is how you see whether you went out too fast or finished strong.' },
+  { question: 'How does the Finish Time Calculator work?', answer: 'It takes the distance you have covered, the time on the clock and the total race distance, works out the pace you have held, and projects that pace over the whole distance. It also shows how far and how long is left, which is usually the number that decides whether you push or ease off.' },
 ];
 ---
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Calculate your running pace and speed from a distance and elapsed time, with equivalent finish times for common race distances."
+  rail
+  intro="Work out any one of time, distance and pace from the other two — plus split-by-split pacing and a mid-race finish-time projection."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-18' }}
+  reviewMetadata={{ reviewedDate: '2026-08-28' }}
 >
   <PaceCalculator />
   <Fragment slot="content">
+    <MultipointPaceCalculator />
+    <FinishTimeCalculator />
+
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter the <strong>distance</strong> you covered and choose <strong>km</strong> or <strong>miles</strong>.</li>
-      <li>Enter your <strong>time</strong> as hours, minutes and seconds.</li>
-      <li>Press <strong>Calculate</strong> to see your pace per kilometre and per mile, your speed, and equivalent finish times for standard race distances.</li>
+      <li>Choose which of <strong>Pace</strong>, <strong>Time</strong> or <strong>Distance</strong> you want worked out. That box locks, because it is the answer rather than a question.</li>
+      <li>Fill in the other two. Distance and pace each carry their own unit, so a 10 km run can be paced per mile.</li>
+      <li>Press <strong>Calculate</strong>. The answer appears in the panel and is written back into its own box, so you can switch target and carry it into the next sum.</li>
     </ol>
+    <p>
+      Two more tools sit above. The <strong>Multipoint Pace Calculator</strong> takes the distance
+      and clock time at several points and works out what each leg cost you as well as your average
+      to that point — the difference between "I ran a 25-minute 5K" and "I went out too fast". The
+      <strong>Finish Time Calculator</strong> answers the question you ask yourself mid-race: at
+      this pace, what will the clock say at the line, and how much is left?
+    </p>
 
     <h2>Pace versus speed</h2>
     <p>

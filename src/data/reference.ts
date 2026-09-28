@@ -122,7 +122,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     title: 'Target Heart Rate Chart by Age',
     shortName: 'Target heart rate chart',
     description:
-      'Maximum heart rate and the fat-burn, aerobic and anaerobic training zones (in bpm) for every age from 20 to 70.',
+      'Maximum heart rate and the light, moderate and hard training zones (in bpm) for every age from 20 to 70.',
     category: 'health',
     icon: 'heart-pulse',
     relatedCalculator: 'health/target-heart-rate-calculator',

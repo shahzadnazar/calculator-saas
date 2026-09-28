@@ -14,51 +14,71 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Generate one or many random numbers within any range, with an option for unique (non-repeating) values — powered by secure browser randomness."
+  rail
+  intro="One random integer between two limits, or many integers and decimals with the precision you choose."
   faqs={faqs}
   reviewMetadata={{ reviewedDate: '2026-08-09' }}
 >
   <RandomNumberGenerator />
   <Fragment slot="content">
-    <h2>How to use the generator</h2>
-    <ol>
-      <li>Set the <strong>Minimum</strong> and <strong>Maximum</strong> of your range (the defaults are 1 and 100).</li>
-      <li>Choose <strong>How many</strong> numbers you want — up to 1,000 at a time.</li>
-      <li>Tick <strong>No repeats</strong> if every number must be different, then press <strong>Generate Numbers</strong>.</li>
-      <li>Change any setting and the shown result is marked stale; press generate again to apply it.</li>
-    </ol>
-
-    <h2>What you can use it for</h2>
+    <h2>Two generators</h2>
     <ul>
-      <li>Drawing raffle or giveaway winners impartially</li>
-      <li>Picking lottery-style numbers within a range</li>
-      <li>Assigning a random order, sampling, or splitting into groups</li>
-      <li>Games, decisions, and settling ties fairly</li>
+      <li>The first returns <strong>one random integer</strong> between a lower and an upper limit. It handles very large integers — up to five thousand digits, far past what ordinary arithmetic in a browser can hold.</li>
+      <li>The <strong>Comprehensive Version</strong> returns one or many numbers, as integers or as decimals with up to 999 digits of precision, optionally all distinct and optionally sorted.</li>
     </ul>
-
-    <h2>How the randomness works</h2>
     <p>
-      The numbers come from your browser's <strong>Web Cryptography API</strong> — the same cryptographic source used for security-sensitive work — rather than the seed-based, repeatable output of a simple pseudo-random function. That makes each draw unpredictable and free of any pattern you could anticipate. For non-repeating draws the generator shuffles the available values with a Fisher-Yates shuffle, which keeps every ordering equally likely.
+      Both limits are <strong>inclusive</strong>, so 1 to 100 can return 1 and can return 100, and it
+      does not matter which way round you enter them.
     </p>
 
-    <h2>An inclusive, whole-number range</h2>
+    <h2>Copy and regenerate</h2>
     <p>
-      The range is <strong>inclusive at both ends</strong>: a range of 1 to 100 can return 1, can return 100, and anything between. Results are always whole numbers — a fractional minimum is rounded up and a fractional maximum rounded down before drawing — so set the bounds to the exact integers you want in play. For a coin flip use 1 to 2; for a die, 1 to 6.
+      Every result carries <strong>Copy</strong> and <strong>Regenerate</strong>. Regenerate draws
+      again from the same settings without going back to the form; Copy puts exactly what is on
+      screen on your clipboard, one number per line. Change a setting and the shown numbers are
+      marked out of date rather than silently replaced — a draw you were reading does not vanish
+      because you nudged a limit.
     </p>
 
-    <h2>Unique vs. repeating draws</h2>
+    <h2>Where the randomness comes from</h2>
     <p>
-      Leave <strong>No repeats</strong> unticked and each number is drawn independently, so the same value can appear more than once — the right behaviour for dice rolls or independent trials. Tick it and every number in the result is distinct. Because you cannot draw more distinct values than the range holds, asking for more unique numbers than the range allows simply returns as many as exist — request 10 unique numbers from 1 to 6 and you get all six.
+      Numbers are drawn in your browser through the Web Crypto API, the same source used for
+      cryptographic keys. Nothing is generated on a server, nothing you draw is stored or sent
+      anywhere, and reloading the page gives you a blank generator rather than a number somebody
+      else could have seen.
+    </p>
+    <p>
+      Each draw uses <strong>rejection sampling</strong> rather than a remainder. Taking
+      <code>random % range</code> is the obvious approach and it is subtly biased: unless the range
+      divides the random space exactly, the low end of the range comes up slightly more often. For a
+      raffle or a lottery pick that bias is the whole thing you were trying to avoid, so a draw
+      landing in the uneven tail is discarded and taken again.
     </p>
 
-    <h2>A worked example: lottery numbers</h2>
+    <h2>Distinct values, and sorting</h2>
     <p>
-      To mimic a 6-from-49 lottery draw, set the minimum to <strong>1</strong>, the maximum to <strong>49</strong>, how many to <strong>6</strong>, and tick <strong>No repeats</strong>. The generator returns six different numbers between 1 and 49, each equally likely — an impartial draw, though of course no generator can improve your odds of matching the real thing.
+      Turn off <strong>Allow duplicates</strong> for draws where the same number must not appear
+      twice — lottery picks, raffle winners, random seating. The generator refuses rather than
+      looping if you ask for more distinct values than the range holds. <strong>Sort results</strong>
+      orders them from low to high, which is how lottery numbers are usually written down; leave it
+      off when the order of the draw is itself meaningful.
     </p>
 
-    <h2>Private, and its limits</h2>
+    <h2>Decimals and precision</h2>
     <p>
-      Every draw happens on your device and nothing is sent to a server, so your numbers stay entirely yours. Keep in mind that results are integers only and capped at 1,000 per draw, and that true unpredictability is exactly the point — a fresh press can repeat an earlier result by chance. For a strong random password rather than numbers, see the <a href="/everyday/password-generator">password generator</a>; to summarise a set of numbers once you have them, the <a href="/math/statistics-calculator">statistics calculator</a> takes over.
+      Precision is the number of digits after the point, and the answer carries all of them: ask for
+      50 and you get 50, with no rounding and no silent truncation. That works because the draw is
+      an exact whole number scaled by a power of ten, not a floating-point multiplication — a double
+      runs out of precision after about 15 digits, so a "random decimal to 50 places" computed the
+      obvious way would be zeros after the sixteenth.
+    </p>
+
+    <h2>What random does not mean</h2>
+    <p>
+      Each draw is independent of the last. A run of high numbers does not make a low one more
+      likely next time, and a number that came up a moment ago is exactly as likely to come up
+      again — which is why duplicates appear more often than people expect in a long list, and why
+      turning them off is a deliberate choice rather than a correction.
     </p>
   </Fragment>
 </CalculatorLayout>

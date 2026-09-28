@@ -9,23 +9,66 @@ const faqs = [
   { question: 'How do I convert between hours, minutes and seconds?', answer: 'There are 60 seconds in a minute, 60 minutes in an hour and 24 hours in a day. So one hour is 3,600 seconds, and one day is 86,400 seconds. The calculator also shows the total duration in seconds.' },
   { question: 'Why is adding time different from adding ordinary numbers?', answer: 'Time is in base 60, not base 10 — 60 minutes roll over into an hour, not 100. That is why 45 minutes plus 30 minutes is 1h 15m, and why doing it by hand is easy to get wrong.' },
   { question: 'What is the difference from the hours calculator?', answer: 'This tool adds and subtracts durations (spans of time). The hours calculator works out time worked between two clock times, with breaks — better for timesheets.' },
+  { question: 'How do I add hours to a specific date and time?', answer: 'Use the second calculator on this page. Enter a start date and clock time, choose add or subtract, and give the amount in days, hours, minutes and seconds. It reports the resulting date and time, and how many days the shift crossed.' },
+  { question: 'How do I add more than two times at once?', answer: 'Use the third calculator and write them out: put a unit after every value — d, h, m or s — and join the terms with + or −. For example "1d 2h 3m 4s + 4h 5s - 2030s". It is faster than filling in boxes once you know the notation, and it is the only one that takes more than two terms.' },
 ];
 ---
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
+  rail
   reviewMetadata={{ reviewedDate: '2026-08-09' }}
-  intro="Add or subtract two durations in days, hours, minutes and seconds, then press Calculate Time to see the normalised result and the total in seconds."
+  intro="Three time tools: add or subtract two durations, shift a date and time forward or back, or write out a whole sum such as 1d 2h 3m 4s + 4h 5s."
   faqs={faqs}
 >
   <TimeCalculator />
   <Fragment slot="content">
-    <h2>How to use the time calculator</h2>
+    <h2>Three calculators on this page</h2>
+    <p>
+      They are separate tools, each with its own button and its own answer, so you can use one
+      without clearing another.
+    </p>
     <ol>
-      <li>Enter the first duration in <strong>days, hours, minutes and seconds</strong> (leave any field blank for zero).</li>
-      <li>Choose <strong>add</strong> or <strong>subtract</strong>, then enter the second duration.</li>
-      <li>Press <strong>Calculate Time</strong> to see the normalised result and the total in seconds.</li>
+      <li>
+        <strong>Time Calculator</strong> — add or subtract two durations. Enter each in days,
+        hours, minutes and seconds (a blank box counts as zero), choose add or subtract, and press
+        Calculate Time.
+      </li>
+      <li>
+        <strong>Add or Subtract Time from a Date</strong> — start from a date and a clock time and
+        move forward or back by a duration. It gives the resulting date and time, and says how many
+        days the shift crossed.
+      </li>
+      <li>
+        <strong>Time Expression Calculator</strong> — write the whole sum in one box, such as
+        <strong>1d 2h 3m 4s + 4h 5s - 2030s</strong>.
+      </li>
     </ol>
+
+    <h2>Writing a time expression</h2>
+    <p>
+      Every value needs a unit straight after it: <strong>d</strong> for days, <strong>h</strong>
+      for hours, <strong>m</strong> for minutes and <strong>s</strong> for seconds. Values sitting
+      together are added, and the only operators are <strong>+</strong> and <strong>−</strong>, so
+      there is no precedence to get wrong. <code>1h 30m</code> is ninety minutes;
+      <code>1h - 30m</code> is thirty.
+    </p>
+    <p>
+      A bare number is the one thing it will not accept — <code>90</code> could be ninety of
+      anything, so it asks for <code>90m</code> instead of guessing.
+    </p>
+
+    <h2>Adding time to a date</h2>
+    <p>
+      Adding hours to a clock time is the part people get wrong, because the day rolls over at
+      midnight rather than at 100. Two hours after 11:00 PM is 1:00 AM <em>the next day</em> — so
+      the second calculator reports the resulting date as well as the time, and states how many
+      days it crossed rather than leaving you to notice.
+    </p>
+    <p>
+      Going backwards works the same way: two hours before 1:00 AM is 11:00 PM the previous day.
+      The time of day is always a real time between 00:00:00 and 23:59:59 — never a negative one.
+    </p>
 
     <h2>How duration arithmetic works</h2>
     <p>

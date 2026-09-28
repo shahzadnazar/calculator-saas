@@ -1,28 +1,36 @@
 /**
- * BMR form binding (R7B) — the standard-form binding for the BMR calculator.
+ * BMR form binding — the reference's fields, settings and result table, on the UNCHANGED
+ * standard-form runtime.
  *
- * R7B is the first calculator to GENERALIZE the shipped standard-form runtime
- * (`@lib/result/form-runtime`) beyond its BMI pilot. The runtime is used
- * unchanged; this binding owns everything BMR-specific: reading values (incl. the
- * sex selector BMI lacks), BMR validation, Metric/Imperial conversion, calling
- * the reviewed pure `calculateBmr` (Mifflin-St Jeor — preserved), rendering the
- * dominant BMR figure + the secondary activity-based daily-calorie estimates, the
- * accessible result description, and resetting BMR fields.
+ * The reference asks for age, gender, height and weight under a US / Metric unit tab, and
+ * hides three choices behind a "+ Settings" disclosure: which of three published equations
+ * to use, a body-fat percentage for the one that needs it, and whether to answer in Calories
+ * or kilojoules. Its result is one headline — "BMR = 1,717 Calories/day" — over a six-row
+ * table of daily calorie needs by activity level.
  *
- * The activity estimates reuse the canonical `ACTIVITY_LEVELS` from the shared
- * health-domain module (`@lib/health/activity-levels`) — `BMR × level` is an
- * ESTIMATED DAILY CALORIE NEED (TDEE), never another BMR. Metric/Imperial
- * conversion + imperial-height classification come from the shared
- * `@lib/health/body-measurements` primitives (also used by BMI); the field-error
- * MESSAGES stay here per calculator (R7B.1).
+ * The equations live in the reviewed pure `bmr.ts`; the activity bands and their footnotes
+ * live in the shared `@lib/health/activity-levels`, alongside the five-option select the
+ * calorie calculator uses, so the same activity can never mean two different numbers.
+ * Metric/Imperial conversion comes from the shared `@lib/health/body-measurements`
+ * primitives; the field-error MESSAGES stay here per the R7B.1 policy.
  *
- * Pure parts (`validateBmrValues`, `metricToImperial`, `imperialToMetric`,
- * `bmrActivityEstimates`, `describeBmrResult`) are unit-tested directly; the DOM
- * parts (`readValues`, `renderResult`, `resetValues`, `convertValues`) are
- * exercised end-to-end.
+ * The table is computed from the ROUNDED headline, not the raw equation output, so every row
+ * reconciles with the number printed above it.
  */
-import { calculateBmr, type BmrInput, type Sex } from './bmr';
-import { ACTIVITY_LEVELS } from '@lib/health/activity-levels';
+import {
+  bmrFor,
+  needsBodyFat,
+  toResultUnit,
+  BMR_FORMULAS,
+  BMR_AGE_MIN,
+  BMR_AGE_MAX,
+  KJ_PER_KCAL,
+  toMetricBody,
+  type BmrFormula,
+  type BmrInput,
+  type Sex,
+} from './bmr';
+import { ACTIVITY_BANDS, ACTIVITY_BAND_NOTES } from '@lib/health/activity-levels';
 import {
   round1,
   kilogramsToPounds,
@@ -33,7 +41,6 @@ import {
   classifyImperialHeight,
 } from '@lib/health/body-measurements';
 import { formatNumber } from '@lib/format';
-import { accessibleResultName } from '@lib/result/state';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -41,16 +48,62 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-const BMR_UNIT = 'kcal/day';
+export { BMR_FORMULAS, BMR_AGE_MIN, BMR_AGE_MAX, needsBodyFat, ACTIVITY_BANDS, ACTIVITY_BAND_NOTES };
+export type { BmrFormula };
 
-/** Raw string values as read from the form (empty ≠ zero ≠ invalid). Sex + age
- *  are shared across unit systems; height/weight vary by system. */
-export type BmrValues =
-  | { sex: Sex; system: 'metric'; age: string; heightCm: string; weightKg: string }
-  | { sex: Sex; system: 'imperial'; age: string; heightFt: string; heightIn: string; weightLb: string };
+export type ResultUnit = 'kcal' | 'kj';
+
+/** The two answers the settings panel offers, and how each is written. */
+export const RESULT_UNITS: {
+  value: ResultUnit;
+  label: string;
+  /** How the headline is written: "1,717 Calories/day". */
+  suffix: string;
+  /** How the headline is spoken. */
+  speech: string;
+  /** The activity table's value-column heading. */
+  column: string;
+  /** The sentence above the activity table. */
+  tableTitle: string;
+}[] = [
+  { value: 'kcal', label: 'Calories', suffix: 'Calories/day', speech: 'Calories per day', column: 'Calorie', tableTitle: 'Daily calorie needs based on activity level' },
+  { value: 'kj', label: 'Kilojoules', suffix: 'kJ/day', speech: 'kilojoules per day', column: 'Kilojoules', tableTitle: 'Daily energy needs based on activity level' },
+];
+
+export const resultUnitOf = (u: ResultUnit) => RESULT_UNITS.find((r) => r.value === u) ?? RESULT_UNITS[0];
+
+/** Raw string values as read from the form (empty ≠ zero ≠ invalid). */
+export interface BmrValues {
+  system: 'metric' | 'imperial';
+  sex: Sex;
+  age: string;
+  heightCm: string;
+  weightKg: string;
+  heightFt: string;
+  heightIn: string;
+  weightLb: string;
+  /* --- settings --- */
+  formula: BmrFormula;
+  bodyFatPct: string;
+  resultUnit: ResultUnit;
+}
+
+export const MSG = {
+  ageMissing: 'Enter your age.',
+  ageWhole: 'Enter an age in whole years.',
+  ageRange: `Enter an age from ${BMR_AGE_MIN} to ${BMR_AGE_MAX}.`,
+  heightMissing: 'Enter your height.',
+  heightPositive: 'Enter a height greater than zero.',
+  heightInches: 'Enter inches from 0 to 11.',
+  heightFeetWhole: 'Enter feet as a whole number.',
+  weightMissing: 'Enter your weight.',
+  weightPositive: 'Enter a weight greater than zero.',
+  bodyFatMissing: 'Katch-McArdle needs your body fat percentage.',
+  bodyFatRange: 'Enter a body fat percentage from 0 to 99.9.',
+} as const;
 
 /* ------------------------------------------------------------------ */
-/* Parsing + validation (pure) — mirrors BMI's accepted semantics      */
+/* Parsing + validation (pure)                                         */
 /* ------------------------------------------------------------------ */
 
 type PositiveParse = 'empty' | 'nonpositive' | number;
@@ -63,96 +116,123 @@ function parsePositive(raw: string): PositiveParse {
   return n;
 }
 
-/**
- * Validate the imperial height pair into one field message (both parts share the
- * `data-field="height"` slot). Feet: optional/zero valid, else a finite
- * non-negative integer. Inches: optional/zero valid, else finite and
- * 0 ≤ inches < 12 (12+ is an error, never silently normalized). Total must be > 0.
- * Identical to BMI's accepted imperial-height semantics.
- */
+/** Age is a whole number of years, inside the span the reference accepts. */
+export function ageError(raw: string): string | null {
+  const t = raw.trim();
+  if (t === '') return MSG.ageMissing;
+  const n = Number(t);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return MSG.ageWhole;
+  if (n < BMR_AGE_MIN || n > BMR_AGE_MAX) return MSG.ageRange;
+  return null;
+}
+
+/** Body fat is required only by the equation that reads it. */
+export function bodyFatError(formula: BmrFormula, raw: string): string | null {
+  if (!needsBodyFat(formula)) return null;
+  const t = raw.trim();
+  if (t === '') return MSG.bodyFatMissing;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0 || n >= 100) return MSG.bodyFatRange;
+  return null;
+}
+
 function validateImperialHeight(ftRaw: string, inRaw: string): string | null {
-  // Shared classification (BMI-accepted semantics); the MESSAGES stay here.
   switch (classifyImperialHeight(ftRaw, inRaw)) {
     case 'ok':
       return null;
     case 'empty':
-      return 'Enter your height.';
+      return MSG.heightMissing;
     case 'inches-out-of-range':
-      return 'Enter inches from 0 to 11.';
+      return MSG.heightInches;
     case 'feet-not-integer':
-      return 'Enter feet as a whole number.';
+      return MSG.heightFeetWhole;
     case 'nonpositive':
-      return 'Enter a height greater than zero.';
+      return MSG.heightPositive;
   }
 }
 
 /**
- * Validate BMR form values. Presence + finiteness are explicit (never
- * `Number(value) || 0`). Field keys match the markup: `age`; metric →
- * `heightCm`, `weightKg`; imperial → `height`, `weightLb`. No restrictive medical
- * range is imposed — any positive age/height/weight is accepted (the existing
- * implementation imposed none, and #5 forbids inventing one).
+ * Validate the form. Presence and finiteness are explicit, never `Number(v) || 0`.
+ *
+ * Height and age are still required under Katch-McArdle even though its equation ignores
+ * them: the visitor can switch equations after calculating, and a form that silently stopped
+ * asking would hand them a blank box the moment they switched back.
  */
 export function validateBmrValues(values: BmrValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
 
-  const age = parsePositive(values.age);
-  if (age === 'empty') fieldErrors.age = 'Enter your age.';
-  else if (age === 'nonpositive') fieldErrors.age = 'Enter an age greater than zero.';
+  const age = ageError(values.age);
+  if (age) fieldErrors.age = age;
 
   if (values.system === 'metric') {
     const h = parsePositive(values.heightCm);
-    if (h === 'empty') fieldErrors.heightCm = 'Enter your height.';
-    else if (h === 'nonpositive') fieldErrors.heightCm = 'Enter a height greater than zero.';
+    if (h === 'empty') fieldErrors.heightCm = MSG.heightMissing;
+    else if (h === 'nonpositive') fieldErrors.heightCm = MSG.heightPositive;
 
     const w = parsePositive(values.weightKg);
-    if (w === 'empty') fieldErrors.weightKg = 'Enter your weight.';
-    else if (w === 'nonpositive') fieldErrors.weightKg = 'Enter a weight greater than zero.';
+    if (w === 'empty') fieldErrors.weightKg = MSG.weightMissing;
+    else if (w === 'nonpositive') fieldErrors.weightKg = MSG.weightPositive;
   } else {
     const heightError = validateImperialHeight(values.heightFt, values.heightIn);
     if (heightError) fieldErrors.height = heightError;
 
     const w = parsePositive(values.weightLb);
-    if (w === 'empty') fieldErrors.weightLb = 'Enter your weight.';
-    else if (w === 'nonpositive') fieldErrors.weightLb = 'Enter a weight greater than zero.';
+    if (w === 'empty') fieldErrors.weightLb = MSG.weightMissing;
+    else if (w === 'nonpositive') fieldErrors.weightLb = MSG.weightPositive;
   }
+
+  const fat = bodyFatError(values.formula, values.bodyFatPct);
+  if (fat) fieldErrors.bodyFatPct = fat;
 
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
-/* Computation + description (pure)                                    */
+/* Computation (pure)                                                  */
 /* ------------------------------------------------------------------ */
 
 export interface BmrActivityEstimate {
   /** The activity multiplier (1.2 … 1.9). */
   value: number;
-  /** Human label, e.g. "Sedentary (little or no exercise)". */
+  /** The reference's own wording for the band. */
   label: string;
-  /** Estimated daily calories = round(BMR × multiplier). */
+  /** Estimated daily energy need = round(BMR × multiplier), in the chosen unit. */
   kcal: number;
 }
 
 export interface BmrComputed {
+  /** The headline, rounded, in the chosen result unit. */
   bmr: number;
-  /** Activity-based daily-calorie estimates (empty when BMR is non-finite). */
+  unit: ResultUnit;
+  formula: BmrFormula;
+  /** Activity-based daily-energy estimates (empty when the BMR is non-finite). */
   activity: BmrActivityEstimate[];
 }
 
-/** BMR × the canonical activity levels = daily-calorie (TDEE) estimates. */
+/**
+ * BMR × the shared activity bands.
+ *
+ * Fed the ROUNDED, already-converted headline, so every row reconciles with the number
+ * printed above it rather than with an unrounded value nobody can see.
+ */
 export function bmrActivityEstimates(bmr: number): BmrActivityEstimate[] {
   if (!Number.isFinite(bmr)) return [];
-  return ACTIVITY_LEVELS.map((l) => ({ value: l.value, label: l.label, kcal: Math.round(bmr * l.value) }));
+  return ACTIVITY_BANDS.map((b) => ({ value: b.value, label: b.label, kcal: Math.round(bmr * b.value) }));
 }
 
 function toBmrInput(values: BmrValues): BmrInput {
   const age = Number(values.age);
-  if (values.system === 'metric') {
-    return { sex: values.sex, age, system: 'metric', heightCm: Number(values.heightCm), weightKg: Number(values.weightKg) };
-  }
-  return {
+  const shared = {
     sex: values.sex,
     age,
+    formula: values.formula,
+    bodyFatPct: values.bodyFatPct.trim() === '' ? undefined : Number(values.bodyFatPct),
+  };
+  if (values.system === 'metric') {
+    return { ...shared, system: 'metric', heightCm: Number(values.heightCm), weightKg: Number(values.weightKg) };
+  }
+  return {
+    ...shared,
     system: 'imperial',
     heightFt: Number(values.heightFt || 0),
     heightIn: Number(values.heightIn || 0),
@@ -161,17 +241,35 @@ function toBmrInput(values: BmrValues): BmrInput {
 }
 
 export function computeBmr(values: BmrValues): BmrComputed {
-  const { bmr } = calculateBmr(toBmrInput(values));
-  return { bmr, activity: bmrActivityEstimates(bmr) };
+  const input = toBmrInput(values);
+  const { kg, cm } = toMetricBody(input);
+  const age = input.age;
+  const rawKcal =
+    kg > 0 && cm > 0 && age > 0
+      ? bmrFor(values.formula, values.sex, kg, cm, age, input.bodyFatPct)
+      : Number.NaN;
+  const bmr = Number.isFinite(rawKcal) ? Math.round(toResultUnit(rawKcal, values.resultUnit)) : Number.NaN;
+  return { bmr, unit: values.resultUnit, formula: values.formula, activity: bmrActivityEstimates(bmr) };
+}
+
+/**
+ * The finiteness sentinel the runtime gates the whole result on: finite only when the
+ * headline AND every row of the table reconcile, so no half-filled table reaches the panel.
+ */
+export function completeBmrValue(result: BmrComputed): number {
+  if (!Number.isFinite(result.bmr) || result.bmr <= 0) return Number.NaN;
+  if (result.activity.length !== ACTIVITY_BANDS.length) return Number.NaN;
+  for (const a of result.activity) if (!Number.isFinite(a.kcal)) return Number.NaN;
+  return result.bmr;
 }
 
 /** Concise accessible announcement — the BMR only, NEVER the activity table. */
 export function describeBmrResult(result: BmrComputed): string {
-  return `Your estimated basal metabolic rate is ${formatNumber(result.bmr, 0)} kilocalories per day.`;
+  return `Your basal metabolic rate is ${formatNumber(result.bmr, 0)} ${resultUnitOf(result.unit).speech}.`;
 }
 
 /* ------------------------------------------------------------------ */
-/* Unit conversion (pure) — built on the shared body-measurement utils */
+/* Unit conversion (pure)                                              */
 /* ------------------------------------------------------------------ */
 
 export interface MetricBody {
@@ -210,10 +308,13 @@ export function imperialToMetric(i: ImperialBody): MetricBody {
 }
 
 /* ------------------------------------------------------------------ */
-/* DOM helpers                                                          */
+/* DOM helpers                                                         */
 /* ------------------------------------------------------------------ */
 
 const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+const readValue = (root: HTMLElement, name: string) => input(root, name)?.value ?? '';
+const readChecked = (root: HTMLElement, name: string, fallback: string) =>
+  root.querySelector<HTMLInputElement>(`[name="${name}"]:checked`)?.value ?? fallback;
 
 const numOrNull = (raw: string | undefined): number | null => {
   if (raw == null) return null;
@@ -225,8 +326,8 @@ const numOrNull = (raw: string | undefined): number | null => {
 
 const toField = (n: number | null): string => (n === null ? '' : String(n));
 
-const readSex = (root: HTMLElement): Sex =>
-  (root.querySelector<HTMLInputElement>('[name="sex"]:checked')?.value as Sex) ?? 'male';
+const VALID_FORMULAS = new Set<string>(BMR_FORMULAS.map((f) => f.value));
+const VALID_UNITS = new Set<string>(RESULT_UNITS.map((u) => u.value));
 
 /* ------------------------------------------------------------------ */
 /* The binding                                                         */
@@ -235,25 +336,22 @@ const readSex = (root: HTMLElement): Sex =>
 export const bmrBinding: FormCalculatorBinding<BmrValues, BmrComputed> = {
   readValues(root) {
     const active = root.querySelector<HTMLElement>('[data-unit].is-active, [data-unit][aria-checked="true"]');
-    const system = active?.dataset.unit === 'imperial' ? 'imperial' : 'metric';
-    const sex = readSex(root);
-    const age = input(root, 'age')?.value ?? '';
-    if (system === 'metric') {
-      return {
-        sex,
-        system: 'metric',
-        age,
-        heightCm: input(root, 'heightCm')?.value ?? '',
-        weightKg: input(root, 'weightKg')?.value ?? '',
-      };
-    }
+    const system = active?.dataset.unit === 'metric' ? 'metric' : 'imperial';
+    const sex = readChecked(root, 'sex', 'male');
+    const formula = readChecked(root, 'formula', 'mifflin');
+    const resultUnit = readChecked(root, 'resultUnit', 'kcal');
     return {
-      sex,
-      system: 'imperial',
-      age,
-      heightFt: input(root, 'heightFt')?.value ?? '',
-      heightIn: input(root, 'heightIn')?.value ?? '',
-      weightLb: input(root, 'weightLb')?.value ?? '',
+      system,
+      sex: sex === 'female' ? 'female' : 'male',
+      age: readValue(root, 'age'),
+      heightCm: readValue(root, 'heightCm'),
+      weightKg: readValue(root, 'weightKg'),
+      heightFt: readValue(root, 'heightFt'),
+      heightIn: readValue(root, 'heightIn'),
+      weightLb: readValue(root, 'weightLb'),
+      formula: (VALID_FORMULAS.has(formula) ? formula : 'mifflin') as BmrFormula,
+      bodyFatPct: readValue(root, 'bodyFatPct'),
+      resultUnit: (VALID_UNITS.has(resultUnit) ? resultUnit : 'kcal') as ResultUnit,
     };
   },
 
@@ -261,41 +359,50 @@ export const bmrBinding: FormCalculatorBinding<BmrValues, BmrComputed> = {
 
   compute: computeBmr,
 
-  resultValue(result) {
-    return result.bmr;
-  },
+  resultValue: completeBmrValue,
 
   describeResult: describeBmrResult,
 
   renderResult(result, context: FormRenderContext) {
     const scope = context.result;
     const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
-    const valueEl = q('[data-result-when~="valid"] [data-result-value]');
-    const a11yEl = q('[data-result-when~="valid"] [data-result-value-a11y]');
+    const unit = resultUnitOf(result.unit);
 
+    const valueEl = q('[data-bmr-value]');
+    const suffixEl = q('[data-bmr-suffix]');
+    const a11yEl = q('[data-bmr-a11y]');
     const bmrText = formatNumber(result.bmr, 0);
     if (valueEl) valueEl.textContent = bmrText;
-    if (a11yEl) a11yEl.textContent = accessibleResultName(bmrText, BMR_UNIT);
+    if (suffixEl) suffixEl.textContent = unit.suffix;
+    if (a11yEl) a11yEl.textContent = `${bmrText} ${unit.speech}`;
 
-    // Secondary: fill the activity rows in order (labels are static in markup).
+    const colHead = q('[data-bmr-col-head]');
+    const tableTitle = q('[data-bmr-table-title]');
+    if (colHead) colHead.textContent = unit.column;
+    if (tableTitle) tableTitle.textContent = unit.tableTitle;
+
+    // The table's activity labels are static in the markup; only the numbers change.
     scope.querySelectorAll<HTMLElement>('[data-bmr-activity]').forEach((el, i) => {
       const est = result.activity[i];
-      if (est) el.textContent = formatNumber(est.kcal, 0);
+      el.textContent = est ? formatNumber(est.kcal, 0) : '—';
     });
   },
 
   resetValues(root, _mode: ResetMode) {
-    // Clear personal numeric values…
-    for (const name of ['age', 'heightCm', 'weightKg', 'heightFt', 'heightIn', 'weightLb']) {
+    for (const name of ['age', 'heightCm', 'weightKg', 'heightFt', 'heightIn', 'weightLb', 'bodyFatPct']) {
       const el = input(root, name);
       if (el) el.value = '';
     }
-    // …and restore the safe structural default for sex (Male). The runtime
-    // restores the default UNIT itself; sex is not a unit, so the binding owns it.
-    const male = root.querySelector<HTMLInputElement>('[name="sex"][value="male"]');
-    const female = root.querySelector<HTMLInputElement>('[name="sex"][value="female"]');
-    if (male) male.checked = true;
-    if (female) female.checked = false;
+    // Restore the structural defaults: male, Mifflin-St Jeor, Calories. The runtime owns the
+    // unit tab; sex, equation and result unit are not units, so the binding owns them.
+    const check = (name: string, value: string) => {
+      root.querySelectorAll<HTMLInputElement>(`[name="${name}"]`).forEach((el) => {
+        el.checked = el.value === value;
+      });
+    };
+    check('sex', 'male');
+    check('formula', 'mifflin');
+    check('resultUnit', 'kcal');
   },
 
   convertValues(root, fromUnit, toUnit) {
@@ -323,3 +430,31 @@ export const bmrBinding: FormCalculatorBinding<BmrValues, BmrComputed> = {
     }
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load — the reference's own
+ * published US case (a 25-year-old man, 5 ft 10 in, 160 lb), in the system the tabs open on,
+ * so the worked result never reads in one unit under a tab that says another.
+ *
+ * These are OURS, not the visitor's: the shared runtime computes them through this binding's
+ * own `renderResult`, and the visitor's fields stay empty behind them.
+ */
+export const BMR_EXAMPLE_VALUES: BmrValues = {
+  system: 'imperial',
+  sex: 'male',
+  age: '25',
+  heightCm: '',
+  weightKg: '',
+  heightFt: '5',
+  heightIn: '10',
+  weightLb: '160',
+  formula: 'mifflin',
+  bodyFatPct: '',
+  resultUnit: 'kcal',
+};
+
+export { KJ_PER_KCAL };

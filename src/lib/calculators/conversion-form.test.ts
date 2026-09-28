@@ -12,8 +12,10 @@ import {
   MSG,
   type ConversionValues,
   type ConversionComputed,
+  allUnitRows,
+  formatValue,
 } from './conversion-form';
-import { convert } from './conversion';
+import { convert, CATEGORIES, formatConverted } from './conversion';
 
 /**
  * Conversion binding unit tests (R18C3). Validation, the strict numeric domain, computation
@@ -51,15 +53,27 @@ describe('conversion binding — contract', () => {
     expect(conversionBinding.isUsableResult).toBeUndefined();
   });
 
-  it('default category is length; default units are its first two distinct units', () => {
+  it('opens on the conversion people come for, not on the first two units listed', () => {
     expect(DEFAULT_CATEGORY).toBe('length');
-    expect(defaultUnits('length')).toEqual({ from: 'mm', to: 'cm' });
+    // Micrometres to millimetres is nobody's question; metres to feet is.
+    expect(defaultUnits('length')).toEqual({ from: 'm', to: 'ft' });
   });
 
-  it('defaultUnits gives a deterministic pair for every category (incl. temperature)', () => {
-    expect(defaultUnits('mass')).toEqual({ from: 'mg', to: 'g' });
+  it('gives every category a sensible, deterministic default pair', () => {
+    expect(defaultUnits('mass')).toEqual({ from: 'kg', to: 'lb' });
     expect(defaultUnits('temperature')).toEqual({ from: 'C', to: 'F' });
-    expect(defaultUnits('data')).toEqual({ from: 'B', to: 'KB' });
+    expect(defaultUnits('data')).toEqual({ from: 'GB', to: 'GiB' });
+    expect(defaultUnits('volume')).toEqual({ from: 'l', to: 'gal' });
+    for (const c of CATEGORIES) {
+      const { from, to } = defaultUnits(c.key);
+      const keys = new Set(c.units.map((u) => u.key));
+      expect(keys.has(from) && keys.has(to)).toBe(true);
+      expect(from).not.toBe(to);
+    }
+  });
+
+  it('falls back to the first two units for an unknown category', () => {
+    expect(defaultUnits('nope')).toEqual(defaultUnits('length'));
   });
 
   it('resultValue is the complete-result guard: the converted output when coherent', () => {
@@ -175,5 +189,76 @@ describe('conversion binding — DOM read / reset (mock root)', () => {
     conversionBinding.resetValues(root, 'personal');
     expect(store.category.value).toBe('length');
     expect(store.value.value).toBe('1');
+  });
+});
+
+describe('the whole category in the result', () => {
+  const rows = (over = {}) => allUnitRows(computeConversion(vals(over)));
+
+  it('gives one row per unit of the category, in its order', () => {
+    const got = rows();
+    const cat = CATEGORIES.find((c) => c.key === 'length')!;
+    expect(got.map((r) => r.key)).toEqual(cat.units.map((u) => u.key));
+    expect(got.map((r) => r.label)).toEqual(cat.units.map((u) => u.label));
+  });
+
+  it('marks the unit asked for and the unit started from', () => {
+    const got = rows({ category: 'length', from: 'm', to: 'ft', value: '1' });
+    expect(got.filter((r) => r.isTarget).map((r) => r.key)).toEqual(['ft']);
+    expect(got.filter((r) => r.isSource).map((r) => r.key)).toEqual(['m']);
+  });
+
+  it('agrees with the headline answer for the requested unit', () => {
+    const computed = computeConversion(vals({ category: 'mass', from: 'kg', to: 'lb', value: '70' }));
+    const target = allUnitRows(computed).find((r) => r.isTarget)!;
+    expect(target.value).toBe(formatValue(computed.output));
+  });
+
+  it('carries the note that disambiguates a unit', () => {
+    const got = rows({ category: 'time', from: 'h', to: 'min', value: '1' });
+    expect(got.find((r) => r.key === 'year')!.note).toContain('365.25');
+    expect(got.find((r) => r.key === 'min')!.note).toBeUndefined();
+  });
+
+  it('never renders a placeholder or a non-finite figure, in any category', () => {
+    for (const c of CATEGORIES) {
+      const got = allUnitRows(
+        computeConversion({ category: c.key, from: c.units[0].key, to: c.units[1].key, value: '1' }),
+      );
+      for (const r of got) {
+        expect(r.value).not.toBe('—');
+        expect(r.value).not.toMatch(/NaN|Infinity|undefined/);
+      }
+    }
+  });
+});
+
+describe('the displayed value survives the range a converter covers', () => {
+  it('no longer rounds a tiny conversion to zero', () => {
+    const c = computeConversion({ category: 'data', from: 'B', to: 'GB', value: '1' });
+    expect(formatValue(c.output)).toBe('0.000000001');
+    expect(formatValue(c.output)).not.toBe('0');
+  });
+
+  it('keeps an exact whole number whole', () => {
+    const c = computeConversion({ category: 'data', from: 'TiB', to: 'B', value: '1' });
+    expect(formatValue(c.output)).toBe('1,099,511,627,776');
+  });
+
+  it('matches the engine formatter exactly', () => {
+    expect(formatValue(1234.5)).toBe(formatConverted(1234.5));
+  });
+
+  it('shows the definitional identities exactly, through the form', () => {
+    for (const [category, from, to, want] of [
+      ['volume', 'cup', 'tbsp', '16'],
+      ['volume', 'gal', 'floz', '128'],
+      ['mass', 'st', 'lb', '14'],
+      ['area', 'ac', 'ft2', '43,560'],
+    ] as const) {
+      const c = computeConversion({ category, from, to, value: '1' });
+      expect(formatValue(c.output)).toBe(want);
+      expect(convert(1, from, to, category)).toBe(c.output);
+    }
   });
 });

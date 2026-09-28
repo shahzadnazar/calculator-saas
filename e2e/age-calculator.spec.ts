@@ -19,6 +19,9 @@ const primary = (page: Page) => page.locator('#age-result [data-result-when~="va
 const summaryLabel = (page: Page) => page.locator('#age-result [data-result-summary-label]');
 const months = (page: Page) => page.locator('[data-age-months]');
 const weeks = (page: Page) => page.locator('[data-age-weeks]');
+const hours = (page: Page) => page.locator('[data-age-hours]');
+const minutes = (page: Page) => page.locator('[data-age-minutes]');
+const seconds = (page: Page) => page.locator('[data-age-seconds]');
 const days = (page: Page) => page.locator('[data-age-days]');
 const next = (page: Page) => page.locator('[data-age-next]');
 const interpretation = (page: Page) => page.locator('[data-age-interpretation]');
@@ -61,8 +64,9 @@ test.describe('age: task-first', () => {
     expect(server.state).toBe('empty');
     expect(server.primary).toBe('—');
     expect(server.dob).toBe(''); // no baked DOB
-    expect(server.primary).toBe((await primary(page).textContent())?.trim());
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
+    // The example is rendered on hydration, never baked into the HTML — so the two DIFFER.
+    expect(server.primary).not.toBe((await primary(page).textContent())?.trim());
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
   });
 
   /* ---- initial state ---- */
@@ -70,8 +74,9 @@ test.describe('age: task-first', () => {
   test('loads empty — DOB blank, "age at" defaults to today, no result/announcement', async ({ page }) => {
     await expect(page.locator('[name="dob"]')).toHaveValue('');
     await expect(page.locator('[name="at"]')).toHaveValue(await localToday(page));
-    await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-    await expect(region(page, 'valid')).toBeHidden();
+    await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+    // The example fills this calculator's OWN valid region, so it is visible on load.
+    await expect(region(page, 'valid')).toBeVisible();
     await expect(live(page)).toHaveText('');
   });
 
@@ -89,8 +94,15 @@ test.describe('age: task-first', () => {
     await expect(summaryLabel(page)).toHaveText('Exact age');
     await expect(primary(page)).toHaveText('30 years, 0 months, 0 days');
     await expect(months(page)).toHaveText('360'); // total months
-    await expect(weeks(page)).toHaveText(/^[\d,]+$/);
-    await expect(days(page)).toHaveText(/^[\d,]+$/);
+    await expect(weeks(page)).toHaveText(/^[\d,]+( \+ \d days?)?$/); // whole weeks + leftover days
+    // 30 years to the day = 10,958 days; the finer units are exact multiples of it.
+    await expect(days(page)).toHaveText('10,958');
+    await expect(hours(page)).toHaveText('262,992'); // 10,958 x 24
+    await expect(minutes(page)).toHaveText('15,779,520');
+    await expect(seconds(page)).toHaveText('946,771,200');
+    // The span the age covers, start to end.
+    await expect(page.locator('[data-age-from]')).toHaveText('15 June 1990');
+    await expect(page.locator('[data-age-to]')).toHaveText('15 June 2020');
     await expect(next(page)).toHaveText(/^[\d,]+$/);
     await expect(interpretation(page)).toContainText('until the next birthday');
     await expect(live(page)).toHaveText('Exact age: 30 years, 0 months, 0 days.');
@@ -104,6 +116,9 @@ test.describe('age: task-first', () => {
     await expect(months(page)).toHaveText('0');
     await expect(weeks(page)).toHaveText('0');
     await expect(days(page)).toHaveText('0');
+    await expect(hours(page)).toHaveText('0');
+    await expect(minutes(page)).toHaveText('0');
+    await expect(seconds(page)).toHaveText('0');
     await expect(live(page)).toHaveText('Exact age: 0 years, 0 months, 0 days.');
   });
 
@@ -207,7 +222,7 @@ test.describe('age: task-first', () => {
 
   test('the generated embed mounts the same island (empty SSR, no auto-calc, then an age)', async ({ page }) => {
     await page.goto(EMBED, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'example');
     await page.locator('[name="dob"]').fill('1990-06-15');
     await page.waitForTimeout(DEBOUNCE);
     await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'empty'); // no auto-calc
@@ -219,7 +234,7 @@ test.describe('age: task-first', () => {
 
   test('the direct guide renderer mounts the same working island', async ({ page }) => {
     await page.goto(GUIDE, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'empty');
+    await expect(page.locator('#age-result')).toHaveAttribute('data-result-state', 'example');
     await page.locator('[name="dob"]').fill('1990-06-15');
     await page.locator('[name="at"]').fill('2020-06-15');
     await page.getByRole('button', { name: 'Calculate Age' }).click();
@@ -252,7 +267,7 @@ for (const c of TZ_CASES) {
       await page.goto(ROUTE, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('[name="at"]')).toHaveValue(c.expected);
       await expect(page.locator('[name="dob"]')).toHaveValue('');
-      await expect(shell(page)).toHaveAttribute('data-result-state', 'empty'); // no calc from populating today
+      await expect(shell(page)).toHaveAttribute('data-result-state', 'example'); // no calc from populating today
       await expect(live(page)).toHaveText('');
     });
   });
@@ -346,7 +361,7 @@ test.describe('age: same-document instance isolation', () => {
     };
     await fill(A);
     await expect(A('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('30 years, 0 months, 0 days');
-    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'empty'); // B untouched
+    await expect(B('[data-result-shell]')).toHaveAttribute('data-result-state', 'example'); // B untouched
 
     await fill(B);
     await expect(B('[data-result-when~="valid"] [data-result-value]').first()).toHaveText('30 years, 0 months, 0 days');

@@ -1,23 +1,30 @@
 /**
- * GPA form binding (R16B1 — Academic family pilot, 1 of 2; task-first).
+ * GPA form layer — the two calculators the reference puts on the page.
  *
- * Wraps the UNCHANGED `calculateGPA` (weighted quality-points ÷ credit hours) and
- * the frozen `GRADE_POINTS` scale, and layers the visitor-facing contract the pure
- * function lacks: reading a calculator-owned set of DYNAMIC course rows, strict
- * per-row grade + credit validation, a form-level "at least one course with credit
- * hours" rule, and a complete-result guard.
+ * The GPA Calculator reads a set of dynamic course rows (course name, credits, grade) and reports
+ * the average with a per-course breakdown. The GPA Planning Calculator answers a different question
+ * from four plain numbers — what average the next block of credits has to reach. They stay two
+ * separate calculators with their own fields, their own button and their own result.
  *
- * Own file — imports nothing from grade / any other calculator. The grade `<select>`
- * carries the LETTER label as its value ("A", "B+", …); this binding maps it to a
- * grade point through the unchanged `GRADE_POINTS` before calling the unchanged
- * `calculateGPA` (identical results, key-based validation). The complete-result
- * guard lives in `resultValue` as a NaN sentinel → the runtime's DEFAULT finite
- * gate; there is NO `isUsableResult` (a valid 0.0 GPA is a finite 0 the gate
- * accepts). The standard-form runtime is unchanged; the dynamic-row DOM is entirely
- * island-owned. No generic rows/repeater abstraction.
+ * Both run on the UNCHANGED standard-form runtime, and neither has an `isUsableResult`: the
+ * complete-result guard lives in `resultValue` as a NaN sentinel, reconciled against a fresh
+ * computation. A 0.0 GPA is a finite 0 the runtime's default gate accepts.
  */
-import { calculateGPA, GRADE_POINTS, type GpaCourse, type GpaResult } from './gpa';
-import { formatNumber } from '@lib/format';
+import {
+  calculateGPA,
+  planGpa,
+  gradePoints,
+  isGrade,
+  formatGpa,
+  formatPoints,
+  gradePointsExpression,
+  GRADE_SCALE,
+  GRADED_LETTERS,
+  MAX_GRADE_POINTS,
+  type GpaCourse,
+  type GpaResult,
+  type GpaPlan,
+} from './gpa';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -25,19 +32,36 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-/** Letter → grade-point lookup, and the exact scale ceiling, both from the frozen map. */
-const GRADE_LOOKUP = new Map(GRADE_POINTS.map((g) => [g.label, g.value] as const));
-export const MAX_GPA = Math.max(...GRADE_POINTS.map((g) => g.value)); // 4.0
+export const MAX_GPA = MAX_GRADE_POINTS;
+/** How many blank course rows the calculator opens with, as the reference does. */
+export const INITIAL_ROWS = 5;
 
-const TOL = 1e-9;
 const FAIL = Number.NaN;
+const TOL = 1e-9;
+const close = (a: number, b: number): boolean => Math.abs(a - b) <= Math.max(TOL, Math.abs(b) * TOL);
+
+export const MSG = {
+  gradeInvalid: 'Choose a grade from the list.',
+  creditsRequired: 'Enter credit hours for this course.',
+  creditsInvalid: 'Enter credit hours of zero or more.',
+  gradeMissing: 'Choose a grade for this course, or clear its credits.',
+  noCourses: 'Add at least one course with a grade and credit hours greater than zero.',
+  allIgnored: 'Those grades are not scored. Add a course with a letter grade to get a GPA.',
+  required: 'Enter a number.',
+  gpaRange: `Enter a GPA between 0 and ${MAX_GRADE_POINTS}.`,
+  creditsPositive: 'Enter a number greater than zero.',
+  creditsZeroPlus: 'Enter zero or more.',
+} as const;
+
+/* ------------------------------------------------------------------ */
+/* Calculator 1 — GPA from courses                                     */
+/* ------------------------------------------------------------------ */
 
 export interface GpaRowValue {
-  /** Instance-local stable id assigned by the island (for per-row error targeting). */
+  /** Instance-local stable id assigned by the island, for per-row error targeting. */
   id: string;
-  /** The selected GRADE_POINTS letter label, or '' when unselected. */
+  name: string;
   grade: string;
-  /** The raw credit-hours string. */
   credits: string;
 }
 
@@ -46,189 +70,314 @@ export interface GpaFormValues {
 }
 
 export interface GpaComputed {
-  /** The contributing (non-empty, valid) courses passed to calculateGPA. */
+  rows: GpaRowValue[];
   courses: GpaCourse[];
   result: GpaResult;
 }
 
-export const MSG = {
-  gradeRequired: 'Select a grade for this course.',
-  gradeInvalid: 'Choose a grade from the list.',
-  creditsRequired: 'Enter credit hours for this course.',
-  creditsInvalid: 'Enter credit hours of zero or more.',
-  noCourses: 'Add at least one course with a grade and credit hours greater than zero.',
-} as const;
+/** A blank row is one the visitor has not touched: no grade and no credits. */
+export const isBlankRow = (row: GpaRowValue): boolean =>
+  row.grade.trim() === '' && row.credits.trim() === '';
 
-/* ------------------------------------------------------------------ */
-/* Read                                                                */
-/* ------------------------------------------------------------------ */
+/** Credit hours: a finite number of zero or more. Empty and malformed are told apart. */
+export function parseCredits(raw: string): number | 'empty' | 'invalid' {
+  const text = (raw ?? '').trim();
+  if (text === '') return 'empty';
+  if (!/^\d*\.?\d+$/.test(text)) return 'invalid';
+  const value = Number(text);
+  return Number.isFinite(value) && value >= 0 ? value : 'invalid';
+}
 
 export function readGpaValues(root: HTMLElement): GpaFormValues {
   const rows: GpaRowValue[] = [];
   root.querySelectorAll<HTMLElement>('[data-gpa-row]').forEach((row) => {
-    const grade = row.querySelector<HTMLSelectElement>('[data-gpa-grade]')?.value ?? '';
-    const credits = row.querySelector<HTMLInputElement>('[data-gpa-credits]')?.value ?? '';
-    rows.push({ id: row.dataset.rowId ?? '', grade, credits });
+    rows.push({
+      id: row.getAttribute('data-gpa-row') ?? '',
+      name: row.querySelector<HTMLInputElement>('[data-gpa-name]')?.value ?? '',
+      grade: row.querySelector<HTMLSelectElement>('[data-gpa-grade]')?.value ?? '',
+      credits: row.querySelector<HTMLInputElement>('[data-gpa-credits]')?.value ?? '',
+    });
   });
   return { rows };
 }
 
-/* ------------------------------------------------------------------ */
-/* Parse + validate                                                    */
-/* ------------------------------------------------------------------ */
-
-/** A blank string → null (missing); a finite ≥ 0 number → the number; else 'invalid'. */
-function parseCredits(raw: string): number | null | 'invalid' {
-  const s = raw.trim();
-  if (s === '') return null;
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0 ? n : 'invalid';
-}
-
-const isEmptyRow = (r: GpaRowValue): boolean => r.grade === '' && r.credits.trim() === '';
-
 export function validateGpa(values: GpaFormValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
-  let contributingCredits = 0;
 
-  for (const r of values.rows) {
-    if (isEmptyRow(r)) continue; // a wholly-empty row is ignored (unless it leaves no course — handled below)
-
-    // Grade: required, must be an exact GRADE_POINTS letter.
-    const gradeOk = r.grade !== '' && GRADE_LOOKUP.has(r.grade);
-    if (r.grade === '') fieldErrors[`grade-${r.id}`] = MSG.gradeRequired;
-    else if (!GRADE_LOOKUP.has(r.grade)) fieldErrors[`grade-${r.id}`] = MSG.gradeInvalid;
-
-    // Credits: required, finite, ≥ 0 (0 is a valid non-contributing value).
-    const credits = parseCredits(r.credits);
-    if (credits === null) fieldErrors[`credits-${r.id}`] = MSG.creditsRequired;
-    else if (credits === 'invalid') fieldErrors[`credits-${r.id}`] = MSG.creditsInvalid;
-
-    if (gradeOk && typeof credits === 'number' && credits > 0) contributingCredits += credits;
+  for (const row of values.rows) {
+    if (isBlankRow(row)) continue; // an untouched row is not an error, it is an empty row
+    const credits = parseCredits(row.credits);
+    if (row.grade !== '' && !isGrade(row.grade)) fieldErrors[`grade-${row.id}`] = MSG.gradeInvalid;
+    if (credits === 'invalid') fieldErrors[`credits-${row.id}`] = MSG.creditsInvalid;
+    else if (credits === 'empty' && row.grade !== '') fieldErrors[`credits-${row.id}`] = MSG.creditsRequired;
+    else if (typeof credits === 'number' && row.grade === '') fieldErrors[`grade-${row.id}`] = MSG.gradeMissing;
   }
+  if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
 
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors };
-  // No per-row error, but nothing actually contributes credit hours.
-  if (contributingCredits <= 0) return { ok: false, formError: MSG.noCourses };
+  const courses = toCourses(values);
+  if (courses.length === 0) return { ok: false, formError: MSG.noCourses };
+  // Every course entered is P/NP/I/W — a real thing to say, and not the same as having no credits.
+  if (!courses.some((c) => typeof gradePoints(c.grade) === 'number')) {
+    return { ok: false, formError: MSG.allIgnored };
+  }
+  // Graded courses, but none of them carries credit, so there is nothing to weight the average by.
+  if (!courses.some((c) => typeof gradePoints(c.grade) === 'number' && c.credits > 0)) {
+    return { ok: false, formError: MSG.noCourses };
+  }
   return { ok: true };
 }
 
-/* ------------------------------------------------------------------ */
-/* Compute                                                             */
-/* ------------------------------------------------------------------ */
+/** The rows the visitor actually filled in, as courses. */
+export function toCourses(values: GpaFormValues): GpaCourse[] {
+  const courses: GpaCourse[] = [];
+  for (const row of values.rows) {
+    if (isBlankRow(row)) continue;
+    const credits = parseCredits(row.credits);
+    if (typeof credits !== 'number' || !isGrade(row.grade)) continue;
+    courses.push({ name: row.name.trim(), credits, grade: row.grade });
+  }
+  return courses;
+}
 
 export function computeGpa(values: GpaFormValues): GpaComputed {
-  const courses: GpaCourse[] = [];
-  for (const r of values.rows) {
-    if (isEmptyRow(r)) continue;
-    const gradePoints = GRADE_LOOKUP.get(r.grade);
-    const credits = parseCredits(r.credits);
-    if (gradePoints === undefined || typeof credits !== 'number') continue; // defensive; validation gates this
-    courses.push({ gradePoints, credits });
+  const courses = toCourses(values);
+  return { rows: values.rows, courses, result: calculateGPA(courses) };
+}
+
+/** The GPA, but only when the whole result reconciles with a fresh computation. */
+export function completeGpaValue(r: GpaComputed): number {
+  if (!Array.isArray(r.courses) || r.courses.length === 0) return FAIL;
+  if (r.result.courses.length !== r.courses.length) return FAIL;
+  if (!(r.result.totalCredits > 0)) return FAIL;
+  if (!Number.isFinite(r.result.gpa) || r.result.gpa < 0) return FAIL;
+
+  const expected = calculateGPA(r.courses);
+  if (!close(expected.gpa, r.result.gpa)) return FAIL;
+  if (!close(expected.totalCredits, r.result.totalCredits)) return FAIL;
+  if (!close(expected.totalQualityPoints, r.result.totalQualityPoints)) return FAIL;
+  for (let i = 0; i < expected.courses.length; i += 1) {
+    const a = expected.courses[i];
+    const b = r.result.courses[i];
+    if (a.counted !== b.counted || a.grade !== b.grade) return FAIL;
+    if (a.counted && !close(a.qualityPoints, b.qualityPoints)) return FAIL;
   }
-  return { courses, result: calculateGPA(courses) };
+  return r.result.gpa;
 }
 
-/* ------------------------------------------------------------------ */
-/* Complete-result guard (in resultValue — NO isUsableResult)          */
-/* ------------------------------------------------------------------ */
-
-/**
- * Returns the finite GPA ONLY when the whole result is well-formed — at least one
- * course, every grade point in [0, MAX_GPA] and every credit finite ≥ 0, positive
- * total credits, totals reconciling with the rows, and a `calculateGPA` recompute
- * matching — with the GPA itself finite and within the exact frozen scale bounds
- * [0, 4.0]. A valid GPA of exactly 0 is returned (the default gate accepts a finite
- * 0); a valid 4.0 is returned. Otherwise NaN → the default gate renders it invalid.
- */
-export function completeGpaValue(c: GpaComputed): number {
-  const { courses, result } = c;
-  if (!courses.length) return FAIL;
-
-  let expCredits = 0;
-  let expQuality = 0;
-  for (const co of courses) {
-    if (!Number.isFinite(co.gradePoints) || co.gradePoints < 0 || co.gradePoints > MAX_GPA) return FAIL;
-    if (!Number.isFinite(co.credits) || co.credits < 0) return FAIL;
-    expCredits += co.credits;
-    expQuality += co.gradePoints * co.credits;
-  }
-
-  const { gpa, totalCredits, totalQualityPoints } = result;
-  if (!Number.isFinite(totalCredits) || totalCredits <= 0) return FAIL;
-  if (!Number.isFinite(totalQualityPoints)) return FAIL;
-  if (Math.abs(totalCredits - expCredits) > TOL) return FAIL;
-  if (Math.abs(totalQualityPoints - expQuality) > TOL) return FAIL;
-
-  const re = calculateGPA(courses);
-  if (!Number.isFinite(re.gpa) || Math.abs(re.gpa - gpa) > TOL) return FAIL;
-  if (!Number.isFinite(gpa) || gpa < 0 || gpa > MAX_GPA + TOL) return FAIL;
-  return gpa;
+export function describeGpa(r: GpaComputed): string {
+  if (!Number.isFinite(r.result.gpa)) return '';
+  return `GPA: ${formatGpa(r.result.gpa)} across ${formatPoints(r.result.totalCredits)} credits.`;
 }
 
-/* ------------------------------------------------------------------ */
-/* Presentation                                                        */
-/* ------------------------------------------------------------------ */
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  return node;
+};
 
-export interface GpaPresentation {
-  gpa: string;
-  credits: string;
-  interpretation: string;
-}
-
-const creditWord = (n: number): string => `credit hour${n === 1 ? '' : 's'}`;
-
-export function presentGpa(c: GpaComputed): GpaPresentation {
-  const gpa = c.result.gpa.toFixed(2);
-  const credits = formatNumber(c.result.totalCredits);
-  const n = c.courses.length;
-  return {
-    gpa,
-    credits,
-    interpretation: `A ${gpa} GPA — the credit-weighted average of ${n} course${n === 1 ? '' : 's'} across ${credits} ${creditWord(c.result.totalCredits)}.`,
-  };
-}
-
-export function describeGpa(c: GpaComputed): string {
-  return `GPA: ${c.result.gpa.toFixed(2)} across ${formatNumber(c.result.totalCredits)} ${creditWord(c.result.totalCredits)}.`;
-}
+const cell = (tag: 'td' | 'th', text: string, className?: string): HTMLElement => {
+  const node = el(tag, className);
+  node.textContent = text;
+  if (tag === 'th') node.setAttribute('scope', 'row');
+  return node;
+};
 
 export function renderGpaResult(result: GpaComputed, context: FormRenderContext): void {
-  const p = presentGpa(result);
-  const q = (sel: string) => context.result.querySelector<HTMLElement>(sel);
-  const primary = q('[data-result-when~="valid"] [data-result-value]');
-  if (primary) primary.textContent = p.gpa;
-  const a11y = q('[data-result-when~="valid"] [data-result-value-a11y]');
-  if (a11y) a11y.textContent = `GPA ${p.gpa} across ${p.credits} ${creditWord(result.result.totalCredits)}`;
-  const total = q('[data-gpa-credits-total]');
-  if (total) total.textContent = p.credits;
-  const interp = q('[data-gpa-interpretation]');
-  if (interp) interp.textContent = p.interpretation;
-}
+  const scope = context.result;
+  const set = (selector: string, text: string) => {
+    const node = scope.querySelector<HTMLElement>(selector);
+    if (node) node.textContent = text;
+  };
+  const r = result.result;
 
-/* ------------------------------------------------------------------ */
-/* Reset + binding                                                     */
-/* ------------------------------------------------------------------ */
+  set('[data-result-when~="valid"] [data-result-value]', formatGpa(r.gpa));
+  set('[data-result-when~="valid"] [data-result-value-a11y]', describeGpa(result));
+  set('[data-gpa-total-credits]', formatPoints(r.totalCredits));
+  set('[data-gpa-total-credits-row]', formatPoints(r.totalCredits));
+  set('[data-gpa-overall]', formatGpa(r.gpa));
 
-/** Collapse to exactly one blank course row (island-owned DOM), instance-local. */
-export function resetGpaValues(root: HTMLElement, _mode: ResetMode): void {
-  const rows = Array.from(root.querySelectorAll<HTMLElement>('[data-gpa-row]'));
-  rows.slice(1).forEach((r) => r.remove());
-  const first = rows[0];
-  if (!first) return;
-  const grade = first.querySelector<HTMLSelectElement>('[data-gpa-grade]');
-  const credits = first.querySelector<HTMLInputElement>('[data-gpa-credits]');
-  if (grade) grade.value = '';
-  if (credits) credits.value = '';
+  const body = scope.querySelector<HTMLElement>('[data-gpa-breakdown]');
+  if (!body) return;
+  body.textContent = '';
+  r.courses.forEach((course, index) => {
+    const tr = el('tr');
+    if (!course.counted) tr.className = 'gpa-row--ignored';
+    tr.append(
+      cell('th', course.name || `Course ${index + 1}`),
+      cell('td', formatPoints(course.credits)),
+      cell('td', course.grade),
+      cell('td', course.counted ? gradePointsExpression(course) : 'not counted'),
+    );
+    body.appendChild(tr);
+  });
 }
 
 export const gpaBinding: FormCalculatorBinding<GpaFormValues, GpaComputed> = {
   readValues: readGpaValues,
   validate: validateGpa,
   compute: computeGpa,
-  renderResult: renderGpaResult,
-  describeResult: describeGpa,
   resultValue: completeGpaValue,
-  resetValues: resetGpaValues,
-  // NO isUsableResult — the complete-result guard lives in resultValue (NaN sentinel).
+  describeResult: describeGpa,
+  renderResult: renderGpaResult,
+  resetValues(root, _mode: ResetMode) {
+    // The island owns the rows; it listens for this and collapses back to the opening set.
+    root.dispatchEvent(new CustomEvent('gpa:reset', { bubbles: false }));
+  },
 };
+
+/* ------------------------------------------------------------------ */
+/* Calculator 2 — GPA planning                                         */
+/* ------------------------------------------------------------------ */
+
+export interface PlanFormValues {
+  currentGpa: string;
+  targetGpa: string;
+  currentCredits: string;
+  additionalCredits: string;
+}
+
+export interface PlanComputed {
+  values: PlanFormValues;
+  plan: GpaPlan;
+}
+
+type NumParse = number | 'empty' | 'invalid';
+
+function parseNumber(raw: string): NumParse {
+  const text = (raw ?? '').trim();
+  if (text === '') return 'empty';
+  if (!/^\d*\.?\d+$/.test(text)) return 'invalid';
+  const value = Number(text);
+  return Number.isFinite(value) ? value : 'invalid';
+}
+
+export function validatePlan(values: PlanFormValues): ValidationResult {
+  const fieldErrors: Record<string, string> = {};
+  const check = (name: keyof PlanFormValues, rule: (n: number) => string | null) => {
+    const parsed = parseNumber(values[name]);
+    if (parsed === 'empty') fieldErrors[name] = MSG.required;
+    else if (parsed === 'invalid') fieldErrors[name] = MSG.required;
+    else {
+      const problem = rule(parsed);
+      if (problem) fieldErrors[name] = problem;
+    }
+  };
+  const inScale = (n: number) => (n >= 0 && n <= MAX_GRADE_POINTS ? null : MSG.gpaRange);
+  check('currentGpa', inScale);
+  check('targetGpa', inScale);
+  check('currentCredits', (n) => (n >= 0 ? null : MSG.creditsZeroPlus));
+  check('additionalCredits', (n) => (n > 0 ? null : MSG.creditsPositive));
+  return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
+}
+
+export function computePlan(values: PlanFormValues): PlanComputed {
+  const num = (raw: string) => {
+    const parsed = parseNumber(raw);
+    return typeof parsed === 'number' ? parsed : Number.NaN;
+  };
+  return {
+    values: { ...values },
+    plan: planGpa({
+      currentGpa: num(values.currentGpa),
+      targetGpa: num(values.targetGpa),
+      currentCredits: num(values.currentCredits),
+      additionalCredits: num(values.additionalCredits),
+    }),
+  };
+}
+
+/**
+ * The required average — a finite number even when it is out of reach, because "you would need a
+ * 5.2" is the useful answer, not an error. Only an incoherent input fails the gate.
+ */
+export function completePlanValue(r: PlanComputed): number {
+  const p = r.plan;
+  for (const value of [p.currentGpa, p.targetGpa, p.currentCredits, p.additionalCredits]) {
+    if (!Number.isFinite(value)) return FAIL;
+  }
+  if (!(p.additionalCredits > 0)) return FAIL;
+  if (!Number.isFinite(p.required)) return FAIL;
+  const fresh = planGpa({
+    currentGpa: p.currentGpa,
+    targetGpa: p.targetGpa,
+    currentCredits: p.currentCredits,
+    additionalCredits: p.additionalCredits,
+  });
+  if (!close(fresh.required, p.required)) return FAIL;
+  return p.required;
+}
+
+/** The reference's sentence, and the two cases it does not cover. */
+export function planSentence(p: GpaPlan): string {
+  const target = formatGpa(p.targetGpa);
+  const credits = formatPoints(p.additionalCredits);
+  if (p.alreadyMet) {
+    return `A target GPA of ${target} is already met — even a 0 across the next ${credits} credits keeps you at or above it.`;
+  }
+  if (!p.achievable) {
+    return `A target GPA of ${target} is out of reach over ${credits} credits: it would need an average of ${formatGpa(p.required)}, above the ${formatGpa(MAX_GRADE_POINTS)} maximum on this scale.`;
+  }
+  return `To achieve a target GPA of ${target}, the GPA for the next ${credits} credits needs to be ${formatGpa(p.required)} or higher.`;
+}
+
+export function describePlan(r: PlanComputed): string {
+  return planSentence(r.plan);
+}
+
+export function renderPlanResult(result: PlanComputed, context: FormRenderContext): void {
+  const scope = context.result;
+  const p = result.plan;
+  const set = (selector: string, text: string) => {
+    const node = scope.querySelector<HTMLElement>(selector);
+    if (node) node.textContent = text;
+  };
+  set('[data-result-when~="valid"] [data-result-value]', formatGpa(p.required));
+  set('[data-result-when~="valid"] [data-result-value-a11y]', planSentence(p));
+  set('[data-plan-sentence]', planSentence(p));
+  const shell = scope.querySelector<HTMLElement>('[data-plan-sentence]');
+  if (shell) shell.dataset.planState = p.alreadyMet ? 'met' : p.achievable ? 'ok' : 'unreachable';
+}
+
+const field = (root: HTMLElement, name: string): string =>
+  root.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value ?? '';
+
+export const gpaPlanBinding: FormCalculatorBinding<PlanFormValues, PlanComputed> = {
+  readValues: (root) => ({
+    currentGpa: field(root, 'currentGpa'),
+    targetGpa: field(root, 'targetGpa'),
+    currentCredits: field(root, 'currentCredits'),
+    additionalCredits: field(root, 'additionalCredits'),
+  }),
+  validate: validatePlan,
+  compute: computePlan,
+  resultValue: completePlanValue,
+  describeResult: describePlan,
+  renderResult: renderPlanResult,
+  resetValues(root, _mode: ResetMode) {
+    for (const name of ['currentGpa', 'targetGpa', 'currentCredits', 'additionalCredits']) {
+      const input = root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+      if (input) input.value = '';
+    }
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Worked examples (labelled; the visitor's fields stay EMPTY)         */
+/* ------------------------------------------------------------------ */
+
+export const GPA_EXAMPLE_VALUES: GpaFormValues = {
+  rows: [
+    { id: 'x1', name: 'Math', grade: 'A', credits: '3' },
+    { id: 'x2', name: 'English', grade: 'B+', credits: '3' },
+    { id: 'x3', name: 'History', grade: 'A-', credits: '2' },
+  ],
+};
+
+export const PLAN_EXAMPLE_VALUES: PlanFormValues = {
+  currentGpa: '3.663',
+  targetGpa: '3',
+  currentCredits: '8',
+  additionalCredits: '15',
+};
+
+export { GRADE_SCALE, GRADED_LETTERS };

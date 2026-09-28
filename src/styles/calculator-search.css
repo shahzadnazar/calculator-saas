@@ -73,9 +73,22 @@
   padding: 0;
 }
 
+/* The dropdown is a component, not part of its host's text block. The homepage
+   hero wraps the search in `text-center lg:text-left`, so on a phone every result
+   inherited centre alignment: the title floated in the middle of the row and the
+   blurb sat indented beneath it, lined up with nothing. Declared here so the panel
+   reads identically in the hero, the header, the rail and the directory. */
+.calc-search__panel,
+.calc-search__foot,
+.calc-search__empty,
+.calc-search__did,
+.calc-search__fallback-links {
+  text-align: left;
+}
+
 .calc-search__result {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-areas:
     'title cat arrow'
     'blurb blurb arrow';
@@ -85,6 +98,7 @@
   min-height: 52px; /* mobile-friendly tap target */
   padding: 0.5rem 0.7rem;
   border-radius: 0.6rem;
+  text-align: left;
   text-decoration: none;
   color: var(--fg);
 }
@@ -99,11 +113,20 @@
 
 .calc-search__result-title {
   grid-area: title;
+  min-width: 0;
+  max-width: 100%;
+  /* "Standard Deviation Calculator" is 205px of text. Rather than let it push the
+     category and the arrow off a 296px panel, it ellipses like the blurb does. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
   color: var(--heading);
 }
 .calc-search__result-cat {
   grid-area: cat;
+  justify-self: end;
+  align-self: center;
   font-size: 0.72rem;
   color: var(--muted);
   white-space: nowrap;
@@ -121,8 +144,23 @@
 }
 .calc-search__result-arrow {
   grid-area: arrow;
+  justify-self: end;
+  align-self: center;
   color: var(--color-brand-600);
   font-size: 1rem;
+}
+
+/* Below the desktop layout the category and the arrow are staggered: the category
+   sits on the title's line while the arrow centres across both, so the right edge
+   of the row reads as two separate things at two heights. Letting the category
+   span both rows too centres the pair together, and keeps the blurb out from
+   underneath it. Desktop is deliberately left as it is. */
+@media (max-width: 63.9375rem) {
+  .calc-search__result {
+    grid-template-areas:
+      'title cat arrow'
+      'blurb cat arrow';
+  }
 }
 
 .calc-search__foot {
@@ -167,4 +205,36 @@
 .calc-search[data-variant='compact'] .calc-search__result {
   min-height: 52px;
   padding: 0.4rem 0.6rem;
+}
+
+/* ---------------------------------------------------------------------------
+   In a calculator's desktop side rail
+   ---------------------------------------------------------------------------
+   There the search is a secondary way in, not the page's main action, so it
+   sits lower than the hero's box and the button matches the input's height
+   exactly. Scoped to the rail's own container query on purpose: below it the
+   rail becomes a full-width row on touch, where the >=44px tap-target rule
+   applies and the control keeps its normal size.
+
+   These live here rather than in global.css because this stylesheet is
+   unlayered — an @layer components rule there would lose to the base
+   .calc-search__input rule above however specific it was.
+   --------------------------------------------------------------------------- */
+@container (min-width: 1040px) {
+  .tool-rail .calc-search__input,
+  .tool-rail .calc-search__submit {
+    min-height: 2.25rem;
+    padding-block: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.3;
+    border-radius: 0.5rem;
+  }
+
+  .tool-rail .calc-search__input {
+    padding-inline: 0.65rem;
+  }
+
+  .tool-rail .calc-search__submit {
+    padding-inline: 0.8rem;
+  }
 }

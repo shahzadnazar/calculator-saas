@@ -1,242 +1,393 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSimpleInterest } from './simple-interest';
-import { calculateCompoundInterest } from './compound-interest';
+import {
+  COMPOUND_FREQUENCIES,
+  MAX_INTEREST_MONTHS,
+  isContributionTiming,
+  projectInterest,
+  type InterestPlanInput,
+} from './interest';
 
 /**
- * R20A1 Commit 1 — characterization of the Interest calculator's COMPOSITION contract.
+ * Interest accumulation engine.
  *
- * The Interest calculator owns NO formula module. It is a comparison layer that feeds the
- * SAME principal / annual rate / years to two frozen engines — calculateSimpleInterest and
- * calculateCompoundInterest — where only the COMPOUND side additionally receives the
- * compounding frequency, then reports the "compounding advantage" = compound.totalInterest −
- * simple.interest. This suite freezes that composition (and the legacy behaviour it inherits
- * from each engine) BEFORE the task-first migration; the R20A1 binding must reproduce it
- * exactly. The two engines are frozen this round and are NOT modified.
- *
- * `compareInterest` mirrors the current island's inline composition — deliberately a LOCAL
- * helper, not a production abstraction (none exists yet). It uses the same field roles the
- * migrated binding will expose (dominant compound interest + final balance; supporting simple
- * interest + simple final balance; the advantage delta).
+ * The reference case below is the published worked example the calculator was built
+ * to reproduce, and it is pinned to the cent — all seven result figures AND all five
+ * schedule rows. It exercises the whole model: beginning-of-period contributions, the
+ * initial investment's place in the first period's deposit column, the split of
+ * interest between the initial sum and the contributions, and the inflation
+ * adjustment. A change to any of them breaks a named figure rather than drifting.
  */
-function compareInterest(
-  principal: number,
-  annualRatePct: number,
-  years: number,
-  compoundsPerYear: number,
-) {
-  const simple = calculateSimpleInterest({ principal, annualRatePct, years });
-  const compound = calculateCompoundInterest({ principal, annualRatePct, years, compoundsPerYear });
-  return {
-    simpleInterest: simple.interest,
-    simpleFinal: simple.total,
-    compoundInterest: compound.totalInterest, // DOMINANT
-    compoundFinal: compound.futureValue, // final balance
-    advantage: compound.totalInterest - simple.interest,
-  };
-}
 
-describe('interest comparison — legacy default sample (10000 / 5% / 10y / monthly)', () => {
-  const r = compareInterest(10000, 5, 10, 12);
+const BASE: InterestPlanInput = {
+  initialInvestment: 20000,
+  annualContribution: 5000,
+  monthlyContribution: 0,
+  contributeAt: 'beginning',
+  annualRatePct: 5,
+  compound: 'annually',
+  years: 5,
+  months: 0,
+  taxRatePct: 0,
+  inflationRatePct: 3,
+};
 
-  it('simple interest is exact: I = P·r·t = 10000 × 0.05 × 10 = 5000, total 15000', () => {
-    expect(r.simpleInterest).toBe(5000);
-    expect(r.simpleFinal).toBe(15000);
+const cents = (n: number) => Math.round(n * 100) / 100;
+
+describe('projectInterest — the reference case, to the cent', () => {
+  const r = projectInterest(BASE);
+
+  it('reports all seven result figures', () => {
+    expect(cents(r.endingBalance)).toBe(54535.2);
+    expect(cents(r.totalPrincipal)).toBe(45000);
+    expect(cents(r.totalContributions)).toBe(25000);
+    expect(cents(r.totalInterest)).toBe(9535.2);
+    expect(cents(r.interestOfInitial)).toBe(5525.63);
+    expect(cents(r.interestOfContributions)).toBe(4009.56);
+    expect(cents(r.buyingPower)).toBe(47042.54);
   });
 
-  it('compound interest earned (dominant) ≈ 6470.09 and final balance ≈ 16470.09 (monthly)', () => {
-    expect(r.compoundInterest).toBeCloseTo(6470.09497690279, 6);
-    expect(r.compoundFinal).toBeCloseTo(16470.09497690279, 6);
+  it('reconciles exactly: principal + interest === ending balance', () => {
+    expect(r.totalPrincipal + r.totalInterest).toBeCloseTo(r.endingBalance, 6);
+    expect(r.initialInvestment + r.totalContributions).toBeCloseTo(r.totalPrincipal, 6);
   });
 
-  it('compounding advantage = compound.totalInterest − simple.interest ≈ 1470.09', () => {
-    expect(r.advantage).toBeCloseTo(1470.0949769027902, 6);
-    expect(r.advantage).toBeCloseTo(r.compoundInterest - r.simpleInterest, 10);
+  it('splits the interest exactly — the two parts re-sum to the total', () => {
+    expect(r.interestOfInitial + r.interestOfContributions).toBeCloseTo(r.totalInterest, 6);
   });
 
-  it('final balances reconcile: each equals principal + its interest', () => {
-    expect(r.simpleFinal).toBeCloseTo(10000 + r.simpleInterest, 10);
-    expect(r.compoundFinal).toBeCloseTo(10000 + r.compoundInterest, 10);
+  it('reproduces every row of the annual schedule', () => {
+    // year, deposit, interest, ending balance
+    const expected: readonly [number, number, number, number][] = [
+      [1, 25000.0, 1250.0, 26250.0],
+      [2, 5000.0, 1562.5, 32812.5],
+      [3, 5000.0, 1890.63, 39703.13],
+      [4, 5000.0, 2235.16, 46938.28],
+      [5, 5000.0, 2596.91, 54535.2],
+    ];
+    expect(r.annual).toHaveLength(5);
+    for (const [year, deposit, interest, balance] of expected) {
+      const row = r.annual[year - 1];
+      expect(row.year).toBe(year);
+      expect(row.monthCount).toBe(12);
+      expect(cents(row.deposit)).toBe(deposit);
+      expect(cents(row.interest)).toBe(interest);
+      expect(cents(row.balance)).toBe(balance);
+    }
   });
 
-  it('compound outgrows simple over this horizon (advantage strictly positive)', () => {
-    expect(r.compoundInterest).toBeGreaterThan(r.simpleInterest);
-    expect(r.advantage).toBeGreaterThan(0);
+  it('puts the initial investment in the first period, never in contributions', () => {
+    expect(cents(r.annual[0].deposit)).toBe(25000);
+    expect(cents(r.months[0].deposit)).toBe(25000); // month 1: initial + the annual contribution
+    expect(r.totalContributions).toBeCloseTo(25000, 6);
+  });
+
+  it('carries a monthly schedule whose year-end balances match the annual one', () => {
+    expect(r.months).toHaveLength(60);
+    expect(r.termMonths).toBe(60);
+    for (const y of r.annual) {
+      expect(r.months[y.year * 12 - 1].balance).toBeCloseTo(y.balance, 6);
+    }
+  });
+
+  it('sums each annual row from its own months', () => {
+    for (const y of r.annual) {
+      const own = r.months.filter((m) => m.year === y.year);
+      expect(own).toHaveLength(y.monthCount);
+      expect(own.reduce((s, m) => s + m.deposit, 0)).toBeCloseTo(y.deposit, 6);
+      expect(own.reduce((s, m) => s + m.interest, 0)).toBeCloseTo(y.interest, 6);
+    }
   });
 });
 
-describe('interest comparison — composition invariants', () => {
-  it('the SAME principal/rate/years feed both engines (simple ignores frequency)', () => {
-    // simple is independent of compoundsPerYear: identical across every frequency
-    const freqs = [1, 4, 12, 365];
-    const simples = freqs.map((n) => compareInterest(10000, 5, 10, n).simpleInterest);
-    for (const s of simples) expect(s).toBe(5000);
-    const totals = freqs.map((n) => compareInterest(10000, 5, 10, n).simpleFinal);
-    for (const t of totals) expect(t).toBe(15000);
+describe('contribution timing', () => {
+  it('beginning earns more than end, on identical money in', () => {
+    const begin = projectInterest(BASE);
+    const end = projectInterest({ ...BASE, contributeAt: 'end' });
+    expect(cents(begin.endingBalance)).toBe(54535.2);
+    expect(cents(end.endingBalance)).toBe(53153.79);
+    // Exactly the same amount was paid in either way — only the timing differs.
+    expect(end.totalPrincipal).toBeCloseTo(begin.totalPrincipal, 6);
+    expect(cents(begin.totalInterest - end.totalInterest)).toBe(1381.41);
   });
 
-  it('only the compound side responds to compounding frequency', () => {
-    const a = compareInterest(10000, 5, 10, 1);
-    const b = compareInterest(10000, 5, 10, 365);
-    expect(a.simpleInterest).toBe(b.simpleInterest); // simple unchanged
-    expect(a.compoundInterest).not.toBeCloseTo(b.compoundInterest, 2); // compound changes
+  it('at the beginning, the contribution earns in the period it is paid', () => {
+    const r = projectInterest({ ...BASE, years: 1 });
+    // 20,000 + 5,000 both earn the full year: 25,000 x 5% = 1,250.
+    expect(cents(r.annual[0].interest)).toBe(1250);
+    expect(cents(r.endingBalance)).toBe(26250);
   });
-});
 
-describe('interest comparison — frequency sweep (10000 / 5% / 10y)', () => {
-  // Frozen compound.totalInterest at each supported frequency; simple stays 5000 throughout.
-  const cases: Array<[number, number, number]> = [
-    // [compoundsPerYear, compoundInterest, compoundFinal]
-    [1, 6288.946267774418, 16288.946267774418],
-    [4, 6436.194634870109, 16436.19463487011],
-    [12, 6470.09497690279, 16470.09497690279],
-    [365, 6486.648137652352, 16486.64813765235],
-  ];
+  it('at the end, only the opening balance earns in the first period', () => {
+    const r = projectInterest({ ...BASE, years: 1, contributeAt: 'end' });
+    expect(cents(r.annual[0].interest)).toBe(1000); // 20,000 x 5%
+    expect(cents(r.endingBalance)).toBe(26000);
+  });
 
-  for (const [n, ci, cf] of cases) {
-    it(`n=${n}: compound interest ≈ ${ci.toFixed(2)}, final ≈ ${cf.toFixed(2)}; simple stays 5000`, () => {
-      const r = compareInterest(10000, 5, 10, n);
-      expect(r.compoundInterest).toBeCloseTo(ci, 6);
-      expect(r.compoundFinal).toBeCloseTo(cf, 6);
-      expect(r.simpleInterest).toBe(5000);
-      expect(r.advantage).toBeCloseTo(ci - 5000, 6);
+  it('timing makes no difference when there is nothing to contribute', () => {
+    const begin = projectInterest({ ...BASE, annualContribution: 0, monthlyContribution: 0 });
+    const end = projectInterest({
+      ...BASE,
+      annualContribution: 0,
+      monthlyContribution: 0,
+      contributeAt: 'end',
     });
-  }
+    expect(end.endingBalance).toBeCloseTo(begin.endingBalance, 8);
+  });
 
-  it('more frequent compounding earns strictly more (annually < quarterly < monthly < daily)', () => {
-    const [i1, i4, i12, i365] = [1, 4, 12, 365].map((n) => compareInterest(10000, 5, 10, n).compoundInterest);
-    expect(i1).toBeLessThan(i4);
-    expect(i4).toBeLessThan(i12);
-    expect(i12).toBeLessThan(i365);
+  it('names exactly the two timings', () => {
+    expect(isContributionTiming('beginning')).toBe(true);
+    expect(isContributionTiming('end')).toBe(true);
+    expect(isContributionTiming('middle')).toBe(false);
+    expect(isContributionTiming('')).toBe(false);
   });
 });
 
-describe('interest comparison — zero cases (all valid, all finite)', () => {
-  it('zero principal → every figure is zero', () => {
-    const r = compareInterest(0, 5, 10, 12);
-    expect(r).toEqual({ simpleInterest: 0, simpleFinal: 0, compoundInterest: 0, compoundFinal: 0, advantage: 0 });
+describe('the interest split is exact, not apportioned', () => {
+  it('holds across frequencies, timings and tax rates', () => {
+    for (const compound of COMPOUND_FREQUENCIES) {
+      for (const contributeAt of ['beginning', 'end'] as const) {
+        for (const taxRatePct of [0, 15, 40]) {
+          const r = projectInterest({ ...BASE, compound, contributeAt, taxRatePct });
+          expect(r.interestOfInitial + r.interestOfContributions).toBeCloseTo(r.totalInterest, 6);
+          expect(r.totalPrincipal + r.totalInterest).toBeCloseTo(r.endingBalance, 6);
+        }
+      }
+    }
   });
 
-  it('zero rate → no interest either way; both finals equal the principal; advantage 0', () => {
-    const r = compareInterest(10000, 0, 10, 12);
-    expect(r.simpleInterest).toBe(0);
-    expect(r.compoundInterest).toBe(0);
-    expect(r.simpleFinal).toBe(10000);
-    expect(r.compoundFinal).toBe(10000);
-    expect(r.advantage).toBe(0);
+  it('with no contributions, all the interest belongs to the initial investment', () => {
+    const r = projectInterest({ ...BASE, annualContribution: 0, monthlyContribution: 0 });
+    expect(r.interestOfContributions).toBeCloseTo(0, 6);
+    expect(r.interestOfInitial).toBeCloseTo(r.totalInterest, 6);
   });
 
-  it('zero years → no interest either way; both finals equal the principal; advantage 0', () => {
-    const r = compareInterest(10000, 5, 0, 12);
-    expect(r.simpleInterest).toBe(0);
-    expect(r.compoundInterest).toBe(0);
-    expect(r.simpleFinal).toBe(10000);
-    expect(r.compoundFinal).toBe(10000);
-    expect(r.advantage).toBe(0);
-  });
-});
-
-describe('interest comparison — decimals and fractional years', () => {
-  it('decimal principal/rate and a fractional duration keep full precision', () => {
-    const r = compareInterest(2500.5, 3.75, 7.5, 12);
-    expect(r.simpleInterest).toBeCloseTo(703.265625, 6);
-    expect(r.simpleFinal).toBeCloseTo(3203.765625, 6);
-    expect(r.compoundInterest).toBeCloseTo(810.671890304015, 6);
-    expect(r.compoundFinal).toBeCloseTo(3311.171890304015, 6);
-    expect(r.advantage).toBeCloseTo(107.40626530401505, 6);
+  it('with no initial investment, all the interest belongs to the contributions', () => {
+    const r = projectInterest({ ...BASE, initialInvestment: 0 });
+    expect(r.interestOfInitial).toBeCloseTo(0, 6);
+    expect(r.interestOfContributions).toBeCloseTo(r.totalInterest, 6);
   });
 
-  it('a fractional year rounds to whole compounding periods (compound engine: round(years·n))', () => {
-    // 0.5y at n=12 → round(6) = 6 periods; simple is exactly linear in time.
-    const r = compareInterest(10000, 6, 0.5, 12);
-    expect(r.simpleInterest).toBeCloseTo(10000 * 0.06 * 0.5, 6); // 300
-    // compound: 6 monthly periods at 0.5% each
-    expect(r.compoundFinal).toBeCloseTo(10000 * Math.pow(1 + 0.06 / 12, 6), 6);
+  it('matches the initial investment projected entirely on its own', () => {
+    const both = projectInterest(BASE);
+    const alone = projectInterest({ ...BASE, annualContribution: 0, monthlyContribution: 0 });
+    expect(both.interestOfInitial).toBeCloseTo(alone.totalInterest, 6);
   });
 });
 
-describe('interest comparison — negative inputs (frozen engine behaviour; the binding rejects these)', () => {
-  it('negative principal is CLAMPED to zero by BOTH engines → all-zero result', () => {
-    const r = compareInterest(-10000, 5, 10, 12);
-    expect(r.simpleInterest).toBe(0);
-    expect(r.simpleFinal).toBe(0);
-    expect(r.compoundInterest).toBe(0);
-    expect(r.compoundFinal).toBe(0);
-    expect(r.advantage).toBe(0);
+describe('monthly contributions', () => {
+  it('are paid every month and counted in full', () => {
+    const r = projectInterest({
+      ...BASE,
+      initialInvestment: 0,
+      annualContribution: 0,
+      monthlyContribution: 100,
+      compound: 'monthly',
+      years: 2,
+    });
+    expect(r.totalContributions).toBeCloseTo(2400, 6);
+    expect(r.months).toHaveLength(24);
+    expect(r.months[5].deposit).toBeCloseTo(100, 6);
   });
 
-  it('a negative rate: simple goes linearly negative; compound shrinks below principal', () => {
-    const r = compareInterest(10000, -5, 10, 12);
-    expect(r.simpleInterest).toBeCloseTo(10000 * -0.05 * 10, 6); // -5000
-    expect(r.simpleFinal).toBeCloseTo(5000, 6);
-    expect(r.compoundInterest).toBeLessThan(0); // shrinking balance
-    expect(r.compoundFinal).toBeLessThan(10000);
+  it('at end-timing with monthly compounding, match the closed-form ordinary annuity', () => {
+    const r = projectInterest({
+      ...BASE,
+      initialInvestment: 10000,
+      annualContribution: 0,
+      monthlyContribution: 300,
+      contributeAt: 'end',
+      annualRatePct: 5,
+      compound: 'monthly',
+      years: 10,
+      months: 0,
+      taxRatePct: 0,
+    });
+    const i = 0.05 / 12;
+    const n = 120;
+    const closed = 10000 * Math.pow(1 + i, n) + 300 * ((Math.pow(1 + i, n) - 1) / i);
+    expect(r.endingBalance).toBeCloseTo(closed, 6);
   });
 
-  it('a negative duration: simple is unclamped negative; compound treats it as zero periods', () => {
-    const r = compareInterest(10000, 5, -10, 12);
-    expect(r.simpleInterest).toBeCloseTo(-5000, 6); // simple: P·r·t with t negative
-    // compound: totalPeriods = round(-10·12) is negative → loop body never runs → futureValue = principal
-    expect(r.compoundFinal).toBe(10000);
-    expect(r.compoundInterest).toBe(0);
-  });
-});
-
-describe('interest comparison — non-finite inputs relevant to the composed result', () => {
-  it('NaN principal collapses to 0 via each engine`s `|| 0` / Math.max → an all-zero, finite result', () => {
-    const r = compareInterest(NaN, 5, 10, 12);
-    expect(Number.isFinite(r.simpleInterest)).toBe(true);
-    expect(r.simpleInterest).toBe(0);
-    expect(r.compoundInterest).toBe(0);
-    expect(r.advantage).toBe(0);
-  });
-
-  it('NaN rate → no interest either side; finals equal the principal (finite)', () => {
-    const r = compareInterest(10000, NaN, 10, 12);
-    expect(r.simpleInterest).toBe(0);
-    expect(r.simpleFinal).toBe(10000);
-    expect(r.compoundInterest).toBeCloseTo(0, 6);
-    expect(r.compoundFinal).toBeCloseTo(10000, 6);
-  });
-
-  it('Infinity principal propagates to non-finite figures (documents why the binding rejects it)', () => {
-    const r = compareInterest(Infinity, 5, 10, 12);
-    expect(Number.isFinite(r.simpleInterest)).toBe(false);
-  });
-});
-
-describe('interest comparison — compound frequency normalization (inherited from the compound engine)', () => {
-  it('compoundsPerYear is coerced to max(1, round(n)): 0 → 1 (annual), fractional rounds', () => {
-    const zero = compareInterest(10000, 5, 10, 0);
-    const one = compareInterest(10000, 5, 10, 1);
-    expect(zero.compoundFinal).toBeCloseTo(one.compoundFinal, 6); // n=0 behaves as n=1
-    const twoish = compareInterest(10000, 5, 10, 2.7);
-    const three = compareInterest(10000, 5, 10, 3);
-    expect(twoish.compoundFinal).toBeCloseTo(three.compoundFinal, 6); // 2.7 → round → 3
-  });
-
-  it('a negative frequency is clamped to 1 (annual) by the compound engine', () => {
-    const neg = compareInterest(10000, 5, 10, -12);
-    const one = compareInterest(10000, 5, 10, 1);
-    expect(neg.compoundFinal).toBeCloseTo(one.compoundFinal, 6);
+  it('at beginning-timing, the annuity is due — one period of extra growth', () => {
+    const end = projectInterest({
+      ...BASE,
+      initialInvestment: 0,
+      annualContribution: 0,
+      monthlyContribution: 300,
+      contributeAt: 'end',
+      compound: 'monthly',
+      years: 10,
+    });
+    const begin = projectInterest({
+      ...BASE,
+      initialInvestment: 0,
+      annualContribution: 0,
+      monthlyContribution: 300,
+      contributeAt: 'beginning',
+      compound: 'monthly',
+      years: 10,
+    });
+    expect(begin.endingBalance).toBeCloseTo(end.endingBalance * (1 + 0.05 / 12), 6);
   });
 });
 
-describe('interest comparison — finite-result reconciliation over the binding-validated domain', () => {
-  it('every finite, non-negative input (rate/years ≥ 0, freq ∈ {1,4,12,365}) yields five finite figures', () => {
-    const principals = [0, 1000, 250000.75];
-    const rates = [0, 2.5, 12];
-    const yearsList = [0, 1, 30];
-    const freqs = [1, 4, 12, 365];
-    for (const P of principals)
-      for (const rate of rates)
-        for (const t of yearsList)
-          for (const n of freqs) {
-            const r = compareInterest(P, rate, t, n);
-            for (const v of [r.simpleInterest, r.simpleFinal, r.compoundInterest, r.compoundFinal, r.advantage]) {
-              expect(Number.isFinite(v)).toBe(true);
-            }
-            // advantage always reconciles with its definition
-            expect(r.advantage).toBeCloseTo(r.compoundInterest - r.simpleInterest, 6);
-          }
+describe('a term in years and months', () => {
+  it('runs the exact number of months', () => {
+    expect(projectInterest({ ...BASE, years: 5, months: 6 }).termMonths).toBe(66);
+    expect(projectInterest({ ...BASE, years: 0, months: 7 }).termMonths).toBe(7);
+    expect(projectInterest({ ...BASE, years: 2, months: 12 }).termMonths).toBe(36);
+  });
+
+  it('closes a short final year as its own row, flagged by its month count', () => {
+    const r = projectInterest({ ...BASE, years: 5, months: 6 });
+    expect(r.annual).toHaveLength(6);
+    expect(r.annual[4].monthCount).toBe(12);
+    expect(r.annual[5].monthCount).toBe(6);
+    expect(r.annual[5].balance).toBeCloseTo(r.endingBalance, 6);
+    expect(r.months).toHaveLength(66);
+  });
+
+  it('collects the final annual contribution only when it falls inside the term', () => {
+    // Beginning-timing pays year 6's contribution in month 61, which the term reaches.
+    const begin = projectInterest({ ...BASE, years: 5, months: 6 });
+    expect(begin.totalContributions).toBeCloseTo(30000, 6);
+    // End-timing would pay it in month 72, which the term never reaches.
+    const end = projectInterest({ ...BASE, years: 5, months: 6, contributeAt: 'end' });
+    expect(end.totalContributions).toBeCloseTo(25000, 6);
+  });
+
+  it('produces nothing at all for a term below one month', () => {
+    for (const [years, months] of [
+      [0, 0],
+      [-3, 0],
+      [0, -5],
+    ]) {
+      const r = projectInterest({ ...BASE, years, months });
+      expect(r.termMonths).toBe(0);
+      expect(r.months).toHaveLength(0);
+      expect(r.annual).toHaveLength(0);
+      expect(r.endingBalance).toBe(20000);
+      expect(r.totalInterest).toBe(0);
+      expect(r.interestOfInitial).toBe(0);
+    }
+  });
+
+  it('caps the projection at 100 years', () => {
+    const r = projectInterest({ ...BASE, years: 500, months: 0 });
+    expect(r.termMonths).toBe(MAX_INTEREST_MONTHS);
+    expect(r.months).toHaveLength(MAX_INTEREST_MONTHS);
+    expect(Number.isFinite(r.endingBalance)).toBe(true);
+  });
+});
+
+describe('tax', () => {
+  it('reduces credited interest and still reconciles', () => {
+    const taxed = projectInterest({ ...BASE, taxRatePct: 25 });
+    const gross = projectInterest({ ...BASE, taxRatePct: 0 });
+    expect(taxed.totalInterest).toBeLessThan(gross.totalInterest);
+    expect(taxed.totalTax).toBeGreaterThan(0);
+    expect(taxed.totalPrincipal + taxed.totalInterest).toBeCloseTo(taxed.endingBalance, 6);
+  });
+
+  it('compounds, so the loss exceeds a flat cut of the untaxed interest', () => {
+    const gross = projectInterest({ ...BASE, taxRatePct: 0 });
+    const taxed = projectInterest({ ...BASE, taxRatePct: 25 });
+    expect(taxed.totalInterest).toBeLessThan(gross.totalInterest * 0.75);
+  });
+
+  it('a 100% rate leaves the principal alone', () => {
+    const r = projectInterest({ ...BASE, taxRatePct: 100 });
+    expect(r.totalInterest).toBeCloseTo(0, 8);
+    expect(r.endingBalance).toBeCloseTo(r.totalPrincipal, 6);
+  });
+
+  it('is clamped to 0–100 rather than inverting the result', () => {
+    expect(projectInterest({ ...BASE, taxRatePct: -50 }).totalInterest).toBeCloseTo(
+      projectInterest({ ...BASE, taxRatePct: 0 }).totalInterest,
+      6,
+    );
+    expect(projectInterest({ ...BASE, taxRatePct: 250 }).totalInterest).toBeCloseTo(0, 8);
+  });
+});
+
+describe('inflation only answers the buying-power question', () => {
+  it('never changes the balance itself', () => {
+    const a = projectInterest({ ...BASE, inflationRatePct: 0 });
+    const b = projectInterest({ ...BASE, inflationRatePct: 9 });
+    expect(b.endingBalance).toBeCloseTo(a.endingBalance, 8);
+    expect(b.totalInterest).toBeCloseTo(a.totalInterest, 8);
+  });
+
+  it('at zero inflation, buying power is the balance', () => {
+    const r = projectInterest({ ...BASE, inflationRatePct: 0 });
+    expect(r.buyingPower).toBeCloseTo(r.endingBalance, 8);
+  });
+
+  it('discounts by the full term, odd months included', () => {
+    const r = projectInterest({ ...BASE, years: 5, months: 6 });
+    expect(r.buyingPower).toBeCloseTo(r.endingBalance / Math.pow(1.03, 66 / 12), 6);
+  });
+
+  it('a higher rate buys less', () => {
+    const low = projectInterest({ ...BASE, inflationRatePct: 2 });
+    const high = projectInterest({ ...BASE, inflationRatePct: 6 });
+    expect(high.buyingPower).toBeLessThan(low.buyingPower);
+  });
+});
+
+describe('compounding frequency', () => {
+  it('more frequent compounding never earns less', () => {
+    let previous = 0;
+    for (const compound of COMPOUND_FREQUENCIES) {
+      const end = projectInterest({ ...BASE, compound }).endingBalance;
+      expect(end).toBeGreaterThanOrEqual(previous - 1e-9);
+      previous = end;
+    }
+  });
+
+  it('every figure stays finite across all nine frequencies at the cap', () => {
+    for (const compound of COMPOUND_FREQUENCIES) {
+      const r = projectInterest({ ...BASE, compound, years: 100, months: 0 });
+      for (const v of [
+        r.endingBalance,
+        r.totalPrincipal,
+        r.totalInterest,
+        r.interestOfInitial,
+        r.interestOfContributions,
+        r.buyingPower,
+        r.totalTax,
+      ]) {
+        expect(Number.isFinite(v)).toBe(true);
+      }
+    }
+  });
+});
+
+describe('zero and edge inputs', () => {
+  it('an all-zero plan projects zero, with a full schedule of zeroes', () => {
+    const r = projectInterest({
+      ...BASE,
+      initialInvestment: 0,
+      annualContribution: 0,
+      monthlyContribution: 0,
+      annualRatePct: 0,
+      inflationRatePct: 0,
+    });
+    expect(r.endingBalance).toBe(0);
+    expect(r.buyingPower).toBe(0);
+    expect(r.annual).toHaveLength(5);
+    expect(r.months).toHaveLength(60);
+  });
+
+  it('a zero rate returns exactly what was paid in', () => {
+    const r = projectInterest({ ...BASE, annualRatePct: 0 });
+    expect(r.totalInterest).toBeCloseTo(0, 10);
+    expect(r.endingBalance).toBeCloseTo(45000, 6);
+  });
+
+  it('clamps a negative initial investment to zero rather than projecting a debt', () => {
+    const r = projectInterest({ ...BASE, initialInvestment: -5000 });
+    expect(r.initialInvestment).toBe(0);
+    expect(r.interestOfInitial).toBe(0);
   });
 });

@@ -1,36 +1,46 @@
 /**
- * Home equity: how much you can borrow against your home, and the payment on a
- * home-equity loan. Pure and unit-tested.
+ * Home equity: how much a lender's loan-to-value cap leaves you room to borrow.
+ * Pure and unit-tested.
+ *
+ * This is the SECOND of the two questions a home-equity borrower has. The first —
+ * what a given loan costs — is an ordinary amortizing loan, so it runs on the shared
+ * `calculateAmortization` rather than on a formula of its own. What is specific to
+ * home equity is this: a lender will let the mortgage and the new loan TOGETHER reach
+ * some fraction of the home's value, and what is left under that ceiling is what you
+ * can borrow.
  */
-import { pmt } from '@lib/finance';
 
-export interface HomeEquityInput {
+export interface BorrowingPowerInput {
   homeValue: number;
   mortgageBalance: number;
-  /** Maximum combined loan-to-value the lender allows (e.g. 85%). */
+  /** The combined loan-to-value the lender will go up to, e.g. 80. */
   maxLtvPct: number;
-  loanAmount: number;
-  annualRatePct: number;
-  termYears: number;
 }
 
-export interface HomeEquityResult {
-  /** Equity you hold (value minus what you owe). */
+export interface BorrowingPowerResult {
+  /** Value minus what is still owed — never negative. */
   equity: number;
-  /** Maximum you could borrow at the given LTV cap. */
+  /** Room left under the lender's cap. Zero when the mortgage already fills it. */
   maxBorrow: number;
-  /** Monthly payment on the requested loan amount. */
-  monthlyPayment: number;
-  /** True if the requested loan exceeds the max borrowable. */
-  exceedsMax: boolean;
+  /** What the existing mortgage alone is, as a percentage of the home's value. */
+  currentLtvPct: number;
+  /** The mortgage already meets or exceeds the cap, so there is nothing to lend. */
+  atCap: boolean;
 }
 
-export function calculateHomeEquity(input: HomeEquityInput): HomeEquityResult {
-  const value = Math.max(0, input.homeValue || 0);
-  const owed = Math.max(0, input.mortgageBalance || 0);
-  const equity = Math.max(0, value - owed);
-  const maxBorrow = Math.max(0, value * ((input.maxLtvPct || 0) / 100) - owed);
-  const loan = Math.max(0, input.loanAmount || 0);
-  const monthlyPayment = pmt(loan, (input.annualRatePct || 0) / 100 / 12, Math.round((input.termYears || 0) * 12));
-  return { equity, maxBorrow, monthlyPayment, exceedsMax: loan > maxBorrow + 0.005 };
+export function calculateBorrowingPower(input: BorrowingPowerInput): BorrowingPowerResult {
+  const value = Math.max(0, input.homeValue);
+  const owed = Math.max(0, input.mortgageBalance);
+  const cap = Math.max(0, input.maxLtvPct);
+
+  const ceiling = value * (cap / 100);
+  const maxBorrow = Math.max(0, ceiling - owed);
+  return {
+    equity: Math.max(0, value - owed),
+    maxBorrow,
+    currentLtvPct: value > 0 ? (owed / value) * 100 : 0,
+    // A hair of tolerance so a cap the mortgage lands exactly on reads as full
+    // rather than as a fraction of a cent of headroom.
+    atCap: maxBorrow <= 0.005,
+  };
 }

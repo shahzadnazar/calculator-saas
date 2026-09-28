@@ -1,254 +1,262 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateInterestRate,
-  computeInterestRate,
-  completeInterestRateValue,
-  presentInterestRate,
-  describeInterestRate,
-  spokenPercent,
-  interestRateBinding,
+  INTEREST_RATE_EXAMPLE_VALUES,
+  MAX_TERM_YEARS,
   MSG,
+  completeInterestRateValue,
+  computeInterestRate,
+  describeInterestRate,
+  interestRateBinding,
+  presentInterestRate,
+  spokenPercent,
+  termInMonths,
+  termLabel,
+  validateInterestRate,
   type InterestRateComputed,
   type InterestRateFormValues,
 } from './interest-rate-form';
-import { pmt } from '@lib/finance';
+import { type AmortizationResult } from './amortization';
 
 /**
- * Interest Rate form-binding tests (R15B3 Commit 2 — Loan family follow-on, 3 of 3).
- * Exercise the VALIDATION / PRESENTATION boundary only — the pure solver
- * (solveAnnualRate → @lib/finance `pmt`) is unchanged and separately frozen by
- * interest-rate.test.ts + finance.test.ts. Covers strict validation (amount > 0,
- * payment > 0, whole term ≥ 1 month), the cross-field FEASIBILITY rule (a payment
- * below principal ÷ months cannot amortize the loan — rejected, where the pure
- * solver floors to a misleading 0), pass-through computation, the complete-result
- * guard (payment reconciliation via the unchanged `pmt`; NaN sentinel; NO
- * isUsableResult), and the presentation / announcement helpers.
+ * Interest rate binding — the solver's visitor-facing contract.
+ *
+ * The reference case ($32,000 repaid at $960 a month over 3 years implies 5.065%)
+ * is pinned to the figure the result prints, and the guard tests then cover every
+ * way a result could be internally inconsistent — including the one that matters
+ * most here: a solved rate that does not reproduce the payment it was solved from.
  */
 
-const V = (over: Partial<InterestRateFormValues> = {}): InterestRateFormValues => ({
-  amount: '20000',
-  payment: '377.42',
-  months: '60',
+const FULL: InterestRateFormValues = {
+  amount: '32000',
+  payment: '960',
+  termYears: '3',
+  termMonths: '0',
+};
+
+const at = (over: Partial<InterestRateFormValues> = {}): InterestRateFormValues => ({
+  ...FULL,
   ...over,
 });
-const ok = (r: ReturnType<typeof validateInterestRate>) => r.ok === true;
-const err = (r: ReturnType<typeof validateInterestRate>, f: string) =>
-  (r as { fieldErrors: Record<string, string> }).fieldErrors[f];
-const rejects = (c: InterestRateComputed) => Number.isNaN(completeInterestRateValue(c));
+const errs = (r: ReturnType<typeof validateInterestRate>): Record<string, string> =>
+  r.ok ? {} : (r.fieldErrors ?? {});
+const cents = (n: number) => Math.round(n * 100) / 100;
 
-/** The payment for a known annual rate — used to round-trip compute back to the rate. */
-const payFor = (amount: number, annualPct: number, months: number) => pmt(amount, annualPct / 100 / 12, months);
-
-/* ------------------------------------------------------------------ */
-/* Contract                                                            */
-/* ------------------------------------------------------------------ */
-
-describe('interest rate binding — contract', () => {
-  it('does NOT define isUsableResult (the guard lives in resultValue)', () => {
-    expect(interestRateBinding.isUsableResult).toBeUndefined();
-    expect(interestRateBinding.resultValue).toBe(completeInterestRateValue);
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* Validation                                                          */
-/* ------------------------------------------------------------------ */
-
-describe('interest rate binding — validation (strict, never Number()||0)', () => {
-  it('accepts a well-formed set', () => {
-    expect(ok(validateInterestRate(V()))).toBe(true);
-    expect(ok(validateInterestRate(V({ amount: '12000', payment: '1000', months: '12' })))).toBe(true); // 0% boundary
-    expect(ok(validateInterestRate(V({ amount: '1000', payment: '1000', months: '1' })))).toBe(true); // feasible 1-month
+describe('validation — the required fields', () => {
+  it('accepts the reference entry', () => {
+    expect(validateInterestRate(FULL)).toEqual({ ok: true });
   });
 
-  it('amount required and strictly greater than zero', () => {
-    expect(err(validateInterestRate(V({ amount: '' })), 'amount')).toBe(MSG.amountRequired);
-    expect(err(validateInterestRate(V({ amount: '   ' })), 'amount')).toBe(MSG.amountRequired);
-    for (const bad of ['0', '-1', 'abc', 'Infinity']) {
-      expect(err(validateInterestRate(V({ amount: bad })), 'amount')).toBe(MSG.amountPositive);
+  it('requires a loan amount greater than zero', () => {
+    expect(errs(validateInterestRate(at({ amount: '' }))).amount).toBe(MSG.amountRequired);
+    for (const bad of ['0', '-100', 'abc']) {
+      expect(errs(validateInterestRate(at({ amount: bad }))).amount).toBe(MSG.amountPositive);
     }
   });
 
-  it('payment required and strictly greater than zero', () => {
-    expect(err(validateInterestRate(V({ payment: '' })), 'payment')).toBe(MSG.paymentRequired);
-    for (const bad of ['0', '-1', 'abc', 'Infinity']) {
-      expect(err(validateInterestRate(V({ payment: bad })), 'payment')).toBe(MSG.paymentPositive);
+  it('requires a monthly payment greater than zero', () => {
+    expect(errs(validateInterestRate(at({ payment: '' }))).payment).toBe(MSG.paymentRequired);
+    for (const bad of ['0', '-50', 'x']) {
+      expect(errs(validateInterestRate(at({ payment: bad }))).payment).toBe(MSG.paymentPositive);
     }
   });
+});
 
-  it('term required whole ≥ 1 month — fractional / zero / negative rejected, never rounded', () => {
-    expect(err(validateInterestRate(V({ months: '' })), 'months')).toBe(MSG.termRequired);
-    for (const bad of ['0', '0.5', '2.5', '-5', 'abc']) {
-      expect(err(validateInterestRate(V({ months: bad })), 'months')).toBe(MSG.termWhole);
-    }
-    // A feasible payment (≥ principal ÷ months for every term below) isolates the term-parse check.
-    for (const good of ['1', '60', '360', '600']) expect(ok(validateInterestRate({ amount: '1000', payment: '1000', months: good }))).toBe(true);
+describe('validation — the term is two boxes but one quantity', () => {
+  it('reads years and months together', () => {
+    expect(termInMonths(at({ termYears: '3', termMonths: '0' }))).toBe(36);
+    expect(termInMonths(at({ termYears: '', termMonths: '18' }))).toBe(18);
+    expect(termInMonths(at({ termYears: '2', termMonths: '6' }))).toBe(30);
+    expect(termInMonths(at({ termYears: '', termMonths: '' }))).toBe(0);
   });
 
-  it('feasibility: a payment below the zero-interest minimum (principal ÷ months) is rejected on the payment field', () => {
-    // 20000 / 12 = 1666.67 minimum; 100 can never repay it.
-    expect(err(validateInterestRate(V({ payment: '100', months: '12' })), 'payment')).toBe(MSG.infeasible);
+  it('accepts years alone, months alone, or both', () => {
+    expect(validateInterestRate(at({ termYears: '3', termMonths: '' }))).toEqual({ ok: true });
+    expect(validateInterestRate(at({ termYears: '', termMonths: '36', payment: '960' }))).toEqual({
+      ok: true,
+    });
   });
 
-  it('feasibility: a payment EXACTLY at the zero-interest minimum is valid (0% boundary)', () => {
-    // 12000 / 12 = 1000 = payment.
-    expect(ok(validateInterestRate(V({ amount: '12000', payment: '1000', months: '12' })))).toBe(true);
+  it('rejects a term of nothing at all, against the years box', () => {
+    expect(errs(validateInterestRate(at({ termYears: '', termMonths: '' }))).termYears).toBe(
+      MSG.termRequired,
+    );
+    expect(errs(validateInterestRate(at({ termYears: '0', termMonths: '0' }))).termYears).toBe(
+      MSG.termRequired,
+    );
   });
 
-  it('feasibility never fires when the payment already has a range error', () => {
-    // payment 0 → positive error, NOT the infeasible message.
-    expect(err(validateInterestRate(V({ payment: '0', months: '12' })), 'payment')).toBe(MSG.paymentPositive);
+  it(`rejects a term beyond ${MAX_TERM_YEARS} years`, () => {
+    expect(errs(validateInterestRate(at({ termYears: '31' }))).termYears).toBe(MSG.termMax);
+    expect(errs(validateInterestRate(at({ termYears: '30', termMonths: '1' }))).termYears).toBe(
+      MSG.termMax,
+    );
   });
 
-  it('reports every field error together on an empty submission', () => {
-    const r = validateInterestRate({ amount: '', payment: '', months: '' });
-    for (const f of ['amount', 'payment', 'months']) expect(err(r, f)).toBeDefined();
+  it('rejects a fractional or negative box, never rounding it', () => {
+    expect(errs(validateInterestRate(at({ termYears: '3.5' }))).termYears).toBe(MSG.termWhole);
+    expect(errs(validateInterestRate(at({ termMonths: '2.5' }))).termMonths).toBe(MSG.termWholeMonths);
+    expect(errs(validateInterestRate(at({ termYears: '-1' }))).termYears).toBe(MSG.termWhole);
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Computation (pass-through)                                          */
-/* ------------------------------------------------------------------ */
-
-describe('interest rate binding — computation', () => {
-  it('round-trips a pmt-generated payment back to its rate', () => {
-    const payment = payFor(20000, 6, 60);
-    const c = computeInterestRate(V({ payment: String(payment) }));
-    expect(c.annualRate).toBeCloseTo(6, 6);
-    expect(c.monthlyRate).toBeCloseTo(0.5, 6);
-    expect(c.totalRepaid).toBeCloseTo(payment * 60, 6);
+describe('validation — the feasibility check', () => {
+  it('rejects a payment too small to ever repay the loan', () => {
+    // $32,000 over 36 months needs at least $888.89 a month even at 0%.
+    expect(errs(validateInterestRate(at({ payment: '500' }))).payment).toBe(MSG.infeasible);
   });
 
-  it('the zero-interest boundary computes rate 0', () => {
-    const c = computeInterestRate(V({ amount: '12000', payment: '1000', months: '12' }));
-    expect(c.annualRate).toBe(0);
-    expect(c.monthlyRate).toBe(0);
-    expect(c.totalRepaid).toBe(12000);
+  it('accepts the exact zero-interest payment', () => {
+    const exact = (32000 / 36).toFixed(2);
+    expect(validateInterestRate(at({ payment: exact }))).toEqual({ ok: true });
+  });
+
+  it('does not fire when another field is already wrong', () => {
+    const e = errs(validateInterestRate(at({ payment: '500', amount: '' })));
+    expect(e.amount).toBeTruthy();
+    // The infeasibility is not reported against a loan whose amount is unknown.
+    expect(e.payment).toBeUndefined();
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Complete-result guard                                               */
-/* ------------------------------------------------------------------ */
+describe('computeInterestRate — the reference case', () => {
+  const r = computeInterestRate(FULL);
 
-describe('interest rate binding — complete-result guard', () => {
-  const good = computeInterestRate(V({ payment: String(payFor(20000, 7.5, 60)) }));
-
-  it('returns the finite annual rate for a well-formed result', () => {
-    expect(completeInterestRateValue(good)).toBe(good.annualRate);
-    expect(Number.isFinite(completeInterestRateValue(good))).toBe(true);
+  it('solves the rate the reference reports', () => {
+    expect(r.annualRate).toBeCloseTo(5.0648, 3);
+    expect(r.monthlyRate).toBeCloseTo(5.0648 / 12, 4);
+    expect(r.months).toBe(36);
   });
 
-  it('accepts a valid 0% result (a finite 0 the default gate accepts)', () => {
-    const zero = computeInterestRate(V({ amount: '12000', payment: '1000', months: '12' }));
-    expect(completeInterestRateValue(zero)).toBe(0);
-    expect(Number.isFinite(completeInterestRateValue(zero))).toBe(true);
+  it('reports what the loan costs', () => {
+    expect(cents(r.totalRepaid)).toBe(34560);
+    expect(cents(r.totalInterest)).toBe(2560);
   });
 
-  it('rejects a non-finite or negative rate', () => {
-    expect(rejects({ ...good, annualRate: Number.NaN })).toBe(true);
-    expect(rejects({ ...good, annualRate: Number.POSITIVE_INFINITY })).toBe(true);
-    expect(rejects({ ...good, annualRate: -1 })).toBe(true);
+  it('carries a schedule of the loan the answer describes', () => {
+    expect(r.plan.schedule).toHaveLength(36);
+    expect(r.plan.loanAmount).toBe(32000);
+    // The solved rate is exactly the one that clears the balance on the last payment.
+    expect(r.plan.schedule[35].balance).toBeCloseTo(0, 4);
+    expect(cents(r.plan.schedule[0].payment)).toBe(960);
   });
 
-  it('rejects a monthly rate that is not annual ÷ 12', () => {
-    expect(rejects({ ...good, monthlyRate: good.monthlyRate + 1 })).toBe(true);
+  it('the schedule interest agrees with the headline total', () => {
+    const summed = r.plan.schedule.reduce((s, x) => s + x.interest, 0);
+    expect(summed).toBeCloseTo(r.totalInterest, 2);
   });
 
-  it('rejects a total-repaid that does not equal payment × months', () => {
-    expect(rejects({ ...good, totalRepaid: good.totalRepaid + 100 })).toBe(true);
-  });
-
-  it('rejects a non-integer or sub-1 term', () => {
-    expect(rejects({ ...good, months: 60.5 })).toBe(true);
-    expect(rejects({ ...good, months: 0 })).toBe(true);
-  });
-
-  it('rejects a non-finite principal or payment', () => {
-    expect(rejects({ ...good, amount: Number.NaN })).toBe(true);
-    expect(rejects({ ...good, payment: Number.POSITIVE_INFINITY })).toBe(true);
-  });
-
-  it('rejects a result whose rate does not reconcile with the submitted payment through pmt', () => {
-    // Keep the solved rate, but claim a different payment (+$100). pmt at the rate no
-    // longer reproduces it, so the reconciliation fails.
-    const bumped = good.payment + 100;
-    expect(rejects({ ...good, payment: bumped, totalRepaid: bumped * good.months })).toBe(true);
-  });
-
-  it('rejects the frozen underpayment (solver floors to 0 but pmt(p,0,n)=p/n ≠ the tiny payment)', () => {
-    const under = computeInterestRate(V({ amount: '20000', payment: '100', months: '12' }));
-    expect(under.annualRate).toBe(0); // the frozen floor
-    expect(rejects(under)).toBe(true); // ...but the guard rejects it
+  it('a zero-interest loan is a valid 0% result', () => {
+    const z = computeInterestRate(at({ amount: '36000', payment: '1000', termYears: '3' }));
+    expect(z.annualRate).toBeCloseTo(0, 6);
+    expect(cents(z.totalInterest)).toBe(0);
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Presentation helpers                                                */
-/* ------------------------------------------------------------------ */
+describe('the complete-result guard', () => {
+  const good = computeInterestRate(FULL);
+  const clone = (c: InterestRateComputed): InterestRateComputed => ({
+    ...c,
+    plan: {
+      ...c.plan,
+      schedule: c.plan.schedule.map((x) => ({ ...x })),
+      annual: c.plan.annual.map((x) => ({ ...x })),
+    } as AmortizationResult,
+  });
+  const broken = (mutate: (c: InterestRateComputed) => void): InterestRateComputed => {
+    const copy = clone(good);
+    mutate(copy);
+    return copy;
+  };
 
-describe('interest rate binding — presentation', () => {
-  it('presents the dominant annual rate, a monthly rate, payment, amount, payments count and total', () => {
-    const p = presentInterestRate(computeInterestRate(V({ payment: String(payFor(20000, 6, 60)) })));
-    expect(p.rate).toBe('6%'); // formatPercent(6, 2)
-    expect(p.monthlyRate).toBe('0.5%'); // 6 / 12
-    expect(p.payment).toBe('$386.66'); // pmt(20000, 6%/12, 60)
-    expect(p.amount).toBe('$20,000.00');
-    expect(p.payments).toBe('60 monthly payments');
-    expect(p.interpretation).toContain('6%');
-    expect(p.interpretation).toContain('$20,000.00');
+  it('accepts a result that reconciles', () => {
+    expect(completeInterestRateValue(good)).toBeCloseTo(5.0648, 3);
   });
 
-  it('uses a singular label for a 1-month term', () => {
-    const p = presentInterestRate(computeInterestRate(V({ amount: '1000', payment: '1100', months: '1' })));
-    expect(p.payments).toBe('1 monthly payment');
+  it('rejects a rate that does not reproduce the payment it was solved from', () => {
+    expect(completeInterestRateValue(broken((c) => (c.annualRate = 12)))).toBeNaN();
+    expect(completeInterestRateValue(broken((c) => (c.payment = 1200)))).toBeNaN();
   });
 
-  it('spokenPercent reads at most two decimals with no trailing zeros', () => {
+  it('rejects a monthly rate that is not the annual one over twelve', () => {
+    expect(completeInterestRateValue(broken((c) => (c.monthlyRate += 0.5)))).toBeNaN();
+  });
+
+  it('rejects totals that do not follow from the inputs', () => {
+    expect(completeInterestRateValue(broken((c) => (c.totalRepaid += 100)))).toBeNaN();
+    expect(completeInterestRateValue(broken((c) => (c.totalInterest += 100)))).toBeNaN();
+  });
+
+  it('rejects a non-finite or impossible figure', () => {
+    expect(completeInterestRateValue(broken((c) => (c.annualRate = Number.NaN)))).toBeNaN();
+    expect(completeInterestRateValue(broken((c) => (c.annualRate = -1)))).toBeNaN();
+    expect(completeInterestRateValue(broken((c) => (c.amount = 0)))).toBeNaN();
+    expect(completeInterestRateValue(broken((c) => (c.months = 36.5)))).toBeNaN();
+  });
+
+  it('rejects a schedule that does not describe the same loan', () => {
+    expect(completeInterestRateValue(broken((c) => c.plan.schedule.pop()))).toBeNaN();
+    expect(completeInterestRateValue(broken((c) => (c.plan.loanAmount += 500)))).toBeNaN();
+    expect(completeInterestRateValue(broken((c) => (c.plan.schedule[35].balance = 400)))).toBeNaN();
+    expect(completeInterestRateValue(broken((c) => (c.plan.schedule[4].interest += 200)))).toBeNaN();
+  });
+
+  it('rejects a term beyond the ceiling', () => {
+    expect(completeInterestRateValue(broken((c) => (c.months = 400)))).toBeNaN();
+  });
+});
+
+describe('presentation', () => {
+  const p = presentInterestRate(computeInterestRate(FULL));
+
+  it('prints the rate to three decimals, as the reference does', () => {
+    expect(p.rate).toBe('5.065%');
+    expect(p.monthlyRate).toBe('0.422%');
+  });
+
+  it('labels and prints the two cost figures', () => {
+    expect(p.paymentsLabel).toBe('Total of 36 monthly payments');
+    expect(p.totalRepaid).toBe('$34,560.00');
+    expect(p.totalInterest).toBe('$2,560.00');
+  });
+
+  it('says the whole thing in a sentence', () => {
+    expect(p.interpretation).toBe(
+      'To repay $32,000.00 with 36 monthly payments of $960.00, the implied interest rate is about 5.065% a year (0.422% a month).',
+    );
+  });
+
+  it('announces the rate', () => {
+    expect(describeInterestRate(computeInterestRate(FULL))).toBe(
+      'Estimated annual interest rate: 5.065 percent.',
+    );
     expect(spokenPercent(5)).toBe('5 percent');
-    expect(spokenPercent(5.05)).toBe('5.05 percent');
     expect(spokenPercent(0)).toBe('0 percent');
   });
 
-  it('describeInterestRate leads with the estimated annual rate', () => {
-    const c = computeInterestRate(V({ payment: String(payFor(20000, 6, 60)) }));
-    expect(describeInterestRate(c)).toBe('Estimated annual interest rate: 6 percent.');
+  it('labels a term in years and months, dropping the empty half', () => {
+    expect(termLabel(36)).toBe('3 years');
+    expect(termLabel(18)).toBe('1 year 6 months');
+    expect(termLabel(7)).toBe('7 months');
+    expect(termLabel(12)).toBe('1 year');
+    expect(termLabel(0)).toBe('0 months');
   });
 
-  it('describeInterestRate announces a 0% result cleanly', () => {
-    const zero = computeInterestRate(V({ amount: '12000', payment: '1000', months: '12' }));
-    expect(describeInterestRate(zero)).toBe('Estimated annual interest rate: 0 percent.');
+  it('says one payment, not one payments', () => {
+    const one = presentInterestRate(
+      computeInterestRate(at({ amount: '1000', payment: '1010', termYears: '', termMonths: '1' })),
+    );
+    expect(one.paymentsLabel).toBe('Total of 1 monthly payment');
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* readValues / resetValues (mock root)                                */
-/* ------------------------------------------------------------------ */
-
-describe('interest rate binding — readValues / resetValues', () => {
-  const mockRoot = () => {
-    const inputs: Record<string, { value: string }> = {
-      amount: { value: '20000' },
-      payment: { value: '377.42' },
-      months: { value: '60' },
-    };
-    return {
-      querySelector: (sel: string) => {
-        const m = /\[name="([^"]+)"\]/.exec(sel);
-        return m ? inputs[m[1]] ?? null : null;
-      },
-      __inputs: inputs,
-    } as unknown as HTMLElement & { __inputs: Record<string, { value: string }> };
-  };
-
-  it('reads all three fields', () => {
-    expect(interestRateBinding.readValues(mockRoot())).toEqual({ amount: '20000', payment: '377.42', months: '60' });
+describe('the worked example', () => {
+  it('validates, so the example a visitor sees is a real calculation', () => {
+    expect(validateInterestRate(INTEREST_RATE_EXAMPLE_VALUES)).toEqual({ ok: true });
   });
 
-  it('reset clears every field', () => {
-    const root = mockRoot();
-    interestRateBinding.resetValues(root, 'personal');
-    const inputs = (root as unknown as { __inputs: Record<string, { value: string }> }).__inputs;
-    for (const k of Object.keys(inputs)) expect(inputs[k].value).toBe('');
+  it('is the published reference case and passes the same guard as any other result', () => {
+    const r = computeInterestRate(INTEREST_RATE_EXAMPLE_VALUES);
+    expect(interestRateBinding.resultValue(r)).toBeCloseTo(5.0648, 3);
+    expect(presentInterestRate(r).rate).toBe('5.065%');
   });
 });

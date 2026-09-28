@@ -63,3 +63,28 @@ export function classifyImperialHeight(feetRaw: string, inchesRaw: string): Impe
   if (feetAndInchesToTotalInches(ftNum, inNum) <= 0) return 'nonpositive';
   return 'ok';
 }
+
+/* ------------------------------------------------------------------ */
+/* Age                                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * What is wrong with an age entry, if anything — the same shape as
+ * `classifyImperialHeight`, and for the same reason: four calculators ask for an age, they
+ * accept different spans (2–80 for ideal weight, 15–80 for BMR and calories, 18–80 for
+ * protein), and every one of them wants a whole number of years. The SPAN is the caller's
+ * because it is a product decision; the parsing is not, so it lives here once.
+ *
+ * MESSAGES stay with each calculator per the R7B.1 policy — this returns a status, never
+ * prose.
+ */
+export type AgeStatus = 'ok' | 'empty' | 'not-whole' | 'out-of-range';
+
+export function classifyAge(raw: string, min: number, max: number): AgeStatus {
+  const t = raw.trim();
+  if (t === '') return 'empty';
+  const n = Number(t);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return 'not-whole';
+  if (n < min || n > max) return 'out-of-range';
+  return 'ok';
+}

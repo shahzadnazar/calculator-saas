@@ -1,0 +1,37 @@
+---
+/**
+ * ExampleNotice — the fleet-wide "this is a worked example" strip.
+ *
+ * Sits ABOVE the calculator's own valid region, which the shared runtimes fill
+ * with example figures on first load (see `example` in form/equation/generator
+ * runtime). Because it lives in a `data-result-when="example"` region it is
+ * display:none until the runtime flips the shell to `example` — so a page with
+ * no JavaScript renders an ordinary empty result, never an orphaned badge.
+ *
+ * The badge is real text, not decoration, so assistive tech is told this is
+ * illustrative; the dismiss button carries `data-example-dismiss`, which the
+ * runtimes already wire to their `dismissExample` trigger.
+ */
+export interface Props {
+  label?: string;
+  /** One short sentence naming the sample scenario, e.g. "Sample: $250,000 at 6.5% over 30 years." */
+  caption?: string;
+  dismissLabel?: string;
+}
+const {
+  label = 'Example',
+  caption,
+  dismissLabel = 'Start with my values',
+} = Astro.props;
+---
+
+<div class="result-example-notice" data-result-when="example">
+  <p class="result-example__badge">
+    <span aria-hidden="true">◦</span>{label}
+  </p>
+  {caption && <p class="result-example__caption">{caption}</p>}
+  <p class="result-example__lede">
+    This is a sample result, not your calculation. Enter your own values to replace it.
+  </p>
+  <button type="button" class="result-example__action" data-example-dismiss>{dismissLabel}</button>
+</div>

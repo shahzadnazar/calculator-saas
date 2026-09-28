@@ -1,11 +1,11 @@
 {
-  "name": "AllCalculators",
-  "short_name": "AllCalc",
+  "name": "BestCalculate",
+  "short_name": "BestCalc",
   "description": "Free, fast, accurate online calculators for finance, health, math and everyday life.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f6f8fb",
-  "theme_color": "#2563eb",
+  "background_color": "#fcfbfe",
+  "theme_color": "#7c3aed",
   "icons": [
     { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any" },
     { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },

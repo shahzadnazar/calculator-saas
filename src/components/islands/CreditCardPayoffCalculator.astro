@@ -1,24 +1,22 @@
 ---
 /**
- * Credit-card payoff calculator island (R8C1 — standard-form wave, calculator #15;
- * product family MULTI-MODE, on the standard-form runtime + the accepted isUsableResult
- * gate).
+ * Credit cards payoff island — one budget, several cards, the debt-avalanche plan.
  *
- * Task-first, direct-intent: mode defaults to By payment, all fields start EMPTY, the
- * result is empty (an instruction, not the legacy $5,000 / 19.99% / $200 sample), and the
- * visitor presses "Calculate Payoff Time" (or "Calculate Required Payment") for the first
- * result. Live-after-first afterwards. Compute, validation, state, announcement and focus
- * are owned by the shared runtime + the credit-card binding (@lib/calculators/credit-card-form).
+ * The form is a monthly budget and a row per card (name · balance · minimum payment ·
+ * interest rate), seeded with three blank rows because card debt is a plural problem
+ * and a tool that opens with one row quietly suggests otherwise. Rows are added and
+ * removed up to MAX_CARDS.
  *
- * "Calculate by" is a native radio group — a STRUCTURAL selector the runtime recomputes on.
- * Its two modes swap ONE conditional field: By payment shows the monthly payment (and
- * solves for the payoff time + cost); By timeline shows the target months (and solves for
- * the required payment + cost). The island OWNS the conditional field's visibility + the
- * action label: the inactive field is hidden AND disabled, its stale error cleared and its
- * value preserved for an in-session switch; on a switch the mode-owned result is briefly
- * blanked. The binding owns formula selection, validating only the active field, the
- * mode-specific result — including the informational "Never" payoff — and clearing values
- * on reset.
+ * The result answers the question in the order it is asked: how long until they are all
+ * clear, then what the whole plan costs, then how that total splits between the balances
+ * and the interest, and finally the per-card plan — payoff length, interest, payments,
+ * and the payment schedule with every step-up spelled out.
+ *
+ * The card rows are entirely ISLAND-OWNED (the GPA precedent): built with the DOM API,
+ * never innerHTML, each with a globally-unique id so two instances on one page cannot
+ * collide, per-field error slots the runtime targets, and a remove control. There is no
+ * generic repeater abstraction. Compute, validation, state, focus and the announcement
+ * belong to the shared form runtime and the credit-card binding.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
@@ -27,144 +25,105 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
 ---
 
-<div class="creditcard mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-2 md:items-start" data-cc>
+<div class="cc mx-auto flex w-full max-w-5xl flex-col gap-4" data-cc>
   <!-- Inputs -->
-  <form class="card p-4" data-form novalidate aria-label="Credit card payoff calculator">
-    <fieldset class="cc-modes">
-      <legend class="field-label">Calculate by</legend>
-      <div class="seg-group">
-        <label class="seg"><input type="radio" name="mode" value="payment" checked /><span>Monthly payment</span></label>
-        <label class="seg"><input type="radio" name="mode" value="months" /><span>Target payoff time</span></label>
-      </div>
-    </fieldset>
-
-    <div class="mt-2 space-y-2">
-      <div data-field="balance">
-        <label class="field-label" for="cc-balance">Card balance</label>
-        <div class="flex">
+  <form class="card p-4" data-form novalidate aria-label="Credit cards payoff calculator">
+    <div class="cc-budget" data-field="budget">
+      <div class="cc-budget__row">
+        <label class="cc-budget__label" for="cc-budget">Monthly budget set aside for credit cards</label>
+        <div class="flex cc-budget__control">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="cc-balance"
-            name="balance"
-            type="number"
-            min="0"
-            step="100"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 5000"
-            aria-describedby="cc-balance-error"
-          />
+          <input class="field rounded-l-none" id="cc-budget" name="budget" type="number" min="0" step="50" inputmode="decimal" autocomplete="off" placeholder="e.g. 500" aria-describedby="cc-budget-error" />
         </div>
-        <p class="cc-field-error" id="cc-balance-error" data-error-for="balance" hidden></p>
       </div>
-
-      <div data-field="aprPct">
-        <label class="field-label" for="cc-apr">APR</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="cc-apr"
-            name="aprPct"
-            type="number"
-            min="0"
-            step="0.01"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 19.99"
-            aria-describedby="cc-apr-error"
-          />
-          <span class="field-affix rounded-r-lg border-l-0">%</span>
-        </div>
-        <p class="cc-field-error" id="cc-apr-error" data-error-for="aprPct" hidden></p>
-      </div>
-
-      <!-- Conditional: By payment shows the monthly payment. -->
-      <div data-field="payment" data-cc-payment>
-        <label class="field-label" for="cc-pay">Monthly payment</label>
-        <div class="flex">
-          <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input
-            class="field rounded-l-none"
-            id="cc-pay"
-            name="payment"
-            type="number"
-            min="0"
-            step="10"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="e.g. 200"
-            aria-describedby="cc-pay-error"
-          />
-        </div>
-        <p class="cc-field-error" id="cc-pay-error" data-error-for="payment" hidden></p>
-      </div>
-
-      <!-- Conditional: By timeline shows the target months. -->
-      <div data-field="months" data-cc-months hidden>
-        <label class="field-label" for="cc-mon">Target payoff time</label>
-        <div class="flex">
-          <input
-            class="field rounded-r-none"
-            id="cc-mon"
-            name="months"
-            type="number"
-            min="1"
-            step="1"
-            inputmode="numeric"
-            autocomplete="off"
-            placeholder="e.g. 24"
-            aria-describedby="cc-mon-error"
-            disabled
-          />
-          <span class="field-affix rounded-r-lg border-l-0">months</span>
-        </div>
-        <p class="cc-field-error" id="cc-mon-error" data-error-for="months" hidden></p>
-      </div>
+      <p class="cc-error" id="cc-budget-error" data-error-for="budget" hidden></p>
     </div>
 
-    <div class="mt-3 flex items-center gap-3">
-      <button type="submit" class="btn btn-primary" data-cc-submit>Calculate Payoff Time</button>
-      <button type="button" class="btn btn-secondary" data-reset>Reset</button>
+    <p class="cc-rows-title" id="cc-rows-title">Info of your credit cards</p>
+    <div class="cc-head" aria-hidden="true">
+      <span>Credit card</span>
+      <span>Balance</span>
+      <span>Minimum payment</span>
+      <span>Interest rate</span>
+      <span></span>
+    </div>
+    <!-- Card rows are island-owned; the script seeds the blank rows. -->
+    <div data-cc-rows role="group" aria-labelledby="cc-rows-title"></div>
+
+    <!-- Add-card sits with the other form actions rather than on a line of its own: a
+         row to itself pushed the result off the first screen at 1366x768. It stays
+         directly beneath the rows it adds to, and visually subordinate to Calculate. -->
+    <div class="cc-actions mt-3">
+      <button type="submit" class="btn btn-primary" data-cc-submit>Calculate Payoff</button>
+      <button type="button" class="btn btn-secondary" data-reset>Clear</button>
+      <button type="button" class="btn btn-secondary cc-actions__add" data-cc-add>+ Add card</button>
     </div>
     <p class="cc-live-note" data-live-note hidden>Changes update automatically.</p>
   </form>
 
   <!-- Result -->
-  <ResultShell
-    id="cc-result"
-    state="empty"
-    density="standard"
-    label="Credit card payoff result"
-    minHeight="22rem"
-    placeholderAlignment="center"
-  >
-    <EmptyResult message="Enter your balance, APR, and payment details, then calculate your payoff." />
+  <ResultShell id="cc-result" state="empty" density="complex" label="Credit cards payoff result" minHeight="22rem">
+    <ExampleNotice />
+    <EmptyResult message="Enter what you can pay each month and the balance, minimum payment and rate for each card, then press Calculate to see the payoff plan." />
 
     <div data-result-when="valid">
-      <ResultSummary label="Estimated payoff time">
+      <ResultSummary label="Payoff length">
         <ResultValue value="—" size="text-4xl" />
       </ResultSummary>
+      <p class="cc-headline-detail" data-cc-headline-detail hidden>—</p>
 
-      <p class="cc-explanation" data-cc-explanation hidden></p>
+      <p class="cc-summary" data-cc-summary>—</p>
 
-      <div data-cc-breakdown>
-        <ResultBreakdown title="Cost breakdown">
-          <dl class="cc-metrics">
-            <div><dt data-cc-interest-label>Estimated total interest</dt><dd data-cc-interest>—</dd></div>
-            <div><dt data-cc-total-label>Estimated total paid</dt><dd data-cc-total>—</dd></div>
-          </dl>
-          <p class="cc-assumption" data-cc-assumption></p>
-          <p class="cc-note">Amounts are in US dollars (USD).</p>
-        </ResultBreakdown>
+      <div data-cc-figures hidden>
+        <dl class="cc-metrics">
+          <div><dt>Total of all payments</dt><dd data-cc-total-paid>—</dd></div>
+          <div><dt>Total interest</dt><dd data-cc-total-interest>—</dd></div>
+          <div><dt>Total balances</dt><dd data-cc-total-principal>—</dd></div>
+        </dl>
       </div>
+
+      <!-- What the total you pay is actually made of. -->
+      <figure class="cc-donut" data-cc-donut-figure hidden>
+        <figcaption class="cc-figure__title">Payment breakdown</figcaption>
+        <div class="cc-donut__row">
+          <div class="cc-donut__plot" data-cc-donut></div>
+          <ul class="cc-legend">
+            <li><span class="cc-key cc-key--principal" aria-hidden="true"></span>Principal <b data-cc-share-principal>—</b> <span class="cc-legend__amt" data-cc-share-principal-amt>—</span></li>
+            <li><span class="cc-key cc-key--interest" aria-hidden="true"></span>Interest <b data-cc-share-interest>—</b> <span class="cc-legend__amt" data-cc-share-interest-amt>—</span></li>
+          </ul>
+        </div>
+      </figure>
+
+      <figure class="cc-plan" data-cc-plan-figure hidden>
+        <figcaption class="cc-figure__title">The payback schedule</figcaption>
+        <p class="cc-plan__note">
+          Pay back the highest-rate card first while paying the minimum on the others. This
+          assumes you add no new balance to the cards.
+        </p>
+        <div class="cc-plan__scroll">
+          <table class="cc-plan__table">
+            <caption class="sr-only">Payoff plan for each credit card, highest interest rate first</caption>
+            <thead>
+              <tr>
+                <th scope="col">Credit card</th>
+                <th scope="col">Payoff length</th>
+                <th scope="col">Total interest</th>
+                <th scope="col">Total payments</th>
+                <th scope="col">Payment schedule</th>
+              </tr>
+            </thead>
+            <tbody data-cc-plan-body></tbody>
+          </table>
+        </div>
+      </figure>
     </div>
 
     <InvalidResult
-      title="Check your entries"
-      message="Enter your balance, APR, and — depending on the mode — a monthly payment or a target payoff time."
+      title="Check your cards"
+      message="Enter a monthly budget and, for each card, a balance, a minimum payment and an interest rate. The budget has to cover every minimum payment."
     />
 
     <ResultAnnouncement id="cc-live" />
@@ -172,80 +131,121 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 </div>
 
 <style>
-  .cc-modes {
-    border: 0;
-    margin: 0;
-    padding: 0;
-    min-width: 0;
-  }
-  .seg-group {
-    display: inline-flex;
-    margin-top: 0.4rem;
-    border: 1px solid var(--line);
-    border-radius: 0.55rem;
-    padding: 0.125rem;
-  }
-  .seg {
-    position: relative;
-    display: inline-flex;
-  }
-  .seg input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    cursor: pointer;
-  }
-  .seg span {
-    padding: 0.35rem 0.9rem;
-    border-radius: 0.45rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--muted);
-  }
-  .seg:has(input:checked) span {
-    background: var(--color-brand-600);
-    color: #fff;
-  }
-  .seg:has(input:focus-visible) span {
-    outline: 2px solid var(--color-brand-600);
-    outline-offset: 2px;
+  /* Two series, one validated step per scheme — the same plum/orange the rest of the
+     borrowing family uses, so principal and interest keep their identity across the site. */
+  .cc {
+    --cc-principal: #7c3aed;
+    --cc-interest: #ea580c;
   }
 
-  .cc-field-error {
+  .cc > :global(*) { min-width: 0; }
+  .cc .field-label { margin-bottom: 0.15rem; line-height: 1.25; }
+
+  /* The budget sits on ONE line beside its label, as the reference does — it is a single
+     figure, and giving it a full stacked field pushed the result off the first screen. */
+  .cc-budget { padding-bottom: 0.6rem; border-bottom: 1px solid var(--line); }
+  .cc-budget__row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .cc-budget__label { font-size: 0.9rem; font-weight: 700; color: var(--heading); }
+  .cc-budget__control { flex: 0 1 12rem; min-width: 8rem; }
+
+  .cc-rows-title {
+    margin: 0.5rem 0 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+
+  /* Name · balance · minimum · rate · remove, once there is room for five columns.
+     Below that the five would each be a sliver, so the row stacks instead. */
+  .cc-head { display: none; }
+  .cc :global(.cc-row__controls) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.4rem 0.5rem;
+    align-items: end;
+  }
+  .cc :global(.cc-cell) { min-width: 0; }
+  .cc :global(.cc-cell__label) {
+    display: block;
+    margin-bottom: 0.1rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--muted);
+    line-height: 1.2;
+  }
+  /* Stacked: the name spans the row, the three numbers pair up beneath it. */
+  .cc :global(.cc-row__controls > .field) { grid-column: 1 / -1; }
+  .cc :global(.cc-remove) { justify-self: end; }
+
+  @media (min-width: 40rem) {
+    .cc-head,
+    .cc :global(.cc-row__controls) {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr) 2rem;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .cc-head {
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+    /* The column headers take over, so the per-field labels stand down. */
+    .cc :global(.cc-cell__label) { display: none; }
+    .cc :global(.cc-row__controls > .field) { grid-column: auto; }
+    .cc :global(.cc-remove) { justify-self: auto; }
+  }
+
+  .cc :global(.cc-row) { padding: 0.6rem 0; border-bottom: 1px solid var(--line); }
+  @media (min-width: 40rem) {
+    .cc :global(.cc-row) { padding: 0.25rem 0; }
+  }
+  .cc :global(.cc-row .field) { min-width: 0; }
+  .cc :global(.cc-row .field-affix) { padding-inline: 0.35rem; font-size: 0.75rem; flex: none; }
+
+  .cc :global(.cc-remove) {
+    min-height: 2.75rem;
+    display: grid;
+    place-items: center;
+    height: 2rem;
+    width: 2rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--line);
+    color: var(--color-danger);
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .cc :global(.cc-remove:disabled) { opacity: 0.4; cursor: not-allowed; }
+  .cc :global(.cc-remove:focus-visible) { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+
+  .cc :global(.cc-row__errors:empty) { display: none; }
+  .cc-error,
+  .cc :global(.cc-field-error) {
     margin-top: 0.3rem;
     font-size: 0.8rem;
     font-weight: 600;
     color: #b91c1c;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .cc-field-error {
-      color: #fca5a5;
-    }
+    :root:not([data-theme='light']) .cc-error,
+    :root:not([data-theme='light']) .cc :global(.cc-field-error) { color: #fca5a5; }
   }
-  :root[data-theme='dark'] .cc-field-error {
-    color: #fca5a5;
-  }
+  :root[data-theme='dark'] .cc-error,
+  :root[data-theme='dark'] .cc :global(.cc-field-error) { color: #fca5a5; }
 
-  .cc-live-note {
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
+  .cc-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .cc-actions__add { margin-left: auto; }
 
-  .cc-explanation {
-    margin: 0.6rem 0 0;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    color: var(--fg);
-  }
+  .cc-live-note { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
 
-  .cc-metrics {
-    margin: 0;
-    display: grid;
-    gap: 0.25rem;
-  }
+  .cc-headline-detail { margin: 0.1rem 0 0; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
+  .cc-summary { margin: 0.5rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
+
+  .cc-metrics { margin: 0.75rem 0 0; display: grid; gap: 0.2rem; }
   .cc-metrics > div {
     display: flex;
     align-items: baseline;
@@ -253,12 +253,9 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     gap: 0.75rem;
     padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
-  .cc-metrics dt {
-    color: var(--fg);
-    font-weight: 600;
-  }
+  .cc-metrics dt { color: var(--fg); font-weight: 600; }
   .cc-metrics dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
@@ -266,84 +263,248 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     font-weight: 700;
     white-space: nowrap;
   }
-  .cc-assumption {
-    margin: 0.6rem 0 0;
-    font-size: 0.8rem;
-    line-height: 1.45;
+
+  .cc-figure__title {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--muted);
   }
-  .cc-note {
-    margin: 0.5rem 0 0;
-    font-size: 0.8rem;
-    color: var(--muted);
+
+  .cc-donut { margin: 0.9rem 0 0; }
+  .cc-donut__row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .cc-donut__plot { flex: 0 0 auto; width: 11.5rem; }
+  .cc-donut :global(.cc-donut__svg) { display: block; width: 100%; height: auto; }
+  .cc-donut :global(.cc-donut__arc--principal) { stroke: var(--cc-principal); }
+  .cc-donut :global(.cc-donut__arc--interest) { stroke: var(--cc-interest); }
+  /* Labels wear text ink, never the series colour. */
+  .cc-donut :global(.cc-donut__label) { fill: var(--heading); font-size: 11px; font-weight: 700; }
+
+  .cc-legend {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--fg);
+    flex: 1 1 9rem;
+    min-width: 0;
   }
+  .cc-legend li { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .cc-legend b { font-variant-numeric: tabular-nums; color: var(--heading); }
+  .cc-legend__amt { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cc-key { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+  .cc-key--principal { background: var(--cc-principal); }
+  .cc-key--interest { background: var(--cc-interest); }
+
+  .cc-plan { margin: 1.1rem 0 0; }
+  .cc-plan__note { margin: 0 0 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
+  /* Five columns of real content: the table scrolls inside its own box rather than
+     pushing the page sideways. */
+  .cc-plan__scroll { overflow-x: auto; }
+  .cc-plan__table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 40rem; }
+  .cc-plan__table :global(th),
+  .cc-plan__table :global(td) {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+  .cc-plan__table thead :global(th) {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .cc-plan__table tbody :global(th) { font-weight: 700; color: var(--heading); white-space: nowrap; }
+  .cc-plan__table tbody :global(td) { font-variant-numeric: tabular-nums; color: var(--fg); }
+  .cc-plan__table :global(.cc-plan__schedule) {
+    font-variant-numeric: normal;
+    min-width: 13rem;
+  }
+  .cc-plan__table :global(.cc-plan__schedule p) { margin: 0 0 0.15rem; }
+  .cc-plan__table :global(.cc-plan__schedule p:last-child) { margin-bottom: 0; }
 </style>
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { creditCardBinding } from '@lib/calculators/credit-card-form';
+  import {
+    creditCardBinding,
+    CREDIT_CARD_EXAMPLE_VALUES,
+    INITIAL_CARDS,
+    MAX_CARDS,
+  } from '@lib/calculators/credit-card-form';
+
+  // Module-global so row ids are unique across every instance rendered on a page.
+  let uid = 0;
+
+  interface FieldSpec {
+    hook: 'ccName' | 'ccBalance' | 'ccMin' | 'ccApr';
+    key: string;
+    label: string;
+    placeholder: string;
+    /** A money prefix, a percent suffix, or neither. */
+    prefix?: string;
+    suffix?: string;
+    step?: string;
+  }
+
+  const FIELDS: FieldSpec[] = [
+    { hook: 'ccName', key: 'name', label: 'Credit card name', placeholder: 'e.g. Card 1' },
+    { hook: 'ccBalance', key: 'balance', label: 'Balance', placeholder: '0', prefix: '$', step: '100' },
+    { hook: 'ccMin', key: 'min', label: 'Minimum payment', placeholder: '0', prefix: '$', step: '10' },
+    { hook: 'ccApr', key: 'apr', label: 'Interest rate', placeholder: '0', suffix: '%', step: '0.01' },
+  ];
+
+  /** Build one card row. Seed values fill an example row; every other caller gets a blank one. */
+  function buildRow(seed: Partial<Record<string, string>> = {}): HTMLElement {
+    const id = `cc-r${++uid}`;
+    const row = document.createElement('div');
+    row.className = 'cc-row';
+    row.dataset.ccRow = '';
+    row.dataset.rowId = id;
+
+    const controls = document.createElement('div');
+    controls.className = 'cc-row__controls';
+    const errors = document.createElement('div');
+    errors.className = 'cc-row__errors';
+
+    for (const spec of FIELDS) {
+      const input = document.createElement('input');
+      input.className = 'field';
+      input.id = `${id}-${spec.key}`;
+      input.name = `${spec.key}-${id}`;
+      input.autocomplete = 'off';
+      input.placeholder = spec.placeholder;
+      input.setAttribute('aria-label', spec.label);
+      input.dataset[spec.hook] = '';
+      input.value = seed[spec.key] ?? '';
+
+      if (spec.hook === 'ccName') {
+        input.type = 'text';
+        input.maxLength = 40;
+        controls.append(input);
+      } else {
+        input.type = 'number';
+        input.min = '0';
+        input.inputMode = 'decimal';
+        if (spec.step) input.step = spec.step;
+        if (spec.suffix) input.max = '100';
+        input.setAttribute('aria-describedby', `${id}-${spec.key}-error`);
+
+        // A money prefix or a percent suffix, wrapped so the affix cannot squeeze the box.
+        const wrap = document.createElement('div');
+        wrap.className = 'flex';
+        const affix = document.createElement('span');
+        affix.className = spec.prefix
+          ? 'field-affix rounded-l-lg border-r-0'
+          : 'field-affix rounded-r-lg border-l-0';
+        affix.textContent = spec.prefix ?? spec.suffix ?? '';
+        affix.setAttribute('aria-hidden', 'true');
+        if (spec.prefix) {
+          input.classList.add('rounded-l-none');
+          wrap.append(affix, input);
+        } else {
+          input.classList.add('rounded-r-none');
+          wrap.append(input, affix);
+        }
+
+        // Each field carries its own small label. It is hidden while the column headers
+        // are doing that job, and revealed once the row stacks on a narrow screen.
+        const cell = document.createElement('div');
+        cell.className = `cc-cell cc-cell--${spec.key}`;
+        const caption = document.createElement('span');
+        caption.className = 'cc-cell__label';
+        caption.setAttribute('aria-hidden', 'true');
+        caption.textContent = spec.label;
+        cell.append(caption, wrap);
+        controls.append(cell);
+
+        const err = document.createElement('p');
+        err.className = 'cc-field-error';
+        err.id = `${id}-${spec.key}-error`;
+        err.dataset.errorFor = `${spec.key}-${id}`;
+        err.hidden = true;
+        errors.append(err);
+      }
+    }
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'cc-remove';
+    remove.dataset.ccRemove = '';
+    remove.setAttribute('aria-label', 'Remove card');
+    remove.textContent = '×';
+    controls.append(remove);
+
+    row.append(controls, errors);
+    return row;
+  }
 
   document.querySelectorAll<HTMLElement>('[data-cc]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-form]')!;
+    const rowsEl = root.querySelector<HTMLElement>('[data-cc-rows]')!;
+    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
+    const addBtn = root.querySelector<HTMLButtonElement>('[data-cc-add]')!;
+
+    // Seed the blank rows (idempotent). The visitor's rows start EMPTY; the worked
+    // example lives in the result panel only, rendered by the runtime.
+    if (!rowsEl.querySelector('[data-cc-row]')) {
+      for (let i = 0; i < INITIAL_CARDS; i++) rowsEl.appendChild(buildRow());
+    }
+
+    const rowCount = () => rowsEl.querySelectorAll('[data-cc-row]').length;
+
+    const updateControls = () => {
+      const onlyOne = rowCount() <= 1;
+      rowsEl.querySelectorAll<HTMLButtonElement>('[data-cc-remove]').forEach((btn) => {
+        btn.disabled = onlyOne;
+      });
+      addBtn.disabled = rowCount() >= MAX_CARDS;
+    };
+    updateControls();
+
     mountFormCalculator(root, creditCardBinding, {
       recalculationMode: 'live-after-first',
-      calculateButtonLabel: 'Calculate Payoff Time',
+      example: { values: CREDIT_CARD_EXAMPLE_VALUES },
+      calculateButtonLabel: 'Calculate Payoff',
     });
 
-    // The island owns the visible mode presentation. The runtime recomputes on the mode
-    // radio's structural `input` (unchanged); here we keep the conditional field + action
-    // label in step and, on a switch, blank the mode-owned result so no stale value shows
-    // under the new mode while the live recompute is pending.
-    const submitBtn = root.querySelector<HTMLElement>('[data-cc-submit]');
-    const shell = root.querySelector<HTMLElement>('[data-result-shell]');
-    const payWrap = root.querySelector<HTMLElement>('[data-cc-payment]');
-    const monWrap = root.querySelector<HTMLElement>('[data-cc-months]');
-    const payInput = payWrap?.querySelector<HTMLInputElement>('input');
-    const monInput = monWrap?.querySelector<HTMLInputElement>('input');
-    const isMonths = () => root.querySelector<HTMLInputElement>('[name="mode"]:checked')?.value === 'months';
+    // Drive the runtime's live-after-first path on structural changes (a no-op before
+    // the first calculation).
+    const notifyInput = () => form.dispatchEvent(new Event('input', { bubbles: true }));
 
-    const clearError = (name: string) => {
-      root.querySelector<HTMLElement>(`[name="${name}"]`)?.removeAttribute('aria-invalid');
-      const err = root.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
-      if (err) {
-        err.textContent = '';
-        err.hidden = true;
-      }
-    };
-
-    const syncMode = () => {
-      const months = isMonths();
-      if (submitBtn) submitBtn.textContent = months ? 'Calculate Required Payment' : 'Calculate Payoff Time';
-      if (payWrap) payWrap.hidden = months;
-      if (payInput) payInput.disabled = months;
-      if (monWrap) monWrap.hidden = !months;
-      if (monInput) monInput.disabled = !months;
-      clearError(months ? 'payment' : 'months');
-    };
-
-    const blankResult = () => {
-      for (const sel of [
-        '[data-result-when~="valid"] [data-result-value]',
-        '[data-result-when~="valid"] [data-result-value-a11y]',
-        '[data-cc-interest]',
-        '[data-cc-total]',
-        '[data-cc-explanation]',
-      ]) {
-        const el = root.querySelector<HTMLElement>(sel);
-        if (el) el.textContent = '—';
-      }
-    };
-
-    root.querySelectorAll<HTMLInputElement>('[name="mode"]').forEach((r) =>
-      r.addEventListener('change', () => {
-        syncMode();
-        if (shell?.dataset.resultState === 'valid') blankResult();
-      }),
-    );
-    root.querySelector<HTMLElement>('[data-reset]')?.addEventListener('click', () => {
-      const paymentRadio = root.querySelector<HTMLInputElement>('[name="mode"][value="payment"]');
-      if (paymentRadio) paymentRadio.checked = true;
-      syncMode();
+    addBtn.addEventListener('click', () => {
+      if (rowCount() >= MAX_CARDS) return;
+      const row = buildRow();
+      rowsEl.appendChild(row);
+      updateControls();
+      row.querySelector<HTMLInputElement>('[data-cc-name]')?.focus();
+      notifyInput();
     });
-    syncMode();
+
+    rowsEl.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-cc-remove]');
+      if (!btn || rowCount() <= 1) return;
+      btn.closest('[data-cc-row]')!.remove();
+      updateControls();
+      notifyInput();
+    });
+
+    // Keep the controls correct when the binding's Reset collapses the rows.
+    new MutationObserver(updateControls).observe(rowsEl, { childList: true });
+
+    // Form-level error focus: on an explicit invalid submit with no field marked
+    // invalid (the "add at least one card" error), go to the first balance box.
+    form.addEventListener('submit', () => {
+      if (shell?.dataset.resultState === 'invalid' && !root.querySelector('[aria-invalid="true"]')) {
+        root.querySelector<HTMLElement>('[data-cc-balance]')?.focus();
+      }
+    });
   });
 </script>

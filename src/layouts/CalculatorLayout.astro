@@ -32,6 +32,7 @@ import AdSlot from '@components/AdSlot.astro';
 import RelatedOffers from '@components/RelatedOffers.astro';
 import EmbedBox from '@components/EmbedBox.astro';
 import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
+import CalculatorRail from '@components/CalculatorRail.astro';
 import {
   type Calculator,
   getCategory,
@@ -77,6 +78,13 @@ interface Props {
   /** Legacy shorthand for reviewMetadata.reviewedDate; still used by un-migrated pages. Prefer reviewMetadata on new/migrated pages. */
   reviewedOn?: string;
   /**
+   * Render the desktop side rail beside the tool (reserved ad space, the home
+   * page's search box, plain related/reference links). Opt-in per page; the
+   * tool keeps ~900px at our 1280px wrap, and below ~1040px of container the
+   * rail becomes a row underneath.
+   */
+  rail?: boolean;
+  /**
    * Monetization opt-in (R6). Expresses ELIGIBILITY only — every field is off by
    * default, and the central `MONETIZATION_CONFIG` (all off) gates every
    * placement, so this changes nothing until monetization is deliberately
@@ -92,6 +100,7 @@ const {
   presentation = 'legacy',
   reviewMetadata,
   reviewedOn,
+  rail = false,
   monetization,
 } = Astro.props;
 
@@ -278,6 +287,17 @@ sync();
             category={calculator.category}
             class="mon-workspace__aside"
           />
+        </div>
+      ) : rail ? (
+        <div class:list={['tool-shell', taskFirst ? 'mt-3' : 'mt-8']}>
+          <section
+            class="tool-shell__core"
+            aria-label={`${calculator.title} tool`}
+            data-calculator-workspace={monetizationPlan.bridge ? '' : undefined}
+          >
+            <slot />
+          </section>
+          <CalculatorRail calculator={calculator} />
         </div>
       ) : (
         <section

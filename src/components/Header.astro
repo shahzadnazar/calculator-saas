@@ -10,12 +10,42 @@
  */
 import Logo from '@components/Logo.astro';
 import Icon from '@components/Icon.astro';
-import { TASK_GROUPS_ORDERED, taskPath } from '@data/tasks';
+import { TASK_GROUPS_ORDERED, taskPath, getTaskGroupForCalculator } from '@data/tasks';
+import { CATEGORIES, getCalculator, STATS } from '@data/calculators';
+import { SITE } from '@config/site';
 
-const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+// The build emits file-style URLs (`format: 'file'`), so `Astro.url.pathname` arrives as
+// "/finance/mortgage-calculator.html". Normalise the extension away — without this nothing in the
+// nav ever matched and the active state was dead on every page.
+const currentPath =
+  Astro.url.pathname
+    .replace(/\/index\.html$/, '/')
+    .replace(/\.html$/, '')
+    .replace(/\/$/, '') || '/';
 
 const isActive = (path: string) =>
   currentPath === path || currentPath.startsWith(path + '/');
+
+/**
+ * Which task group the visitor is currently inside.
+ *
+ * The nav leads with tasks, but most visits land on a CALCULATOR (/<category>/<slug>), whose URL
+ * never starts with /tasks/ — so path matching alone left every nav item unhighlighted on the pages
+ * people actually use. Resolve the calculator through the registry instead and light up the group
+ * that owns it, so the nav always answers "where am I".
+ */
+const calcMatch = currentPath.match(/^\/([a-z-]+)\/([a-z0-9-]+)$/);
+const activeGroupSlug = (() => {
+  if (!calcMatch) return undefined;
+  const [, category, slug] = calcMatch;
+  if (!CATEGORIES.some((c) => c.slug === category)) return undefined;
+  if (!getCalculator(category, slug)) return undefined;
+  return getTaskGroupForCalculator(category, slug)?.slug;
+})();
+
+/** A nav item is current for its own /tasks/ URL, or for a calculator that belongs to it. */
+const isGroupActive = (group: { slug: string }) =>
+  isActive(taskPath(group)) || group.slug === activeGroupSlug;
 ---
 
 <header class="site-header sticky top-0 z-50">
@@ -25,13 +55,12 @@ const isActive = (path: string) =>
     <a
       href="/"
       class="site-brand"
-      aria-label="AllCalculators home"
+      aria-label={`${SITE.name} home`}
     >
       <span class="site-brand-mark">
-        <Logo />
+        <Logo tagline />
       </span>
 
-      <span class="site-brand-accent" aria-hidden="true"></span>
     </a>
 
     <!-- Main navigation -->
@@ -52,14 +81,14 @@ const isActive = (path: string) =>
             aria-current={isActive('/calculators') ? 'page' : undefined}
             aria-label="View all calculators"
           >
-            <span class="site-nav-all-icon">+</span>
+            <span class="site-nav-all-icon"><Icon name="layout-grid" size={12} /></span>
             <span>All</span>
           </a>
         </li>
 
         {
           TASK_GROUPS_ORDERED.map((group) => {
-            const active = isActive(taskPath(group));
+            const active = isGroupActive(group);
 
             return (
               <li class="shrink-0">
@@ -149,6 +178,80 @@ const isActive = (path: string) =>
           </svg>
         </span>
       </button>
+
+      <!-- Menu — every task group as a labelled row.
+
+           Below 72rem the horizontal strip is clipped (measured: it needs 698px and
+           gets 446px at 768px wide), so the groups past the third were reachable
+           only by swiping a scroller with no scrollbar and no hint that it moves.
+           A visitor who does not already know what is over there never finds out.
+           This is a <details>, so it opens with no JavaScript at all; the script
+           below only adds Escape and click-outside. -->
+      <details class="site-menu" data-site-menu>
+        <summary class="site-menu-toggle" aria-label="Browse calculators by task">
+          <span class="site-menu-bars" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+        </summary>
+
+        <div class="site-menu-panel">
+          <nav aria-label="Calculators by task">
+            <ul class="site-menu-list">
+              <li>
+                <a
+                  href="/calculators"
+                  class:list={['site-menu-item', { 'is-active': isActive('/calculators') }]}
+                  aria-current={isActive('/calculators') ? 'page' : undefined}
+                >
+                  <span class="site-menu-icon"><Icon name="layout-grid" size={17} /></span>
+                  <span class="site-menu-text">
+                    <span class="site-menu-name">All calculators</span>
+                    <span class="site-menu-q">Browse all {STATS.live} tools by type</span>
+                  </span>
+                </a>
+              </li>
+
+              {
+                TASK_GROUPS_ORDERED.map((group) => {
+                  const active = isGroupActive(group);
+
+                  return (
+                    <li>
+                      <a
+                        href={taskPath(group)}
+                        class:list={['site-menu-item', { 'is-active': active }]}
+                        aria-current={active ? 'page' : undefined}
+                      >
+                        <span class="site-menu-icon">
+                          <Icon name={group.icon} size={17} />
+                        </span>
+                        <span class="site-menu-text">
+                          <span class="site-menu-name">{group.title}</span>
+                          <span class="site-menu-q">{group.question}</span>
+                        </span>
+                      </a>
+                    </li>
+                  );
+                })
+              }
+
+              <li>
+                <a
+                  href="/guides"
+                  class:list={['site-menu-item', { 'is-active': isActive('/guides') }]}
+                  aria-current={isActive('/guides') ? 'page' : undefined}
+                >
+                  <span class="site-menu-icon"><Icon name="graduation-cap" size={17} /></span>
+                  <span class="site-menu-text">
+                    <span class="site-menu-name">Guides</span>
+                    <span class="site-menu-q">How the numbers actually work</span>
+                  </span>
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </details>
     </div>
   </div>
 </header>
@@ -156,16 +259,37 @@ const isActive = (path: string) =>
 <script>
   const btn = document.getElementById('theme-toggle');
 
+  // The menu is a <details>: it opens and closes on its own with JavaScript off.
+  // Everything here is enhancement — dismissing it the ways people expect.
+  const menu = document.querySelector<HTMLDetailsElement>('[data-site-menu]');
+
+  if (menu) {
+    document.addEventListener('click', (event) => {
+      if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !menu.open) return;
+      menu.open = false;
+      menu.querySelector<HTMLElement>('summary')?.focus();
+    });
+
+    // Leaving mobile hides the toggle. A menu left open would otherwise still be
+    // open, invisible, when the layout comes back.
+    const wide = window.matchMedia('(min-width: 72rem)');
+    const closeIfWide = () => {
+      if (wide.matches) menu.open = false;
+    };
+    wide.addEventListener('change', closeIfWide);
+    closeIfWide();
+  }
+
   btn?.addEventListener('click', () => {
     const root = document.documentElement;
 
-    const current =
-      root.getAttribute('data-theme') ||
-      (window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light');
-
-    const next = current === 'dark' ? 'light' : 'dark';
+    // BaseLayout always stamps data-theme before first paint, so there is no OS
+    // fallback to consult here any more — the attribute is the single answer.
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
 
     root.setAttribute('data-theme', next);
 
@@ -186,11 +310,7 @@ const isActive = (path: string) =>
     position: sticky;
     top: 0;
 
-    border-bottom: 1px solid color-mix(
-      in srgb,
-      var(--color-brand-200) 65%,
-      var(--line)
-    );
+  border-bottom: 1px solid var(--line);
 
     background: color-mix(
       in srgb,
@@ -259,26 +379,6 @@ const isActive = (path: string) =>
     align-items: center;
   }
 
-  .site-brand-accent {
-    position: absolute;
-
-    width: 7px;
-    height: 7px;
-
-    right: -5px;
-    bottom: 3px;
-
-    border-radius: 999px;
-
-    background: var(--color-accent-500);
-
-    box-shadow:
-      0 0 0 3px color-mix(
-        in srgb,
-        var(--color-accent-500) 12%,
-        transparent
-      );
-  }
 
   /* --------------------------------------------------------------------------
      Navigation
@@ -334,46 +434,35 @@ const isActive = (path: string) =>
       transform 0.16s ease;
   }
 
-  .site-nav-link:hover {
-    color: var(--color-brand-700);
+/* Normal navigation hover */
 
-    background: color-mix(
+.site-nav-link:hover {
+  color: var(--color-brand-600);
+  background: var(--header-hover);
+  transform: translateY(-1px);
+}
+
+.site-nav-link:hover .site-nav-icon {
+  color: var(--color-accent-500);
+}
+
+/* Active navigation item */
+
+.site-nav-link.is-active {
+  color: var(--color-brand-600);
+  background: var(--header-active);
+
+  box-shadow: inset 0 0 0 1px
+    color-mix(
       in srgb,
-      var(--color-brand-100) 55%,
+      var(--color-brand-500) 14%,
       transparent
     );
+}
 
-    transform: translateY(-1px);
-  }
-
-  .site-nav-icon {
-    display: grid;
-    place-items: center;
-
-    color: var(--muted);
-
-    transition: color 0.16s ease;
-  }
-
-  .site-nav-link:hover .site-nav-icon {
-    color: var(--color-accent-600);
-  }
-
-  /* Active task */
-
-  .site-nav-link.is-active {
-    color: var(--color-brand-700);
-
-    background: color-mix(
-      in srgb,
-      var(--color-brand-100) 72%,
-      var(--card)
-    );
-  }
-
-  .site-nav-link.is-active .site-nav-icon {
-    color: var(--color-accent-600);
-  }
+.site-nav-link.is-active .site-nav-icon {
+  color: var(--color-brand-500);
+}
 
   .site-nav-active-dot {
     width: 4px;
@@ -383,7 +472,7 @@ const isActive = (path: string) =>
 
     border-radius: 999px;
 
-    background: var(--color-accent-500);
+    background: var(--color-brand-600);
   }
 
   /* --------------------------------------------------------------------------
@@ -397,7 +486,7 @@ const isActive = (path: string) =>
 
     color: var(--color-brand-700);
 
-    border: 1px solid var(--color-brand-200);
+  border: 1px solid #e7e1ec !important;
 
     background: color-mix(
       in srgb,
@@ -429,31 +518,35 @@ const isActive = (path: string) =>
     background: var(--color-brand-700);
   }
 
+  /* A grid of panes, not a plus: this entry browses everything, it does not add anything. */
   .site-nav-all-icon {
     display: grid;
     place-items: center;
 
-    width: 1rem;
-    height: 1rem;
+    width: 1.15rem;
+    height: 1.15rem;
 
-    border-radius: 0.25rem;
+    border-radius: 0.3rem;
 
-    font-size: 0.95rem;
-    line-height: 1;
+    line-height: 0;
 
-    color: var(--color-accent-600);
+    color: var(--color-mark-key-to);
 
     background: color-mix(
       in srgb,
-      var(--color-accent-400) 18%,
+      var(--color-mark-key-from) 22%,
       transparent
     );
   }
 
-  .site-nav-all:hover .site-nav-all-icon,
+  .site-nav-all:hover .site-nav-all-icon {
+    color: #fff;
+    background: var(--color-mark-key-to);
+  }
+
   .site-nav-all.is-active .site-nav-all-icon {
     color: var(--color-brand-700);
-    background: var(--color-accent-400);
+    background: #ede9fe !important;
   }
 
   /* --------------------------------------------------------------------------
@@ -502,7 +595,7 @@ const isActive = (path: string) =>
   }
 
   .site-guides.is-active {
-    color: var(--color-accent-600);
+    color: var(--color-brand-700);
   }
 
   .site-guides-arrow {
@@ -577,20 +670,250 @@ const isActive = (path: string) =>
   }
 
   /* --------------------------------------------------------------------------
+     Task menu (below 72rem)
+     --------------------------------------------------------------------------
+     A <details> rather than a scripted panel: it works with JavaScript off, the
+     summary is already a button to a screen reader, and the open/closed state is
+     the element's own. Hidden from 72rem up, where the full strip fits.
+     -------------------------------------------------------------------------- */
+
+  .site-menu {
+    position: relative;
+    display: none;
+  }
+
+  .site-menu-toggle {
+    display: grid;
+    place-items: center;
+
+    width: 2.75rem;
+    height: 2.75rem;
+
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+
+    color: var(--heading);
+    background: var(--card);
+
+    cursor: pointer;
+    list-style: none;
+
+    transition:
+      color 0.16s ease,
+      border-color 0.16s ease,
+      background-color 0.16s ease;
+  }
+
+  /* Both spellings: WebKit still uses the pseudo-element, everyone else the property. */
+  .site-menu-toggle::-webkit-details-marker {
+    display: none;
+  }
+
+  .site-menu-toggle:hover {
+    color: var(--color-brand-700);
+    border-color: var(--color-brand-300);
+    background: var(--color-brand-50);
+  }
+
+  .site-menu-toggle:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  .site-menu[open] .site-menu-toggle {
+    color: #fff;
+    border-color: var(--color-brand-600);
+    background: var(--color-brand-600);
+  }
+
+  /* Three lines that fold into a cross, so the control says which way it goes. */
+  .site-menu-bars {
+    position: relative;
+
+    display: block;
+
+    width: 1.15rem;
+    height: 0.85rem;
+  }
+
+  .site-menu-bars span {
+    position: absolute;
+    left: 0;
+
+    width: 100%;
+    height: 2px;
+
+    border-radius: 2px;
+
+    background: currentColor;
+
+    transition:
+      transform 0.18s ease,
+      opacity 0.14s ease,
+      top 0.18s ease;
+  }
+
+  .site-menu-bars span:nth-child(1) { top: 0; }
+  .site-menu-bars span:nth-child(2) { top: calc(50% - 1px); }
+  .site-menu-bars span:nth-child(3) { top: calc(100% - 2px); }
+
+  .site-menu[open] .site-menu-bars span:nth-child(1) {
+    top: calc(50% - 1px);
+    transform: rotate(45deg);
+  }
+
+  .site-menu[open] .site-menu-bars span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .site-menu[open] .site-menu-bars span:nth-child(3) {
+    top: calc(50% - 1px);
+    transform: rotate(-45deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-menu-bars span {
+      transition: none;
+    }
+  }
+
+  .site-menu-panel {
+    position: absolute;
+    z-index: 60;
+    top: calc(100% + 0.6rem);
+    right: 0;
+
+    width: min(21rem, calc(100vw - 1.5rem));
+    max-height: min(78vh, 34rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+
+    padding: 0.35rem;
+
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+
+    background: var(--card);
+
+    box-shadow: 0 14px 38px rgba(2, 6, 23, 0.18);
+  }
+
+  .site-menu-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .site-menu-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+
+    gap: 0.7rem;
+
+    min-height: 3.25rem;
+
+    padding: 0.55rem 0.6rem;
+
+    border-radius: 0.7rem;
+
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .site-menu-item:hover {
+    background: var(--header-hover);
+  }
+
+  .site-menu-item.is-active {
+    color: var(--color-brand-700);
+    background: var(--header-active);
+  }
+
+  .site-menu-item:focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: -2px;
+  }
+
+  .site-menu-icon {
+    display: grid;
+    place-items: center;
+
+    width: 2rem;
+    height: 2rem;
+
+    border-radius: 0.55rem;
+
+    line-height: 0;
+
+    color: var(--color-brand-700);
+
+    background: color-mix(in srgb, var(--color-brand-100) 60%, var(--card));
+  }
+
+  .site-menu-item.is-active .site-menu-icon {
+    color: #fff;
+    background: var(--color-brand-600);
+  }
+
+  .site-menu-text {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  .site-menu-name {
+    font-size: 0.9rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--heading);
+  }
+
+  .site-menu-item.is-active .site-menu-name {
+    color: var(--color-brand-700);
+  }
+
+  /* The question is the point of the menu: it says what the group is FOR, which is
+     exactly what a swipeable strip of seven one-word chips could never say. */
+  .site-menu-q {
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: var(--muted);
+  }
+
+  /* --------------------------------------------------------------------------
      Mobile
      -------------------------------------------------------------------------- */
 
-  @media (max-width: 1023px) {
+  /* Measured: the strip needs 698px and is clipped from 1100px down, so from here
+     the menu takes over and the strip is gone rather than half-shown. */
+  @media (max-width: 71.9375rem) {
     .site-header-inner {
       gap: 0.65rem;
     }
 
-    .site-nav-list {
-      justify-content: flex-start;
+    .site-nav {
+      display: none;
+    }
+
+    .site-menu {
+      display: block;
     }
 
     .site-guides {
       display: none;
+    }
+
+    .site-header-actions {
+      margin-left: auto;
+    }
+
+    /* Wherever the menu button shows, the header is being used on a touch screen,
+       so its neighbour is sized as a tap target too — and the two controls match
+       instead of one sitting 6px shorter than the other. */
+    .theme-toggle {
+      width: 2.75rem;
+      height: 2.75rem;
     }
   }
 
@@ -620,9 +943,41 @@ const isActive = (path: string) =>
       gap: 0.25rem;
     }
 
-    .theme-toggle {
-      width: 2.2rem;
-      height: 2.2rem;
-    }
   }
+
+
+
+  /* --------------------------------------------------------------------------
+   Dark-mode navigation interactions
+   -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .site-nav-link:hover {
+    color: #d8b4fe;
+    background: #2a1b3b;
+  }
+
+  :root:not([data-theme="light"]) .site-nav-link:hover .site-nav-icon {
+    color: #67e8f9;
+  }
+
+  :root:not([data-theme="light"]) .site-nav-link.is-active {
+    color: #e9d5ff;
+    background: #342149;
+  }
+}
+
+:global(:root[data-theme="dark"]) .site-nav-link:hover {
+  color: #d8b4fe;
+  background: #2a1b3b;
+}
+
+:global(:root[data-theme="dark"]) .site-nav-link:hover .site-nav-icon {
+  color: #67e8f9;
+}
+
+:global(:root[data-theme="dark"]) .site-nav-link.is-active {
+  color: #e9d5ff;
+  background: #342149;
+}
 </style>

@@ -1,49 +1,79 @@
 /**
- * Square footage for rooms/areas, with multi-room quantity and cost estimate.
- * Pure and unit-tested.
+ * Square footage for the nine shapes the reference offers, with per-dimension units, a
+ * quantity and an optional price. Pure and unit-tested.
+ *
+ * Every shape reduces to the same three steps: convert each dimension to feet, apply that
+ * shape's area formula, then multiply by the quantity. Keeping the formulas here — one small
+ * function each, none of them reaching for a unit or a form — is what lets nine calculators
+ * share one binding instead of being written nine times.
+ *
+ * The units themselves live in `area-units.ts`, shared with the area calculator, and are
+ * re-exported here so this module stays the one import a square-footage consumer needs.
  */
-export type SqFtUnit = 'ft' | 'in' | 'yd' | 'm';
+export {
+  LENGTH_UNITS,
+  METRES_PER,
+  SQFT_PER,
+  AREA_UNITS,
+  ANGLE_UNITS,
+  toFeet,
+  fromSqFt,
+  toRadians,
+  isLengthUnit,
+  convertLength,
+  type LengthUnit,
+  type AreaUnit,
+  type AngleUnit,
+} from './area-units';
 
-const TO_FEET: Record<SqFtUnit, number> = {
-  ft: 1,
-  in: 1 / 12,
-  yd: 3,
-  m: 3.280839895,
+/* ------------------------------------------------------------------ */
+/* The nine areas — every dimension already in feet                    */
+/* ------------------------------------------------------------------ */
+
+export const areaRectangle = (length: number, width: number): number => length * width;
+
+/**
+ * The border lies INSIDE the given length and width, which is what the reference computes:
+ * a 30 × 20 rectangle with a 2-wide border is 600 − 26 × 16 = 184, not 816 − 600 = 216.
+ * Getting this backwards silently overstates a patio or a walkway by a fifth.
+ */
+export const areaRectangleBorder = (length: number, width: number, border: number): number =>
+  length * width - Math.max(0, length - 2 * border) * Math.max(0, width - 2 * border);
+
+export const areaCircle = (diameter: number): number => Math.PI * (diameter / 2) ** 2;
+
+/** A ring: the outer disc less the disc left inside the border. */
+export const areaRing = (outerDiameter: number, border: number): number => {
+  const r = outerDiameter / 2;
+  return Math.PI * (r ** 2 - Math.max(0, r - border) ** 2);
 };
 
-export interface SquareFootageInput {
-  length: number;
-  width: number;
-  unit: SqFtUnit;
-  /** Number of identical areas (e.g. rooms). */
-  quantity?: number;
-  /** Optional price per square foot for a cost estimate. */
-  pricePerSqFt?: number;
-}
+/** Heron's formula — the only route to an area from three edges alone. */
+export const areaTriangleEdges = (a: number, b: number, c: number): number => {
+  const s = (a + b + c) / 2;
+  const sq = s * (s - a) * (s - b) * (s - c);
+  return sq <= 0 ? Number.NaN : Math.sqrt(sq);
+};
 
-export interface SquareFootageResult {
-  areaSqFt: number; // one unit
-  totalSqFt: number; // × quantity
-  totalSqM: number;
-  totalSqYd: number;
-  cost: number;
-}
+export const areaTriangleBaseHeight = (base: number, height: number): number => (base * height) / 2;
 
-const SQFT_PER_SQM = 10.7639104;
-const SQFT_PER_SQYD = 9;
+export const areaTrapezoid = (base1: number, base2: number, height: number): number =>
+  ((base1 + base2) / 2) * height;
 
-export function calculateSquareFootage(input: SquareFootageInput): SquareFootageResult {
-  const f = TO_FEET[input.unit] ?? 1;
-  const lengthFt = Math.max(0, input.length || 0) * f;
-  const widthFt = Math.max(0, input.width || 0) * f;
-  const areaSqFt = lengthFt * widthFt;
-  const qty = Math.max(1, Math.floor(input.quantity || 1));
-  const totalSqFt = areaSqFt * qty;
-  return {
-    areaSqFt,
-    totalSqFt,
-    totalSqM: totalSqFt / SQFT_PER_SQM,
-    totalSqYd: totalSqFt / SQFT_PER_SQYD,
-    cost: totalSqFt * Math.max(0, input.pricePerSqFt || 0),
-  };
-}
+/** A sector, with the angle already in radians. */
+export const areaSector = (radius: number, radians: number): number => (radians / 2) * radius ** 2;
+
+export const areaParallelogram = (base: number, height: number): number => base * height;
+
+/* ------------------------------------------------------------------ */
+/* Formatting                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The reference prints an area at fourteen significant figures, trailing zeros stripped —
+ * "1980.5595166746 Square Feet". Every reference figure this calculator was built against has a
+ * four-digit whole part, where ten decimal places and fourteen significant figures agree; the area
+ * calculator's triangle is what tells them apart, and it prints 666.58528149067 rather than
+ * 666.5852814907. The rule is shared from `formula-steps.ts` so all three calculators round alike.
+ */
+export { formatSignificant as formatExactArea } from './formula-steps';

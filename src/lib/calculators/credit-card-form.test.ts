@@ -1,179 +1,363 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateCreditCardValues,
+  CREDIT_CARD_EXAMPLE_VALUES,
+  MAX_CARDS,
+  MSG,
+  budgetBelowMinimums,
+  completeCreditCardValue,
   computeCreditCard,
-  describeCreditCardResult,
-  isUsableCreditCard,
-  spokenUSD,
   creditCardBinding,
-  type CreditCardValues,
+  describeCreditCard,
+  enteredCards,
+  isBlankRow,
+  isUsableCreditCardResult,
+  payoffLengthLabel,
+  presentCreditCard,
+  scheduleSentences,
+  validateCreditCard,
   type CreditCardComputed,
+  type CreditCardRowValue,
+  type CreditCardValues,
 } from './credit-card-form';
 
-const byPayment = (over: Partial<CreditCardValues> = {}): CreditCardValues => ({
-  mode: 'payment',
-  balance: '5000',
-  aprPct: '19.99',
-  payment: '200',
-  months: '',
+/**
+ * The payoff binding — the visitor-facing contract over the avalanche planner.
+ *
+ * The planner itself is frozen in credit-cards-payoff.test.ts. What matters here is
+ * everything the pure function has no opinion about: which row an error lands on, which
+ * rows count as cards at all, that a plan is never shown unless it fully reconciles, and
+ * that the words match the published reference.
+ */
+
+const row = (over: Partial<CreditCardRowValue> = {}): CreditCardRowValue => ({
+  id: 'r1',
+  name: '',
+  balance: '1000',
+  minPayment: '50',
+  aprPct: '20',
   ...over,
 });
+const BLANK: CreditCardRowValue = { id: 'blank', name: '', balance: '', minPayment: '', aprPct: '' };
 
-const byMonths = (over: Partial<CreditCardValues> = {}): CreditCardValues => ({
-  mode: 'months',
-  balance: '5000',
-  aprPct: '19.99',
-  payment: '',
-  months: '24',
-  ...over,
-});
+const REF: CreditCardValues = CREDIT_CARD_EXAMPLE_VALUES;
+const at = (over: Partial<CreditCardValues> = {}): CreditCardValues => ({ ...REF, ...over });
+const errs = (v: CreditCardValues): Record<string, string> => {
+  const r = validateCreditCard(v);
+  return r.ok ? {} : (r.fieldErrors ?? {});
+};
+const formErr = (v: CreditCardValues): string | undefined => {
+  const r = validateCreditCard(v);
+  return r.ok ? undefined : r.formError;
+};
+const money = (n: number) => Math.round(n * 100) / 100;
 
-const errs = (r: ReturnType<typeof validateCreditCardValues>) =>
-  (r as { fieldErrors: Record<string, string> }).fieldErrors;
-
-/* ------------------------------------------------------------------ */
-/* Validation                                                          */
-/* ------------------------------------------------------------------ */
-
-describe('credit-card-form — validation', () => {
-  it('accepts a valid By-payment and a valid By-timeline calculation', () => {
-    expect(validateCreditCardValues(byPayment())).toEqual({ ok: true });
-    expect(validateCreditCardValues(byMonths())).toEqual({ ok: true });
+describe('validation — the monthly budget', () => {
+  it('accepts the reference entry', () => {
+    expect(validateCreditCard(REF)).toEqual({ ok: true });
   });
 
-  it('requires a balance GREATER THAN ZERO (zero balance is invalid)', () => {
-    expect(errs(validateCreditCardValues(byPayment({ balance: '' }))).balance).toBe('Enter your card balance.');
-    expect(errs(validateCreditCardValues(byPayment({ balance: '0' }))).balance).toBe(
-      'Enter a balance greater than zero.',
-    );
-    expect(errs(validateCreditCardValues(byPayment({ balance: '-100' }))).balance).toBe(
-      'Enter a balance greater than zero.',
-    );
+  it('requires a budget greater than zero', () => {
+    expect(errs(at({ budget: '' })).budget).toBe(MSG.budgetRequired);
+    for (const bad of ['0', '-50', 'abc']) {
+      expect(errs(at({ budget: bad })).budget).toBe(MSG.budgetPositive);
+    }
   });
 
-  it('requires the APR but treats an entered 0% as VALID (no maximum)', () => {
-    expect(errs(validateCreditCardValues(byPayment({ aprPct: '' }))).aprPct).toBe('Enter the APR.');
-    expect(validateCreditCardValues(byPayment({ aprPct: '0' }))).toEqual({ ok: true });
-    expect(validateCreditCardValues(byPayment({ aprPct: '29.99' }))).toEqual({ ok: true });
-    expect(errs(validateCreditCardValues(byPayment({ aprPct: '-1' }))).aprPct).toBe('Enter an APR of zero or more.');
+  it('rejects a budget that cannot cover the minimum payments, naming the total', () => {
+    // The reference cards demand $310 a month before any progress is possible.
+    expect(errs(at({ budget: '200' })).budget).toBe(budgetBelowMinimums(310));
+    expect(budgetBelowMinimums(310)).toContain('$310.00');
   });
 
-  it('By-payment requires the payment (> 0) and IGNORES the months field', () => {
-    expect(errs(validateCreditCardValues(byPayment({ payment: '' }))).payment).toBe('Enter a monthly payment.');
-    expect(errs(validateCreditCardValues(byPayment({ payment: '0' }))).payment).toBe(
-      'Enter a monthly payment greater than zero.',
-    );
-    // An insufficient (but positive) payment is NOT a field error — it becomes "Never".
-    expect(validateCreditCardValues(byPayment({ payment: '50' }))).toEqual({ ok: true });
-    // Garbage months never blocks a By-payment calculation.
-    expect(validateCreditCardValues(byPayment({ months: 'abc' }))).toEqual({ ok: true });
+  it('accepts a budget exactly equal to the minimums', () => {
+    expect(validateCreditCard(at({ budget: '310' }))).toEqual({ ok: true });
   });
 
-  it('By-timeline requires a WHOLE month >= 1 and IGNORES the payment field', () => {
-    expect(errs(validateCreditCardValues(byMonths({ months: '' }))).months).toBe('Enter a target payoff time.');
-    expect(errs(validateCreditCardValues(byMonths({ months: '0' }))).months).toBe(
-      'Enter a whole number of months (1 or more).',
-    );
-    expect(errs(validateCreditCardValues(byMonths({ months: '24.5' }))).months).toBe(
-      'Enter a whole number of months (1 or more).',
-    );
-    expect(errs(validateCreditCardValues(byMonths({ months: '-3' }))).months).toBe(
-      'Enter a whole number of months (1 or more).',
-    );
-    expect(validateCreditCardValues(byMonths({ months: '1' }))).toEqual({ ok: true });
-    // Garbage payment never blocks a By-timeline calculation.
-    expect(validateCreditCardValues(byMonths({ payment: '-9' }))).toEqual({ ok: true });
+  it('does not claim the budget is too small while a minimum is still unknown', () => {
+    const e = errs(at({ budget: '200', rows: [row({ minPayment: '' })] }));
+    expect(e['min-r1']).toBe(MSG.minRequired);
+    expect(e.budget).toBeUndefined();
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Computation                                                         */
-/* ------------------------------------------------------------------ */
-
-describe('credit-card-form — compute', () => {
-  it('By-payment → a payoff with the enriched interest + total-paid breakdown', () => {
-    const r = computeCreditCard(byPayment({ balance: '5000', aprPct: '19.99', payment: '200' }));
-    expect(r.status).toBe('payoff');
-    if (r.status !== 'payoff') throw new Error('expected payoff');
-    expect(r.payoffMonths).toBe(33);
-    expect(r.paymentCount).toBe(33);
-    expect(r.totalPaid).toBe(6600); // 200 × 33
-    expect(r.totalInterest).toBe(1600);
-  });
-
-  it('By-timeline → a required payment with the enriched breakdown', () => {
-    const r = computeCreditCard(byMonths({ balance: '6000', aprPct: '0', months: '24' }));
-    if (r.status !== 'required-payment') throw new Error('expected required-payment');
-    expect(r.monthlyPayment).toBe(250); // 6000 / 24, zero interest
-    expect(r.paymentCount).toBe(24);
-    expect(r.totalPaid).toBe(6000);
-    expect(r.totalInterest).toBe(0);
-  });
-
-  it('a payment that does not cover the interest → the "never" outcome', () => {
-    // interest on 5,000 @ 18% is 75/mo; 75 (equal) and 50 (below) both never pay down.
-    expect(computeCreditCard(byPayment({ aprPct: '18', payment: '75' })).status).toBe('never');
-    expect(computeCreditCard(byPayment({ aprPct: '18', payment: '50' })).status).toBe('never');
-  });
-
-  it('a payment above the interest is a finite payoff, not "never"', () => {
-    expect(computeCreditCard(byPayment({ aprPct: '18', payment: '200' })).status).toBe('payoff');
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* Usability gate + guarded magnitude                                  */
-/* ------------------------------------------------------------------ */
-
-describe('credit-card-form — usability gate', () => {
-  it('ordinary payoff / required-payment with finite figures are usable', () => {
-    expect(isUsableCreditCard({ status: 'payoff', mode: 'payment', payoffMonths: 33, paymentCount: 33, totalInterest: 1600, totalPaid: 6600 })).toBe(true);
-    expect(isUsableCreditCard({ status: 'required-payment', mode: 'months', monthlyPayment: 250, paymentCount: 24, totalInterest: 0, totalPaid: 6000 })).toBe(true);
-  });
-
-  it('the "never" outcome is ALWAYS usable (valid informational result)', () => {
-    expect(isUsableCreditCard({ status: 'never', mode: 'payment', reason: 'payment-does-not-cover-interest' })).toBe(true);
-  });
-
-  it('a malformed (non-finite) figure falls through to invalid', () => {
-    expect(isUsableCreditCard({ status: 'payoff', mode: 'payment', payoffMonths: Infinity, paymentCount: 0, totalInterest: Infinity, totalPaid: Infinity })).toBe(false);
-    expect(isUsableCreditCard({ status: 'required-payment', mode: 'months', monthlyPayment: NaN, paymentCount: 24, totalInterest: 0, totalPaid: 0 })).toBe(false);
-  });
-
-  it('resultValue exposes the guarded magnitude; NaN for the non-numeric "never"', () => {
-    expect(creditCardBinding.resultValue({ status: 'payoff', mode: 'payment', payoffMonths: 33, paymentCount: 33, totalInterest: 1600, totalPaid: 6600 })).toBe(33);
-    expect(creditCardBinding.resultValue({ status: 'required-payment', mode: 'months', monthlyPayment: 250, paymentCount: 24, totalInterest: 0, totalPaid: 6000 })).toBe(250);
-    expect(Number.isNaN(creditCardBinding.resultValue({ status: 'never', mode: 'payment', reason: 'payment-does-not-cover-interest' }))).toBe(true);
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* Announcement                                                        */
-/* ------------------------------------------------------------------ */
-
-describe('credit-card-form — announcement (dominant only)', () => {
-  it('By-payment announces the spoken payoff time', () => {
-    const r: CreditCardComputed = { status: 'payoff', mode: 'payment', payoffMonths: 28, paymentCount: 28, totalInterest: 600, totalPaid: 5600 };
-    expect(describeCreditCardResult(r)).toBe('Your estimated payoff time is 2 years and 4 months.');
-  });
-
-  it('By-timeline announces the required payment in spoken USD', () => {
-    const r: CreditCardComputed = { status: 'required-payment', mode: 'months', monthlyPayment: 245.63, paymentCount: 24, totalInterest: 895, totalPaid: 5895 };
-    expect(describeCreditCardResult(r)).toBe('Your required monthly payment is 245 dollars and 63 cents.');
-  });
-
-  it('the "never" announcement explains the cause without formula language', () => {
-    const r: CreditCardComputed = { status: 'never', mode: 'payment', reason: 'payment-does-not-cover-interest' };
-    expect(describeCreditCardResult(r)).toBe(
-      'At this payment amount, the credit card balance will never be paid off because the payment does not cover the monthly interest.',
+describe('validation — the card rows', () => {
+  it('reports each problem against the row that has it', () => {
+    const e = errs(
+      at({
+        rows: [
+          { id: 'a', name: '', balance: '0', minPayment: '50', aprPct: '20' },
+          { id: 'b', name: '', balance: '1000', minPayment: '', aprPct: '20' },
+          { id: 'c', name: '', balance: '1000', minPayment: '50', aprPct: '150' },
+        ],
+      }),
     );
-    expect(describeCreditCardResult(r)).not.toMatch(/log|denominator|Infinity|NaN/i);
+    expect(e['balance-a']).toBe(MSG.balancePositive);
+    expect(e['min-b']).toBe(MSG.minRequired);
+    expect(e['apr-c']).toBe(MSG.aprRange);
+    // A row that is fine is not flagged.
+    expect(e['balance-b']).toBeUndefined();
   });
 
-  it('spokenUSD reads dollars and cents with correct singular/plural', () => {
-    expect(spokenUSD(245.63)).toBe('245 dollars and 63 cents');
-    expect(spokenUSD(250)).toBe('250 dollars');
-    expect(spokenUSD(1)).toBe('1 dollar');
-    expect(spokenUSD(0.01)).toBe('0 dollars and 1 cent');
+  it('requires each of the three numbers once a row is started', () => {
+    expect(errs(at({ rows: [row({ balance: '' })] }))['balance-r1']).toBe(MSG.balanceRequired);
+    expect(errs(at({ rows: [row({ aprPct: '' })] }))['apr-r1']).toBe(MSG.aprRequired);
+    expect(errs(at({ rows: [row({ minPayment: '-5' })] }))['min-r1']).toBe(MSG.minPositive);
+  });
+
+  it('accepts a 0% card but not a negative or absurd rate', () => {
+    expect(validateCreditCard(at({ budget: '100', rows: [row({ aprPct: '0' })] }))).toEqual({ ok: true });
+    expect(errs(at({ rows: [row({ aprPct: '-1' })] }))['apr-r1']).toBe(MSG.aprRange);
+    expect(errs(at({ rows: [row({ aprPct: '101' })] }))['apr-r1']).toBe(MSG.aprRange);
+  });
+
+  it('ignores a wholly blank row instead of nagging about it', () => {
+    expect(isBlankRow(BLANK)).toBe(true);
+    expect(validateCreditCard(at({ rows: [...REF.rows, BLANK, BLANK] }))).toEqual({ ok: true });
+  });
+
+  it('a name alone does not make a row into a card', () => {
+    expect(isBlankRow({ ...BLANK, name: 'Store card' })).toBe(true);
+    expect(formErr(at({ rows: [{ ...BLANK, name: 'Store card' }] }))).toBe(MSG.noCards);
+  });
+
+  it('needs at least one card', () => {
+    expect(formErr(at({ rows: [] }))).toBe(MSG.noCards);
+    expect(formErr(at({ rows: [BLANK] }))).toBe(MSG.noCards);
+  });
+
+  it(`plans at most ${MAX_CARDS} cards`, () => {
+    const many = Array.from({ length: MAX_CARDS + 1 }, (_, i) => row({ id: `r${i}` }));
+    expect(formErr(at({ budget: '2000', rows: many }))).toBe(MSG.tooManyCards);
+    expect(formErr(at({ budget: '2000', rows: many.slice(0, MAX_CARDS) }))).toBeUndefined();
+  });
+});
+
+describe('reading the cards out of the rows', () => {
+  it('takes only the filled rows, in the entered order', () => {
+    const cards = enteredCards(at({ rows: [BLANK, row({ id: 'x', name: 'Visa' }), BLANK] }));
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toEqual({ name: 'Visa', balance: 1000, minPayment: 50, aprPct: 20 });
+  });
+
+  it('names an unnamed card by its position in the form', () => {
+    const cards = enteredCards(at({ rows: [BLANK, row({ id: 'x' })] }));
+    // Second row on the form, so "Card 2" — the visitor can find it again.
+    expect(cards[0].name).toBe('Card 2');
+  });
+
+  it('trims a name rather than carrying the whitespace into the result', () => {
+    expect(enteredCards(at({ rows: [row({ name: '  Amex  ' })] }))[0].name).toBe('Amex');
+  });
+});
+
+describe('the reference plan, end to end', () => {
+  const c = computeCreditCard(REF);
+  const p = presentCreditCard(c);
+
+  it('produces the published plan', () => {
+    expect(c.plan.status).toBe('paid');
+    if (c.plan.status !== 'paid') throw new Error('unreachable');
+    expect(c.plan.months).toBe(38);
+    expect(money(c.plan.totalPaid)).toBe(18971.2);
+  });
+
+  it('leads with the payoff length and its plain-language span', () => {
+    expect(p.headline).toBe('38 months');
+    expect(p.headlineDetail).toBe('3 years and 2 months');
+  });
+
+  it('says the whole answer in the reference’s own sentence', () => {
+    expect(p.summary).toBe(
+      'You can pay off your credit cards in 38 months (3 years and 2 months) if you pay back $500.00 every month. ' +
+        'To pay off, you will need to pay a total of $18,971.20, within which interest is $4,471.20.',
+    );
+  });
+
+  it('splits the total into principal and interest', () => {
+    expect(p.totalPaid).toBe('$18,971.20');
+    expect(p.totalInterest).toBe('$4,471.20');
+    expect(p.totalPrincipal).toBe('$14,500.00');
+    expect(p.principalShare).toBe('76%');
+    expect(p.interestShare).toBe('24%');
+  });
+
+  it('lists the cards highest-rate first, each labelled by its own row', () => {
+    expect(p.rows.map((r) => r.label)).toEqual(['#2: Card 2', '#1: Card 1', '#3: Card 3']);
+    expect(p.rows.map((r) => r.payoffLength)).toEqual([
+      '16 months (1 year and 4 months)',
+      '28 months (2 years and 4 months)',
+      '38 months (3 years and 2 months)',
+    ]);
+    expect(p.rows.map((r) => r.totalInterest)).toEqual(['$574.33', '$1,541.21', '$2,355.66']);
+    expect(p.rows.map((r) => r.totalPayments)).toEqual(['$4,474.33', '$6,141.21', '$8,355.66']);
+  });
+
+  it('spells out each payment schedule as the reference words it', () => {
+    expect(p.rows[0].schedule).toEqual([
+      'pay $280.00 until month #15.',
+      'pay $274.33 at month #16 to pay off.',
+    ]);
+    expect(p.rows[1].schedule).toEqual([
+      'pay $100.00 until month #15.',
+      'then pay $105.67 until month #16.',
+      'then pay $380.00 until month #27.',
+      'pay $355.54 at month #28 to pay off.',
+    ]);
+    expect(p.rows[2].schedule).toEqual([
+      'pay $120.00 until month #27.',
+      'then pay $144.46 until month #28.',
+      'then pay $500.00 until month #37.',
+      'pay $471.20 at month #38 to pay off.',
+    ]);
+  });
+
+  it('announces the answer in one line', () => {
+    expect(describeCreditCard(c)).toBe('Paid off in 38 months, with $4,471.20 of interest.');
+  });
+
+  it('never leaks a NaN, an Infinity or an empty figure into the words', () => {
+    const text = [p.headline, p.headlineDetail, p.summary, ...p.rows.flatMap((r) => [r.label, r.payoffLength, r.totalInterest, r.totalPayments, ...r.schedule])].join(' ');
+    expect(text).not.toMatch(/NaN|Infinity|undefined|\$\s|—/);
+  });
+});
+
+describe('wording at the edges', () => {
+  it('drops the parenthetical under a year, and gets singulars right', () => {
+    expect(payoffLengthLabel(11)).toBe('11 months');
+    expect(payoffLengthLabel(1)).toBe('1 month');
+    expect(payoffLengthLabel(12)).toBe('12 months (1 year)');
+    expect(payoffLengthLabel(13)).toBe('13 months (1 year and 1 month)');
+  });
+
+  it('a card paid one flat amount throughout is one plain sentence', () => {
+    expect(scheduleSentences([{ amount: 100, throughMonth: 10 }])).toEqual([
+      'pay $100.00 until month #10.',
+    ]);
+  });
+
+  it('a card cleared in a single month says so', () => {
+    expect(scheduleSentences([{ amount: 50.2, throughMonth: 1 }])).toEqual([
+      'pay $50.20 at month #1 to pay off.',
+    ]);
+  });
+
+  it('a single-card plan reads naturally', () => {
+    const p = presentCreditCard(
+      computeCreditCard({ budget: '280', rows: [row({ id: 'only', name: 'Card 2', balance: '3900', minPayment: '90', aprPct: '19.99' })] }),
+    );
+    expect(p.headline).toBe('16 months');
+    expect(p.rows).toHaveLength(1);
+    expect(p.rows[0].label).toBe('#1: Card 2');
+  });
+});
+
+describe('the informational "never" plan', () => {
+  // Minimums are covered, but they are far below what the card charges each month.
+  const stuck = computeCreditCard({
+    budget: '100',
+    rows: [row({ id: 'z', name: 'Runaway', balance: '20000', minPayment: '100', aprPct: '29.99' })],
+  });
+
+  it('is a usable result, not an input error', () => {
+    expect(stuck.plan.status).toBe('never');
+    expect(isUsableCreditCardResult(stuck)).toBe(true);
+  });
+
+  it('explains why, and what would change it', () => {
+    const p = presentCreditCard(stuck);
+    expect(p.status).toBe('never');
+    expect(p.headline).toBe('Never');
+    expect(p.summary).toContain('$100.00 a month');
+    expect(p.summary).toContain('$499.83'); // the first month's interest alone
+    expect(p.summary).toContain('above the interest');
+  });
+
+  it('shows no financial rows at all rather than zeroes or dashes', () => {
+    const p = presentCreditCard(stuck);
+    expect(p.rows).toEqual([]);
+    for (const v of [p.totalPaid, p.totalInterest, p.totalPrincipal, p.principalShare, p.interestShare]) {
+      expect(v).toBe('');
+    }
+  });
+
+  it('announces itself without a number', () => {
+    expect(describeCreditCard(stuck)).toBe('These cards are never paid off at this monthly amount.');
+  });
+});
+
+describe('the complete-result guard', () => {
+  const good = computeCreditCard(REF);
+  const clone = (c: CreditCardComputed): CreditCardComputed =>
+    JSON.parse(JSON.stringify(c)) as CreditCardComputed;
+  const broken = (mutate: (c: CreditCardComputed) => void): CreditCardComputed => {
+    const copy = clone(good);
+    mutate(copy);
+    return copy;
+  };
+  /** Reach into a paid plan without TypeScript narrowing at every call site. */
+  const plan = (c: CreditCardComputed) => {
+    if (c.plan.status !== 'paid') throw new Error('expected a paid plan');
+    return c.plan;
+  };
+
+  it('accepts the real plan and returns its length', () => {
+    expect(completeCreditCardValue(good)).toBe(38);
+    expect(isUsableCreditCardResult(good)).toBe(true);
+  });
+
+  it('rejects totals that do not add up', () => {
+    expect(completeCreditCardValue(broken((c) => (plan(c).totalPaid += 100)))).toBeNaN();
+    expect(completeCreditCardValue(broken((c) => (plan(c).totalInterest += 100)))).toBeNaN();
+    expect(completeCreditCardValue(broken((c) => (plan(c).totalPrincipal += 100)))).toBeNaN();
+  });
+
+  it('rejects a card paid more or less than its balance plus its interest', () => {
+    expect(completeCreditCardValue(broken((c) => (plan(c).cards[0].paid += 50)))).toBeNaN();
+    expect(completeCreditCardValue(broken((c) => (plan(c).cards[1].interest -= 50)))).toBeNaN();
+  });
+
+  it('rejects a plan whose months do not match its longest card', () => {
+    expect(completeCreditCardValue(broken((c) => (plan(c).months = 40)))).toBeNaN();
+    expect(completeCreditCardValue(broken((c) => (plan(c).cards[2].months = 30)))).toBeNaN();
+  });
+
+  it('rejects a schedule that does not cover the months the card was paid', () => {
+    expect(completeCreditCardValue(broken((c) => plan(c).cards[0].runs.pop()))).toBeNaN();
+    expect(completeCreditCardValue(broken((c) => (plan(c).cards[0].runs = [])))).toBeNaN();
+    expect(
+      completeCreditCardValue(broken((c) => (plan(c).cards[0].runs[0].throughMonth = 20))),
+    ).toBeNaN();
+  });
+
+  it('rejects a month that spends more than the budget', () => {
+    expect(completeCreditCardValue(broken((c) => (plan(c).cards[0].runs[0].amount = 400)))).toBeNaN();
+  });
+
+  it('rejects a plan missing one of the cards the visitor entered', () => {
+    expect(completeCreditCardValue(broken((c) => plan(c).cards.pop()))).toBeNaN();
+  });
+
+  it('rejects a non-finite or impossible figure', () => {
+    expect(completeCreditCardValue(broken((c) => (plan(c).totalPaid = Number.NaN)))).toBeNaN();
+    expect(completeCreditCardValue(broken((c) => (plan(c).months = 0)))).toBeNaN();
+    expect(completeCreditCardValue(broken((c) => (plan(c).monthlyBudget = 0)))).toBeNaN();
+    expect(completeCreditCardValue(broken((c) => (plan(c).cards[0].balance = 0)))).toBeNaN();
+  });
+
+  it('a plan with no cards is never usable', () => {
+    expect(isUsableCreditCardResult({ ...good, cards: [] })).toBe(false);
+  });
+});
+
+describe('the worked example', () => {
+  it('validates, so the example a visitor sees is a real calculation', () => {
+    expect(validateCreditCard(CREDIT_CARD_EXAMPLE_VALUES)).toEqual({ ok: true });
+  });
+
+  it('is the published reference case and passes the same guard as any other result', () => {
+    const c = computeCreditCard(CREDIT_CARD_EXAMPLE_VALUES);
+    expect(creditCardBinding.resultValue(c)).toBe(38);
+    expect(creditCardBinding.isUsableResult!(c)).toBe(true);
+    expect(presentCreditCard(c).summary).toContain('$18,971.20');
   });
 });

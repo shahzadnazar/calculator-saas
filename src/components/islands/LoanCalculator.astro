@@ -1,21 +1,27 @@
 ---
 /**
- * Loan calculator island (R15B1 — Loan family pilot, 1 of 3; task-first migration).
+ * Loan calculator island — three loan modes, one set of fields, two schedule views.
  *
- * Task-first, direct-intent: all fields start EMPTY, the result is an instruction, and the visitor
- * presses "Calculate Loan Payment" for the first result; live-after-first afterwards. Compute,
- * validation, state, announcement and focus are owned by the shared runtime + the Loan binding
- * (@lib/calculators/loan-form), which wraps the UNCHANGED calculateLoan / @lib/finance engine. The
+ * Task-first: all value fields start EMPTY behind a labelled worked example, the visitor presses
+ * "Calculate" for the first result, live-after-first afterwards. Compute, validation, state,
+ * announcement and focus are owned by the shared form runtime + the Loan binding
+ * (@lib/calculators/loan-form), which wraps the pure calculateExtendedLoan engine. The
  * complete-result guard lives in the binding's resultValue (a NaN sentinel → the runtime's default
  * finite gate) — there is NO isUsableResult.
  *
+ * The three modes (Amortized / Deferred / Bond) are a native radio group INSIDE the form, so the
+ * runtime treats a mode change exactly like any other input change: no bespoke event wiring, no
+ * mode state in the URL or storage (ratified decision 3 — multi-mode state stays ephemeral). The
+ * island's own script only does presentation the runtime cannot know about: swapping the mode-
+ * dependent field labels and hiding Pay Back in the two modes that make no payments.
+ *
  * INDEPENDENT of Amortization: this island imports the Loan binding only and shares no
- * implementation file with the Amortization calculator (the mirror-not-share discipline). Loan shows
- * the dominant monthly payment + total interest / total paid / payoff period, and the YEARLY
- * amortization schedule inside a native <details> disclosure (closed by default). The schedule is
- * built with the DOM API (never innerHTML) into a semantic <table> (caption + scoped headers). The
- * island reacts to runtime state changes it does not itself cause: leaving `valid` (an invalid live
- * edit) drops the stale rows; returning to `empty` (Reset) also closes the disclosure.
+ * implementation file with the Amortization calculator (the mirror-not-share discipline). The
+ * schedule is built with the DOM API (never innerHTML) into a semantic <table> (caption + scoped
+ * headers), and the Annual/detailed switch is presentation-only — both bodies are rendered in full,
+ * so switching views never recomputes. The island reacts to runtime state changes it does not
+ * itself cause: leaving `valid` (an invalid live edit) drops the stale rows; returning to `empty`
+ * (Reset) also closes the disclosure and restores the Annual view.
  */
 import ResultShell from '@components/result/ResultShell.astro';
 import ResultSummary from '@components/result/ResultSummary.astro';
@@ -23,17 +29,42 @@ import ResultValue from '@components/result/ResultValue.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import { COMPOUND_FREQUENCIES, PAYBACK_FREQUENCIES } from '@lib/calculators/loan';
+
+const MODES = [
+  { value: 'amortized', label: 'Amortized loan', hint: 'Paid off in fixed instalments' },
+  { value: 'deferred', label: 'Deferred payment loan', hint: 'One lump sum at maturity' },
+  { value: 'bond', label: 'Bond', hint: 'A set amount due at maturity' },
+] as const;
 ---
 
 <div class="loan mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2" data-loan>
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="Loan calculator">
-    <div class="grid gap-4 sm:grid-cols-3">
+    <fieldset class="loan-modes">
+      <legend class="field-label">What kind of loan?</legend>
+      <div class="loan-modes__group">
+        {
+          MODES.map((m) => (
+            <label class="loan-mode">
+              <input type="radio" name="mode" value={m.value} checked={m.value === 'amortized'} data-loan-mode />
+              <span class="loan-mode__body">
+                <span class="loan-mode__label">{m.label}</span>
+                <span class="loan-mode__hint">{m.hint}</span>
+              </span>
+            </label>
+          ))
+        }
+      </div>
+    </fieldset>
+
+    <div class="mt-3 grid gap-3 sm:grid-cols-2">
       <div data-field="amount">
-        <label class="field-label" for="loan-amount">Loan amount</label>
+        <label class="field-label" for="loan-amount" data-loan-amount-label>Loan amount</label>
         <div class="flex">
           <span class="field-affix rounded-l-lg border-r-0">$</span>
-          <input class="field rounded-l-none" id="loan-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 25000" aria-describedby="loan-amount-error" />
+          <input class="field rounded-l-none" id="loan-amount" name="amount" type="number" min="0" step="1000" inputmode="decimal" autocomplete="off" placeholder="e.g. 100000" aria-describedby="loan-amount-error" />
         </div>
         <p class="loan-field-error" id="loan-amount-error" data-error-for="amount" hidden></p>
       </div>
@@ -41,16 +72,36 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       <div data-field="annualInterestRate">
         <label class="field-label" for="loan-rate">Interest rate</label>
         <div class="flex">
-          <input class="field rounded-r-none" id="loan-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 7" aria-describedby="loan-rate-error" />
+          <input class="field rounded-r-none" id="loan-rate" name="annualInterestRate" type="number" min="0" step="0.05" inputmode="decimal" autocomplete="off" placeholder="e.g. 6" aria-describedby="loan-rate-error" />
           <span class="field-affix rounded-r-lg border-l-0">%</span>
         </div>
         <p class="loan-field-error" id="loan-rate-error" data-error-for="annualInterestRate" hidden></p>
       </div>
 
       <div data-field="termYears">
-        <label class="field-label" for="loan-term">Term (years)</label>
-        <input class="field" id="loan-term" name="termYears" type="number" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 5" aria-describedby="loan-term-error" />
+        <label class="field-label" for="loan-term">Loan term (years)</label>
+        <input class="field" id="loan-term" name="termYears" type="number" min="0" max="30" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 10" aria-describedby="loan-term-error" />
         <p class="loan-field-error" id="loan-term-error" data-error-for="termYears" hidden></p>
+      </div>
+
+      <div data-field="termMonths">
+        <label class="field-label" for="loan-term-months">Plus months <span class="loan-optional">(optional)</span></label>
+        <input class="field" id="loan-term-months" name="termMonths" type="number" min="0" max="11" step="1" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="loan-term-months-error" />
+        <p class="loan-field-error" id="loan-term-months-error" data-error-for="termMonths" hidden></p>
+      </div>
+
+      <div data-field="compoundKey">
+        <label class="field-label" for="loan-compound">Compound</label>
+        <select class="field" id="loan-compound" name="compoundKey">
+          {COMPOUND_FREQUENCIES.map((f) => <option value={f.key} selected={f.key === 'monthly'}>{f.label}</option>)}
+        </select>
+      </div>
+
+      <div data-field="paybackKey" data-loan-payback>
+        <label class="field-label" for="loan-payback">Pay back</label>
+        <select class="field" id="loan-payback" name="paybackKey">
+          {PAYBACK_FREQUENCIES.map((f) => <option value={f.key} selected={f.key === 'month'}>{f.label}</option>)}
+        </select>
       </div>
     </div>
 
@@ -63,39 +114,51 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   <!-- Result -->
   <ResultShell id="loan-result" state="empty" density="standard" label="Loan result" minHeight="12rem">
-    <EmptyResult message="Enter your loan amount, interest rate, and term, then calculate to see your monthly payment and payoff schedule." />
+    <ExampleNotice />
+    <EmptyResult message="Choose the kind of loan, enter your amount, interest rate and term, then calculate to see the figures and the full schedule." />
 
     <div data-result-when="valid">
       <div class="loan-summary">
-        <ResultSummary label="Estimated monthly payment">
+        <ResultSummary label="Payment every month">
           <ResultValue value="—" size="text-4xl" />
         </ResultSummary>
         <dl class="loan-metrics">
+          <div><dt data-loan-total-label>Total of payments</dt><dd data-loan-total>—</dd></div>
           <div><dt>Total interest</dt><dd data-loan-interest>—</dd></div>
-          <div><dt>Total paid</dt><dd data-loan-total>—</dd></div>
-          <div><dt>Payoff period</dt><dd data-loan-payoff>—</dd></div>
+          <div><dt>Loan term</dt><dd data-loan-payoff>—</dd></div>
         </dl>
       </div>
 
       <details class="loan-disclosure" data-loan-disclosure>
         <summary class="loan-disclosure__summary">
-          <span>View yearly amortization schedule</span>
+          <span>View the payment schedule</span>
           <svg class="loan-disclosure__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </summary>
 
-        <div class="loan-schedule">
+        <div class="loan-schedule" data-loan-schedule data-loan-view="yearly">
+          <fieldset class="loan-view">
+            <legend class="loan-view__legend">Schedule</legend>
+            <div class="loan-view__group">
+              <label class="loan-view__opt"><input type="radio" name="loan-view" value="yearly" checked data-loan-view-radio /><span>Annual</span></label>
+              <label class="loan-view__opt"><input type="radio" name="loan-view" value="detail" data-loan-view-radio /><span>Monthly</span></label>
+            </div>
+          </fieldset>
+
           <div class="loan-table-wrap">
             <table class="loan-table">
-              <caption class="sr-only">Yearly amortization schedule showing principal paid, interest paid and remaining balance for each year.</caption>
+              <caption class="sr-only">Loan schedule showing the beginning balance, the interest for the period and the ending balance.</caption>
               <thead>
                 <tr>
-                  <th scope="col" class="loan-th-period">Year</th>
-                  <th scope="col" class="loan-num">Principal</th>
+                  <th scope="col" class="loan-th-period">
+                    <span data-loan-when-view="yearly">Year</span><span data-loan-when-view="detail" data-loan-period-head>Month</span>
+                  </th>
+                  <th scope="col" class="loan-num">Beginning balance</th>
                   <th scope="col" class="loan-num">Interest</th>
-                  <th scope="col" class="loan-num">Balance</th>
+                  <th scope="col" class="loan-num">Ending balance</th>
                 </tr>
               </thead>
-              <tbody data-loan-rows></tbody>
+              <tbody data-loan-rows="yearly"></tbody>
+              <tbody data-loan-rows="detail"></tbody>
             </table>
           </div>
           <p class="loan-schedule__note">Balances are shown to the nearest dollar. Amounts are in US dollars (USD).</p>
@@ -105,7 +168,7 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
     <InvalidResult
       title="Check your entries"
-      message="Enter a loan amount, an interest rate, and a whole loan term from 1 to 30 years."
+      message="Enter an amount, an interest rate, and a loan term of at least one month (up to 30 years)."
     />
 
     <ResultAnnouncement id="loan-live" />
@@ -113,6 +176,15 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 </div>
 
 <style>
+  /* The schedule's headers are deliberately nowrap, so the table is wider than a
+     phone. `.loan-table-wrap` is the intended scroll container, but a grid item
+     defaults to `min-width: auto` and would be stretched by it instead — which
+     would push the whole PAGE sideways. Letting both columns shrink to zero keeps
+     the horizontal scrolling inside the wrap where it belongs. */
+  .loan > :global(*) {
+    min-width: 0;
+  }
+
   .loan-field-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
@@ -132,6 +204,68 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     margin-top: 0.75rem;
     font-size: 0.8rem;
     color: var(--muted);
+  }
+  .loan-optional {
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  /* Mode selector: native radios, styled as a segmented list. */
+  .loan-modes {
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
+  .loan-modes__group {
+    margin-top: 0.35rem;
+    display: grid;
+    gap: 0.4rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) {
+    .loan-modes__group {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .loan-mode {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    cursor: pointer;
+    background: var(--card);
+  }
+  .loan-mode input {
+    flex: none;
+    accent-color: var(--color-brand-600);
+    width: 1rem;
+    height: 1rem;
+  }
+  .loan-mode__body {
+    display: grid;
+    min-width: 0;
+  }
+  .loan-mode__label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--heading);
+    line-height: 1.25;
+  }
+  .loan-mode__hint {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.3;
+  }
+  .loan-mode:has(input:checked) {
+    border-color: var(--color-brand-600);
+    background: color-mix(in srgb, var(--color-brand-600) 8%, var(--card));
+  }
+  .loan-mode:has(input:focus-visible) {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
   }
 
   /* Summary: dominant payment + supporting totals */
@@ -210,7 +344,79 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   .loan-schedule {
     margin-top: 0.75rem;
   }
+
+  /* Schedule — Annual / Monthly view switch (presentation only — both bodies
+     are rendered). The legend is VISIBLE and names the control, so the pills
+     read as "Annual"/"Monthly" rather than repeating the word Schedule twice.
+     It is floated because a fieldset's rendered legend is excluded from normal
+     flow — floating it makes it an ordinary inline box that sits beside the
+     group, and it drops above the pills when the row is too narrow. */
+  .loan-view {
+    border: 0;
+    margin: 0 0 0.6rem;
+    padding: 0;
+  }
+  .loan-view::after {
+    content: '';
+    display: block;
+    clear: both;
+  }
+  .loan-view__legend {
+    float: left;
+    margin: 0 0.6rem 0 0;
+    padding: 0;
+    line-height: 2.6rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .loan-view__group {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    background: var(--subtle);
+  }
+  .loan-view__opt {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    cursor: pointer;
+  }
+  .loan-view__opt input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+  .loan-view__opt span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 0.7rem;
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .loan-view__opt:has(input:checked) span {
+    background: var(--card);
+    color: var(--heading);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+  }
+  .loan-view__opt:has(input:focus-visible) span {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
   .loan-table-wrap {
+    min-width: 0;
     max-height: 20rem;
     overflow: auto;
     border: 1px solid var(--line);
@@ -232,8 +438,13 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     color: var(--fg);
     white-space: nowrap;
   }
-  .loan-table th.loan-num,
-  .loan-table td.loan-num {
+  /* `:global` because the schedule's cells are created by the binding at runtime
+     and so carry no scope attribute. Without it Astro compiled this to
+     `td[data-astro-cid-…].loan-num`, which only ever matched the static header
+     cells — the schedule's numbers were never actually right-aligned. Same rule,
+     same values; it now reaches the rows it was written for. */
+  .loan-table :global(th.loan-num),
+  .loan-table :global(td.loan-num) {
     text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -249,6 +460,39 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     font-weight: 600;
     color: var(--fg);
   }
+  /* The "Year #N End" separator inside the detailed schedule. It has to read as
+     a divider rather than another period, so it uses the tokens already on this
+     island: the rules are the table's own --line at double weight, the tint is
+     the same brand mix the selected mode pill uses, and the label takes the
+     uppercase treatment the result primitives already use for section titles.
+     No new colour is introduced. */
+  .loan-table :global(.loan-year-end) {
+    border-top: 2px solid var(--line);
+    border-bottom: 2px solid var(--line);
+    background: color-mix(in srgb, var(--color-brand-600) 7%, var(--subtle));
+  }
+  .loan-table :global(.loan-cell--year) {
+    text-align: left;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--heading);
+  }
+  .loan-table :global(.loan-year-end .loan-num) {
+    font-weight: 800;
+    color: var(--heading);
+  }
+
+  .loan-schedule[data-loan-view='yearly'] :global([data-loan-rows='detail']),
+  .loan-schedule[data-loan-view='detail'] :global([data-loan-rows='yearly']) {
+    display: none;
+  }
+  .loan-schedule[data-loan-view='yearly'] [data-loan-when-view='detail'],
+  .loan-schedule[data-loan-view='detail'] [data-loan-when-view='yearly'] {
+    display: none;
+  }
 
   .loan-schedule__note {
     margin: 0.75rem 0 0;
@@ -260,30 +504,65 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { loanBinding } from '@lib/calculators/loan-form';
+  import { loanBinding, LOAN_EXAMPLE_VALUES, AMOUNT_LABELS, asMode } from '@lib/calculators/loan-form';
 
   document.querySelectorAll<HTMLElement>('[data-loan]').forEach((root) => {
     mountFormCalculator(root, loanBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: LOAN_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate Loan Payment',
     });
 
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     const disclosure = root.querySelector<HTMLDetailsElement>('[data-loan-disclosure]');
+    const schedule = root.querySelector<HTMLElement>('[data-loan-schedule]');
+    const viewRadios = Array.from(root.querySelectorAll<HTMLInputElement>('[data-loan-view-radio]'));
+    const modeRadios = Array.from(root.querySelectorAll<HTMLInputElement>('[data-loan-mode]'));
+    const amountLabel = root.querySelector<HTMLElement>('[data-loan-amount-label]');
+    const payback = root.querySelector<HTMLElement>('[data-loan-payback]');
+
+    // Mode is presentation here only: the runtime already recomputes on the radio's change event
+    // (the radios sit INSIDE the form). This just keeps the question the amount field asks honest,
+    // and hides Pay Back in the two modes that make no payments rather than showing a dead control.
+    const applyMode = () => {
+      const mode = asMode(modeRadios.find((r) => r.checked)?.value ?? 'amortized');
+      if (amountLabel) amountLabel.textContent = AMOUNT_LABELS[mode];
+      if (payback) payback.hidden = mode !== 'amortized';
+    };
+    for (const r of modeRadios) r.addEventListener('change', applyMode);
+    applyMode();
+
+    // The island owns the Annual/Monthly view — a presentation-only switch over the schedule the
+    // runtime already rendered in full. Native radios: focus stays on the selected radio, no
+    // recompute (they sit OUTSIDE the form), no announcement.
+    const applyView = () => {
+      const checked = viewRadios.find((r) => r.checked)?.value ?? 'yearly';
+      if (schedule) schedule.dataset.loanView = checked;
+    };
+    for (const r of viewRadios) r.addEventListener('change', applyView);
 
     const clearRows = () =>
       root.querySelectorAll<HTMLElement>('[data-loan-rows]').forEach((tb) => tb.replaceChildren());
+    const restoreYearly = () => {
+      for (const r of viewRadios) r.checked = r.value === 'yearly';
+      applyView();
+    };
 
     // React to runtime state transitions the island does not itself cause. Leaving `valid` (an
-    // invalid live edit) drops the stale/possibly-malformed rows; returning to `empty` (Reset) also
-    // closes the disclosure. A `valid` update is owned by the binding's renderResult (fills the rows),
-    // so the observer never touches it.
+    // invalid live edit) drops the stale/possibly-malformed rows so a malformed schedule can never
+    // remain in the DOM; returning to `empty` (Reset) also closes the disclosure, restores the
+    // Annual view and re-syncs the mode-dependent labels (Reset restores the default mode).
+    // A `valid` update is owned by the binding's renderResult, so the observer never touches it.
     if (shell) {
       const observer = new MutationObserver(() => {
         const state = shell.dataset.resultState;
         if (state === 'valid') return;
         clearRows();
-        if (state === 'empty' && disclosure) disclosure.open = false;
+        if (state === 'empty') {
+          if (disclosure) disclosure.open = false;
+          restoreYearly();
+          applyMode();
+        }
       });
       observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }

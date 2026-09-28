@@ -42,19 +42,21 @@ const faqs = [
 <CalculatorLayout
   calculator={calc}
   presentation="task-first"
-  intro="Project the future value of an investment with a starting amount and regular monthly contributions, and see how much of the growth comes from earnings versus deposits."
+  rail
+  intro="Project what a starting amount and regular contributions grow to — the end balance, how much of it is return, and the year-by-year schedule behind it."
   faqs={faqs}
-  reviewMetadata={{ reviewedDate: '2026-07-25' }}
+  reviewMetadata={{ reviewedDate: '2026-08-27' }}
 >
   <InvestmentCalculator />
 
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
     <ol>
-      <li>Enter a <strong>starting investment</strong> — the lump sum you begin with (use 0 if you are starting fresh).</li>
-      <li>Add a <strong>monthly contribution</strong> you will invest regularly.</li>
-      <li>Set an <strong>expected annual return</strong> and a <strong>projection period</strong> in years.</li>
-      <li>Read the projected value and the split between your contributions and the earnings compounding produced.</li>
+      <li>Enter your <strong>starting amount</strong> — the lump sum you begin with, or 0 if you are starting from nothing.</li>
+      <li>Set <strong>how long</strong> you will invest for and the <strong>return rate</strong> you expect.</li>
+      <li>Choose how often the return <strong>compounds</strong>, and add any <strong>regular contribution</strong>.</li>
+      <li>Say when that contribution lands — the <strong>beginning or end</strong> of each <strong>month or year</strong>. It matters more than it looks.</li>
+      <li>Read the end balance, the split between what you put in and what it earned, and the accumulation schedule year by year or month by month.</li>
     </ol>
 
     <h2>How compounding builds an investment</h2>
@@ -62,39 +64,68 @@ const faqs = [
       Every dollar you invest earns a return, and those returns then earn returns of their own —
       the engine behind long-term growth. Regular contributions amplify it, because each new
       deposit starts its own compounding clock. Early on the balance is mostly the money you have
-      put in; over a long horizon, the earnings quietly overtake the contributions and become the
+      put in; over a long horizon the earnings quietly overtake the contributions and become the
       larger share.
+    </p>
+    <p>
+      Investing <strong>$500 a month</strong> at <strong>7%</strong> from nothing, the crossover
+      lands in <strong>year 19</strong> — that is when what the money has earned first exceeds
+      everything you have paid in. Carry on to forty years and $240,000 of contributions has
+      become about <strong>$1.31 million</strong>.
     </p>
 
     <h2>The formula</h2>
     <p>
-      The projection grows your lump sum and your monthly contributions, compounding monthly:
+      Each period the balance grows by the return and the contribution is added, month after
+      month:
     </p>
-    <p><strong>FV = P(1 + i)<sup>n</sup> + C · ((1 + i)<sup>n</sup> − 1) / i</strong></p>
+    <p><strong>B<sub>next</sub> = B × (1 + i) + C</strong></p>
     <ul>
-      <li><strong>FV</strong> — the projected future value</li>
-      <li><strong>P</strong> — the starting investment</li>
-      <li><strong>C</strong> — the monthly contribution</li>
-      <li><strong>i</strong> — the monthly return (annual return ÷ 12)</li>
-      <li><strong>n</strong> — the number of months (years × 12)</li>
+      <li><strong>B</strong> — the balance at the start of the month</li>
+      <li><strong>C</strong> — the contribution, added before the growth if you contribute at the beginning of the period and after it if you contribute at the end</li>
+      <li><strong>i</strong> — the monthly growth the chosen compounding frequency implies: <strong>(1 + r/n)<sup>n/12</sup> − 1</strong>, where <strong>r</strong> is the annual return and <strong>n</strong> the compounding periods per year</li>
     </ul>
+    <p>
+      Running month by month rather than using a closed formula is what lets the two settings be
+      independent: you can contribute monthly to an account that credits interest once a year,
+      which is exactly what most people do.
+    </p>
 
     <h2>A worked example</h2>
     <p>
-      Start with <strong>$10,000</strong>, add <strong>$500 a month</strong>, and assume a
-      <strong>7%</strong> return for <strong>20 years</strong>. The balance grows to roughly
-      <strong>$300,851</strong> — yet you only put in <strong>$130,000</strong> ($10,000 plus
-      $500 × 240 months). The other <strong>$170,851</strong> is compounding. That crossover,
-      where earnings outgrow everything you contributed, is the whole case for investing early.
+      Start with <strong>$20,000</strong>, add <strong>$1,000</strong> at the end of every month,
+      and assume <strong>6%</strong> compounded annually for <strong>10 years</strong>. The end
+      balance is <strong>$198,290.40</strong>. Of that, $20,000 is what you started with and
+      <strong>$120,000</strong> is what you paid in — leaving <strong>$58,290.40</strong> of
+      return, about <strong>29%</strong> of the total.
+    </p>
+    <p>
+      The schedule shows the shift. Year one earns <strong>$1,526.53</strong> on deposits of
+      $32,000; year ten earns <strong>$10,852.79</strong> on the same $12,000 of deposits. The
+      contributions never change — the balance doing the earning does.
+    </p>
+
+    <h2>Timing changes the answer</h2>
+    <p>
+      Three settings people skip past are each worth real money on that same plan:
+    </p>
+    <ul>
+      <li><strong>Contribute at the beginning</strong> rather than the end of each month and the end balance rises to <strong>$199,081.24</strong> — <strong>$791</strong> for paying on the 1st instead of the 30th.</li>
+      <li><strong>Contribute $12,000 once a year</strong> instead of $1,000 monthly and it falls to <strong>$193,986.49</strong> — the same money in, <strong>$4,304</strong> less out, because it spent most of each year uninvested.</li>
+      <li><strong>Compound monthly</strong> instead of annually and it rises to <strong>$200,267.28</strong>.</li>
+    </ul>
+    <p>
+      None of these change a dollar of what you contribute. They change how long each dollar
+      spends invested, which is the only thing compounding responds to.
     </p>
 
     <h2>Contributions versus earnings</h2>
     <p>
-      The colored bar splits your ending balance into three parts: your initial investment, the
-      contributions you added over time, and the earnings generated by compounding. Watching the
-      earnings slice grow is instructive — over a 20- or 30-year horizon it typically becomes the
-      biggest of the three, which is why consistency and time usually beat trying to time the
-      market.
+      The ring splits your end balance into three parts: the amount you started with, the
+      contributions you added over time, and the return compounding produced. The accumulation
+      chart shows the same three stacked year by year, so you can watch the earnings band widen.
+      Over a 20- or 30-year horizon it typically becomes the biggest of the three, which is why
+      consistency and time usually beat trying to time the market.
     </p>
 
     <h2>What return should you assume?</h2>

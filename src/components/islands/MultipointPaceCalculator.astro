@@ -1,0 +1,356 @@
+---
+/**
+ * Multipoint Pace Calculator — the second tool on the pace page.
+ *
+ * You record where you were and what the clock said, a few times over. It works out what
+ * each leg cost you and what your pace has averaged to that point, which is the difference
+ * between "I ran a 25-minute 5K" and "I went out too fast".
+ *
+ * Points are CUMULATIVE — distance from the start and time on the clock — because that is
+ * what a watch shows you at a marker. The first leg therefore runs from the start line.
+ */
+import { LENGTH_UNITS, DEFAULT_DISTANCE_UNIT } from '@lib/calculators/pace';
+
+const ROWS = 4;
+---
+
+<section class="mp" data-multipoint aria-labelledby="mp-title">
+  <h2 class="mp__title" id="mp-title">Multipoint Pace Calculator</h2>
+  <p class="mp__lede">
+    Record the distance and the clock time at a few points, and this works out the pace of each
+    leg between them as well as your average to that point. Distances and times are from the
+    start, as a watch shows them at a marker.
+  </p>
+
+  <form class="card mp__form" data-mp-form novalidate>
+    <div class="mp__unit">
+      <label class="mp__unit-label" for="mp-unit">Distances in</label>
+      <select class="field mp__select" id="mp-unit" name="mpUnit">
+        {LENGTH_UNITS.map((u) => (
+          <option value={u.key} selected={u.key === DEFAULT_DISTANCE_UNIT}>{u.label}</option>
+        ))}
+      </select>
+    </div>
+
+    <table class="mp__inputs">
+      <thead>
+        <tr>
+          <th scope="col">Point</th>
+          <th scope="col">Distance</th>
+          <th scope="col">Time (hh:mm:ss)</th>
+        </tr>
+      </thead>
+      <tbody data-mp-rows>
+        {Array.from({ length: ROWS }, (_, i) => (
+          <tr data-mp-row={i}>
+            <th scope="row">{i + 1}</th>
+            <td>
+              <input class="field mp__input mp__input--dist" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" data-mp-distance aria-label={`Point ${i + 1} distance`} />
+            </td>
+            <td class="mp__time">
+              <input class="field mp__input" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" data-mp-h aria-label={`Point ${i + 1} hours`} />
+              <span aria-hidden="true">:</span>
+              <input class="field mp__input" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" data-mp-m aria-label={`Point ${i + 1} minutes`} />
+              <span aria-hidden="true">:</span>
+              <input class="field mp__input" type="number" min="0" max="59" step="1" inputmode="numeric" autocomplete="off" data-mp-s aria-label={`Point ${i + 1} seconds`} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+
+    <p class="mp__error" data-mp-error hidden></p>
+    <p class="sr-only" role="status" aria-live="polite" data-mp-live></p>
+
+    <div class="mp__actions">
+      <button type="button" class="btn btn-secondary btn-sm" data-mp-add>Add a point</button>
+      <button type="submit" class="btn btn-primary">Calculate</button>
+      <button type="button" class="btn btn-secondary" data-mp-reset>Clear</button>
+    </div>
+  </form>
+
+  <div class="mp__results" data-mp-results hidden>
+    <table class="mp__out">
+      <thead>
+        <tr>
+          <th scope="col">Leg</th>
+          <th scope="col" class="mp__num">Distance</th>
+          <th scope="col" class="mp__num">Leg time</th>
+          <th scope="col" class="mp__num">Leg pace</th>
+          <th scope="col" class="mp__num">Average so far</th>
+        </tr>
+      </thead>
+      <tbody data-mp-out></tbody>
+    </table>
+  </div>
+</section>
+
+<style>
+  .mp {
+    margin: 1.5rem auto 0;
+    width: 100%;
+  }
+  .mp__title {
+    margin: 0 0 0.3rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+  .mp__lede {
+    margin: 0 0 0.7rem;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+  .mp__form {
+    padding: 1rem;
+  }
+  .mp__unit {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.7rem;
+  }
+  .mp__unit-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--heading);
+  }
+  .mp__select {
+    min-height: 2.75rem;
+    font-size: 0.84rem;
+  }
+  .mp__inputs,
+  .mp__out {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+  }
+  .mp__inputs th,
+  .mp__inputs td,
+  .mp__out th,
+  .mp__out td {
+    padding: 0.3rem 0.35rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  .mp__inputs thead th,
+  .mp__out thead th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .mp__inputs tbody th,
+  .mp__out tbody th {
+    font-weight: 600;
+    color: var(--fg);
+    width: 2.5rem;
+  }
+  .mp__input {
+    width: 3.2rem;
+    min-height: 2.75rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .mp__input--dist {
+    width: 5rem;
+    text-align: left;
+  }
+  .mp__time {
+    white-space: nowrap;
+  }
+  .mp__time span {
+    color: var(--muted);
+    font-weight: 700;
+    padding: 0 0.1rem;
+  }
+  .mp__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .mp__out tbody td {
+    font-weight: 600;
+    color: var(--heading);
+  }
+  .mp__error {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  :root[data-theme='dark'] .mp__error {
+    color: #fca5a5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .mp__error {
+      color: #fca5a5;
+    }
+  }
+  .mp__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.9rem;
+  }
+  .btn-sm {
+    /* 2.75rem so "Add a point" clears the 44px tap target like every other
+       control; the smaller padding and type still keep it visually secondary. */
+    min-height: 2.75rem;
+    padding: 0 0.75rem;
+    font-size: 0.82rem;
+  }
+  /* Both tables carry a fixed-width time input per row, so they have a hard
+     minimum the page cannot absorb at 320px. Let each scroll inside itself. */
+  .mp__inputs,
+  .mp__out {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .mp__results {
+    margin-top: 0.9rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    background: var(--subtle);
+    overflow-x: auto;
+  }
+</style>
+
+<script>
+  import { splitSegments, formatDuration, toSeconds, lengthUnit } from '@lib/calculators/pace';
+
+  const num = (el: HTMLInputElement | null): number => {
+    const t = el?.value.trim() ?? '';
+    if (t === '') return 0;
+    const n = Number(t);
+    return Number.isFinite(n) && n >= 0 ? n : Number.NaN;
+  };
+
+  document.querySelectorAll<HTMLElement>('[data-multipoint]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-mp-form]');
+    const rowsBody = root.querySelector<HTMLElement>('[data-mp-rows]');
+    const outBody = root.querySelector<HTMLElement>('[data-mp-out]');
+    const results = root.querySelector<HTMLElement>('[data-mp-results]');
+    const error = root.querySelector<HTMLElement>('[data-mp-error]');
+    const live = root.querySelector<HTMLElement>('[data-mp-live]');
+    const unitEl = root.querySelector<HTMLSelectElement>('[name="mpUnit"]');
+    if (!form || !rowsBody || !outBody || !results || !unitEl) return;
+
+    const fail = (message: string) => {
+      if (error) {
+        error.textContent = message;
+        error.hidden = false;
+      }
+      results.hidden = true;
+      if (live) live.textContent = message;
+    };
+
+    const run = () => {
+      const unit = lengthUnit(unitEl.value);
+      if (!unit) return;
+
+      const points: { metres: number; seconds: number }[] = [];
+      let sawBadNumber = false;
+      for (const row of rowsBody.querySelectorAll<HTMLElement>('[data-mp-row]')) {
+        const distance = num(row.querySelector<HTMLInputElement>('[data-mp-distance]'));
+        const seconds = toSeconds(
+          num(row.querySelector<HTMLInputElement>('[data-mp-h]')),
+          num(row.querySelector<HTMLInputElement>('[data-mp-m]')),
+          num(row.querySelector<HTMLInputElement>('[data-mp-s]')),
+        );
+        if (!Number.isFinite(distance) || !Number.isFinite(seconds)) {
+          sawBadNumber = true;
+          continue;
+        }
+        // A row with neither a distance nor a time is simply not filled in yet.
+        if (distance <= 0 && seconds <= 0) continue;
+        points.push({ metres: distance * unit.metres, seconds });
+      }
+
+      if (sawBadNumber) return fail('Every box must be a number, and none can be negative.');
+      if (points.length === 0) return fail('Fill in at least one point — a distance and the time on the clock.');
+      for (const p of points) {
+        if (p.metres <= 0 || p.seconds <= 0) {
+          return fail('Each point needs both a distance and a time greater than zero.');
+        }
+      }
+
+      if (error) error.hidden = true;
+
+      const segments = splitSegments(points);
+      outBody.replaceChildren();
+      segments.forEach((seg, i) => {
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.scope = 'row';
+        th.textContent = String(i + 1);
+        tr.append(th);
+        const cells = [
+          `${Math.round((seg.legMetres / unit.metres) * 100) / 100} ${unit.label.toLowerCase()}`,
+          formatDuration(seg.legSeconds),
+          Number.isFinite(seg.legSecPerKm)
+            ? `${formatDuration(seg.legSecPerKm)} / km`
+            : '—',
+          Number.isFinite(seg.cumulativeSecPerKm)
+            ? `${formatDuration(seg.cumulativeSecPerKm)} / km`
+            : '—',
+        ];
+        for (const text of cells) {
+          const td = document.createElement('td');
+          td.className = 'mp__num';
+          td.textContent = text;
+          tr.append(td);
+        }
+        outBody.append(tr);
+      });
+      results.hidden = false;
+      if (live) {
+        const last = segments[segments.length - 1];
+        live.textContent = Number.isFinite(last.cumulativeSecPerKm)
+          ? `${segments.length} legs. Average pace so far ${formatDuration(last.cumulativeSecPerKm)} per kilometre.`
+          : `${segments.length} legs.`;
+      }
+    };
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      run();
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-mp-add]')?.addEventListener('click', () => {
+      const template = rowsBody.querySelector<HTMLElement>('[data-mp-row]');
+      if (!template) return;
+      const clone = template.cloneNode(true) as HTMLElement;
+      const index = rowsBody.querySelectorAll('[data-mp-row]').length;
+      clone.dataset.mpRow = String(index);
+      const th = clone.querySelector('th');
+      if (th) th.textContent = String(index + 1);
+      clone.querySelectorAll<HTMLInputElement>('input').forEach((el, i) => {
+        el.value = '';
+        // Astro's scoped ids are per-element; the labels are aria-label, so only those move.
+        const labels = ['distance', 'hours', 'minutes', 'seconds'];
+        el.setAttribute('aria-label', `Point ${index + 1} ${labels[i] ?? ''}`.trim());
+      });
+      rowsBody.append(clone);
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-mp-reset]')?.addEventListener('click', () => {
+      rowsBody.querySelectorAll<HTMLInputElement>('input').forEach((el) => {
+        el.value = '';
+      });
+      outBody.replaceChildren();
+      results.hidden = true;
+      if (error) error.hidden = true;
+      if (live) live.textContent = '';
+    });
+
+    unitEl.addEventListener('change', () => {
+      if (!results.hidden) run();
+    });
+  });
+</script>

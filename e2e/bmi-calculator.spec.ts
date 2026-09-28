@@ -34,9 +34,9 @@ test.beforeEach(async ({ page }) => {
 test('loads empty: fields blank, result empty, Calculate BMI visible, no announcement', async ({ page }) => {
   await expect(page.locator('[name="heightCm"]')).toHaveValue('');
   await expect(page.locator('[name="weightKg"]')).toHaveValue('');
-  await expect(shell(page)).toHaveAttribute('data-result-state', 'empty');
-  await expect(region(page, 'empty')).toBeVisible();
-  await expect(region(page, 'valid')).toBeHidden();
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+  await expect(region(page, 'empty')).toBeHidden();
+  await expect(region(page, 'valid')).toBeVisible();
   await expect(submit(page)).toBeVisible();
   await expect(submit(page)).toHaveText('Calculate BMI');
   await expect(page.locator('[data-live-note]')).toBeHidden();
@@ -217,10 +217,90 @@ test('mobile stacks inputs → action → result and does not overflow', async (
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test('renders in dark scheme', async ({ page }) => {
+test('an OS set to dark does NOT darken the page — light is the product default', async ({ page }) => {
+  // The site used to follow prefers-color-scheme. It no longer does: light is the
+  // default for everyone, and dark is something the visitor opts into.
   await page.emulateMedia({ colorScheme: 'dark' });
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await calcMetric(page, '175', '70');
+  await expect(value(page)).toBeVisible();
+});
+
+test('renders in dark scheme once the visitor opts in', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('theme', 'dark'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await calcMetric(page, '175', '70');
   await expect(value(page)).toBeVisible();
   const bg = await shell(page).evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg).not.toBe('rgb(255, 255, 255)');
+});
+
+/* ---- Sex selector, gauge and the Other-units converter ------------------- */
+
+test('the sex selector is available in BOTH unit systems', async ({ page }) => {
+  await expect(page.locator('input[name="sex"][value="male"]')).toBeChecked();
+  await expect(page.locator('input[name="sex"][value="female"]')).toBeVisible();
+  await page.click('[data-unit="imperial"]');
+  // It sits outside the unit panels, so switching systems never takes it away.
+  await expect(page.locator('input[name="sex"][value="male"]')).toBeVisible();
+  await expect(page.locator('input[name="sex"][value="female"]')).toBeVisible();
+});
+
+test('sex is recorded but never changes the BMI, category or healthy range', async ({ page }) => {
+  await calcMetric(page, '180', '65');
+  await expect(value(page)).toHaveText('20.1'); // the published reference figure
+  const category = await page.locator('[data-bmi-category]').textContent();
+  const range = await page.locator('[data-bmi-range]').textContent();
+
+  await page.locator('input[name="sex"][value="female"]').check();
+  await page.waitForTimeout(DEBOUNCE);
+  await expect(value(page)).toHaveText('20.1');
+  await expect(page.locator('[data-bmi-category]')).toHaveText(category!);
+  await expect(page.locator('[data-bmi-range]')).toHaveText(range!);
+});
+
+test('the gauge needle moves with the result and agrees with the linear scale', async ({ page }) => {
+  await calcMetric(page, '180', '50'); // underweight
+  const low = await page.locator('[data-bmi-needle]').getAttribute('transform');
+  await page.fill('[name="weightKg"]', '110'); // obese
+  await page.waitForTimeout(DEBOUNCE);
+  const high = await page.locator('[data-bmi-needle]').getAttribute('transform');
+  const angle = (t: string | null) => Number(/rotate\(([-\d.]+)/.exec(t ?? '')?.[1]);
+  expect(angle(high)).toBeGreaterThan(angle(low)); // sweeps left -> right
+  expect(angle(low)).toBeGreaterThanOrEqual(-90);
+  expect(angle(high)).toBeLessThanOrEqual(90);
+});
+
+test('Other Units opens the shared converter, and it never touches the BMI inputs', async ({ page }) => {
+  const toggle = page.locator('[data-converter-toggle]');
+  const panel = page.locator('[data-converter]');
+  await expect(panel).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  await toggle.click();
+  await expect(panel).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  // The same panel body fat and ideal weight use — one converter, one set of factors.
+  const cats = (await page.locator('[data-conv-cat]').allTextContents()).map((t) => t.trim());
+  expect(cats).toEqual(['Length', 'Temperature', 'Area', 'Volume', 'Weight']);
+
+  await page.locator('[data-conv-cat="mass"]').click();
+  await page.locator('[data-conv-from-unit]').selectOption('kg');
+  await page.locator('[data-conv-to-unit]').selectOption('lb');
+  await page.locator('[data-conv-from-value]').fill('80');
+  expect(Number(await page.locator('[data-conv-to-value]').inputValue())).toBeCloseTo(176.37, 1);
+  await expect(page.locator('[data-conv-sentence]')).toContainText('Kilograms');
+  await expect(page.locator('[data-conv-sentence]')).toContainText('Pounds');
+
+  // A helper, not a mode: the calculator keeps its own unit system, fields and result.
+  await expect(page.locator('[data-unit="metric"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[name="heightCm"]')).toHaveValue('');
+  await expect(page.locator('[name="weightKg"]')).toHaveValue('');
+  await expect(shell(page)).toHaveAttribute('data-result-state', 'example');
+
+  await toggle.click();
+  await expect(panel).toBeHidden();
 });

@@ -1,53 +1,133 @@
 ---
 /**
- * Pregnancy island (R14B2 — Gestational follow-on, 2 of 2; task-first migration).
+ * Pregnancy island — the reference's five dating methods, on the UNCHANGED standard-form
+ * runtime.
  *
- * The fleet's SECOND date-input migration. Task-first: the LMP starts EMPTY, the
- * result is empty, and the visitor presses "Calculate Pregnancy Progress" for the
- * first result; live-after-first thereafter. Compute, validation, state,
- * announcement and focus are owned by the shared runtime + the Pregnancy binding
- * (@lib/calculators/pregnancy-form), which wraps the UNCHANGED `pregnancyInfo`
- * engine and the shared date primitives and is fully SELF-CONTAINED (it imports
- * nothing from the Due Date island/binding — the two gestational islands stay
- * independent). The complete-result guard lives in the binding's resultValue (a
- * NaN sentinel → the runtime's default finite gate) — there is NO isUsableResult.
+ * The visitor says how they are dating the pregnancy and only that method's fields appear;
+ * the fields a method does not use leave the form and are emptied, so a date entered under
+ * one route can never reach a result computed under another. Five routes rather than the
+ * due-date calculator's four, because this one can take the due date ITSELF — someone
+ * already carrying a date from their provider wants the schedule that goes with it.
  *
- * The dominant result is the CURRENT gestational age while ongoing (how far along
- * — the calculator's purpose); once the estimated due date has PASSED it becomes
- * the due date with a neutral note and no unbounded progress. Two calculator-owned
- * milestones (LMP+91 and LMP+189) are labelled by the trimester they BEGIN — they
- * are exactly the first days of the 2nd and 3rd trimesters — alongside a
- * calculator-owned progress bar. A future LMP is rejected (the picker max is
- * capped at the visitor's local today client-side AND the binding validates
- * independently).
+ * The dominant result is the CURRENT gestational age while the pregnancy is ongoing (how far
+ * along — the calculator's purpose); once the estimated due date has passed it becomes the
+ * due date, with a neutral note and no unbounded progress. Below it, the whole pregnancy as
+ * a dated schedule with the visitor's own row slotted into it.
  *
- * The medical disclaimer lives INSIDE this island (not only on the page), so the
- * generated embed carries it too — exactly one instance, visible without
- * interaction, outside the result live region.
+ * The medical disclaimer lives INSIDE this island, so the generated embed carries it too —
+ * exactly one instance, visible without interaction, outside the result live region.
  */
+import { PREGNANCY_DATING_METHODS, EMBRYO_AGES, CYCLE_MIN, CYCLE_MAX, REFERENCE_CYCLE_DAYS } from '@lib/calculators/pregnancy-form';
+import { milestones } from '@lib/calculators/due-date';
 import ResultShell from '@components/result/ResultShell.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+
+/** Row labels are static; only the dates and ages change at runtime. */
+const SCHEDULE_ROWS = milestones(new Date(0)).map((m) => ({ key: m.key, label: m.label }));
+
+/** How much each route can be trusted — said out loud rather than implied. */
+const METHOD_NOTES: Record<string, string> = {
+  due: 'Uses the date you were given, and works the whole schedule backwards from it.',
+  lmp: 'Naegele’s rule: 280 days after the first day of your last period. Reliable when your cycles are regular.',
+  ultrasound: 'The most reliable route early on, because the scan measures the pregnancy rather than estimating it.',
+  conception: 'Counts 266 days from conception — the same rule, started two weeks later.',
+  ivf: 'The most precise of the five: the embryo’s age on transfer day is known exactly, not estimated.',
+};
 ---
 
 <div class="pregnancy mx-auto w-full max-w-4xl" data-pregnancy>
-  <div class="grid gap-6 md:grid-cols-2 md:items-start">
+  <!-- The result carries the dominant figure and a 3-column schedule, so it gets the wider
+       half; the form's fields are narrow and have slack to give. -->
+  <div class="grid gap-6 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:items-start">
     <!-- Input -->
     <form class="card p-4" data-form novalidate aria-label="Pregnancy calculator">
-      <label class="field-label" for="pg-lmp">First day of your last period (LMP)</label>
-      <input
-        class="field mt-1"
-        id="pg-lmp"
-        name="lmp"
-        type="date"
-        autocomplete="off"
-        aria-describedby="pg-help pg-lmp-error"
-      />
-      <p class="pg-field-error" id="pg-lmp-error" data-error-for="lmp" hidden></p>
-      <p class="pg-help" id="pg-help">
-        Pregnancy is dated from the first day of your last period (LMP) — about two weeks before conception.
-      </p>
+      <fieldset class="pg-methods" data-field="method">
+        <legend class="field-label pg-methods__legend">Calculate based on</legend>
+        <div class="pg-radios">
+          {PREGNANCY_DATING_METHODS.map((m, i) => (
+            <label class="pg-radio"><input type="radio" name="method" value={m.value} checked={i === 0} /><span>{m.label}</span></label>
+          ))}
+        </div>
+      </fieldset>
+
+      <!-- Due Date -->
+      <div data-method-group="due">
+        <div class="pg-row" data-field="dueDate">
+          <label class="field-label pg-row__label" for="pg-due-date">Your estimated due date</label>
+          <input class="field pg-date" id="pg-due-date" name="dueDate" type="date" autocomplete="off" aria-describedby="pg-dueDate-error" />
+        </div>
+        <p class="pg-field-error" id="pg-dueDate-error" data-error-for="dueDate" hidden></p>
+      </div>
+
+      <!-- Last Period -->
+      <div data-method-group="lmp" hidden>
+        <div class="pg-row" data-field="lmp">
+          <label class="field-label pg-row__label" for="pg-lmp">First day of your last period</label>
+          <input class="field pg-date" id="pg-lmp" name="lmp" type="date" autocomplete="off" aria-describedby="pg-lmp-error" />
+        </div>
+        <p class="pg-field-error" id="pg-lmp-error" data-error-for="lmp" hidden></p>
+
+        <div class="pg-row" data-field="cycleDays">
+          <label class="field-label pg-row__label" for="pg-cycle">Average length of your cycles</label>
+          <div class="pg-inputs">
+            <input class="field pg-num" id="pg-cycle" name="cycleDays" type="number" min={CYCLE_MIN} max={CYCLE_MAX} step="1" inputmode="numeric" autocomplete="off" placeholder={String(REFERENCE_CYCLE_DAYS)} aria-describedby="pg-cycleDays-error" />
+            <span class="pg-unit">days (optional)</span>
+          </div>
+        </div>
+        <p class="pg-field-error" id="pg-cycleDays-error" data-error-for="cycleDays" hidden></p>
+      </div>
+
+      <!-- Ultrasound -->
+      <div data-method-group="ultrasound" hidden>
+        <div class="pg-row" data-field="scanDate">
+          <label class="field-label pg-row__label" for="pg-scan">Date of the ultrasound</label>
+          <input class="field pg-date" id="pg-scan" name="scanDate" type="date" autocomplete="off" aria-describedby="pg-scanDate-error" />
+        </div>
+        <p class="pg-field-error" id="pg-scanDate-error" data-error-for="scanDate" hidden></p>
+
+        <div class="pg-row" data-field="scanAge">
+          <label class="field-label pg-row__label" for="pg-scan-weeks">Length of pregnancy at that time</label>
+          <div class="pg-inputs">
+            <input class="field pg-num" id="pg-scan-weeks" name="scanWeeks" type="number" min="0" max="42" step="1" inputmode="numeric" autocomplete="off" placeholder="12" aria-label="Scan weeks" aria-describedby="pg-scanAge-error" />
+            <span class="pg-unit">weeks</span>
+            <input class="field pg-num" name="scanDays" type="number" min="0" max="6" step="1" inputmode="numeric" autocomplete="off" placeholder="3" aria-label="Scan days" aria-describedby="pg-scanAge-error" />
+            <span class="pg-unit">days</span>
+          </div>
+        </div>
+        <p class="pg-field-error" id="pg-scanAge-error" data-error-for="scanAge" hidden></p>
+      </div>
+
+      <!-- Conception Date -->
+      <div data-method-group="conception" hidden>
+        <div class="pg-row" data-field="conception">
+          <label class="field-label pg-row__label" for="pg-conception">Conception date</label>
+          <input class="field pg-date" id="pg-conception" name="conception" type="date" autocomplete="off" aria-describedby="pg-conception-error" />
+        </div>
+        <p class="pg-field-error" id="pg-conception-error" data-error-for="conception" hidden></p>
+      </div>
+
+      <!-- IVF Transfer Date -->
+      <div data-method-group="ivf" hidden>
+        <div class="pg-row" data-field="transferDate">
+          <label class="field-label pg-row__label" for="pg-transfer">IVF transfer date</label>
+          <input class="field pg-date" id="pg-transfer" name="transferDate" type="date" autocomplete="off" aria-describedby="pg-transferDate-error" />
+        </div>
+        <p class="pg-field-error" id="pg-transferDate-error" data-error-for="transferDate" hidden></p>
+
+        <div class="pg-row" data-field="embryoAge">
+          <label class="field-label pg-row__label" for="pg-embryo">Embryo age at transfer</label>
+          <select class="field pg-select" id="pg-embryo" name="embryoAge">
+            {EMBRYO_AGES.map((e) => (
+              <option value={e.value} selected={e.value === 5}>{e.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <p class="pg-help" data-pg-method-note>{METHOD_NOTES.due}</p>
 
       <div class="mt-5 flex items-center gap-3">
         <button type="submit" class="btn btn-primary" data-pg-submit>Calculate Pregnancy Progress</button>
@@ -65,7 +145,8 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
       minHeight="18rem"
       placeholderAlignment="center"
     >
-      <EmptyResult message="Enter the first day of your last period and calculate how far along you are." />
+    <ExampleNotice />
+      <EmptyResult message="Choose how you are dating the pregnancy, fill in that method's dates, and calculate." />
 
       <div data-result-when="valid">
         <!-- Dominant: current gestational age (ongoing) / estimated due date (past-due) -->
@@ -88,18 +169,32 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
           <p class="pg-remaining" data-pg-remaining></p>
         </div>
 
-        <!-- Supporting: source-confirmed milestone timeline -->
-        <dl class="pg-timeline mt-5">
-          <div class="pg-row"><dt>Conception (est.)</dt><dd data-pg-conception>—</dd></div>
-          <div class="pg-row"><dt>Second trimester begins</dt><dd data-pg-second>—</dd></div>
-          <div class="pg-row"><dt>Third trimester begins</dt><dd data-pg-third>—</dd></div>
-          <div class="pg-row pg-row--due"><dt>Estimated due date</dt><dd data-pg-due>—</dd></div>
-        </dl>
+        <!-- Supporting: the whole pregnancy as a dated schedule, with the visitor's own row -->
+        <table class="pg-schedule">
+          <caption class="pg-schedule__caption">Your pregnancy schedule</caption>
+          <thead>
+            <tr><th scope="col">Milestone</th><th scope="col">Date</th><th scope="col" class="pg-numeric">Gestational age</th></tr>
+          </thead>
+          <tbody>
+            {SCHEDULE_ROWS.map((row) => (
+              <tr data-pg-row={row.key}>
+                <th scope="row">{row.label}</th>
+                <td data-pg-row-date>—</td>
+                <td class="pg-numeric" data-pg-row-age>—</td>
+              </tr>
+            ))}
+            <tr class="pg-schedule__today" data-pg-row="today" hidden>
+              <th scope="row">Today</th>
+              <td data-pg-row-date>—</td>
+              <td class="pg-numeric" data-pg-row-age>—</td>
+            </tr>
+          </tbody>
+        </table>
 
         <p class="pg-interpretation" data-pg-interpretation></p>
       </div>
 
-      <InvalidResult title="Check the date" message="Enter your last menstrual period date." />
+      <InvalidResult title="Check the dates" message="Fill in the dates the method you chose asks for." />
 
       <ResultAnnouncement id="pg-live" />
     </ResultShell>
@@ -111,6 +206,71 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 </div>
 
 <style>
+  .pg-methods {
+    border: 0;
+    margin: 0 0 0.4rem;
+    padding: 0;
+  }
+  .pg-methods__legend {
+    display: block;
+    margin: 0 0 0.1rem;
+    padding: 0;
+    font-size: 0.86rem;
+  }
+  /* A tidy grid at the workspace's column width instead of a ragged final row. */
+  .pg-radios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 0.1rem 0.9rem;
+  }
+  .pg-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+    font-size: 0.86rem;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .pg-radio input {
+    width: 1.05rem;
+    height: 1.05rem;
+    flex: none;
+    accent-color: var(--color-brand-600);
+  }
+
+  .pg-row {
+    padding: 0.3rem 0;
+  }
+  .pg-row__label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.86rem;
+  }
+  .pg-date {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+  .pg-select {
+    min-height: 2.75rem;
+    font-size: 0.86rem;
+  }
+  .pg-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .pg-num {
+    width: 4.5rem;
+    min-height: 2.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .pg-unit {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
   .pg-field-error {
     margin-top: 0.3rem;
     font-size: 0.8rem;
@@ -127,6 +287,15 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
   .pg-headline { margin-top: 0.25rem; font-size: 1.75rem; line-height: 1.15; font-weight: 800; color: var(--heading); }
   @media (min-width: 640px) { .pg-headline { font-size: 2rem; } }
+  /* Past due, the dominant slot holds a full weekday date instead of a short duration. The
+     longest is "Wednesday, September 30, 2027"; scale it to the column rather than let it
+     orphan the year, and balance the wrap on the narrow viewports where it still breaks. */
+  .pg-headline[data-kind='date'] {
+    font-size: clamp(1.1875rem, 1.6vw + 0.5rem, 1.625rem);
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  @media (min-width: 640px) { .pg-headline[data-kind='date'] { font-size: clamp(1.1875rem, 1.6vw + 0.5rem, 1.625rem); } }
 
   .pg-secondary {
     display: grid;
@@ -157,19 +326,75 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   }
   @media (prefers-reduced-motion: reduce) { .pg-bar { transition: none; } }
 
-  .pg-timeline { display: grid; grid-template-columns: 1fr; gap: 0.5rem; margin: 0; }
-  .pg-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background: var(--subtle);
-    font-size: 0.875rem;
+  .pg-schedule {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.25rem;
+    font-size: 0.82rem;
   }
-  .pg-row dt { color: var(--muted); }
-  .pg-row dd { margin: 0; font-weight: 600; color: var(--heading); }
-  .pg-row--due dd { color: var(--color-brand-700); }
+  .pg-schedule__caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.35rem;
+  }
+  .pg-schedule th,
+  .pg-schedule td {
+    padding: 0.3rem 0.6rem 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  .pg-schedule th:last-child,
+  .pg-schedule td:last-child {
+    padding-right: 0;
+  }
+  .pg-schedule thead th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .pg-schedule tbody th {
+    font-weight: 500;
+    color: var(--fg);
+  }
+  .pg-schedule tbody td {
+    font-weight: 600;
+    color: var(--heading);
+    white-space: nowrap;
+  }
+  /* nowrap belongs to the values, not the header: "Gestational age" would otherwise hold
+     the column open and fold every date onto two lines on a phone. */
+  .pg-numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The visitor's own row. Marked by weight and a rule as well as colour, never by colour
+     alone, and the row header carries the word "Today" so it never depends on styling. */
+  .pg-schedule__today th,
+  .pg-schedule__today td {
+    background: var(--subtle);
+    color: var(--color-brand-700);
+    font-weight: 700;
+    border-top: 2px solid var(--color-brand-600);
+    border-bottom-color: var(--color-brand-600);
+  }
+  :root[data-theme='dark'] .pg-schedule__today th,
+  :root[data-theme='dark'] .pg-schedule__today td {
+    color: var(--color-brand-200);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .pg-schedule__today th,
+    :root:not([data-theme='light']) .pg-schedule__today td {
+      color: var(--color-brand-200);
+    }
+  }
 
   .pg-interpretation { margin: 0.9rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--fg); }
 
@@ -184,46 +409,103 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { pregnancyBinding, todayISO } from '@lib/calculators/pregnancy-form';
+  import { pregnancyBinding, pregnancyExampleValues, todayISO } from '@lib/calculators/pregnancy-form';
+
+  const METHOD_NOTES: Record<string, string> = {
+    due: 'Uses the date you were given, and works the whole schedule backwards from it.',
+    lmp: 'Naegele’s rule: 280 days after the first day of your last period. Reliable when your cycles are regular.',
+    ultrasound: 'The most reliable route early on, because the scan measures the pregnancy rather than estimating it.',
+    conception: 'Counts 266 days from conception — the same rule, started two weeks later.',
+    ivf: 'The most precise of the five: the embryo’s age on transfer day is known exactly, not estimated.',
+  };
 
   document.querySelectorAll<HTMLElement>('[data-pregnancy]').forEach((root) => {
-    // Cap the picker at the visitor's local today so a future LMP can't be
-    // selected; the binding rejects a future LMP independently.
-    const input = root.querySelector<HTMLInputElement>('#pg-lmp');
-    if (input) input.max = todayISO();
-
     mountFormCalculator(root, pregnancyBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: pregnancyExampleValues() },
       calculateButtonLabel: 'Calculate Pregnancy Progress',
     });
 
-    // Clear the stale result whenever the shell leaves the valid state (an invalid
-    // live edit, or Reset), so no stale progress lingers behind the hidden valid
-    // region. Presentation only — the runtime still owns state + announcement.
+    /**
+     * Every date here except the due date is one that has already happened, so cap those
+     * pickers at the visitor's own today. The due date is the exception — it is normally
+     * ahead of them — so it is capped at the furthest one a pregnancy could have, 280 days
+     * out, which is the same as saying the last period cannot be in the future. The binding
+     * validates all of this independently; this only saves the round trip.
+     */
+    const today = todayISO();
+    const furthestDue = new Date(Date.parse(`${today}T00:00:00Z`) + 280 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    root.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach((el) => {
+      el.max = el.name === 'dueDate' ? furthestDue : today;
+    });
+
+    /**
+     * Only the chosen method's fields are on screen, and the ones that leave are emptied —
+     * a date the visitor typed under one method must never reach a result computed under
+     * another.
+     */
+    const note = root.querySelector<HTMLElement>('[data-pg-method-note]');
+    const syncMethod = () => {
+      const method = root.querySelector<HTMLInputElement>('[name="method"]:checked')?.value ?? 'due';
+      root.querySelectorAll<HTMLElement>('[data-method-group]').forEach((group) => {
+        const wanted = group.dataset.methodGroup === method;
+        group.hidden = !wanted;
+        if (wanted) return;
+        group.querySelectorAll<HTMLInputElement>('input').forEach((el) => {
+          el.value = '';
+        });
+        group.querySelectorAll<HTMLElement>('[data-field]').forEach((row) => {
+          const err = root.querySelector<HTMLElement>(`[data-error-for="${row.dataset.field}"]`);
+          if (err) err.hidden = true;
+        });
+      });
+      if (note) note.textContent = METHOD_NOTES[method] ?? '';
+    };
+    root.querySelectorAll<HTMLInputElement>('[name="method"]').forEach((r) =>
+      r.addEventListener('change', syncMethod),
+    );
+    syncMethod();
+
+    // Reset restores the radio silently, so re-derive which fields are on screen.
+    root.addEventListener('calculator:reset', syncMethod);
+
+    /**
+     * Clear the stale result whenever the shell leaves the valid state (an invalid live
+     * edit, or Reset), so no stale progress or schedule lingers behind the hidden valid
+     * region. Presentation only — the runtime still owns state, focus and announcement.
+     */
     const shell = root.querySelector<HTMLElement>('[data-result-shell]');
     if (shell) {
       const clear = () => {
-        ['[data-pg-headline]', '[data-pg-trimester]', '[data-pg-due-secondary]', '[data-pg-conception]', '[data-pg-second]', '[data-pg-third]', '[data-pg-due]'].forEach((sel) => {
-          const el = root.querySelector<HTMLElement>(sel);
-          if (el) el.textContent = '—';
-        });
+        root
+          .querySelectorAll<HTMLElement>(
+            '[data-pg-headline], [data-pg-trimester], [data-pg-due-secondary], [data-pg-row-date], [data-pg-row-age]',
+          )
+          .forEach((el) => {
+            el.textContent = '—';
+          });
         ['[data-pg-remaining]', '[data-pg-interpretation]'].forEach((sel) => {
           const el = root.querySelector<HTMLElement>(sel);
           if (el) el.textContent = '';
         });
         const label = root.querySelector<HTMLElement>('[data-pg-headline-label]');
         if (label) label.textContent = 'Pregnancy progress';
+        const headline = root.querySelector<HTMLElement>('[data-pg-headline]');
+        if (headline) headline.dataset.kind = 'progress';
         const bar = root.querySelector<HTMLElement>('[data-pg-bar]');
         if (bar) bar.style.width = '0%';
         ['[data-pg-secondary]', '[data-pg-progress]'].forEach((sel) => {
           const el = root.querySelector<HTMLElement>(sel);
           if (el) el.hidden = false;
         });
+        const todayRow = root.querySelector<HTMLElement>('[data-pg-row="today"]');
+        if (todayRow) todayRow.hidden = true;
       };
-      const observer = new MutationObserver(() => {
+      new MutationObserver(() => {
         if (shell.dataset.resultState !== 'valid') clear();
-      });
-      observer.observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
+      }).observe(shell, { attributes: true, attributeFilter: ['data-result-state'] });
     }
   });
 </script>

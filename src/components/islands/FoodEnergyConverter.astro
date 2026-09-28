@@ -1,0 +1,202 @@
+---
+/**
+ * Food Energy Converter — the reference's second calculator, sitting under the first.
+ *
+ * A converter, not a calculator of the body: it turns a food-energy figure into another
+ * unit. It is deliberately its own island with its own form, its own primary action and its
+ * own result, so neither tool can steal the other's Calculate button — and so the two
+ * guides that embed only `<CalorieCalculator />` do not silently gain a second tool.
+ *
+ * The converter family behavior applies (ratified decision 2): a neutral value of 1 and an
+ * immediate conversion, rather than an empty box waiting to be filled.
+ */
+import { FOOD_ENERGY_UNITS, DEFAULT_FOOD_ENERGY_FROM, DEFAULT_FOOD_ENERGY_TO } from '@lib/calculators/food-energy';
+---
+
+<section class="fe" data-food-energy aria-labelledby="fe-title">
+  <h2 class="fe__title" id="fe-title">Food Energy Converter</h2>
+  <p class="fe__lede">
+    The following converter can be used to convert between Calories and other common food
+    energy units.
+  </p>
+
+  <form class="card fe__form" data-fe-form novalidate>
+    <div class="fe__row">
+      <input
+        class="field fe__value"
+        id="fe-value"
+        name="feValue"
+        type="number"
+        step="any"
+        inputmode="decimal"
+        autocomplete="off"
+        value="1"
+        aria-label="Value to convert"
+      />
+      <select class="field fe__unit" name="feFrom" aria-label="Convert from unit">
+        {FOOD_ENERGY_UNITS.map((u) => (
+          <option value={u.key} selected={u.key === DEFAULT_FOOD_ENERGY_FROM}>{u.label}</option>
+        ))}
+      </select>
+      <span class="fe__eq" aria-hidden="true">=</span>
+      <output class="fe__out" for="fe-value" data-fe-out>—</output>
+      <select class="field fe__unit" name="feTo" aria-label="Convert to unit">
+        {FOOD_ENERGY_UNITS.map((u) => (
+          <option value={u.key} selected={u.key === DEFAULT_FOOD_ENERGY_TO}>{u.label}</option>
+        ))}
+      </select>
+    </div>
+    <p class="fe__error" data-fe-error hidden>Enter a number to convert.</p>
+    <p class="sr-only" role="status" aria-live="polite" data-fe-live></p>
+
+    <div class="fe__actions">
+      <button type="submit" class="btn btn-primary">Calculate</button>
+      <button type="button" class="btn btn-secondary" data-fe-reset>Clear</button>
+    </div>
+  </form>
+</section>
+
+<style>
+  .fe {
+    margin: 1.5rem auto 0;
+    width: 100%;
+    max-width: 56rem;
+  }
+  .fe__title {
+    margin: 0 0 0.3rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--heading);
+  }
+  .fe__lede {
+    margin: 0 0 0.7rem;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+  .fe__form {
+    padding: 1rem;
+  }
+  .fe__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .fe__value {
+    flex: 0 0 auto;
+    width: 5rem;
+    min-height: 2.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  /* The two unit lists share whatever is left, so the whole converter stays on one line at
+     the prose width the page gives it and wraps only when there is genuinely no room. */
+  .fe__unit {
+    flex: 1 1 9rem;
+    min-width: 0;
+    min-height: 2.75rem;
+    font-size: 0.82rem;
+  }
+  .fe__eq {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .fe__out {
+    flex: 0 0 auto;
+    min-width: 4.5rem;
+    text-align: right;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--color-brand-700);
+    font-variant-numeric: tabular-nums;
+  }
+  :root[data-theme='dark'] .fe__out {
+    color: var(--color-brand-300);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .fe__out {
+      color: var(--color-brand-300);
+    }
+  }
+  .fe__error {
+    margin: 0.4rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+  :root[data-theme='dark'] .fe__error {
+    color: #fca5a5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .fe__error {
+      color: #fca5a5;
+    }
+  }
+  .fe__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+  }
+</style>
+
+<script>
+  import {
+    convertFoodEnergy,
+    formatFoodEnergy,
+    foodEnergyUnit,
+    DEFAULT_FOOD_ENERGY_FROM,
+    DEFAULT_FOOD_ENERGY_TO,
+  } from '@lib/calculators/food-energy';
+
+  document.querySelectorAll<HTMLElement>('[data-food-energy]').forEach((root) => {
+    const form = root.querySelector<HTMLFormElement>('[data-fe-form]');
+    const value = root.querySelector<HTMLInputElement>('[name="feValue"]');
+    const from = root.querySelector<HTMLSelectElement>('[name="feFrom"]');
+    const to = root.querySelector<HTMLSelectElement>('[name="feTo"]');
+    const out = root.querySelector<HTMLElement>('[data-fe-out]');
+    const error = root.querySelector<HTMLElement>('[data-fe-error]');
+    const live = root.querySelector<HTMLElement>('[data-fe-live]');
+    const reset = root.querySelector<HTMLButtonElement>('[data-fe-reset]');
+    if (!form || !value || !from || !to || !out) return;
+
+    /** Convert, or say plainly that there is nothing to convert. Never prints NaN. */
+    const run = (announce: boolean) => {
+      const raw = value.value.trim();
+      const n = Number(raw);
+      const bad = raw === '' || !Number.isFinite(n);
+      if (error) error.hidden = !bad;
+      value.setAttribute('aria-invalid', String(bad));
+      if (bad) {
+        out.textContent = '—';
+        if (live && announce) live.textContent = 'Enter a number to convert.';
+        return;
+      }
+      const converted = convertFoodEnergy(n, from.value, to.value);
+      out.textContent = formatFoodEnergy(converted);
+      if (live && announce) {
+        live.textContent = `${raw} ${foodEnergyUnit(from.value)?.label} equals ${formatFoodEnergy(converted)} ${foodEnergyUnit(to.value)?.label}.`;
+      }
+    };
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      run(true);
+    });
+    // Converter-family behavior: an immediate answer, kept live as the visitor edits.
+    for (const el of [value, from, to]) el.addEventListener('input', () => run(false));
+    for (const el of [from, to]) el.addEventListener('change', () => run(false));
+
+    reset?.addEventListener('click', () => {
+      value.value = '1';
+      from.value = DEFAULT_FOOD_ENERGY_FROM;
+      to.value = DEFAULT_FOOD_ENERGY_TO;
+      if (live) live.textContent = '';
+      run(false);
+      value.focus();
+    });
+
+    run(false);
+  });
+</script>

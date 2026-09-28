@@ -2,9 +2,9 @@
 /**
  * BMI calculator island (R2 — standard-form runtime pilot).
  *
- * Direct-intent, task-first: personal fields start EMPTY, the result panel is
- * empty (an instruction, no sample BMI), and the visitor presses "Calculate BMI"
- * for the first result. After that first success, edits update automatically
+ * Direct-intent, task-first: personal fields start EMPTY and STAY empty behind a
+ * labelled worked example the shared runtime renders into this island's own
+ * valid region; the visitor presses "Calculate BMI" for their first result. After that first success, edits update automatically
  * (live-after-first). All interaction, validation, state, announcements and
  * focus are owned by the shared runtime (@lib/result/form-runtime); this island
  * is only markup + the tiny BMI binding (@lib/calculators/bmi-form).
@@ -17,19 +17,42 @@ import ResultBreakdown from '@components/result/ResultBreakdown.astro';
 import EmptyResult from '@components/result/EmptyResult.astro';
 import InvalidResult from '@components/result/InvalidResult.astro';
 import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
+import ExampleNotice from '@components/result/ExampleNotice.astro';
+import UnitConverterPanel from '@components/calc/UnitConverterPanel.astro';
 ---
 
-<div class="bmi mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-2 md:items-start" data-bmi>
+<div class="bmiwrap mx-auto w-full max-w-4xl" data-bmi>
+  <UnitConverterPanel id="bmi-converter" />
+
+  <div class="bmi grid gap-6 md:grid-cols-2 md:items-start">
   <!-- Inputs -->
   <form class="card p-4" data-form novalidate aria-label="BMI calculator">
-    <div
-      class="inline-flex rounded-lg border p-0.5"
-      role="radiogroup"
-      aria-label="Unit system"
-      style="border-color: var(--line)"
-    >
-      <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
-      <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial (US)</button>
+    <div class="bmi-controls">
+      <div class="seg-group" role="radiogroup" aria-label="Sex">
+        <label class="seg"><input type="radio" name="sex" value="male" checked /><span>Male</span></label>
+        <label class="seg"><input type="radio" name="sex" value="female" /><span>Female</span></label>
+      </div>
+
+      <div
+        class="inline-flex rounded-lg border p-0.5"
+        role="radiogroup"
+        aria-label="Unit system"
+        style="border-color: var(--line)"
+      >
+        <button type="button" class="unit-btn is-active" data-unit="metric" role="radio" aria-checked="true">Metric</button>
+        <button type="button" class="unit-btn" data-unit="imperial" role="radio" aria-checked="false">Imperial (US)</button>
+      </div>
+
+      <!-- A HELPER, not a third unit system: it opens the SHARED converter panel
+           above and leaves the calculator on whichever system is selected here.
+           Hence a toggle button with aria-expanded, never a third radio. -->
+      <button
+        type="button"
+        class="unit-btn bmi-other-toggle"
+        data-converter-toggle
+        aria-expanded="false"
+        aria-controls="bmi-converter"
+      >Other Units</button>
     </div>
 
     <!-- Metric -->
@@ -149,12 +172,12 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
        empty/invalid placeholders so the reserved card reads as intentional. -->
   <ResultShell
     id="bmi-result"
-    state="empty"
     density="standard"
     label="Your BMI result"
     minHeight="22rem"
     placeholderAlignment="center"
   >
+    <ExampleNotice />
     <EmptyResult message="Enter your height and weight, then calculate your BMI." />
 
     <div data-result-when="valid">
@@ -165,14 +188,38 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
         <strong data-bmi-category>—</strong> <span data-bmi-phrase style="color: var(--muted)"></span>
       </ResultInterpretation>
 
-      <!-- Category scale. Decorative; the category NAME above carries meaning,
-           so classification never relies on colour alone. -->
+      <!-- Category gauge. DECORATIVE: the category NAME above already carries the
+           classification in words, so nothing here is meaning-by-colour-alone. The
+           needle angle comes from the same tested markerPosition() as the bar
+           below, so the two readings can never disagree. -->
+      <figure class="bmi-gauge" aria-hidden="true">
+        <svg viewBox="0 0 200 118" role="presentation" focusable="false">
+          <!-- Bands, underweight -> obesity. The arc breakpoints are the SAME 14 /
+               40 / 60 percent stops as the linear scale's gradient below, so the
+               needle can never point at one band while the bar shows another. -->
+          <g fill="none" stroke-width="18" stroke-linecap="butt">
+            <path d="M 15 100 A 85 85 0 0 1 23.09 63.81" stroke="#3b82f6" />
+            <path d="M 23.09 63.81 A 85 85 0 0 1 73.73 19.16" stroke="#059669" />
+            <path d="M 73.73 19.16 A 85 85 0 0 1 126.27 19.16" stroke="#f59e0b" />
+            <path d="M 126.27 19.16 A 85 85 0 0 1 185 100" stroke="#e11d48" />
+          </g>
+          <!-- Needle: rotated about the hub by the binding. The BMI number itself is
+               NOT repeated inside the gauge — it is already the dominant value
+               directly above, and a second copy would only crowd the needle. -->
+          <g data-bmi-needle transform="rotate(-90 100 100)">
+            <line x1="100" y1="100" x2="100" y2="34" stroke="var(--heading)" stroke-width="3" stroke-linecap="round" />
+          </g>
+          <circle cx="100" cy="100" r="6" fill="var(--heading)" />
+        </svg>
+        <figcaption class="bmi-gauge__labels">
+          <span>Under</span><span>Normal</span><span>Over</span><span>Obese</span>
+        </figcaption>
+      </figure>
+
+      <!-- The linear scale stays as the precise reading beneath the gauge. -->
       <div class="bmi-scale" aria-hidden="true">
         <div class="bmi-scale__bar">
           <span class="bmi-scale__marker" data-bmi-marker style="left: 0%"></span>
-        </div>
-        <div class="bmi-scale__labels">
-          <span>Under</span><span>Normal</span><span>Over</span><span>Obese</span>
         </div>
       </div>
 
@@ -192,9 +239,11 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     <ResultAnnouncement id="bmi-live" />
   </ResultShell>
 </div>
+</div>
 
 <style>
   .unit-btn {
+    min-height: 2.75rem;
     padding: 0.35rem 0.9rem;
     border-radius: 0.45rem;
     font-size: 0.85rem;
@@ -205,6 +254,79 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
   .unit-btn.is-active {
     background: var(--color-brand-600);
     color: #fff;
+  }
+
+  /* Controls row: sex + unit system + the Other-units toggle. */
+  .bmi-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .seg-group {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    padding: 0.125rem;
+  }
+  .seg {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+  .seg input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+  .seg span {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .seg:has(input:checked) span {
+    background: var(--color-brand-600);
+    color: #fff;
+  }
+  .seg:has(input:focus-visible) span {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  .bmi-other-toggle {
+    border: 1px solid var(--line);
+  }
+  .bmi-other-toggle[aria-expanded='true'] {
+    background: var(--color-brand-600);
+    border-color: var(--color-brand-600);
+    color: #fff;
+  }
+
+  /* Other units — a converter helper, visually subordinate to the real inputs. */
+  /* Category gauge. */
+  .bmi-gauge {
+    margin: 1rem 0 0;
+  }
+  .bmi-gauge svg {
+    display: block;
+    width: 100%;
+    max-width: 17rem;
+    margin: 0 auto;
+    height: auto;
+  }
+  .bmi-gauge__labels {
+    display: flex;
+    justify-content: space-between;
+    max-width: 17rem;
+    margin: 0.15rem auto 0;
+    font-size: 0.7rem;
+    color: var(--muted);
   }
 
   .bmi-field-error {
@@ -256,6 +378,17 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
     color: var(--muted);
   }
 
+  .bmi-example-category {
+    margin: 0.5rem 0 0;
+    font-size: 0.95rem;
+  }
+  .bmi-example-range {
+    margin: 0.85rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--fg);
+  }
+
   .bmi-footnote {
     margin-top: 1rem;
     font-size: 0.8rem;
@@ -266,12 +399,16 @@ import ResultAnnouncement from '@components/result/ResultAnnouncement.astro';
 
 <script>
   import { mountFormCalculator } from '@lib/result/form-runtime';
-  import { bmiBinding } from '@lib/calculators/bmi-form';
+  import { mountUnitConverterPanel } from '@lib/calculators/unit-converter-panel';
+  import { bmiBinding, BMI_EXAMPLE_VALUES } from '@lib/calculators/bmi-form';
 
-  document.querySelectorAll<HTMLElement>('[data-bmi]').forEach((root) =>
+  document.querySelectorAll<HTMLElement>('[data-bmi]').forEach((root) => {
+    // The "Other Units" converter, shared with body fat and ideal weight.
+    mountUnitConverterPanel(root);
     mountFormCalculator(root, bmiBinding, {
       recalculationMode: 'live-after-first',
+      example: { values: BMI_EXAMPLE_VALUES },
       calculateButtonLabel: 'Calculate BMI',
-    }),
-  );
+    });
+  });
 </script>

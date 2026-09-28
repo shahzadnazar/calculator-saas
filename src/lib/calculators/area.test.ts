@@ -1,144 +1,233 @@
 import { describe, it, expect } from 'vitest';
-import { calculateArea, AREA_SHAPES, type AreaShapeKey } from './area';
+import {
+  formatArea,
+  squaredLabel,
+  areaRectangle,
+  areaTriangle,
+  semiPerimeter,
+  areaTrapezoid,
+  areaCircle,
+  areaSector,
+  areaEllipse,
+  areaParallelogram,
+  areaSteps,
+  type AreaShapeKey,
+} from './area';
 
 /**
- * Area formula characterization (R12B1 Commit 1). Freezes the EXACT behaviour of the UNCHANGED
- * `calculateArea` and the `AREA_SHAPES` config ahead of the task-first migration (geometry shape-picker
- * pilot). Test-only: no change to the shape identifiers, the per-shape formulas, the `Math.max(0, d[k]||0)`
- * normalization, or the return shape (a plain number). Consolidated out of the shared `gaps.test.ts`
- * (which keeps its `volume` block); coverage is EXPANDED, never reduced (parallelogram + ellipse were
- * previously unasserted).
+ * The seven areas, the working they show, and the number format.
  *
- * Frozen normalization — `v(k) = Math.max(0, d[k] || 0)`:
- *   • 0 / negative / NaN / undefined / missing key → 0;
- *   • −Infinity → 0 (Math.max floor);
- *   • +Infinity → +Infinity (truthy, survives Math.max) → the area propagates to Infinity, NOT clamped;
- *   • an unknown shape key → NaN (the default branch; unreachable from the typed <select>, frozen directly).
- * The future binding will REJECT the domains the pure formula silently clamps (0 / negative / non-finite);
- * this suite freezes the formula as-is, not the future field validation.
+ * The reference-figure block at the end is the load-bearing part: each is a value the reference
+ * prints for the stated inputs. The triangle in particular pins down the rounding rule — fourteen
+ * significant figures, not ten decimal places, which would print 666.5852814907 instead.
  */
 
-/* ------------------------------------------------------------------ */
-/* Shape config                                                        */
-/* ------------------------------------------------------------------ */
+describe('formatArea', () => {
+  it('prints fourteen significant figures with trailing zeros stripped', () => {
+    expect(formatArea(600)).toBe('600');
+    expect(formatArea(Math.PI * 900)).toBe('2827.4333882308');
+    expect(formatArea(Math.sqrt(444335.9375))).toBe('666.58528149067');
+  });
 
-describe('AREA_SHAPES config', () => {
-  it('is exactly the seven supported shapes, in order', () => {
-    expect(AREA_SHAPES.map((s) => s.key)).toEqual([
-      'rectangle', 'square', 'triangle', 'circle', 'trapezoid', 'parallelogram', 'ellipse',
-    ]);
+  it('strips a trailing zero at the fourteenth figure', () => {
+    // 225π is 706.858347057703…, whose 14th significant figure is a zero.
+    expect(formatArea(225 * Math.PI)).toBe('706.8583470577');
   });
-  it('freezes each shape label and its required input keys + labels', () => {
-    const matrix = AREA_SHAPES.map((s) => [s.key, s.label, s.inputs.map((i) => `${i.key}:${i.label}`).join(',')]);
-    expect(matrix).toEqual([
-      ['rectangle', 'Rectangle', 'length:Length,width:Width'],
-      ['square', 'Square', 'side:Side'],
-      ['triangle', 'Triangle', 'base:Base,height:Height'],
-      ['circle', 'Circle', 'radius:Radius'],
-      ['trapezoid', 'Trapezoid', 'a:Base a,b:Base b,height:Height'],
-      ['parallelogram', 'Parallelogram', 'base:Base,height:Height'],
-      ['ellipse', 'Ellipse', 'a:Semi-axis a,b:Semi-axis b'],
-    ]);
+
+  it('is not ten decimal places', () => {
+    expect(formatArea(Math.sqrt(444335.9375))).not.toBe('666.5852814907');
   });
-  it('reuses dimension keys across shapes with distinct labels (base/height/a/b)', () => {
-    const label = (shape: AreaShapeKey, key: string) =>
-      AREA_SHAPES.find((s) => s.key === shape)!.inputs.find((i) => i.key === key)!.label;
-    expect(label('trapezoid', 'a')).toBe('Base a');
-    expect(label('ellipse', 'a')).toBe('Semi-axis a'); // same key 'a', different meaning
-    expect(label('triangle', 'base')).toBe('Base');
-    expect(label('parallelogram', 'base')).toBe('Base');
+
+  it('handles zero and never prints a non-finite figure', () => {
+    expect(formatArea(0)).toBe('0');
+    expect(formatArea(Number.NaN)).toBe('—');
+    expect(formatArea(Number.POSITIVE_INFINITY)).toBe('—');
+    expect(formatArea(Number.NEGATIVE_INFINITY)).toBe('—');
+  });
+
+  it('keeps small numbers readable', () => {
+    expect(formatArea(0.5)).toBe('0.5');
+    expect(formatArea(0.0001)).toBe('0.0001');
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Per-shape formulas — ordinary + decimal + irrelevant keys ignored    */
-/* ------------------------------------------------------------------ */
+describe('squaredLabel', () => {
+  it('names the unit the answer is in', () => {
+    expect(squaredLabel('m')).toBe('meters²');
+    expect(squaredLabel('ft')).toBe('feet²');
+    expect(squaredLabel('in')).toBe('inches²');
+    expect(squaredLabel('yd')).toBe('yards²');
+    expect(squaredLabel('cm')).toBe('centimeters²');
+  });
+});
 
-describe('calculateArea — per shape', () => {
-  it('rectangle = length × width', () => {
-    expect(calculateArea('rectangle', { length: 8, width: 5 })).toBe(40);
-    expect(calculateArea('rectangle', { length: 2.5, width: 4 })).toBe(10);
-    // ignores any dimension it does not use
-    expect(calculateArea('rectangle', { length: 8, width: 5, height: 99, radius: 99 })).toBe(40);
+describe('the seven areas', () => {
+  it('rectangle', () => {
+    expect(areaRectangle(30, 20)).toBe(600);
   });
-  it('square = side²', () => {
-    expect(calculateArea('square', { side: 4 })).toBe(16);
-    expect(calculateArea('square', { side: 2.5 })).toBe(6.25);
+
+  it('triangle, by Heron from three edges', () => {
+    expect(areaTriangle(3, 4, 5)).toBeCloseTo(6, 12);
+    expect(areaTriangle(30, 45, 50)).toBeCloseTo(666.5852814906732, 9);
   });
-  it('triangle = ½ × base × height', () => {
-    expect(calculateArea('triangle', { base: 6, height: 4 })).toBe(12);
-    expect(calculateArea('triangle', { base: 3.5, height: 4 })).toBe(7);
+
+  it('triangle refuses an impossible or degenerate triangle', () => {
+    expect(areaTriangle(1, 2, 10)).toBeNaN();
+    expect(areaTriangle(1, 2, 3)).toBeNaN();
   });
-  it('circle = π × radius²', () => {
-    expect(calculateArea('circle', { radius: 5 })).toBeCloseTo(78.539816, 5);
-    expect(calculateArea('circle', { radius: 2 })).toBeCloseTo(12.566371, 5);
+
+  it('semi-perimeter', () => {
+    expect(semiPerimeter(30, 45, 50)).toBe(62.5);
+    expect(semiPerimeter(3, 4, 5)).toBe(6);
   });
-  it('trapezoid = ½ × (a + b) × height', () => {
-    expect(calculateArea('trapezoid', { a: 6, b: 4, height: 3 })).toBe(15);
-    expect(calculateArea('trapezoid', { a: 3, b: 5, height: 4 })).toBe(16);
+
+  it('trapezoid', () => {
+    expect(areaTrapezoid(30, 45, 20)).toBe(750);
+    // Equal bases make it a parallelogram.
+    expect(areaTrapezoid(10, 10, 4)).toBe(areaParallelogram(10, 4));
   });
-  it('parallelogram = base × height', () => {
-    expect(calculateArea('parallelogram', { base: 6, height: 4 })).toBe(24);
-    expect(calculateArea('parallelogram', { base: 2.5, height: 4 })).toBe(10);
+
+  it('circle, from the RADIUS', () => {
+    expect(areaCircle(30)).toBeCloseTo(Math.PI * 900, 10);
+    expect(areaCircle(1)).toBeCloseTo(Math.PI, 12);
   });
-  it('ellipse = π × a × b (semi-axes)', () => {
-    expect(calculateArea('ellipse', { a: 5, b: 3 })).toBeCloseTo(47.123890, 5);
-    expect(calculateArea('ellipse', { a: 3, b: 2 })).toBeCloseTo(18.849556, 5);
-    // 'height' is not part of the ellipse formula and is ignored
-    expect(calculateArea('ellipse', { a: 5, b: 3, height: 99 })).toBeCloseTo(47.123890, 5);
+
+  it('sector, with the angle in degrees', () => {
+    expect(areaSector(30, 90)).toBeCloseTo(225 * Math.PI, 10);
+    // A full turn is the whole circle.
+    expect(areaSector(30, 360)).toBeCloseTo(areaCircle(30), 10);
+    expect(areaSector(30, 180)).toBeCloseTo(areaCircle(30) / 2, 10);
   });
-  it('returns a plain finite number for valid input', () => {
-    for (const s of AREA_SHAPES) {
-      const dims = Object.fromEntries(s.inputs.map((i) => [i.key, 3]));
-      const area = calculateArea(s.key, dims);
-      expect(typeof area).toBe('number');
-      expect(Number.isFinite(area)).toBe(true);
-      expect(area).toBeGreaterThan(0);
+
+  it('ellipse', () => {
+    expect(areaEllipse(30, 20)).toBeCloseTo(600 * Math.PI, 10);
+    // Equal semi-axes make it a circle.
+    expect(areaEllipse(7, 7)).toBeCloseTo(areaCircle(7), 12);
+  });
+
+  it('parallelogram', () => {
+    expect(areaParallelogram(30, 20)).toBe(600);
+  });
+});
+
+describe('the working', () => {
+  const steps = (key: AreaShapeKey, dims: number[], area: number) =>
+    areaSteps(key, dims, 'm', area).map((s) => `${s.label ? `${s.label} ` : ''}= ${s.expression}${s.unit ? ` ${s.unit}` : ''}`);
+
+  it('shows the rectangle formula, the substitution and the answer', () => {
+    expect(steps('rectangle', [30, 20], 600)).toEqual([
+      'Area = l × w',
+      '= 30 × 20',
+      '= 600 meters²',
+    ]);
+  });
+
+  it('shows the triangle semi-perimeter as its own step, as the reference does', () => {
+    expect(steps('triangle', [30, 45, 50], 666.5852814906732)).toEqual([
+      's = (a + b + c) / 2',
+      '= (30 + 45 + 50) / 2',
+      '= 62.5 meters',
+      'Area = √(s(s − a)(s − b)(s − c))',
+      '= √(62.5 × (62.5 − 30) × (62.5 − 45) × (62.5 − 50))',
+      '= 666.58528149067 meters²',
+    ]);
+  });
+
+  it('shows the trapezoid formula', () => {
+    expect(steps('trapezoid', [30, 45, 20], 750)).toEqual([
+      'Area = (b₁ + b₂) / 2 × h',
+      '= (30 + 45) / 2 × 20',
+      '= 750 meters²',
+    ]);
+  });
+
+  it('shows the multiple of pi on its own line for the circle', () => {
+    expect(steps('circle', [30], Math.PI * 900)).toEqual([
+      'Area = π r²',
+      '= π × 30²',
+      '= 900π',
+      '= 2827.4333882308 meters²',
+    ]);
+  });
+
+  it('shows the multiple of pi for the sector', () => {
+    expect(steps('sector', [30, 90], 225 * Math.PI)).toEqual([
+      'Area = A / 360 × π × r²',
+      '= 90 / 360 × π × 30²',
+      '= 225π',
+      '= 706.8583470577 meters²',
+    ]);
+  });
+
+  it('shows the multiple of pi for the ellipse', () => {
+    expect(steps('ellipse', [30, 20], 600 * Math.PI)).toEqual([
+      'Area = π a b',
+      '= π × 30 × 20',
+      '= 600π',
+      '= 1884.9555921539 meters²',
+    ]);
+  });
+
+  it('shows the parallelogram formula', () => {
+    expect(steps('parallelogram', [30, 20], 600)).toEqual([
+      'Area = b × h',
+      '= 30 × 20',
+      '= 600 meters²',
+    ]);
+  });
+
+  it('omits a bare 1 as the multiple of pi, which would read as "1π"', () => {
+    expect(steps('circle', [1], Math.PI)).toEqual([
+      'Area = π r²',
+      '= π × 1²',
+      '= 3.1415926535898 meters²',
+    ]);
+  });
+
+  it('marks exactly one final step, and it carries the squared unit', () => {
+    for (const [key, dims] of [
+      ['rectangle', [3, 4]],
+      ['triangle', [3, 4, 5]],
+      ['trapezoid', [3, 4, 5]],
+      ['circle', [3]],
+      ['sector', [3, 90]],
+      ['ellipse', [3, 4]],
+      ['parallelogram', [3, 4]],
+    ] as [AreaShapeKey, number[]][]) {
+      const all = areaSteps(key, dims, 'ft', 12);
+      const finals = all.filter((s) => s.final);
+      expect(finals).toHaveLength(1);
+      expect(finals[0].unit).toBe('feet²');
+      expect(all[all.length - 1].final).toBe(true);
+    }
+  });
+
+  it('names the unit the visitor actually chose', () => {
+    const inFeet = areaSteps('rectangle', [30, 20], 'ft', 600);
+    expect(inFeet[inFeet.length - 1].unit).toBe('feet²');
+  });
+
+  it('never emits NaN, Infinity or undefined into a step', () => {
+    const broken = areaSteps('triangle', [Number.NaN, 4, 5], 'm', Number.NaN);
+    for (const s of broken) {
+      expect(s.expression).not.toMatch(/NaN|Infinity|undefined/);
+      expect(s.label ?? '').not.toMatch(/NaN|Infinity|undefined/);
     }
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Normalization — the Math.max(0, d[k] || 0) clamp                     */
-/* ------------------------------------------------------------------ */
+describe('the reference figures', () => {
+  const cases: [string, number, string][] = [
+    ['triangle 30/45/50', areaTriangle(30, 45, 50), '666.58528149067'],
+    ['trapezoid 30/45 h20', areaTrapezoid(30, 45, 20), '750'],
+    ['circle r30', areaCircle(30), '2827.4333882308'],
+    ['sector r30 90°', areaSector(30, 90), '706.8583470577'],
+    ['ellipse 30/20', areaEllipse(30, 20), '1884.9555921539'],
+    ['parallelogram 30×20', areaParallelogram(30, 20), '600'],
+    ['rectangle 30×20', areaRectangle(30, 20), '600'],
+  ];
 
-describe('calculateArea — normalization (frozen; the binding will reject these)', () => {
-  it('a zero dimension yields 0', () => {
-    expect(calculateArea('rectangle', { length: 0, width: 4 })).toBe(0);
-    expect(calculateArea('circle', { radius: 0 })).toBe(0);
-  });
-  it('a negative dimension is clamped to 0', () => {
-    expect(calculateArea('rectangle', { length: -5, width: 4 })).toBe(0);
-    expect(calculateArea('triangle', { base: -6, height: 4 })).toBe(0);
-  });
-  it('a missing / undefined dimension is treated as 0', () => {
-    expect(calculateArea('rectangle', { length: 5 })).toBe(0); // width missing
-    expect(calculateArea('rectangle', { length: 5, width: undefined as unknown as number })).toBe(0);
-    expect(calculateArea('trapezoid', { a: 6, b: 4 })).toBe(0); // height missing
-  });
-  it('NaN is treated as 0', () => {
-    expect(calculateArea('rectangle', { length: NaN, width: 4 })).toBe(0);
-    expect(calculateArea('square', { side: NaN })).toBe(0);
-  });
-  it('−Infinity is clamped to 0', () => {
-    expect(calculateArea('rectangle', { length: -Infinity, width: 4 })).toBe(0);
-  });
-  it('+Infinity PROPAGATES (not clamped) — a positive infinity dimension yields an infinite area', () => {
-    expect(calculateArea('rectangle', { length: Infinity, width: 4 })).toBe(Infinity);
-    expect(calculateArea('circle', { radius: Infinity })).toBe(Infinity);
-  });
-  it('an all-empty object yields 0 for every shape', () => {
-    for (const s of AREA_SHAPES) expect(calculateArea(s.key, {})).toBe(0);
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* Default / unknown-shape branch                                      */
-/* ------------------------------------------------------------------ */
-
-describe('calculateArea — unknown shape', () => {
-  it('an unknown shape key returns NaN (the default branch, unreachable from the typed select)', () => {
-    expect(Number.isNaN(calculateArea('hexagon' as AreaShapeKey, { side: 3 }))).toBe(true);
-    expect(Number.isNaN(calculateArea('' as AreaShapeKey, {}))).toBe(true);
+  it.each(cases)('%s', (_name, actual, expected) => {
+    expect(formatArea(actual)).toBe(expected);
   });
 });

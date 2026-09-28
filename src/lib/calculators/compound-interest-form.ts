@@ -1,36 +1,38 @@
 /**
- * Compound Interest form binding (R21A1 — the FINAL task-first migration; calculator-OWNED binding on
- * the UNCHANGED standard-form runtime).
+ * Compound interest binding — converting a rate between compounding periods.
  *
- * Wraps the UNCHANGED `calculateCompoundInterest` (frozen by compound-interest.test.ts) — the shared
- * compound-growth engine that Investment / Savings / Retirement / Interest and the two reference tables
- * also consume. Everything here is at the VALIDATION / PRESENTATION boundary: no compound formula is
- * reimplemented, the contribution/annuity semantics are untouched, the yearly series comes straight
- * from the engine, and NO shared sibling formula is modified. The engine stays byte-identical.
+ * WHAT THIS ANSWERS. Two rates that look different can grow money at exactly the same
+ * speed: 6% compounded monthly and 6.16778% compounded annually are the same deal.
+ * A lender quoting the first and a bank quoting the second are not offering different
+ * things, and this converts between them so they can be compared honestly.
  *
- * Product decisions (R21A1):
- *   • Task-first: principal / rate / years start EMPTY; the compounding frequency defaults to Monthly;
- *     the contribution is OPTIONAL (blank → 0); the result is EMPTY on the server AND after hydration
- *     (the legacy island SSR-seeded a $10,000 / 7% / 20y / $200 result and recomputed live on every
- *     keystroke), and the visitor presses Calculate for the first result (live-after-first).
- *   • Strict validation — NEVER `Number(value) || 0`. Principal required, finite, >= 0; annual rate
- *     required, finite, >= 0 (a nonsensical NEGATIVE rate is a visitor error even though the frozen
- *     engine still computes a shrinking balance — UI policy only); years required, finite, a WHOLE
- *     number in [1, MAX_YEARS] (a migrated-product boundary that bounds the series table — the
- *     Investment 1–100 precedent; the frozen engine imposes no such bound); contribution optional,
- *     blank → 0, finite, >= 0 (the engine permits negative withdrawals, but the UI rejects them, the
- *     legacy field being min="0"). The compounding frequency must be one of the five UI options
- *     (1 / 2 / 4 / 12 / 365 — Compound Interest uniquely exposes Semi-annually).
- *   • Result: the FUTURE VALUE is dominant; the three-way split (initial principal / total
- *     contributions / interest earned) is the supporting breakdown + proportion bar; the "Balance by
- *     year" series is an island-owned disclosure rendered via the DOM API (never innerHTML). ALL from
- *     the single frozen CompoundResult (no duplicated calculation).
- *   • NO isUsableResult — the complete-result guard lives in resultValue (a finite FUTURE-VALUE
- *     sentinel), reconciling every displayed figure + the series against a fresh engine recompute; a
- *     valid $0 (zero principal + zero contribution) is the finite 0 the default gate accepts.
+ * This is deliberately NOT a growth projection. Working out what a balance becomes
+ * over time is the Interest calculator's job, and doing it in two places would mean
+ * two answers to maintain. The reference product draws the same line.
+ *
+ * THE MATHS lives in `@lib/result`-adjacent `./compounding`, alongside the frequency
+ * list Savings and Interest already share: every frequency reduces to one effective
+ * annual rate, and that shared ground is what lets any pair convert.
+ *
+ * THE COMPARISON. Converting one pair answers the question asked; seeing the whole
+ * ladder answers the one behind it — how much compounding frequency is actually worth.
+ * The chart plots the entered rate's effective annual value at every frequency, so the
+ * curve flattening out toward continuous compounding is visible rather than asserted.
+ *
+ * The complete-result guard lives in `resultValue` as a NaN sentinel feeding the
+ * runtime's DEFAULT finite gate; there is NO `isUsableResult`, because a valid 0%
+ * conversion is a finite 0 the default gate already accepts.
  */
-import { calculateCompoundInterest, type CompoundYear, type CompoundResult } from './compound-interest';
-import { formatCurrency, formatCurrencyRounded } from '@lib/format';
+import {
+  COMPOUND_FREQUENCIES,
+  COMPOUND_PERIODS,
+  convertCompoundRate,
+  effectiveAnnualRate,
+  isCompoundFrequency,
+  type CompoundFrequency,
+} from './compounding';
+import { formatPercent } from '@lib/format';
+import { drawFrequencyChart } from '@lib/result/rate-chart';
 import type {
   FormCalculatorBinding,
   FormRenderContext,
@@ -38,320 +40,287 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-export type CompoundFreq = '1' | '2' | '4' | '12' | '365';
+/** A rate above this is a typo rather than an offer. */
+export const MAX_RATE = 200;
 
-export const COMPOUND_FREQUENCIES: { value: CompoundFreq; label: string }[] = [
-  { value: '1', label: 'Annually' },
-  { value: '2', label: 'Semi-annually' },
-  { value: '4', label: 'Quarterly' },
-  { value: '12', label: 'Monthly' },
-  { value: '365', label: 'Daily' },
-];
-const VALID_FREQ = new Set<string>(COMPOUND_FREQUENCIES.map((f) => f.value));
+/**
+ * How each frequency is labelled in the selectors. Annually and Monthly carry the
+ * names people actually meet on paperwork — APY on a savings account, APR on a card.
+ */
+export const FREQUENCY_LABELS: Readonly<Record<CompoundFrequency, string>> = {
+  annually: 'Annually (APY)',
+  semiannually: 'Semi-annually',
+  quarterly: 'Quarterly',
+  monthly: 'Monthly (APR)',
+  semimonthly: 'Semi-monthly',
+  biweekly: 'Biweekly',
+  weekly: 'Weekly',
+  daily: 'Daily',
+  continuously: 'Continuously',
+};
 
-export const DEFAULT_FREQUENCY: CompoundFreq = '12'; // Monthly
+/** The same names in running prose, where the parenthetical would read oddly. */
+export const FREQUENCY_PROSE: Readonly<Record<CompoundFrequency, string>> = {
+  annually: 'annually',
+  semiannually: 'semi-annually',
+  quarterly: 'quarterly',
+  monthly: 'monthly',
+  semimonthly: 'semi-monthly',
+  biweekly: 'biweekly',
+  weekly: 'weekly',
+  daily: 'daily',
+  continuously: 'continuously',
+};
 
-/** The migrated-product year ceiling (whole years) — bounds the series table (the Investment precedent). */
-export const MAX_YEARS = 100;
+/** The short tag a frequency is known by, where it has one. */
+export const FREQUENCY_TAG: Partial<Record<CompoundFrequency, string>> = {
+  annually: 'APY',
+  monthly: 'APR',
+};
+
+/** The reference prints five decimals, which is where these conversions differ. */
+export const RATE_DECIMALS = 5;
 
 export interface CompoundValues {
-  principal: string;
-  annualRatePct: string;
-  years: string;
-  compoundsPerYear: CompoundFreq;
-  contribution: string;
+  inputRate: string;
+  inputCompound: CompoundFrequency;
+  outputCompound: CompoundFrequency;
 }
 
-/** The composed result — the frozen engine output plus the parsed inputs it was computed from. */
 export interface CompoundComputed {
-  principal: number;
-  annualRatePct: number;
-  years: number;
-  compoundsPerYear: number;
-  contribution: number;
-  futureValue: number;
-  totalPrincipal: number;
-  totalContributions: number;
-  totalInterest: number;
-  series: CompoundYear[];
+  inputRate: number;
+  inputCompound: CompoundFrequency;
+  outputCompound: CompoundFrequency;
+  /** The equivalent nominal rate at `outputCompound`, as a percent. */
+  outputRate: number;
+  /** What the entered rate actually earns in a year, as a percent. */
+  effectiveAnnualPct: number;
+  /** The entered rate's effective annual value at EVERY frequency, for the chart. */
+  ladder: readonly { compound: CompoundFrequency; effectiveAnnualPct: number }[];
 }
 
 export const MSG = {
-  principalRequired: 'Enter an initial amount.',
-  principalInvalid: 'Enter an initial amount of zero or more.',
-  rateRequired: 'Enter an annual interest rate.',
-  rateInvalid: 'Enter a rate of zero or more.',
-  yearsRequired: 'Enter a number of years.',
-  yearsInvalid: `Enter a whole number of years from 1 to ${MAX_YEARS}.`,
-  contributionInvalid: 'Enter a contribution of zero or more.',
+  rateRequired: 'Enter an interest rate.',
+  rateNonNegative: 'Enter an interest rate of zero or more.',
+  rateMax: `Enter an interest rate of ${MAX_RATE}% or less.`,
 } as const;
 
+const FAIL = Number.NaN;
+const TOL = 1e-9;
+
 /* ------------------------------------------------------------------ */
-/* Parsing + validation (pure) — strict, never Number(v) || 0          */
+/* Read / validate / compute                                           */
 /* ------------------------------------------------------------------ */
 
-type NumParse = 'empty' | 'invalid' | number;
+const freq = (raw: string | undefined, fallback: CompoundFrequency): CompoundFrequency =>
+  raw && isCompoundFrequency(raw) ? raw : fallback;
 
-/** A finite value >= 0; empty is distinct from invalid. Zero valid; negative rejected (UI policy). */
-export function parseNonNegative(raw: string): NumParse {
-  const t = (raw ?? '').trim();
-  if (t === '') return 'empty';
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) return 'invalid';
-  return n;
+export function readCompoundValues(root: HTMLElement): CompoundValues {
+  const pick = (name: string) => root.querySelector<HTMLSelectElement>(`[name="${name}"]`)?.value;
+  return {
+    inputRate: root.querySelector<HTMLInputElement>('[name="inputRate"]')?.value ?? '',
+    inputCompound: freq(pick('inputCompound'), 'monthly'),
+    outputCompound: freq(pick('outputCompound'), 'annually'),
+  };
 }
 
-/** A finite WHOLE number of years in [1, MAX_YEARS]; fractional / out-of-range is rejected. */
-export function parseWholeYears(raw: string): NumParse {
-  const t = (raw ?? '').trim();
-  if (t === '') return 'empty';
-  const n = Number(t);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > MAX_YEARS) return 'invalid';
-  return n;
-}
-
-/** An OPTIONAL contribution: blank → 0; otherwise finite and >= 0. */
-export function parseOptionalNonNegative(raw: string): 'invalid' | number {
-  const t = (raw ?? '').trim();
-  if (t === '') return 0;
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) return 'invalid';
-  return n;
-}
-
-export function validateCompoundValues(v: CompoundValues): ValidationResult {
+export function validateCompound(v: CompoundValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
-
-  const principal = parseNonNegative(v.principal);
-  if (principal === 'empty') fieldErrors.principal = MSG.principalRequired;
-  else if (principal === 'invalid') fieldErrors.principal = MSG.principalInvalid;
-
-  const rate = parseNonNegative(v.annualRatePct);
-  if (rate === 'empty') fieldErrors.annualRatePct = MSG.rateRequired;
-  else if (rate === 'invalid') fieldErrors.annualRatePct = MSG.rateInvalid;
-
-  const years = parseWholeYears(v.years);
-  if (years === 'empty') fieldErrors.years = MSG.yearsRequired;
-  else if (years === 'invalid') fieldErrors.years = MSG.yearsInvalid;
-
-  const contribution = parseOptionalNonNegative(v.contribution);
-  if (contribution === 'invalid') fieldErrors.contribution = MSG.contributionInvalid;
-
-  // compoundsPerYear is a structurally-constrained select; readFrequency coerces an unknown value to
-  // the default and completeCompoundValue guards it defensively — so no visitor-facing field error.
+  const raw = v.inputRate.trim();
+  if (raw === '') {
+    fieldErrors.inputRate = MSG.rateRequired;
+  } else {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) fieldErrors.inputRate = MSG.rateNonNegative;
+    else if (n > MAX_RATE) fieldErrors.inputRate = MSG.rateMax;
+  }
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
 
-/* ------------------------------------------------------------------ */
-/* Computation (pure) — unchanged pass-through to the frozen engine    */
-/* ------------------------------------------------------------------ */
-
 export function computeCompound(v: CompoundValues): CompoundComputed {
-  const principal = Number(v.principal);
-  const annualRatePct = Number(v.annualRatePct);
-  const years = Number(v.years);
-  const compoundsPerYear = Number(v.compoundsPerYear);
-  const contribution = v.contribution.trim() === '' ? 0 : Number(v.contribution);
-  const r = calculateCompoundInterest({ principal, annualRatePct, years, compoundsPerYear, contribution });
+  const inputRate = Number(v.inputRate);
   return {
-    principal,
-    annualRatePct,
-    years,
-    compoundsPerYear,
-    contribution,
-    futureValue: r.futureValue,
-    totalPrincipal: r.totalPrincipal,
-    totalContributions: r.totalContributions,
-    totalInterest: r.totalInterest,
-    series: r.series,
+    inputRate,
+    inputCompound: v.inputCompound,
+    outputCompound: v.outputCompound,
+    outputRate: convertCompoundRate(inputRate, v.inputCompound, v.outputCompound),
+    effectiveAnnualPct: effectiveAnnualRate(inputRate, v.inputCompound) * 100,
+    ladder: COMPOUND_FREQUENCIES.map((compound) => ({
+      compound,
+      effectiveAnnualPct: effectiveAnnualRate(inputRate, compound) * 100,
+    })),
   };
 }
 
 /* ------------------------------------------------------------------ */
-/* Proportion split (pure) — the island bar; guards division by zero   */
+/* Complete-result guard (in resultValue — NO isUsableResult)          */
 /* ------------------------------------------------------------------ */
 
-export function proportion(r: CompoundComputed): { principal: number; contributions: number; interest: number } {
-  const fv = r.futureValue;
-  const pct = (v: number) => (fv ? (v / fv) * 100 : 0); // valid $0 → all-zero widths, never NaN
+/**
+ * Returns the converted rate ONLY when the whole result reconciles: a finite,
+ * in-range input, a finite conversion that round-trips back to the rate it came
+ * from, an effective annual rate consistent with both ends, and a full ladder.
+ *
+ * The round trip is the check that matters. Converting back has to return the
+ * original rate, because the two rates are supposed to describe the same growth —
+ * if they do not, the pair is not equivalent and must not be shown as such.
+ */
+export function completeCompoundValue(c: CompoundComputed): number {
+  const { inputRate, inputCompound, outputCompound, outputRate, effectiveAnnualPct, ladder } = c;
+  if (!Number.isFinite(inputRate) || inputRate < 0 || inputRate > MAX_RATE) return FAIL;
+  if (!Number.isFinite(outputRate) || outputRate < 0) return FAIL;
+  if (!Number.isFinite(effectiveAnnualPct) || effectiveAnnualPct < 0) return FAIL;
+
+  // The pair must be equivalent in both directions.
+  const back = convertCompoundRate(outputRate, outputCompound, inputCompound);
+  if (!Number.isFinite(back) || Math.abs(back - inputRate) > 1e-6) return FAIL;
+
+  // Both ends must agree on what a year actually earns.
+  const fromOutput = effectiveAnnualRate(outputRate, outputCompound) * 100;
+  if (Math.abs(fromOutput - effectiveAnnualPct) > 1e-6) return FAIL;
+
+  // More frequent compounding can never earn less. The ladder is in that order.
+  if (ladder.length !== COMPOUND_FREQUENCIES.length) return FAIL;
+  let previous = -Infinity;
+  for (const step of ladder) {
+    if (!Number.isFinite(step.effectiveAnnualPct) || step.effectiveAnnualPct < 0) return FAIL;
+    if (step.effectiveAnnualPct + TOL < previous) return FAIL;
+    previous = step.effectiveAnnualPct;
+  }
+
+  return outputRate;
+}
+
+/* ------------------------------------------------------------------ */
+/* Presentation                                                        */
+/* ------------------------------------------------------------------ */
+
+export interface CompoundPresentation {
+  /** "6.16778%" — the dominant answer. */
+  outputRate: string;
+  inputRate: string;
+  /** "6% compound monthly (APR) is equivalent to 6.16778% compound annually (APY)." */
+  summary: string;
+  effectiveAnnual: string;
+  /** What the two frequencies are called, for the labels beside each selector. */
+  inputLabel: string;
+  outputLabel: string;
+}
+
+/** A rate as the reference prints it: five decimals, trailing zeros trimmed. */
+export function formatRate(pct: number): string {
+  if (!Number.isFinite(pct)) return '—';
+  return formatPercent(pct, RATE_DECIMALS);
+}
+
+/** "monthly (APR)", or just "quarterly" where there is no tag. */
+export function compoundPhrase(compound: CompoundFrequency): string {
+  const tag = FREQUENCY_TAG[compound];
+  return tag ? `${FREQUENCY_PROSE[compound]} (${tag})` : FREQUENCY_PROSE[compound];
+}
+
+export function presentCompound(c: CompoundComputed): CompoundPresentation {
+  const inputRate = formatRate(c.inputRate);
+  const outputRate = formatRate(c.outputRate);
+  const from = compoundPhrase(c.inputCompound);
+  const to = compoundPhrase(c.outputCompound);
   return {
-    principal: pct(r.totalPrincipal),
-    contributions: pct(r.totalContributions),
-    interest: pct(r.totalInterest),
+    outputRate,
+    inputRate,
+    summary:
+      c.inputCompound === c.outputCompound
+        ? `${inputRate} compound ${from} is already what you asked for — choose a different output period to convert it.`
+        : `${inputRate} compound ${from} is equivalent to ${outputRate} compound ${to}.`,
+    effectiveAnnual: formatRate(c.effectiveAnnualPct),
+    inputLabel: FREQUENCY_LABELS[c.inputCompound],
+    outputLabel: FREQUENCY_LABELS[c.outputCompound],
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* Complete-result guard (pure) — the resultValue sentinel             */
-/* ------------------------------------------------------------------ */
-
-const FAIL = Number.NaN; // non-finite sentinel → the runtime's default finite gate rejects the result
-const reconTol = (magnitude: number) => Math.max(1e-6, Math.abs(magnitude) * 1e-9);
-
-/** The dominant FUTURE VALUE — but ONLY when the whole composed result is coherent: a known frequency,
- *  finite inputs within the validated UI domain, every total finite, the totals reconciling to the
- *  future value, a well-formed series (year-0 seed, ordered years, per-row balance = principal +
- *  contributed + interest, final balance = future value), and a fresh engine recompute reproducing all
- *  of it. A valid $0 (zero principal + zero contribution) is the finite 0 the default gate accepts. */
-export function completeCompoundValue(r: CompoundComputed): number {
-  if (!VALID_FREQ.has(String(r.compoundsPerYear))) return FAIL;
-  if (!Number.isFinite(r.principal) || r.principal < 0) return FAIL;
-  if (!Number.isFinite(r.annualRatePct) || r.annualRatePct < 0) return FAIL;
-  if (!Number.isInteger(r.years) || r.years < 1 || r.years > MAX_YEARS) return FAIL;
-  if (!Number.isFinite(r.contribution) || r.contribution < 0) return FAIL;
-
-  const totals = [r.futureValue, r.totalPrincipal, r.totalContributions, r.totalInterest];
-  if (!totals.every((n) => Number.isFinite(n))) return FAIL;
-  if (Math.abs(r.totalPrincipal + r.totalContributions + r.totalInterest - r.futureValue) > reconTol(r.futureValue)) {
-    return FAIL;
-  }
-
-  // Series shape.
-  if (!Array.isArray(r.series) || r.series.length !== r.years + 1) return FAIL;
-  const seed = r.series[0];
-  if (seed.year !== 0 || seed.balance !== r.principal || seed.contributed !== 0 || seed.interest !== 0) return FAIL;
-  for (let i = 0; i < r.series.length; i++) {
-    const row = r.series[i];
-    if (row.year !== i) return FAIL; // ordered 0..years
-    if (![row.balance, row.contributed, row.interest].every((n) => Number.isFinite(n))) return FAIL;
-    if (Math.abs(row.balance - (r.principal + row.contributed + row.interest)) > reconTol(row.balance)) return FAIL;
-  }
-  const last = r.series[r.series.length - 1];
-  if (Math.abs(last.balance - r.futureValue) > reconTol(r.futureValue)) return FAIL;
-
-  // Reconcile against a fresh engine recompute.
-  const c: CompoundResult = calculateCompoundInterest({
-    principal: r.principal,
-    annualRatePct: r.annualRatePct,
-    years: r.years,
-    compoundsPerYear: r.compoundsPerYear,
-    contribution: r.contribution,
-  });
-  if (
-    c.futureValue !== r.futureValue ||
-    c.totalPrincipal !== r.totalPrincipal ||
-    c.totalContributions !== r.totalContributions ||
-    c.totalInterest !== r.totalInterest ||
-    c.series.length !== r.series.length
-  ) {
-    return FAIL;
-  }
-
-  return r.futureValue; // finite; a valid $0 future value passes the default gate
+export function describeCompound(c: CompoundComputed): string {
+  const trim = (pct: number) => Number(pct.toFixed(RATE_DECIMALS));
+  return (
+    `${trim(c.inputRate)} percent compound ${compoundPhrase(c.inputCompound)} ` +
+    `is equivalent to ${trim(c.outputRate)} percent compound ${compoundPhrase(c.outputCompound)}.`
+  );
 }
 
 /* ------------------------------------------------------------------ */
-/* Presentation (pure)                                                 */
+/* Render                                                              */
 /* ------------------------------------------------------------------ */
 
-/** Concise announcement — the dominant future value + the horizon + the interest earned. */
-export function describeCompoundResult(r: CompoundComputed): string {
-  const yr = `${r.years} year${r.years === 1 ? '' : 's'}`;
-  return `Future value after ${yr}: ${formatCurrency(r.futureValue)}, including ${formatCurrency(
-    r.totalInterest,
-  )} in interest earned.`;
+export function renderCompoundResult(result: CompoundComputed, context: FormRenderContext): void {
+  const p = presentCompound(result);
+  const scope = context.result;
+  const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
+  const setText = (sel: string, value: string) => {
+    const el = q(sel);
+    if (el) el.textContent = value;
+  };
+
+  setText('[data-result-when~="valid"] [data-result-value]', p.outputRate);
+  setText('[data-result-when~="valid"] [data-result-value-a11y]', describeCompound(result));
+  setText('[data-ci-summary]', p.summary);
+  setText('[data-ci-effective]', p.effectiveAnnual);
+  setText('[data-ci-input-label]', p.inputLabel);
+  setText('[data-ci-output-label]', p.outputLabel);
+
+  const charted = drawFrequencyChart(
+    q('[data-ci-chart]'),
+    result.ladder.map((step) => ({
+      label: FREQUENCY_PROSE[step.compound],
+      value: step.effectiveAnnualPct,
+      highlight: step.compound === result.inputCompound || step.compound === result.outputCompound,
+    })),
+    {
+      prefix: 'ci',
+      format: (v) => formatPercent(v, 3),
+      label:
+        `What ${p.inputRate} earns in a year at each compounding period, from ` +
+        `${formatRate(result.ladder[0].effectiveAnnualPct)} compounded annually to ` +
+        `${formatRate(result.ladder[result.ladder.length - 1].effectiveAnnualPct)} compounded continuously.`,
+    },
+  );
+  const figure = q('[data-ci-chart-figure]');
+  if (figure) figure.hidden = !charted;
 }
 
 /* ------------------------------------------------------------------ */
-/* DOM rendering (safe — no innerHTML)                                 */
+/* Reset + binding                                                     */
 /* ------------------------------------------------------------------ */
 
-/** One "balance by year" row built with the DOM API — the year as a row header, three right-aligned
- *  money cells (cumulative contributions, cumulative interest, balance). Never uses innerHTML. */
-function seriesRow(row: CompoundYear): HTMLTableRowElement {
-  const tr = document.createElement('tr');
-  tr.className = 'ci-row';
-  const year = document.createElement('th');
-  year.scope = 'row';
-  year.className = 'ci-cell ci-cell--year';
-  year.textContent = String(row.year);
-  tr.append(year);
-  for (const value of [row.contributed, row.interest, row.balance]) {
-    const td = document.createElement('td');
-    td.className = 'ci-cell ci-num';
-    td.textContent = formatCurrencyRounded(value);
-    tr.append(td);
-  }
-  return tr;
+/** Clear the rate; the two periods are structural defaults, like the reference's. */
+export function resetCompoundValues(root: HTMLElement, _mode: ResetMode): void {
+  const rate = root.querySelector<HTMLInputElement>('[name="inputRate"]');
+  if (rate) rate.value = '';
+  const input = root.querySelector<HTMLSelectElement>('[name="inputCompound"]');
+  if (input) input.value = 'monthly';
+  const output = root.querySelector<HTMLSelectElement>('[name="outputCompound"]');
+  if (output) output.value = 'annually';
 }
-
-function fillSeries(tbody: HTMLElement | null, rows: readonly CompoundYear[]): void {
-  if (!tbody) return;
-  const frag = document.createDocumentFragment();
-  for (const row of rows) frag.append(seriesRow(row));
-  tbody.replaceChildren(frag);
-}
-
-/* ------------------------------------------------------------------ */
-/* The binding                                                         */
-/* ------------------------------------------------------------------ */
-
-const control = (root: HTMLElement, name: string) =>
-  root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
-
-const readFrequency = (root: HTMLElement): CompoundFreq => {
-  const v = control(root, 'compoundsPerYear')?.value;
-  return v && VALID_FREQ.has(v) ? (v as CompoundFreq) : DEFAULT_FREQUENCY;
-};
 
 export const compoundInterestBinding: FormCalculatorBinding<CompoundValues, CompoundComputed> = {
-  readValues(root) {
-    return {
-      principal: control(root, 'principal')?.value ?? '',
-      annualRatePct: control(root, 'annualRatePct')?.value ?? '',
-      years: control(root, 'years')?.value ?? '',
-      compoundsPerYear: readFrequency(root),
-      contribution: control(root, 'contribution')?.value ?? '',
-    };
-  },
-
-  validate: validateCompoundValues,
-
+  readValues: readCompoundValues,
+  validate: validateCompound,
   compute: computeCompound,
-
-  /** Complete-result guard as the ordinary result value — no isUsableResult. */
+  describeResult: describeCompound,
+  renderResult: renderCompoundResult,
+  resetValues: resetCompoundValues,
   resultValue: completeCompoundValue,
+  // NO isUsableResult — a valid 0% conversion is a finite 0 the default gate accepts.
+};
 
-  describeResult: describeCompoundResult,
+/** Periods per year, for the copy that explains a frequency. */
+export const periodsPerYear = (compound: CompoundFrequency): number | null =>
+  compound === 'continuously' ? null : COMPOUND_PERIODS[compound];
 
-  renderResult(result, context: FormRenderContext) {
-    const scope = context.result;
-    const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
-    const set = (sel: string, text: string) => {
-      const el = q(sel);
-      if (el) el.textContent = text;
-    };
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's field stays EMPTY)          */
+/* ------------------------------------------------------------------ */
 
-    // Dominant: the future value (shown + spoken).
-    const fv = formatCurrency(result.futureValue);
-    set('[data-result-when~="valid"] [data-result-value]', fv);
-    set('[data-result-when~="valid"] [data-result-value-a11y]', fv);
-
-    // Breakdown: initial principal / total contributions / interest earned.
-    set('[data-ci-principal]', formatCurrencyRounded(result.totalPrincipal));
-    set('[data-ci-contrib]', formatCurrencyRounded(result.totalContributions));
-    set('[data-ci-interest]', formatCurrencyRounded(result.totalInterest));
-
-    // Proportion bar (guards division by zero for a valid $0 result).
-    const pct = proportion(result);
-    const seg: Record<string, number> = { principal: pct.principal, contrib: pct.contributions, interest: pct.interest };
-    scope.querySelectorAll<HTMLElement>('[data-ci-seg]').forEach((el) => {
-      el.style.width = `${seg[el.dataset.ciSeg ?? ''] ?? 0}%`;
-    });
-
-    // Balance-by-year series (island-owned disclosure; DOM API, never innerHTML).
-    fillSeries(q('[data-ci-rows]'), result.series);
-  },
-
-  resetValues(root, _mode: ResetMode) {
-    const set = (name: string, val: string) => {
-      const el = control(root, name);
-      if (el) el.value = val;
-    };
-    set('principal', '');
-    set('annualRatePct', '');
-    set('years', '');
-    set('compoundsPerYear', DEFAULT_FREQUENCY);
-    set('contribution', '');
-  },
+/** The published reference case: 6% monthly is 6.16778% annually. */
+export const COMPOUND_EXAMPLE_VALUES: CompoundValues = {
+  inputRate: '6',
+  inputCompound: 'monthly',
+  outputCompound: 'annually',
 };

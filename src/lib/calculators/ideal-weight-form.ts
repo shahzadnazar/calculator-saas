@@ -1,22 +1,34 @@
 /**
- * Ideal-weight form binding (R7C-1) — standard-form binding for the ideal-weight
- * calculator, the second calculator in the standard-form wave.
+ * Ideal-weight form binding — the reference's fields and its result table, on the
+ * UNCHANGED standard-form runtime.
  *
- * The runtime (@lib/result/form-runtime) is used UNCHANGED. This binding owns the
- * ideal-weight specifics: reading a sex selector + a height-only input, validating
- * height, Metric/Imperial conversion (height only — there is no weight input), and
- * rendering a DEFENSIBLE PRIMARY summary (the healthy-BMI weight range) plus a
- * SECONDARY comparison of the four classic formula estimates. It invents no
- * average and makes no single named formula authoritative — the WHO healthy-BMI
- * range is the primary (the existing implementation + copy already frame it as the
- * target); Robinson / Miller / Devine / Hamwi are shown as peer reference points.
+ * The reference asks four things: age, gender and height, under a US / Metric unit tab.
+ * Its result is one table — Robinson, Miller, Devine, Hamwi and a healthy BMI range — and
+ * we render exactly those five rows. What we add on top is our own hierarchy: the spread
+ * across the four formulas is the dominant number, because a page called "ideal weight"
+ * should answer with an ideal weight, and four values within a few pounds of each other
+ * read as one band rather than four competing answers.
  *
- * All computation delegates to the reviewed pure `calculateIdealWeight`
- * (formulas preserved). Conversion + imperial-height classification reuse the
- * shared `@lib/health/body-measurements` primitives; field-error MESSAGES stay
- * here per the R7B.1 policy.
+ * Age changes no number. It decides whether the adult formulas APPLY: they were derived on
+ * adults, so below 18 they are the wrong instrument and the honest result says so and
+ * points at BMI-for-age instead. That is a VALID informational result, not an input error
+ * (doctrine 8) — the visitor asked a sensible question and gets a true answer.
+ *
+ * All arithmetic delegates to the reviewed pure `calculateIdealWeight`; conversion and
+ * imperial-height classification reuse the shared `@lib/health/body-measurements`
+ * primitives; field-error MESSAGES stay here per the R7B.1 policy.
  */
-import { calculateIdealWeight, type IdealWeightResult, type Sex } from './ideal-weight';
+import {
+  calculateIdealWeight,
+  ADULT_MIN_AGE,
+  AGE_MIN,
+  AGE_MAX,
+  HEALTHY_BMI_MIN,
+  HEALTHY_BMI_MAX,
+  type IdealWeightResult,
+  type Sex,
+  type UnitSystem,
+} from './ideal-weight';
 import {
   round1,
   centimetresToTotalInches,
@@ -24,7 +36,6 @@ import {
   totalInchesToFeetAndInches,
   classifyImperialHeight,
 } from '@lib/health/body-measurements';
-import { formatNumber } from '@lib/format';
 import { accessibleUnit } from '@lib/result/state';
 import type {
   FormCalculatorBinding,
@@ -34,9 +45,32 @@ import type {
   ValidationResult,
 } from '@lib/result/form-runtime';
 
-export type IdealWeightValues =
-  | { sex: Sex; system: 'metric'; heightCm: string }
-  | { sex: Sex; system: 'imperial'; heightFt: string; heightIn: string };
+export { ADULT_MIN_AGE, AGE_MIN, AGE_MAX, HEALTHY_BMI_MIN, HEALTHY_BMI_MAX };
+
+/** The two real unit systems. "Other Units" is the shared converter, not a system. */
+export const UNIT_TABS: { value: UnitSystem; label: string }[] = [
+  { value: 'imperial', label: 'US Units' },
+  { value: 'metric', label: 'Metric Units' },
+];
+
+export interface IdealWeightValues {
+  system: UnitSystem;
+  sex: Sex;
+  age: string;
+  heightCm: string;
+  heightFt: string;
+  heightIn: string;
+}
+
+export const MSG = {
+  ageMissing: 'Enter an age.',
+  ageWhole: 'Enter an age in whole years.',
+  ageRange: `Enter an age from ${AGE_MIN} to ${AGE_MAX}.`,
+  heightMissing: 'Enter your height.',
+  heightPositive: 'Enter a height greater than zero.',
+  heightInches: 'Enter inches from 0 to 11.',
+  heightFeetWhole: 'Enter feet as a whole number.',
+} as const;
 
 /* ---- parsing + validation (pure) ---------------------------------------- */
 
@@ -49,35 +83,50 @@ function parsePositive(raw: string): PositiveParse {
   return n;
 }
 
+/** Age is only ever a whole number of years, and only inside the accepted span. */
+export function ageError(raw: string): string | null {
+  const t = raw.trim();
+  if (t === '') return MSG.ageMissing;
+  const n = Number(t);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return MSG.ageWhole;
+  if (n < AGE_MIN || n > AGE_MAX) return MSG.ageRange;
+  return null;
+}
+
 function validateImperialHeight(ftRaw: string, inRaw: string): string | null {
   switch (classifyImperialHeight(ftRaw, inRaw)) {
     case 'ok':
       return null;
     case 'empty':
-      return 'Enter your height.';
+      return MSG.heightMissing;
     case 'inches-out-of-range':
-      return 'Enter inches from 0 to 11.';
+      return MSG.heightInches;
     case 'feet-not-integer':
-      return 'Enter feet as a whole number.';
+      return MSG.heightFeetWhole;
     case 'nonpositive':
-      return 'Enter a height greater than zero.';
+      return MSG.heightPositive;
   }
 }
 
 export function validateIdealWeightValues(values: IdealWeightValues): ValidationResult {
   const fieldErrors: Record<string, string> = {};
+
+  const age = ageError(values.age);
+  if (age) fieldErrors.age = age;
+
   if (values.system === 'metric') {
     const h = parsePositive(values.heightCm);
-    if (h === 'empty') fieldErrors.heightCm = 'Enter your height.';
-    else if (h === 'nonpositive') fieldErrors.heightCm = 'Enter a height greater than zero.';
+    if (h === 'empty') fieldErrors.heightCm = MSG.heightMissing;
+    else if (h === 'nonpositive') fieldErrors.heightCm = MSG.heightPositive;
   } else {
     const heightError = validateImperialHeight(values.heightFt, values.heightIn);
     if (heightError) fieldErrors.height = heightError;
   }
+
   return Object.keys(fieldErrors).length ? { ok: false, fieldErrors } : { ok: true };
 }
 
-/* ---- computation + description (pure) ----------------------------------- */
+/* ---- computation (pure) -------------------------------------------------- */
 
 function toInput(values: IdealWeightValues) {
   if (values.system === 'metric') {
@@ -91,55 +140,125 @@ function toInput(values: IdealWeightValues) {
   };
 }
 
-/** The binding's computed result echoes the selected sex so the announcement can
- *  name it when only the (sex-dependent) formula estimates change. The healthy-BMI
- *  RANGE is height-only, so a sex change leaves it identical — the reason the
- *  announcement must distinguish "range changed" from "formula estimates updated". */
 export interface IdealWeightComputed extends IdealWeightResult {
   sex: Sex;
+  system: UnitSystem;
+  age: number;
+  /** Whether the four adult formulas apply at all. */
+  adult: boolean;
 }
 
 export function computeIdealWeight(values: IdealWeightValues): IdealWeightComputed {
-  return { ...calculateIdealWeight(toInput(values)), sex: values.sex };
-}
-
-/** The primary healthy-weight RANGE, formatted for speech (never the formulas). */
-function rangeSpeech(result: IdealWeightResult): string {
-  return `${formatNumber(result.bmiMin, 1)} to ${formatNumber(result.bmiMax, 1)} ${accessibleUnit(result.unit)}`;
+  const ageRaw = values.age.trim();
+  const age = ageRaw === '' ? Number.NaN : Number(ageRaw);
+  return {
+    ...calculateIdealWeight(toInput(values)),
+    sex: values.sex,
+    system: values.system,
+    age,
+    adult: Number.isFinite(age) && age >= ADULT_MIN_AGE,
+  };
 }
 
 /**
- * Concise live announcement — the primary RANGE only, never the formula table.
+ * The finiteness sentinel the runtime gates the whole result on.
  *
- * Two shapes, chosen from the previously-announced range:
- *  - first announcement, or the displayed range CHANGED → the plain range
- *    ("Your healthy-weight range is approximately X to Y kilograms.");
- *  - the displayed range is UNCHANGED but a recompute happened (e.g. the visitor
- *    changed sex, which moves the formula estimates but not the BMI range) → a
- *    distinct message noting the estimates were updated, so a screen reader is
- *    actually notified even though the headline number is identical
- *    ("Healthy-weight range: X to Y kilograms. Formula estimates updated for Z.").
+ * For an adult it is finite only when EVERY displayed figure reconciles, so a partial
+ * table can never reach the panel. For a child it is the age itself: the informational
+ * answer is a real result and must not be suppressed.
+ */
+export function completeIdealWeightValue(r: IdealWeightComputed): number {
+  if (!Number.isFinite(r.age)) return Number.NaN;
+  if (!r.adult) return r.age;
+  for (const v of [r.robinson, r.miller, r.devine, r.hamwi, r.bmiMin, r.bmiMax]) {
+    if (!Number.isFinite(v) || v <= 0) return Number.NaN;
+  }
+  return r.bmiMin;
+}
+
+/* ---- presentation (pure) ------------------------------------------------- */
+
+/**
+ * One decimal, always — the reference prints "155.0 lbs" and "81.0 kg", so a value that
+ * happens to land on a whole number must not silently lose its decimal place and read as
+ * a different precision from the row above it.
+ */
+function fixed1(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+/** The unit as the reference writes it: "lbs" or "kg". */
+export function displayUnit(system: UnitSystem): 'lbs' | 'kg' {
+  return system === 'imperial' ? 'lbs' : 'kg';
+}
+
+export function formatWeight(value: number, system: UnitSystem): string {
+  return Number.isFinite(value) ? `${fixed1(value)} ${displayUnit(system)}` : '—';
+}
+
+export interface FormulaRow {
+  key: 'robinson' | 'miller' | 'devine' | 'hamwi';
+  label: string;
+}
+
+/** The reference's four named formulas, in its order. */
+export const FORMULA_ROWS: FormulaRow[] = [
+  { key: 'robinson', label: 'Robinson (1983)' },
+  { key: 'miller', label: 'Miller (1983)' },
+  { key: 'devine', label: 'Devine (1974)' },
+  { key: 'hamwi', label: 'Hamwi (1964)' },
+];
+
+/** The lowest and highest of the four formula estimates — our dominant number. */
+export function formulaSpread(r: IdealWeightComputed): { low: number; high: number } {
+  const vals = [r.robinson, r.miller, r.devine, r.hamwi];
+  return { low: Math.min(...vals), high: Math.max(...vals) };
+}
+
+/** "128.9 - 174.2 lbs", as the reference writes the range row. */
+export function formatRange(low: number, high: number, system: UnitSystem): string {
+  if (!Number.isFinite(low) || !Number.isFinite(high)) return '—';
+  return `${fixed1(low)} - ${fixed1(high)} ${displayUnit(system)}`;
+}
+
+/* ---- announcement (pure) ------------------------------------------------- */
+
+function spreadSpeech(r: IdealWeightComputed): string {
+  const { low, high } = formulaSpread(r);
+  return `${fixed1(low)} to ${fixed1(high)} ${accessibleUnit(r.unit)}`;
+}
+
+/**
+ * One restrained announcement.
  *
- * Without the second shape a sex change would produce byte-identical range text,
- * which the runtime's announcer dedupes — leaving the visible formula update
- * silent to assistive tech. The formula rows themselves are never spoken.
+ * Adults hear the formula spread. A sex change moves every formula but can leave the
+ * SPOKEN text identical when the numbers round the same way, so the second shape names the
+ * sex — otherwise the runtime's deduping announcer would leave a visible update silent.
+ * Children hear why the formulas do not apply, which is the whole result for them.
  */
 export function idealWeightAnnouncement(
   result: IdealWeightComputed,
-  previous: { bmiMin: number; bmiMax: number } | null,
+  previous: { low: number; high: number } | null,
 ): string {
-  const range = rangeSpeech(result);
-  const rangeUnchanged =
-    previous !== null &&
-    formatNumber(previous.bmiMin, 1) === formatNumber(result.bmiMin, 1) &&
-    formatNumber(previous.bmiMax, 1) === formatNumber(result.bmiMax, 1);
-  if (rangeUnchanged) {
-    return `Healthy-weight range: ${range}. Formula estimates updated for ${result.sex}.`;
+  if (!result.adult) {
+    return `Ideal-weight formulas apply from age ${ADULT_MIN_AGE}. At ${result.age}, healthy weight is judged from BMI-for-age percentiles instead.`;
   }
-  return `Your healthy-weight range is approximately ${range}.`;
+  const spread = spreadSpeech(result);
+  const { low, high } = formulaSpread(result);
+  const unchanged =
+    previous !== null &&
+    fixed1(previous.low) === fixed1(low) &&
+    fixed1(previous.high) === fixed1(high);
+  if (unchanged) {
+    return `Ideal weight: ${spread}. Estimates updated for ${result.sex}.`;
+  }
+  return `Your ideal weight is approximately ${spread}.`;
 }
 
-/* ---- height-only conversion (pure) -------------------------------------- */
+/* ---- height conversion (pure) -------------------------------------------- */
 
 /** Metric cm → imperial feet/inches (null if empty/non-positive). */
 export function metricHeightToImperial(heightCm: number | null): { heightFt: number | null; heightIn: number | null } {
@@ -154,9 +273,10 @@ export function imperialHeightToMetric(heightFt: number | null, heightIn: number
   return total > 0 ? round1(totalInchesToCentimetres(total)) : null;
 }
 
-/* ---- DOM helpers -------------------------------------------------------- */
+/* ---- DOM helpers --------------------------------------------------------- */
 
 const input = (root: HTMLElement, name: string) => root.querySelector<HTMLInputElement>(`[name="${name}"]`);
+const readValue = (root: HTMLElement, name: string) => input(root, name)?.value ?? '';
 const numOrNull = (raw: string | undefined): number | null => {
   if (raw == null) return null;
   const t = raw.trim();
@@ -165,26 +285,21 @@ const numOrNull = (raw: string | undefined): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 const toField = (n: number | null): string => (n === null ? '' : String(n));
-const readSex = (root: HTMLElement): Sex =>
-  (root.querySelector<HTMLInputElement>('[name="sex"]:checked')?.value as Sex) ?? 'male';
 
-const fmtWeight = (v: number, unit: string): string => (Number.isFinite(v) ? `${formatNumber(v, 1)} ${unit}` : '—');
-
-/* ---- the binding -------------------------------------------------------- */
+/* ---- the binding --------------------------------------------------------- */
 
 export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealWeightComputed> = {
   readValues(root) {
     const active = root.querySelector<HTMLElement>('[data-unit].is-active, [data-unit][aria-checked="true"]');
-    const system = active?.dataset.unit === 'imperial' ? 'imperial' : 'metric';
-    const sex = readSex(root);
-    if (system === 'metric') {
-      return { sex, system: 'metric', heightCm: input(root, 'heightCm')?.value ?? '' };
-    }
+    const system: UnitSystem = active?.dataset.unit === 'metric' ? 'metric' : 'imperial';
+    const sex = (root.querySelector<HTMLInputElement>('[name="sex"]:checked')?.value as Sex) ?? 'male';
     return {
-      sex,
-      system: 'imperial',
-      heightFt: input(root, 'heightFt')?.value ?? '',
-      heightIn: input(root, 'heightIn')?.value ?? '',
+      system,
+      sex: sex === 'female' ? 'female' : 'male',
+      age: readValue(root, 'age'),
+      heightCm: readValue(root, 'heightCm'),
+      heightFt: readValue(root, 'heightFt'),
+      heightIn: readValue(root, 'heightIn'),
     };
   },
 
@@ -192,47 +307,46 @@ export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealW
 
   compute: computeIdealWeight,
 
-  resultValue(result) {
-    return result.bmiMin; // finiteness sentinel — finite whenever height is valid
-  },
+  resultValue: completeIdealWeightValue,
 
   describeResult(result, context: ResultDescriptionContext<IdealWeightComputed>) {
-    const previous = context.previousResult
-      ? { bmiMin: context.previousResult.bmiMin, bmiMax: context.previousResult.bmiMax }
-      : null;
+    const previous = context.previousResult ? formulaSpread(context.previousResult) : null;
     return idealWeightAnnouncement(result, previous);
   },
 
   renderResult(result, context: FormRenderContext) {
     const scope = context.result;
     const q = (sel: string) => scope.querySelector<HTMLElement>(sel);
-    const unit = result.unit;
+    const set = (sel: string, text: string) => {
+      const el = q(sel);
+      if (el) el.textContent = text;
+    };
 
-    // Primary: the healthy weight range (dominant).
-    const minEl = q('[data-iw-bmimin]');
-    const maxEl = q('[data-iw-bmimax]');
-    const unitEl = q('[data-iw-unit]');
-    const rangeA11y = q('[data-iw-range-a11y]');
-    if (minEl) minEl.textContent = formatNumber(result.bmiMin, 1);
-    if (maxEl) maxEl.textContent = formatNumber(result.bmiMax, 1);
-    if (unitEl) unitEl.textContent = unit;
-    if (rangeA11y) {
-      rangeA11y.textContent = `${formatNumber(result.bmiMin, 1)} to ${formatNumber(result.bmiMax, 1)} ${accessibleUnit(unit)}`;
+    // Adults get the table; children get the reason it does not apply. Exactly one shows.
+    const adultBlock = q('[data-iw-adult]');
+    const childBlock = q('[data-iw-child]');
+    if (adultBlock) adultBlock.hidden = !result.adult;
+    if (childBlock) childBlock.hidden = result.adult;
+
+    if (!result.adult) {
+      set('[data-iw-age-echo]', Number.isFinite(result.age) ? String(result.age) : '—');
+      return;
     }
 
-    // Secondary: the four formula estimates.
-    const set = (sel: string, v: number) => {
-      const el = q(sel);
-      if (el) el.textContent = fmtWeight(v, unit);
-    };
-    set('[data-iw-robinson]', result.robinson);
-    set('[data-iw-miller]', result.miller);
-    set('[data-iw-devine]', result.devine);
-    set('[data-iw-hamwi]', result.hamwi);
+    // Dominant: the band the four formulas agree on.
+    const { low, high } = formulaSpread(result);
+    set('[data-iw-low]', fixed1(low));
+    set('[data-iw-high]', fixed1(high));
+    set('[data-iw-unit]', displayUnit(result.system));
+    set('[data-iw-spread-a11y]', spreadSpeech(result));
+
+    // The reference's table, row for row.
+    for (const row of FORMULA_ROWS) set(`[data-iw-row="${row.key}"]`, formatWeight(result[row.key], result.system));
+    set('[data-iw-bmirange]', formatRange(result.bmiMin, result.bmiMax, result.system));
   },
 
   resetValues(root, _mode: ResetMode) {
-    for (const name of ['heightCm', 'heightFt', 'heightIn']) {
+    for (const name of ['age', 'heightCm', 'heightFt', 'heightIn']) {
       const el = input(root, name);
       if (el) el.value = '';
     }
@@ -240,8 +354,9 @@ export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealW
     const female = root.querySelector<HTMLInputElement>('[name="sex"][value="female"]');
     if (male) male.checked = true;
     if (female) female.checked = false;
-    // The runtime's per-instance tracker forgets the previous result on reset, so the
-    // next calculation announces as a first result — no module state to clear here.
+    // The unit tab is a preference, not a value, so Reset leaves it where the visitor put it.
+    // The runtime's per-instance tracker forgets the previous result, so the next
+    // calculation announces as a first result — no module state to clear here.
   },
 
   convertValues(root, fromUnit, toUnit) {
@@ -257,4 +372,25 @@ export const idealWeightBinding: FormCalculatorBinding<IdealWeightValues, IdealW
       if (cmEl) cmEl.value = toField(cm);
     }
   },
+};
+
+/* ------------------------------------------------------------------ */
+/* Worked example (labelled; the visitor's fields stay EMPTY)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Example inputs for the labelled worked result shown on first load — the reference's own
+ * published case (a 25-year-old man of 5 ft 10 in), so the example and the reference agree
+ * figure for figure. It is deliberately in the system the tabs OPEN on, so the worked
+ * result never reads in kilograms under a tab that says US Units. These are OURS, not the
+ * visitor's: the shared runtime computes them through this binding's own `renderResult`,
+ * and the visitor's fields stay empty behind it.
+ */
+export const IDEAL_WEIGHT_EXAMPLE_VALUES: IdealWeightValues = {
+  system: 'imperial',
+  sex: 'male',
+  age: '25',
+  heightCm: '',
+  heightFt: '5',
+  heightIn: '10',
 };

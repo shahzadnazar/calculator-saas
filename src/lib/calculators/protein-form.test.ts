@@ -1,130 +1,245 @@
 import { describe, it, expect } from 'vitest';
-import { calculateProtein } from './protein';
 import {
+  MSG,
+  ACTIVITY_BANDS,
+  ACTIVITY_BAND_NOTES,
+  DEFAULT_ACTIVITY,
+  PROTEIN_AGE_MIN,
+  PROTEIN_AGE_MAX,
+  RDA_G_PER_KG,
+  ageError,
+  activityError,
+  bodyFatError,
   validateProteinValues,
   computeProtein,
+  completeProteinValue,
   describeProteinResult,
-  metricWeightToImperial,
-  imperialWeightToMetric,
-  DEFAULT_GOAL_KEY,
+  formatGrams,
+  formatBasis,
+  isUsableGrams,
+  proteinBinding,
+  metricToImperial,
+  imperialToMetric,
+  PROTEIN_EXAMPLE_VALUES,
   type ProteinValues,
 } from './protein-form';
 
 /**
- * Protein binding — pure surface. The grams-per-kg factors + the rounding stay in
- * the reviewed pure `protein.ts`; here we pin the binding's weight validation, the
- * PRESERVED per-goal output (delegated verbatim to `calculateProtein`, no invented
- * range), the concise primary-only description, and weight conversion.
+ * The binding's pure surface. The report itself lives in the reviewed pure `protein.ts`;
+ * here we pin the age, activity and body-fat gates, the row formatting, the whole-report
+ * guard, and Metric/US conversion.
  */
 
-const metric = (weightKg = '75', goalKey = DEFAULT_GOAL_KEY): ProteinValues => ({ system: 'metric', weightKg, goalKey });
-const imperial = (weightLb = '165', goalKey = DEFAULT_GOAL_KEY): ProteinValues => ({
+const base: ProteinValues = {
   system: 'imperial',
-  weightLb,
-  goalKey,
+  sex: 'male',
+  age: '25',
+  heightCm: '',
+  weightKg: '',
+  heightFt: '5',
+  heightIn: '10',
+  weightLb: '160',
+  activity: '1.375',
+  formula: 'mifflin',
+  bodyFatPct: '',
+};
+const us = (over: Partial<ProteinValues> = {}): ProteinValues => ({ ...base, ...over });
+const metric = (over: Partial<ProteinValues> = {}): ProteinValues => ({
+  ...base,
+  system: 'metric',
+  heightCm: '180',
+  weightKg: '60',
+  heightFt: '',
+  heightIn: '',
+  weightLb: '',
+  ...over,
+});
+const row = (v: ProteinValues, key: string) => computeProtein(v).bases.find((b) => b.key === key)!;
+
+describe('the reference case', () => {
+  it('US: 25, male, 5 ft 10 in, 160 lb, Light', () => {
+    const r = computeProtein(us());
+    expect(r.rda).toBe(58);
+    expect(r.calories).toBe(2361);
+    expect(formatBasis(row(us(), 'rda').low)).toBe('58 grams/day');
+    expect(formatBasis(row(us(), 'range').low, row(us(), 'range').high)).toBe('58 - 131 grams/day');
+    expect(formatBasis(row(us(), 'highly-active').low, row(us(), 'highly-active').high)).toBe('131 - 145 grams/day');
+    expect(formatBasis(row(us(), 'amdr').low, row(us(), 'amdr').high)).toBe('59 - 207 grams/day');
+  });
+
+  it('Metric: the same person at 180 cm, 60 kg', () => {
+    const r = computeProtein(metric());
+    expect(r.rda).toBe(48);
+    expect(r.calories).toBe(2207);
+    expect(formatBasis(row(metric(), 'amdr').low, row(metric(), 'amdr').high)).toBe('55 - 193 grams/day');
+  });
+
+  it('reports four bases, in order', () => {
+    expect(computeProtein(us()).bases.map((b) => b.key)).toEqual(['rda', 'range', 'highly-active', 'amdr']);
+  });
+});
+
+describe('activity', () => {
+  it('offers the six shared bands and refuses anything else', () => {
+    expect(ACTIVITY_BANDS).toHaveLength(6);
+    for (const b of ACTIVITY_BANDS) expect(activityError(String(b.value))).toBe(null);
+    expect(activityError('1.3')).toBe(MSG.activityMissing);
+    expect(activityError('')).toBe(MSG.activityMissing);
+    expect(DEFAULT_ACTIVITY).toBe(1.465);
+  });
+
+  it('moves the calorie row but never the weight rows', () => {
+    const light = computeProtein(us({ activity: '1.375' }));
+    const extra = computeProtein(us({ activity: '1.9' }));
+    expect(light.rda).toBe(extra.rda);
+    expect(extra.bases[3].low).toBeGreaterThan(light.bases[3].low);
+  });
+
+  it('carries the footnotes that define its terms', () => {
+    expect(ACTIVITY_BAND_NOTES).toHaveLength(3);
+  });
+});
+
+describe('age', () => {
+  it('is adults only — the recommendations reported here are adult ones', () => {
+    expect([PROTEIN_AGE_MIN, PROTEIN_AGE_MAX]).toEqual([18, 80]);
+    expect(ageError('17')).toBe(MSG.ageRange);
+    expect(ageError('18')).toBe(null);
+    expect(ageError('80')).toBe(null);
+    expect(ageError('81')).toBe(MSG.ageRange);
+  });
+
+  it('is required and whole', () => {
+    expect(ageError('')).toBe(MSG.ageMissing);
+    expect(ageError('25.5')).toBe(MSG.ageWhole);
+    expect(ageError('x')).toBe(MSG.ageWhole);
+  });
+});
+
+describe('body fat', () => {
+  it('is asked for only by Katch-McArdle', () => {
+    expect(bodyFatError('mifflin', '')).toBe(null);
+    expect(bodyFatError('harris-benedict', '')).toBe(null);
+    expect(bodyFatError('katch-mcardle', '')).toBe(MSG.bodyFatMissing);
+    expect(bodyFatError('katch-mcardle', '120')).toBe(MSG.bodyFatRange);
+    expect(bodyFatError('katch-mcardle', '20')).toBe(null);
+  });
+
+  it('the equation moves the calorie row but never the weight rows', () => {
+    const mifflin = computeProtein(metric());
+    const hb = computeProtein(metric({ formula: 'harris-benedict' }));
+    expect(hb.rda).toBe(mifflin.rda);
+    expect(hb.calories).not.toBe(mifflin.calories);
+  });
 });
 
 describe('validateProteinValues', () => {
-  it('accepts valid metric + imperial weight', () => {
+  it('accepts a complete US and a complete metric entry', () => {
+    expect(validateProteinValues(us())).toEqual({ ok: true });
     expect(validateProteinValues(metric())).toEqual({ ok: true });
-    expect(validateProteinValues(imperial())).toEqual({ ok: true });
   });
-  it('rejects missing / zero / negative / non-finite weight (metric)', () => {
-    for (const weightKg of ['', '0', '-5', 'x']) {
-      const r = validateProteinValues(metric(weightKg));
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.fieldErrors!.weightKg).toBeTruthy();
+
+  it('reports every missing field at once', () => {
+    const r = validateProteinValues(metric({ age: '', heightCm: '', weightKg: '', activity: '' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.fieldErrors!.age).toBe(MSG.ageMissing);
+      expect(r.fieldErrors!.heightCm).toBe(MSG.heightMissing);
+      expect(r.fieldErrors!.weightKg).toBe(MSG.weightMissing);
+      expect(r.fieldErrors!.activity).toBe(MSG.activityMissing);
     }
   });
-  it('rejects missing / non-positive weight (imperial)', () => {
-    for (const weightLb of ['', '0', '-1']) {
-      const r = validateProteinValues(imperial(weightLb));
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.fieldErrors!.weightLb).toBeTruthy();
+
+  it('applies the shared imperial-height semantics', () => {
+    const over = validateProteinValues(us({ heightIn: '12' }));
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(over.fieldErrors!.height).toBe(MSG.heightInches);
+    expect(validateProteinValues(us({ heightFt: '0', heightIn: '11' })).ok).toBe(true);
+  });
+
+  it('never reads the other tab’s boxes', () => {
+    expect(validateProteinValues(us({ heightCm: '', weightKg: '' })).ok).toBe(true);
+    expect(validateProteinValues(metric({ heightFt: '', heightIn: '', weightLb: '' })).ok).toBe(true);
+  });
+});
+
+describe('completeProteinValue — the whole report or nothing', () => {
+  it('is finite for a complete entry', () => {
+    expect(Number.isFinite(completeProteinValue(computeProtein(us())))).toBe(true);
+  });
+  it('is NaN when anything is missing', () => {
+    for (const bad of [us({ age: '' }), us({ weightLb: '' }), us({ heightFt: '', heightIn: '' })]) {
+      expect(Number.isNaN(completeProteinValue(computeProtein(bad)))).toBe(true);
     }
   });
-  it('never validates the goal (a select always holds a valid option)', () => {
-    // An unknown goal key still validates — validation only guards the weight.
-    expect(validateProteinValues(metric('75', 'nonsense'))).toEqual({ ok: true });
+  it('is NaN for Katch-McArdle without a body fat percentage', () => {
+    expect(Number.isNaN(completeProteinValue(computeProtein(us({ formula: 'katch-mcardle' }))))).toBe(true);
+    expect(
+      Number.isFinite(completeProteinValue(computeProtein(us({ formula: 'katch-mcardle', bodyFatPct: '20' })))),
+    ).toBe(true);
   });
 });
 
-describe('computeProtein — preserved factors, single value per goal (no invented range)', () => {
-  it('delegates grams verbatim to the reviewed calculateProtein', () => {
-    const values = metric('80', 'strength');
-    const mine = computeProtein(values);
-    const pure = calculateProtein({ system: 'metric', weightKg: 80, goalKey: 'strength' });
-    expect(mine.grams).toBe(pure.grams); // 144
-    expect(mine.grams).toBe(Math.round(80 * 1.8));
-    expect(mine.perGoal.map((g) => g.grams)).toEqual(pure.perGoal.map((g) => g.grams));
+describe('formatting and speech', () => {
+  it('never prints a non-number or a non-positive figure', () => {
+    expect(formatGrams(Number.NaN)).toBe('—');
+    expect(formatGrams(0)).toBe('—');
+    expect(formatBasis(Number.NaN)).toBe('—');
+    expect(formatBasis(58, Number.NaN)).toBe('—');
+    expect(isUsableGrams(0)).toBe(false);
+    expect(isUsableGrams(58)).toBe(true);
   });
 
-  it('returns every goal with its g/kg factor for comparison', () => {
-    const r = computeProtein(metric('75'));
-    expect(r.perGoal.length).toBe(5);
-    expect(r.perGoal.map((g) => g.key)).toEqual(['sedentary', 'active', 'endurance', 'strength', 'cutting']);
-    expect(r.perGoal.map((g) => g.factor)).toEqual([0.8, 1.2, 1.4, 1.8, 2.2]);
-    // Each goal's grams is a single finite value, distinct across goals (a real spread).
-    for (const g of r.perGoal) expect(Number.isFinite(g.grams)).toBe(true);
-    expect(new Set(r.perGoal.map((g) => g.grams)).size).toBe(5);
+  it('writes a single figure and a range differently', () => {
+    expect(formatBasis(58)).toBe('58 grams/day');
+    expect(formatBasis(58, 131)).toBe('58 - 131 grams/day');
   });
 
-  it('surfaces the selected goal as the primary, agreeing with its row', () => {
-    const r = computeProtein(metric('75', 'endurance'));
-    expect(r.goalKey).toBe('endurance');
-    expect(r.factor).toBe(1.4);
-    expect(r.grams).toBe(Math.round(75 * 1.4)); // 105
-    expect(r.perGoal.find((g) => g.key === 'endurance')!.grams).toBe(r.grams);
+  it('announces the RDA only, never the whole table', () => {
+    const s = describeProteinResult(computeProtein(us()));
+    expect(s).toBe('You need at least 58 grams of protein a day.');
+    expect(s).not.toMatch(/131|207|Calories/);
   });
 
-  it('does NOT fabricate a range/min-max headline field', () => {
-    const keys = Object.keys(computeProtein(metric('75'))).sort();
-    expect(keys).toEqual(['factor', 'goalKey', 'grams', 'label', 'perGoal']);
-    expect(keys).not.toContain('min');
-    expect(keys).not.toContain('max');
-    expect(keys).not.toContain('range');
-  });
-
-  it('converts imperial weight before applying the factor', () => {
-    const r = computeProtein(imperial('176', 'sedentary'));
-    // 176 lb ≈ 79.83 kg × 0.8 ≈ 64
-    expect(r.grams).toBeCloseTo(64, 0);
-  });
-
-  it('guards a non-positive weight — grams stay NaN, never 0', () => {
-    const r = computeProtein(metric('0'));
-    expect(Number.isNaN(r.grams)).toBe(true);
-    for (const g of r.perGoal) expect(Number.isNaN(g.grams)).toBe(true);
-  });
-
-  it('falls back to the first goal when the key is unknown (matches the pure module)', () => {
-    const r = computeProtein(metric('75', 'nonsense'));
-    expect(r.goalKey).toBe('sedentary');
-    expect(r.grams).toBe(Math.round(75 * 0.8)); // 60
+  it('publishes the rate the dominant figure is built on', () => {
+    expect(RDA_G_PER_KG).toBe(0.8);
   });
 });
 
-describe('describeProteinResult', () => {
-  it('announces only the primary daily amount + unit (never the goal table)', () => {
-    const s = describeProteinResult(computeProtein(metric('75', 'active')));
-    expect(s).toBe('Your estimated daily protein target is about 90 grams per day.');
-    expect(s).not.toMatch(/sedentary|endurance|strength|cutting|g\/kg|table/i);
+describe('conversion between the tabs', () => {
+  it('metric → US and back', () => {
+    expect(metricToImperial({ heightCm: 180, weightKg: 60 })).toEqual({ heightFt: 5, heightIn: 11, weightLb: 132.3 });
+    const m = imperialToMetric({ heightFt: 5, heightIn: 10, weightLb: 160 });
+    expect(m.heightCm).toBeCloseTo(177.8, 1);
+    expect(m.weightKg).toBeCloseTo(72.6, 1);
+  });
+  it('empty stays empty', () => {
+    expect(metricToImperial({ heightCm: null, weightKg: null })).toEqual({ heightFt: null, heightIn: null, weightLb: null });
+    expect(imperialToMetric({ heightFt: null, heightIn: null, weightLb: null })).toEqual({ heightCm: null, weightKg: null });
   });
 });
 
-describe('weight conversion', () => {
-  it('metric ↔ imperial round-trips within a rounding tolerance', () => {
-    const lb = metricWeightToImperial(75);
-    expect(lb!).toBeGreaterThan(165);
-    expect(lb!).toBeLessThan(166);
-    const kg = imperialWeightToMetric(165);
-    expect(kg!).toBeGreaterThan(74);
-    expect(kg!).toBeLessThan(76);
+describe('the labelled example', () => {
+  it('is the reference’s case, in the system the tabs open on and at its band', () => {
+    expect(PROTEIN_EXAMPLE_VALUES).toMatchObject({
+      system: 'imperial',
+      age: '25',
+      heightFt: '5',
+      heightIn: '10',
+      weightLb: '160',
+      activity: '1.375',
+      formula: 'mifflin',
+      bodyFatPct: '',
+    });
+    expect(validateProteinValues(PROTEIN_EXAMPLE_VALUES)).toEqual({ ok: true });
+    expect(computeProtein(PROTEIN_EXAMPLE_VALUES).rda).toBe(58);
   });
-  it('empty / non-positive weight stays null (never fabricated)', () => {
-    expect(metricWeightToImperial(null)).toBe(null);
-    expect(metricWeightToImperial(0)).toBe(null);
-    expect(imperialWeightToMetric(null)).toBe(null);
-    expect(imperialWeightToMetric(-3)).toBe(null);
+});
+
+describe('the binding wires the pure parts together', () => {
+  it('gates the result on the complete-report guard', () => {
+    expect(proteinBinding.resultValue).toBe(completeProteinValue);
+    expect(proteinBinding.validate).toBe(validateProteinValues);
+    expect(proteinBinding.compute).toBe(computeProtein);
   });
 });

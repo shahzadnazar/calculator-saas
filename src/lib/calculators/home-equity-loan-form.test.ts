@@ -1,305 +1,324 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateHomeEquity,
-  computeHomeEquity,
-  completeHomeEquityValue,
-  presentHomeEquity,
-  describeHomeEquity,
-  spokenUSD,
-  homeEquityBinding,
+  HOME_EQUITY_EXAMPLE_VALUES,
+  MAX_CLOSING_PCT,
   MAX_TERM_YEARS,
   MSG,
+  closingCostsInDollars,
+  completeHomeEquityValue,
+  computeHomeEquity,
+  describeHomeEquity,
+  homeEquityBinding,
+  presentHomeEquity,
+  spokenUSD,
+  validateHomeEquity,
   type HomeEquityComputed,
   type HomeEquityFormValues,
 } from './home-equity-loan-form';
-import { calculateHomeEquity } from './home-equity';
-import { pmt } from '@lib/finance';
 
 /**
- * Home Equity Loan form-binding tests (R15B2 Commit 2 — Loan family follow-on,
- * 2 of 3). Exercise the VALIDATION / PRESENTATION boundary only — the pure engine
- * (calculateHomeEquity → @lib/finance `pmt`) is unchanged and separately frozen by
- * home-equity.test.ts + finance.test.ts. Covers: strict validation (home value > 0,
- * mortgage >= 0, LTV in (0,100], loan > 0, rate >= 0, whole term 1–30); the
- * requested loan exceeding the LTV cap is SHOWN, not rejected; pass-through
- * computation; the complete-result guard (reconciliation + NaN sentinel; NO
- * isUsableResult); presentation / announcement helpers; readValues / resetValues.
+ * The home equity loan binding, pinned to the published reference case: $150,000 at
+ * 8% over 15 years is $1,433.48 a month, $258,026.06 across 180 payments, $108,026.06
+ * of it interest — a 58% / 42% split.
+ *
+ * Closing costs are the part with no formula of their own, so they carry the most
+ * tests: what they do to the cash, what they do to the real rate, and — the thing a
+ * borrower would be misled by — that both ways of paying them cost exactly the same.
  */
 
-const V = (over: Partial<HomeEquityFormValues> = {}): HomeEquityFormValues => ({
-  homeValue: '400000',
-  mortgageBalance: '250000',
-  maxLtvPct: '85',
-  loanAmount: '50000',
-  annualRatePct: '8',
-  termYears: '10',
-  ...over,
+const REF: HomeEquityFormValues = HOME_EQUITY_EXAMPLE_VALUES;
+const at = (over: Partial<HomeEquityFormValues> = {}): HomeEquityFormValues => ({ ...REF, ...over });
+const errs = (v: HomeEquityFormValues): Record<string, string> => {
+  const r = validateHomeEquity(v);
+  return r.ok ? {} : (r.fieldErrors ?? {});
+};
+const money = (n: number) => Math.round(n * 100) / 100;
+
+/** The reference case with its closing-costs disclosure opened. */
+const WITH_COSTS = at({ includeClosingCosts: true, closingAmount: '7500' });
+
+describe('validation — the three required fields', () => {
+  it('accepts the reference entry', () => {
+    expect(validateHomeEquity(REF)).toEqual({ ok: true });
+  });
+
+  it('requires a loan amount greater than zero', () => {
+    expect(errs(at({ loanAmount: '' })).loanAmount).toBe(MSG.loanRequired);
+    for (const bad of ['0', '-1000', 'abc']) {
+      expect(errs(at({ loanAmount: bad })).loanAmount).toBe(MSG.loanPositive);
+    }
+  });
+
+  it('requires a rate, allows 0%, and rejects an impossible one', () => {
+    expect(errs(at({ annualRatePct: '' })).annualRatePct).toBe(MSG.rateRequired);
+    expect(errs(at({ annualRatePct: '-1' })).annualRatePct).toBe(MSG.rateNonNeg);
+    expect(errs(at({ annualRatePct: '101' })).annualRatePct).toBe(MSG.rateMax);
+    expect(validateHomeEquity(at({ annualRatePct: '0' }))).toEqual({ ok: true });
+  });
+
+  it(`requires a whole term from 1 to ${MAX_TERM_YEARS} years`, () => {
+    for (const bad of ['', '0', '31', '7.5', '-5']) {
+      expect(errs(at({ termYears: bad })).termYears).toBe(MSG.term);
+    }
+    expect(validateHomeEquity(at({ termYears: '30' }))).toEqual({ ok: true });
+  });
 });
-const ok = (r: ReturnType<typeof validateHomeEquity>) => r.ok === true;
-const err = (r: ReturnType<typeof validateHomeEquity>, field: string) =>
-  (r as { fieldErrors: Record<string, string> }).fieldErrors[field];
-const rejects = (c: HomeEquityComputed) => Number.isNaN(completeHomeEquityValue(c));
 
-/* ------------------------------------------------------------------ */
-/* Contract                                                            */
-/* ------------------------------------------------------------------ */
-
-describe('home equity binding — contract', () => {
-  it('does NOT define isUsableResult (the guard lives in resultValue)', () => {
-    expect(homeEquityBinding.isUsableResult).toBeUndefined();
-    expect(homeEquityBinding.resultValue).toBe(completeHomeEquityValue);
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* Validation (strict, never Number()||0)                              */
-/* ------------------------------------------------------------------ */
-
-describe('home equity binding — validation', () => {
-  it('accepts a well-formed set (incl. 0% rate, no mortgage, and the 30-year ceiling)', () => {
-    expect(ok(validateHomeEquity(V()))).toBe(true);
-    expect(ok(validateHomeEquity(V({ annualRatePct: '0' })))).toBe(true);
-    expect(ok(validateHomeEquity(V({ mortgageBalance: '0' })))).toBe(true);
-    expect(ok(validateHomeEquity(V({ maxLtvPct: '100' })))).toBe(true);
-    expect(ok(validateHomeEquity(V({ termYears: String(MAX_TERM_YEARS) })))).toBe(true);
-  });
-
-  it('home value required and strictly greater than zero', () => {
-    expect(err(validateHomeEquity(V({ homeValue: '' })), 'homeValue')).toBe(MSG.homeValueRequired);
-    expect(err(validateHomeEquity(V({ homeValue: '   ' })), 'homeValue')).toBe(MSG.homeValueRequired);
-    for (const bad of ['0', '-1', 'abc', 'Infinity']) {
-      expect(err(validateHomeEquity(V({ homeValue: bad })), 'homeValue')).toBe(MSG.homeValuePositive);
-    }
-  });
-
-  it('mortgage balance required and >= 0 (0 valid — no mortgage)', () => {
-    expect(err(validateHomeEquity(V({ mortgageBalance: '' })), 'mortgageBalance')).toBe(MSG.mortgageRequired);
-    for (const bad of ['-1', 'abc', 'Infinity']) {
-      expect(err(validateHomeEquity(V({ mortgageBalance: bad })), 'mortgageBalance')).toBe(MSG.mortgageNonNeg);
-    }
-    expect(ok(validateHomeEquity(V({ mortgageBalance: '0' })))).toBe(true);
-  });
-
-  it('max LTV required and within (0, 100]', () => {
-    expect(err(validateHomeEquity(V({ maxLtvPct: '' })), 'maxLtvPct')).toBe(MSG.ltvRequired);
-    for (const bad of ['0', '-5', '101', '150', 'abc']) {
-      expect(err(validateHomeEquity(V({ maxLtvPct: bad })), 'maxLtvPct')).toBe(MSG.ltvRange);
-    }
-    for (const good of ['1', '82.5', '85', '100']) expect(ok(validateHomeEquity(V({ maxLtvPct: good })))).toBe(true);
-  });
-
-  it('loan amount required and strictly greater than zero', () => {
-    expect(err(validateHomeEquity(V({ loanAmount: '' })), 'loanAmount')).toBe(MSG.loanRequired);
-    for (const bad of ['0', '-100', 'abc', 'Infinity']) {
-      expect(err(validateHomeEquity(V({ loanAmount: bad })), 'loanAmount')).toBe(MSG.loanPositive);
-    }
-  });
-
-  it('rate required and >= 0 (0% valid, negative / garbage invalid)', () => {
-    expect(err(validateHomeEquity(V({ annualRatePct: '' })), 'annualRatePct')).toBe(MSG.rateRequired);
-    expect(err(validateHomeEquity(V({ annualRatePct: '-1' })), 'annualRatePct')).toBe(MSG.rateNonNeg);
-    expect(err(validateHomeEquity(V({ annualRatePct: 'x' })), 'annualRatePct')).toBe(MSG.rateNonNeg);
-    expect(ok(validateHomeEquity(V({ annualRatePct: '0' })))).toBe(true);
-  });
-
-  it('term required whole 1..30 — fractional / zero / >30 rejected, never rounded', () => {
-    for (const bad of ['', '0', '0.5', '2.5', '31', '-5', 'x']) {
-      expect(err(validateHomeEquity(V({ termYears: bad })), 'termYears')).toBe(MSG.term);
-    }
-    for (const good of ['1', '15', '30']) expect(ok(validateHomeEquity(V({ termYears: good })))).toBe(true);
-  });
-
-  it('a requested loan ABOVE the LTV-capped maximum is NOT a validation error (shown, not rejected)', () => {
-    // maxBorrow here is 90000; ask for far more — validation still passes.
-    expect(ok(validateHomeEquity(V({ loanAmount: '200000' })))).toBe(true);
-    // ...and it is only informational: exceedsMax is true on the computed result.
-    expect(computeHomeEquity(V({ loanAmount: '200000' })).result.exceedsMax).toBe(true);
-  });
-
-  it('reports every field error together on an empty submission', () => {
-    const r = validateHomeEquity({
-      homeValue: '',
-      mortgageBalance: '',
-      maxLtvPct: '',
-      loanAmount: '',
-      annualRatePct: '',
-      termYears: '',
+describe('validation — closing costs, only while the disclosure is open', () => {
+  it('a stale amount behind a cleared checkbox never blocks a result', () => {
+    // The visitor opened the disclosure, typed nonsense, then closed it again.
+    expect(validateHomeEquity(at({ includeClosingCosts: false, closingAmount: '-999' }))).toEqual({
+      ok: true,
     });
-    for (const f of ['homeValue', 'mortgageBalance', 'maxLtvPct', 'loanAmount', 'annualRatePct', 'termYears']) {
-      expect(err(r, f)).toBeDefined();
-    }
   });
-});
 
-/* ------------------------------------------------------------------ */
-/* Computation (pass-through)                                          */
-/* ------------------------------------------------------------------ */
-
-describe('home equity binding — computation', () => {
-  it('computes exactly as calculateHomeEquity on the parsed numbers', () => {
-    const c = computeHomeEquity(V());
-    expect(c.result).toEqual(
-      calculateHomeEquity({ homeValue: 400000, mortgageBalance: 250000, maxLtvPct: 85, loanAmount: 50000, annualRatePct: 8, termYears: 10 }),
+  it('requires an amount once the box is checked', () => {
+    expect(errs(at({ includeClosingCosts: true, closingAmount: '' })).closingAmount).toBe(
+      MSG.closingRequired,
     );
-    expect(c.result.equity).toBe(150000);
-    expect(c.result.maxBorrow).toBe(90000);
-    expect(c.result.exceedsMax).toBe(false);
-    expect(c.result.monthlyPayment).toBe(pmt(50000, 8 / 100 / 12, 120));
+    expect(errs(at({ includeClosingCosts: true, closingAmount: '-1' })).closingAmount).toBe(
+      MSG.closingNonNeg,
+    );
   });
 
-  it('carries the parsed numeric inputs alongside the result', () => {
-    const c = computeHomeEquity(V({ maxLtvPct: '82.5' }));
-    expect(c.homeValue).toBe(400000);
-    expect(c.maxLtvPct).toBe(82.5);
-    expect(c.termYears).toBe(10);
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/* Complete-result guard                                               */
-/* ------------------------------------------------------------------ */
-
-describe('home equity binding — complete-result guard', () => {
-  const good = computeHomeEquity(V());
-
-  it('returns the finite monthly payment for a well-formed result', () => {
-    expect(completeHomeEquityValue(good)).toBe(good.result.monthlyPayment);
-    expect(Number.isFinite(completeHomeEquityValue(good))).toBe(true);
+  it('accepts zero closing costs — a lender that charges none is a real offer', () => {
+    expect(validateHomeEquity(at({ includeClosingCosts: true, closingAmount: '0' }))).toEqual({
+      ok: true,
+    });
   });
 
-  it('accepts a 0% loan (payment = loan ÷ months)', () => {
-    const c = computeHomeEquity(V({ annualRatePct: '0', termYears: '1', loanAmount: '12000' }));
-    expect(completeHomeEquityValue(c)).toBe(1000);
+  it('rejects costs at or above the loan, which would leave no proceeds', () => {
+    expect(errs(at({ includeClosingCosts: true, closingAmount: '150000' })).closingAmount).toBe(
+      MSG.closingTooBig,
+    );
+    expect(errs(at({ includeClosingCosts: true, closingAmount: '200000' })).closingAmount).toBe(
+      MSG.closingTooBig,
+    );
   });
 
-  it('accepts an over-limit result — the payment still shows (not rejected)', () => {
-    const c = computeHomeEquity(V({ loanAmount: '200000' }));
-    expect(c.result.exceedsMax).toBe(true);
-    expect(Number.isFinite(completeHomeEquityValue(c))).toBe(true);
-    expect(completeHomeEquityValue(c)).toBe(c.result.monthlyPayment);
-  });
-
-  it('accepts a zero-equity (underwater) result — payment shown, maxBorrow 0', () => {
-    const c = computeHomeEquity(V({ homeValue: '300000', mortgageBalance: '350000' }));
-    expect(c.result.equity).toBe(0);
-    expect(c.result.maxBorrow).toBe(0);
-    expect(Number.isFinite(completeHomeEquityValue(c))).toBe(true);
-  });
-
-  it('rejects a non-finite or negative equity / maxBorrow / monthlyPayment', () => {
-    expect(rejects({ ...good, result: { ...good.result, equity: Number.NaN } })).toBe(true);
-    expect(rejects({ ...good, result: { ...good.result, equity: -1 } })).toBe(true);
-    expect(rejects({ ...good, result: { ...good.result, maxBorrow: Number.POSITIVE_INFINITY } })).toBe(true);
-    expect(rejects({ ...good, result: { ...good.result, maxBorrow: -1 } })).toBe(true);
-    expect(rejects({ ...good, result: { ...good.result, monthlyPayment: Number.NaN } })).toBe(true);
-    expect(rejects({ ...good, result: { ...good.result, monthlyPayment: -1 } })).toBe(true);
-  });
-
-  it('rejects a result whose figures do not reconcile with a recompute (tampered)', () => {
-    expect(rejects({ ...good, result: { ...good.result, equity: good.result.equity + 1000 } })).toBe(true);
-    expect(rejects({ ...good, result: { ...good.result, maxBorrow: good.result.maxBorrow + 1000 } })).toBe(true);
-    expect(rejects({ ...good, result: { ...good.result, monthlyPayment: good.result.monthlyPayment + 50 } })).toBe(true);
-  });
-
-  it('rejects a mismatched exceedsMax flag (tampered)', () => {
-    expect(rejects({ ...good, result: { ...good.result, exceedsMax: true } })).toBe(true);
-  });
-
-  it('rejects a result built on a non-finite parsed input (frozen Infinity home value)', () => {
-    // calculateHomeEquity propagates an infinite home value to a non-finite equity;
-    // the guard rejects it (the binding never renders a non-finite figure).
-    const c = computeHomeEquity(V({ homeValue: 'Infinity' }));
-    expect(Number.isFinite(c.result.equity)).toBe(false);
-    expect(rejects(c)).toBe(true);
+  it(`caps a percentage entry at ${MAX_CLOSING_PCT}% of the loan`, () => {
+    const pct = (v: string) => at({ includeClosingCosts: true, closingUnit: 'pct', closingAmount: v });
+    expect(errs(pct('25')).closingAmount).toBe(MSG.closingPctMax);
+    expect(validateHomeEquity(pct('5'))).toEqual({ ok: true });
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* Presentation helpers                                                */
-/* ------------------------------------------------------------------ */
-
-describe('home equity binding — presentation', () => {
-  it('presents the payment with cents and equity / max-borrow rounded', () => {
-    const p = presentHomeEquity(computeHomeEquity(V()));
-    expect(p.payment).toBe('$606.64'); // formatCurrency(pmt(50000, 8/100/12, 120))
-    expect(p.equity).toBe('$150,000');
-    expect(p.maxBorrow).toBe('$90,000');
-    expect(p.overLimit).toBe(false);
-    expect(p.interpretation).toBe('You hold $150,000 of equity; at a 85% loan-to-value cap you could borrow up to $90,000.');
+describe('closing costs in dollars or percent', () => {
+  it('converts a percentage of the loan', () => {
+    expect(closingCostsInDollars(5, 'pct', 150000)).toBe(7500);
+    expect(closingCostsInDollars(7500, 'usd', 150000)).toBe(7500);
   });
 
-  it('flags the over-limit case and carries a specific warning note', () => {
-    const p = presentHomeEquity(computeHomeEquity(V({ loanAmount: '200000' })));
-    expect(p.overLimit).toBe(true);
-    expect(p.overLimitNote).toContain('$200,000');
-    expect(p.overLimitNote).toContain('$90,000');
-    // The neutral secondary is unchanged by the flag — it never double-signals.
-    expect(p.interpretation).toBe('You hold $150,000 of equity; at a 85% loan-to-value cap you could borrow up to $90,000.');
+  it('5% and $7,500 are the same deal on a $150,000 loan', () => {
+    const asPct = computeHomeEquity(
+      at({ includeClosingCosts: true, closingUnit: 'pct', closingAmount: '5' }),
+    );
+    const asUsd = computeHomeEquity(WITH_COSTS);
+    expect(asPct.closing!.costs).toBe(asUsd.closing!.costs);
+    expect(asPct.closing!.realAprPct).toBeCloseTo(asUsd.closing!.realAprPct, 9);
+  });
+});
+
+describe('the reference case', () => {
+  const c = computeHomeEquity(REF);
+
+  it('produces the payment the reference reports', () => {
+    expect(money(c.plan.monthlyPayment)).toBe(1433.48);
+    expect(c.months).toBe(180);
   });
 
-  it('renders a decimal LTV cap verbatim', () => {
-    const p = presentHomeEquity(computeHomeEquity(V({ maxLtvPct: '82.5' })));
-    expect(p.interpretation).toContain('82.5% loan-to-value');
+  it('reports what the loan costs in total', () => {
+    expect(money(c.plan.totalOfPayments)).toBe(258026.06);
+    expect(money(c.plan.totalInterest)).toBe(108026.06);
   });
 
-  it('spokenUSD reads dollars and cents', () => {
-    expect(spokenUSD(606.64)).toBe('606 dollars and 64 cents');
+  it('carries a schedule that clears the loan', () => {
+    expect(c.plan.schedule).toHaveLength(180);
+    expect(c.plan.annual).toHaveLength(15);
+    expect(c.plan.schedule[179].balance).toBeCloseTo(0, 4);
+  });
+
+  it('reproduces the published annual schedule to the cent', () => {
+    const rows = c.plan.annual.slice(0, 7).map((y) => [money(y.interest), money(y.principal), money(y.balance)]);
+    expect(rows).toEqual([
+      [11804.97, 5396.77, 144603.23],
+      [11357.04, 5844.7, 138758.53],
+      [10871.93, 6329.81, 132428.72],
+      [10346.56, 6855.18, 125573.54],
+      [9777.58, 7424.15, 118149.39],
+      [9161.38, 8040.36, 110109.03],
+      [8494.04, 8707.7, 101401.33],
+    ]);
+  });
+
+  it('has no closing costs unless they were asked for', () => {
+    expect(c.closing).toBeNull();
+  });
+});
+
+describe('closing costs and the real rate', () => {
+  const c = computeHomeEquity(WITH_COSTS);
+
+  it('leaves the payment and the schedule alone', () => {
+    const plain = computeHomeEquity(REF);
+    expect(c.plan.monthlyPayment).toBe(plain.plan.monthlyPayment);
+    expect(c.plan.totalOfPayments).toBe(plain.plan.totalOfPayments);
+  });
+
+  it('takes the costs out of what you receive', () => {
+    expect(c.closing!.costs).toBe(7500);
+    expect(c.closing!.netProceeds).toBe(142500);
+  });
+
+  it('raises the real rate above the note rate', () => {
+    expect(c.closing!.realAprPct).toBeCloseTo(8.8599, 3);
+    expect(c.closing!.realAprPct).toBeGreaterThan(8);
+  });
+
+  it('deducted or paid upfront costs exactly the same', () => {
+    // Both leave the borrower net $142,500 against the same payments, so the rate is
+    // identical. Only the cash needed on the day differs.
+    const upfront = computeHomeEquity(at({ ...WITH_COSTS, closingTreatment: 'upfront' }));
+    expect(upfront.closing!.realAprPct).toBeCloseTo(c.closing!.realAprPct, 9);
+    expect(upfront.closing!.netProceeds).toBe(c.closing!.netProceeds);
+    expect(upfront.closing!.cashAtClosing).toBe(7500);
+    expect(c.closing!.cashAtClosing).toBe(0);
+  });
+
+  it('zero closing costs leave the real rate at the note rate', () => {
+    const free = computeHomeEquity(at({ includeClosingCosts: true, closingAmount: '0' }));
+    expect(free.closing!.realAprPct).toBeCloseTo(8, 6);
+    expect(free.closing!.netProceeds).toBe(150000);
+  });
+
+  it('bigger costs mean a higher real rate', () => {
+    const worse = computeHomeEquity(at({ includeClosingCosts: true, closingAmount: '15000' }));
+    expect(worse.closing!.realAprPct).toBeGreaterThan(c.closing!.realAprPct);
+  });
+});
+
+describe('presentation', () => {
+  const p = presentHomeEquity(computeHomeEquity(REF));
+
+  it('prints the figures the reference prints', () => {
+    expect(p.payment).toBe('$1,433.48');
+    expect(p.paymentsLabel).toBe('Total of 180 loan payments');
+    expect(p.totalOfPayments).toBe('$258,026.06');
+    expect(p.totalInterest).toBe('$108,026.06');
+  });
+
+  it('splits the total 58% / 42%', () => {
+    expect(p.principalShare).toBe('58%');
+    expect(p.interestShare).toBe('42%');
+  });
+
+  it('says the whole thing in a sentence', () => {
+    expect(p.interpretation).toBe(
+      'Borrowing $150,000 at 8% over 15 years costs $1,433.48 a month and $108,026.06 in interest.',
+    );
+  });
+
+  it('omits closing costs entirely when they were not asked for', () => {
+    expect(p.closing).toBeNull();
+  });
+
+  it('says one payment, not one payments', () => {
+    const one = presentHomeEquity(
+      computeHomeEquity(at({ loanAmount: '1000', annualRatePct: '0', termYears: '1' })),
+    );
+    expect(one.paymentsLabel).toBe('Total of 12 loan payments');
+  });
+
+  it('announces the payment, and the real rate once costs are included', () => {
+    expect(describeHomeEquity(computeHomeEquity(REF))).toBe(
+      'Monthly payment: 1433 dollars and 48 cents.',
+    );
+    expect(describeHomeEquity(computeHomeEquity(WITH_COSTS))).toBe(
+      'Monthly payment: 1433 dollars and 48 cents. Real APR with closing costs: 8.86 percent.',
+    );
     expect(spokenUSD(1000)).toBe('1000 dollars');
-    expect(spokenUSD(1)).toBe('1 dollar');
-  });
-
-  it('describeHomeEquity leads with the estimated monthly payment and the borrowing limit', () => {
-    // Zero-interest for a clean, exact spoken announcement (payment = loan ÷ months).
-    const c = computeHomeEquity(V({ loanAmount: '60000', annualRatePct: '0', termYears: '5' }));
-    expect(c.result.exceedsMax).toBe(false); // 60000 <= 90000
-    expect(describeHomeEquity(c)).toBe('Estimated monthly payment: 1000 dollars. You can borrow up to 90000 dollars.');
-  });
-
-  it('describeHomeEquity flags an over-limit request in the announcement', () => {
-    const c = computeHomeEquity(V({ loanAmount: '120000', annualRatePct: '0', termYears: '10' }));
-    expect(c.result.exceedsMax).toBe(true); // 120000 > 90000
-    expect(describeHomeEquity(c)).toBe('Estimated monthly payment: 1000 dollars. The entered loan is above your 90000 dollars maximum.');
+    expect(spokenUSD(0.01)).toBe('0 dollars and 1 cent');
   });
 });
 
-/* ------------------------------------------------------------------ */
-/* readValues / resetValues (mock root)                                */
-/* ------------------------------------------------------------------ */
+describe('the closing-cost explanation', () => {
+  it('explains a deducted fee by what you receive against what you owe', () => {
+    const p = presentHomeEquity(computeHomeEquity(WITH_COSTS));
+    expect(p.closing!.costs).toBe('$7,500.00');
+    expect(p.closing!.netProceeds).toBe('$142,500.00');
+    expect(p.closing!.realApr).toBe('8.86%');
+    expect(p.closing!.note).toContain('comes out of the loan');
+    expect(p.closing!.note).toContain('$142,500.00');
+  });
 
-describe('home equity binding — readValues / resetValues', () => {
-  const mockRoot = () => {
-    const inputs: Record<string, { value: string }> = {
-      homeValue: { value: '400000' },
-      mortgageBalance: { value: '250000' },
-      maxLtvPct: { value: '85' },
-      loanAmount: { value: '50000' },
-      annualRatePct: { value: '8' },
-      termYears: { value: '10' },
-    };
-    return {
-      querySelector: (sel: string) => {
-        const m = /\[name="([^"]+)"\]/.exec(sel);
-        return m ? inputs[m[1]] ?? null : null;
-      },
-      __inputs: inputs,
-    } as unknown as HTMLElement & { __inputs: Record<string, { value: string }> };
+  it('explains an upfront fee as the same cost with cash due on the day', () => {
+    const p = presentHomeEquity(computeHomeEquity(at({ ...WITH_COSTS, closingTreatment: 'upfront' })));
+    expect(p.closing!.cashAtClosing).toBe('$7,500.00');
+    expect(p.closing!.note).toContain('out the same money either way');
+    expect(p.closing!.realApr).toBe('8.86%');
+  });
+});
+
+describe('the complete-result guard', () => {
+  const good = computeHomeEquity(WITH_COSTS);
+  const broken = (mutate: (c: HomeEquityComputed) => void): HomeEquityComputed => {
+    const copy = JSON.parse(JSON.stringify(good)) as HomeEquityComputed;
+    mutate(copy);
+    return copy;
   };
 
-  it('reads all six fields', () => {
-    expect(homeEquityBinding.readValues(mockRoot())).toEqual({
-      homeValue: '400000',
-      mortgageBalance: '250000',
-      maxLtvPct: '85',
-      loanAmount: '50000',
-      annualRatePct: '8',
-      termYears: '10',
-    });
+  it('accepts a result that reconciles, returning the payment', () => {
+    expect(completeHomeEquityValue(good)).toBeCloseTo(1433.478, 3);
   });
 
-  it('reset clears every field', () => {
-    const root = mockRoot();
-    homeEquityBinding.resetValues(root, 'personal');
-    const inputs = (root as unknown as { __inputs: Record<string, { value: string }> }).__inputs;
-    for (const k of Object.keys(inputs)) expect(inputs[k].value).toBe('');
+  it('rejects totals that do not follow from the loan', () => {
+    expect(completeHomeEquityValue(broken((c) => (c.plan.totalOfPayments += 100)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.plan.totalInterest += 100)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.plan.loanAmount += 500)))).toBeNaN();
+  });
+
+  it('rejects a schedule that does not describe the same loan', () => {
+    expect(completeHomeEquityValue(broken((c) => c.plan.schedule.pop()))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.plan.schedule[179].balance = 400)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.plan.schedule[4].interest += 200)))).toBeNaN();
+  });
+
+  it('rejects a term that is not whole, in range, and matched by the months', () => {
+    expect(completeHomeEquityValue(broken((c) => (c.termYears = 15.5)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.termYears = 31)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.months = 200)))).toBeNaN();
+  });
+
+  it('rejects a non-finite or impossible figure', () => {
+    expect(completeHomeEquityValue(broken((c) => (c.loanAmount = 0)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.annualRatePct = -1)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.plan.monthlyPayment = Number.NaN)))).toBeNaN();
+  });
+
+  it('rejects closing costs that do not reconcile', () => {
+    expect(completeHomeEquityValue(broken((c) => (c.closing!.netProceeds += 100)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.closing!.costs = 150000)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.closing!.cashAtClosing = -1)))).toBeNaN();
+  });
+
+  it('rejects a real rate BELOW the note rate — paying a fee can only cost more', () => {
+    expect(completeHomeEquityValue(broken((c) => (c.closing!.realAprPct = 7)))).toBeNaN();
+    expect(completeHomeEquityValue(broken((c) => (c.closing!.realAprPct = Number.NaN)))).toBeNaN();
+  });
+});
+
+describe('the worked example', () => {
+  it('validates, so the example a visitor sees is a real calculation', () => {
+    expect(validateHomeEquity(HOME_EQUITY_EXAMPLE_VALUES)).toEqual({ ok: true });
+  });
+
+  it('is the published reference case and passes the same guard as any other result', () => {
+    const c = computeHomeEquity(HOME_EQUITY_EXAMPLE_VALUES);
+    expect(homeEquityBinding.resultValue(c)).toBeCloseTo(1433.478, 3);
+    expect(presentHomeEquity(c).payment).toBe('$1,433.48');
+  });
+
+  it('opens with the closing-costs disclosure closed', () => {
+    expect(HOME_EQUITY_EXAMPLE_VALUES.includeClosingCosts).toBe(false);
   });
 });

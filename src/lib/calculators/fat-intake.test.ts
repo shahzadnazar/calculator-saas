@@ -1,75 +1,133 @@
 import { describe, it, expect } from 'vitest';
-import { calculateFatIntake } from './fat-intake';
+import {
+  calculateFatIntake,
+  gramsFromCalories,
+  FAT_AGE_MIN,
+  FAT_AGE_MAX,
+  KCAL_PER_GRAM_FAT,
+  AMDR_MIN_PCT,
+  AMDR_MAX_PCT,
+  SATURATED_GUIDELINES_PCT,
+  SATURATED_AHA_PCT,
+  type FatIntakeInput,
+} from './fat-intake';
 
-/**
- * Fat-intake CHARACTERIZATION suite (R7C-2D, commit 1 of 2).
- *
- * Existing coverage was a single shared-batch assertion (batch-c.test.ts); this
- * dedicated suite freezes the EXACT current behaviour of the reviewed pure function
- * BEFORE the task-first UX migration, so the migration's new validation layer (which
- * stops non-positive calories from ever reaching this function) is a visible
- * binding-level decision — not a silent formula change.
- *
- * Confirmed from source (src/lib/calculators/fat-intake.ts), not assumed:
- *   - cal = Math.max(0, calories || 0);
- *   - grams(pct) = Math.round(cal · pct / 100 / 9)  (fat = 9 kcal/g);
- *   - AMDR band: min 20% · moderate 27.5% · max 35% of calories.
- *
- * The pure function is shared with the batch tests and the embed, so this parity net
- * guards every consumer.
- */
-describe('fat-intake — AMDR range (20% / 27.5% / 35% at 9 kcal/g)', () => {
-  it('computes the documented 2,000-kcal range', () => {
-    const r = calculateFatIntake(2000);
-    expect(r.minGrams).toBe(44); // round(2000·0.20/9) = round(44.4)
-    expect(r.moderateGrams).toBe(61); // round(2000·0.275/9) = round(61.1)
-    expect(r.maxGrams).toBe(78); // round(2000·0.35/9) = round(77.8)
+/** The reference's case: 25, male, 5 ft 10 in, 160 lb, Light (1.375). */
+const us = (over: Partial<FatIntakeInput> = {}): FatIntakeInput => ({
+  sex: 'male',
+  age: 25,
+  system: 'imperial',
+  heightFt: 5,
+  heightIn: 10,
+  weightLb: 160,
+  activity: 1.375,
+  ...over,
+});
+const metric = (over: Partial<FatIntakeInput> = {}): FatIntakeInput => ({
+  sex: 'male',
+  age: 25,
+  system: 'metric',
+  heightCm: 180,
+  weightKg: 60,
+  activity: 1.375,
+  ...over,
+});
+const row = (r: ReturnType<typeof calculateFatIntake>, key: string) => r.bases.find((b) => b.key === key)!;
+
+describe('everything is a share of the calorie figure', () => {
+  const result = calculateFatIntake(us());
+
+  it('anchors on the calorie figure the same activity produces elsewhere', () => {
+    expect(result.bmr).toBe(1717);
+    expect(result.calories).toBe(2361); // 1717 × 1.375, the calorie calculator's own number
   });
 
-  it('computes another representative target (2,500 kcal)', () => {
-    const r = calculateFatIntake(2500);
-    expect(r.minGrams).toBe(56); // round(55.6)
-    expect(r.moderateGrams).toBe(76); // round(76.4)
-    expect(r.maxGrams).toBe(97); // round(97.2)
+  it('reports the total-fat range from the AMDR', () => {
+    expect(row(result, 'total')).toMatchObject({ basis: '20 - 35% of Calories', low: 52, high: 92, ceiling: false });
+    expect([result.totalLow, result.totalHigh]).toEqual([52, 92]);
   });
 
-  it('rounds to the nearest whole gram, halves upward', () => {
-    // 90·0.35/9 = 3.5 → round → 4 (half-up); 90·0.20/9 = 2.0; 90·0.275/9 = 2.75 → 3.
-    const r = calculateFatIntake(90);
-    expect(r.minGrams).toBe(2);
-    expect(r.moderateGrams).toBe(3);
-    expect(r.maxGrams).toBe(4);
+  it('reports both published caps on saturated fat as ceilings, not ranges', () => {
+    expect(row(result, 'saturated-guidelines')).toMatchObject({ basis: 'under 10% of Calories', low: 26, ceiling: true });
+    expect(row(result, 'saturated-aha')).toMatchObject({ basis: 'under 6% of Calories', low: 16, ceiling: true });
+    for (const key of ['saturated-guidelines', 'saturated-aha']) {
+      expect(row(result, key).high).toBeUndefined();
+    }
   });
 
-  it('keeps the band ordered (min ≤ moderate ≤ max) for positive calories', () => {
-    for (const cal of [1200, 1800, 2200, 3000]) {
-      const r = calculateFatIntake(cal);
-      expect(r.minGrams).toBeLessThanOrEqual(r.moderateGrams);
-      expect(r.moderateGrams).toBeLessThanOrEqual(r.maxGrams);
+  it('the tighter cap is the smaller number, which is the point of showing both', () => {
+    expect(row(result, 'saturated-aha').low).toBeLessThan(row(result, 'saturated-guidelines').low);
+  });
+
+  it('the same body in metric', () => {
+    const m = calculateFatIntake(metric());
+    expect(m.calories).toBe(2207);
+    expect(row(m, 'total')).toMatchObject({ low: 49, high: 86 });
+    expect(row(m, 'saturated-guidelines').low).toBe(25);
+    expect(row(m, 'saturated-aha').low).toBe(15);
+  });
+
+  it('publishes the shares and the energy density it is built on', () => {
+    expect(KCAL_PER_GRAM_FAT).toBe(9);
+    expect([AMDR_MIN_PCT, AMDR_MAX_PCT]).toEqual([20, 35]);
+    expect([SATURATED_GUIDELINES_PCT, SATURATED_AHA_PCT]).toEqual([10, 6]);
+    expect([FAT_AGE_MIN, FAT_AGE_MAX]).toEqual([18, 80]);
+  });
+});
+
+describe('every row moves with the calorie figure, because every row IS the calorie figure', () => {
+  it('activity moves all three', () => {
+    const light = calculateFatIntake(us({ activity: 1.375 }));
+    const extra = calculateFatIntake(us({ activity: 1.9 }));
+    expect(extra.calories).toBeGreaterThan(light.calories);
+    for (const key of ['total', 'saturated-guidelines', 'saturated-aha']) {
+      expect(row(extra, key).low).toBeGreaterThan(row(light, key).low);
+    }
+  });
+
+  it('so do height, age and the equation', () => {
+    expect(calculateFatIntake(us({ heightFt: 6, heightIn: 4 })).calories).toBeGreaterThan(2361);
+    expect(calculateFatIntake(us({ age: 60 })).calories).toBeLessThan(2361);
+    expect(calculateFatIntake(us({ formula: 'harris-benedict' })).calories).not.toBe(2361);
+  });
+
+  it('the total range always runs low to high', () => {
+    for (const a of [1.2, 1.375, 1.465, 1.55, 1.725, 1.9]) {
+      const r = calculateFatIntake(us({ activity: a }));
+      expect(r.totalHigh).toBeGreaterThan(r.totalLow);
     }
   });
 });
 
-describe('fat-intake — non-positive / non-finite inputs (frozen quirks)', () => {
-  // The migration's validation prevents these from reaching the function; the
-  // function's own behaviour is frozen here and left unchanged.
-  it('returns all zeros for 0 calories', () => {
-    expect(calculateFatIntake(0)).toEqual({ minGrams: 0, moderateGrams: 0, maxGrams: 0 });
+describe('the primitive', () => {
+  it('grams from calories, at 9 per gram', () => {
+    expect(gramsFromCalories(2361, 20)).toBe(52);
+    expect(gramsFromCalories(2361, 35)).toBe(92);
+    expect(gramsFromCalories(1800, 10)).toBe(20);
   });
 
-  it('floors negative calories to 0 grams (never negative)', () => {
-    expect(calculateFatIntake(-500)).toEqual({ minGrams: 0, moderateGrams: 0, maxGrams: 0 });
-  });
-
-  it('treats NaN calories as 0 (via `calories || 0`)', () => {
-    expect(calculateFatIntake(NaN)).toEqual({ minGrams: 0, moderateGrams: 0, maxGrams: 0 });
+  it('rounds a figure sitting exactly on the boundary up, not down', () => {
+    // 2610 × 35% ÷ 9 is 101.5 exactly. Computing `percent / 100` first makes it
+    // 101.49999999999999 and loses the half.
+    expect(gramsFromCalories(2610, 35)).toBe(102);
   });
 });
 
-describe('fat-intake — result shape', () => {
-  it('returns exactly the three named gram figures', () => {
-    const r = calculateFatIntake(2000);
-    expect(Object.keys(r).sort()).toEqual(['maxGrams', 'minGrams', 'moderateGrams']);
-    for (const v of Object.values(r)) expect(Number.isInteger(v)).toBe(true);
+describe('guards', () => {
+  it('returns nothing usable when a measurement is missing', () => {
+    for (const bad of [us({ weightLb: 0 }), us({ heightFt: 0, heightIn: 0 }), us({ age: 0 })]) {
+      const r = calculateFatIntake(bad);
+      expect(Number.isNaN(r.calories)).toBe(true);
+      expect(r.bases).toEqual([]);
+    }
+  });
+
+  it('returns nothing usable for Katch-McArdle without a body fat percentage', () => {
+    expect(calculateFatIntake(us({ formula: 'katch-mcardle' })).bases).toEqual([]);
+    expect(calculateFatIntake(us({ formula: 'katch-mcardle', bodyFatPct: 20 })).bases).toHaveLength(3);
+  });
+
+  it('falls back to the default band rather than trusting an unlisted multiplier', () => {
+    expect(calculateFatIntake(us({ activity: 99 })).calories).toBe(calculateFatIntake(us({ activity: 1.465 })).calories);
   });
 });

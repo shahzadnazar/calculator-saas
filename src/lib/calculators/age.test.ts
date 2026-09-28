@@ -162,3 +162,59 @@ describe('age decomposition invariants — no impossible components, exact recon
     expect({ y: r.years, m: r.months, d: r.days }).toEqual({ y: 0, m: 0, d: 0 });
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* Smaller units + the week remainder (derived, never re-derived maths) */
+/* ------------------------------------------------------------------ */
+
+describe('calculateAge — hours, minutes and seconds', () => {
+  const at = (iso: string) => parseISODateUTC(iso)!;
+
+  it('derives them as exact multiples of the day count', () => {
+    const r = calculateAge(at('1991-06-15'), at('2026-08-26'));
+    expect(r.totalHours).toBe(r.totalDays * 24);
+    expect(r.totalMinutes).toBe(r.totalDays * 24 * 60);
+    expect(r.totalSeconds).toBe(r.totalDays * 24 * 60 * 60);
+  });
+
+  it('pins a known span end to end', () => {
+    // 2006-02-03 → 2026-08-26 is the reference span: 7,509 days.
+    const r = calculateAge(at('2006-02-03'), at('2026-08-26'));
+    expect(r.totalDays).toBe(7_509);
+    expect(r.totalHours).toBe(180_216);
+    expect(r.totalMinutes).toBe(10_812_960);
+    expect(r.totalSeconds).toBe(648_777_600);
+  });
+
+  it('splits the week total into whole weeks plus leftover days', () => {
+    const r = calculateAge(at('2006-02-03'), at('2026-08-26'));
+    expect(r.totalWeeks).toBe(1_072);
+    expect(r.totalWeeksRemainderDays).toBe(5);
+    expect(r.totalWeeks * 7 + r.totalWeeksRemainderDays).toBe(r.totalDays);
+  });
+
+  it('keeps the remainder inside 0–6 and reconciles for many spans', () => {
+    for (let d = 0; d < 400; d++) {
+      const end = new Date(Date.UTC(2020, 0, 1 + d));
+      const r = calculateAge(at('2020-01-01'), end);
+      expect(r.totalWeeksRemainderDays).toBeGreaterThanOrEqual(0);
+      expect(r.totalWeeksRemainderDays).toBeLessThanOrEqual(6);
+      expect(r.totalWeeks * 7 + r.totalWeeksRemainderDays).toBe(r.totalDays);
+      expect(r.totalSeconds).toBe(r.totalDays * 86_400);
+    }
+  });
+
+  it('is all zero for a same-date age, never NaN', () => {
+    const r = calculateAge(at('2026-08-26'), at('2026-08-26'));
+    expect(r.totalDays).toBe(0);
+    expect(r.totalHours).toBe(0);
+    expect(r.totalMinutes).toBe(0);
+    expect(r.totalSeconds).toBe(0);
+    expect(r.totalWeeksRemainderDays).toBe(0);
+  });
+
+  it('leaves the existing years/months/days figures untouched', () => {
+    const r = calculateAge(at('1991-06-15'), at('2026-08-26'));
+    expect([r.years, r.months, r.days]).toEqual([35, 2, 11]);
+  });
+});

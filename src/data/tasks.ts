@@ -121,9 +121,10 @@ export const TASK_GROUPS: readonly TaskGroup[] = [
       { ref: 'finance/salary-calculator', use: 'Convert pay between hourly, weekly, monthly and yearly.' },
       { ref: 'finance/income-tax-calculator', use: 'Estimate the income tax owed on your earnings.' },
       { ref: 'finance/sales-tax-calculator', use: 'Add sales tax to a price, or back it out of a total.' },
+      { ref: 'finance/vat-calculator', use: 'Add VAT to a net price, or strip it out of a gross one.' },
       { ref: 'finance/tip-calculator', use: 'Work out the tip and split a bill any number of ways.' },
     ],
-    guides: ['how-to-calculate-sales-tax'],
+    guides: ['how-to-calculate-sales-tax', 'how-vat-works'],
     order: 3,
   },
   {
