@@ -2,48 +2,172 @@ name: CI
 
 on:
   push:
-  pull_request:
+
+# Workflow only needs read access to repository contents.
+permissions:
+  contents: read
+
+# If several commits are pushed quickly to the same feature branch,
+# cancel the older CI run and test only the newest commit.
+#
+# Never cancel a main/production workflow once it has started.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # ==========================================================================
+  # BUILD AND TEST
+  #
+  # Runs on every push to every branch.
+  # ==========================================================================
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
         with:
+          # Keep the application's existing Node.js version for now.
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Type check
         run: npm run check
-      - name: Assert generated embed pages are current (no drift from the registry)
+
+      - name: Assert generated embed pages are current
         run: npm run assert:embed-pages-current
+
       - name: Unit tests
         run: npm test
+
       - name: Production build
         run: npm run build
-      - name: Assert public embeds stay isolated (0 unrelated calculator-scoped CSS)
+
+      - name: Assert public embeds stay isolated
         run: npm run assert:embed-isolation
-      - name: Assert monetization stays off (no region/landmark/reserved space/CSS/bridge JS on any live page)
+
+      - name: Assert monetization stays off
         run: npm run assert:mon-off
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: E2E smoke
+
+      - name: E2E smoke tests
         run: npm run test:e2e
 
-  # The internal /dev/ demo route is allowed on feature branches while building
-  # the shared utility system, but must never reach production. Enforced on the
-  # default branch only.
-  prelaunch-no-dev:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+  # ==========================================================================
+  # DEPLOY TO HOSTINGER
+  #
+  # Runs ONLY when:
+  #   1. build-and-test succeeds
+  #   2. the push is on main
+  #
+  # Required repository secrets:
+  #   HOSTINGER_HOST
+  #   HOSTINGER_USER
+  #   HOSTINGER_PORT
+  #   HOSTINGER_PATH
+  #   HOSTINGER_SSH_KEY
+  # ==========================================================================
+  deploy:
+    needs: build-and-test
+
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    runs-on: ubuntu-24.04
+
+    # Only one production deployment can run at a time.
+    concurrency:
+      group: hostinger-production
+      cancel-in-progress: false
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
-      - run: npm run build
-      - name: Assert no /dev/ output in production build
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production site
+        run: npm run build
+
+      # Internal demo routes are used during development/tests,
+      # but must never reach production.
+      - name: Strip internal /dev routes from the bundle
+        run: rm -rf dist/dev
+
+      - name: Assert no /dev output is about to ship
         run: npm run assert:no-dev
+
+      - name: Assert .htaccess is in the bundle
+        run: |
+          test -f dist/.htaccess || \
+          (echo "::error::dist/.htaccess missing - clean URLs would 404" && exit 1)
+
+      # ----------------------------------------------------------------------
+      # SSH CONFIGURATION
+      # ----------------------------------------------------------------------
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HOSTINGER_HOST }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan \
+            -p "$SSH_PORT" \
+            -H "$SSH_HOST" \
+            >> ~/.ssh/known_hosts
+
+          chmod 600 ~/.ssh/known_hosts
+
+      # ----------------------------------------------------------------------
+      # VERIFY HOSTINGER CONNECTION
+      # ----------------------------------------------------------------------
+      - name: Verify Hostinger SSH connection
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_PATH: ${{ secrets.HOSTINGER_PATH }}
+        run: |
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            -o PasswordAuthentication=no \
+            -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" \
+            "test -d '$HOSTINGER_PATH' && echo 'SSH connection and deployment path verified'"
+
+      # ----------------------------------------------------------------------
+      # DEPLOY
+      # ----------------------------------------------------------------------
+      - name: Deploy Astro dist to Hostinger
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_PATH: ${{ secrets.HOSTINGER_PATH }}
+        run: |
+          rsync \
+            -az \
+            --exclude='*.map' \
+            -e "ssh -i ~/.ssh/id_ed25519 -o PasswordAuthentication=no -p $SSH_PORT" \
+            dist/ \
+            "$SSH_USER@$SSH_HOST:$HOSTINGER_PATH"
