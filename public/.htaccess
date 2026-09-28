@@ -18,14 +18,17 @@
 # is predictable. Off first, so the rewrite below is the only thing deciding.
 Options -MultiViews
 
+# `/finance` is BOTH a file (finance.html) and a directory (finance/...).
+# Apache resolves the directory first and 301s `/finance` to `/finance/`, which
+# has no index file — a redirect straight into a 404. This affects /finance
+# /health /math /everyday /tasks /topics /guides /reference /embed. DirectorySlash
+# belongs to mod_dir, so it is set here rather than inside the rewrite block.
+<IfModule mod_dir.c>
+  DirectorySlash Off
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
-
-  # `/finance` is BOTH a file (finance.html) and a directory (finance/...).
-  # Apache resolves the directory first and 301s `/finance` to `/finance/`,
-  # which has no index file — a redirect straight into a 404. This affects
-  # /finance /health /math /everyday /tasks /topics /guides /reference /embed.
-  DirectorySlash Off
 
   # Canonical host. Pick ONE of the two blocks below and delete the other.
   # ---- with www ----
@@ -35,10 +38,26 @@ Options -MultiViews
   RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
   RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
 
+  # Legacy URLs from whatever previously lived on this domain. Google indexed
+  # /home/ — a path this site has never produced — so the only result for
+  # "bestcalculate.com" was a 404 with "No information is available for this
+  # page", and a Chrome new-tab tile pointing at it 404'd on every cold open.
+  # A 301 both fixes the visit and tells Google to fold that URL into the root.
+  RewriteRule ^home/?$ / [R=301,L]
+
+  # /index.html is the same page as /, so only one of them should be reachable.
+  RewriteRule ^index\.html$ / [R=301,L]
+
   # Trailing slashes are stripped because the site declares
   # `trailingSlash: 'never'` — /finance/ and /finance must not both resolve, or
   # Google sees two URLs for one page.
-  RewriteCond %{REQUEST_FILENAME} !-d
+  #
+  # Deliberately NOT guarded by `!-d`. /finance IS a real directory, and with
+  # DirectorySlash off a request for /finance/ would otherwise fall through to a
+  # directory with no index document — a 404 on a URL Apache itself used to hand
+  # out, and one Google may still hold. The root is the only directory on this
+  # site with an index document, and it is excluded on the line above, so every
+  # other trailing slash is unambiguously wrong.
   RewriteCond %{REQUEST_URI} !^/$
   RewriteRule ^(.+?)/+$ /$1 [R=301,L]
 

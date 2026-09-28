@@ -56,13 +56,20 @@ const langAttr = SITE.locale.split('_')[0];
       jsonLd={schemas}
     />
     <script is:inline>
-      // Apply the saved theme before first paint to prevent a flash.
+      // Set the theme before first paint, so there is no flash.
+      //
+      // LIGHT is the product default, not the visitor's OS setting. Every dark rule in the
+      // stylesheets is written as `:root:not([data-theme='light'])` inside a
+      // prefers-color-scheme query, so stamping `light` here switches all 83 of them off in
+      // one move; `dark` still comes through for anyone who picks it with the toggle.
+      //
+      // Written before the try, so a browser that refuses localStorage (private mode, blocked
+      // site data) still lands on light rather than falling through to the OS.
       (function () {
+        var el = document.documentElement;
+        el.setAttribute('data-theme', 'light');
         try {
-          var t = localStorage.getItem('theme');
-          if (t === 'light' || t === 'dark') {
-            document.documentElement.setAttribute('data-theme', t);
-          }
+          if (localStorage.getItem('theme') === 'dark') el.setAttribute('data-theme', 'dark');
         } catch (e) {}
       })();
     </script>

@@ -274,7 +274,12 @@ import { COMPOUND_FREQUENCIES } from '@lib/calculators/interest';
      at the standard padding it squeezed its own input down to 39px, too narrow to
      read a two-digit entry in. */
   .int-term { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-  .int-term__part { flex: 1 1 0; min-width: 0; }
+  /* `flex: 1 1 0` let each part shrink to 67px while its own contents needed 105px
+     (a 3.25rem input beside the "months" affix), so the affix hung 5px past the
+     right edge of a 360px phone and the page scrolled sideways. A real basis plus
+     a content-sized floor makes the pair WRAP — which is what .int-term's
+     flex-wrap was always there for — instead of squeezing. */
+  .int-term__part { flex: 1 1 8rem; min-width: 6.5rem; }
   /* A floor, not just min-width:0: "months" is a wide affix, so in a narrower
      column the box it sits beside was squeezed to 42px — too narrow to read an
      entry in. Below ~26rem of field the pair wraps instead (see .int-term). */

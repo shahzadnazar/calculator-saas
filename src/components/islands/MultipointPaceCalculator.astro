@@ -196,10 +196,21 @@ const ROWS = 4;
     margin-top: 0.9rem;
   }
   .btn-sm {
-    min-height: 2.5rem;
+    /* 2.75rem so "Add a point" clears the 44px tap target like every other
+       control; the smaller padding and type still keep it visually secondary. */
+    min-height: 2.75rem;
     padding: 0 0.75rem;
     font-size: 0.82rem;
   }
+  /* Both tables carry a fixed-width time input per row, so they have a hard
+     minimum the page cannot absorb at 320px. Let each scroll inside itself. */
+  .mp__inputs,
+  .mp__out {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
   .mp__results {
     margin-top: 0.9rem;
     padding: 0.9rem 1rem;

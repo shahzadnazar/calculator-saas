@@ -217,8 +217,20 @@ test('mobile stacks inputs → action → result and does not overflow', async (
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test('renders in dark scheme', async ({ page }) => {
+test('an OS set to dark does NOT darken the page — light is the product default', async ({ page }) => {
+  // The site used to follow prefers-color-scheme. It no longer does: light is the
+  // default for everyone, and dark is something the visitor opts into.
   await page.emulateMedia({ colorScheme: 'dark' });
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await calcMetric(page, '175', '70');
+  await expect(value(page)).toBeVisible();
+});
+
+test('renders in dark scheme once the visitor opts in', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('theme', 'dark'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await calcMetric(page, '175', '70');
   await expect(value(page)).toBeVisible();
   const bg = await shell(page).evaluate((el) => getComputedStyle(el).backgroundColor);

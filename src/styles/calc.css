@@ -135,8 +135,20 @@
   font-weight: 600;
 }
 
-.calc-keypads:has(.sci-panel:not([hidden])) {
-  grid-template-columns: 5fr 4fr;
+/* Scientific mode puts the function panel beside the number pad — but only once
+   there is room for both. Every .calc-key carries `min-width: 44px` for the tap
+   target, which floors the function panel at 5x44 and the number pad at 4x44
+   plus gaps; below roughly 560px the two tracks are narrower than those floors,
+   so both grids overflow their column and paint over each other (43 keys, 32
+   overlapping pairs at 360px, with `mod` pushed off the left edge).
+
+   Written as min-width so the SAFE layout is the default: a single column, the
+   panel stacked above the pad, which is what the comment below has always said
+   it does. A phone now gets ~61px keys instead of a collision. */
+@media (min-width: 35rem) {
+  .calc-keypads:has(.sci-panel:not([hidden])) {
+    grid-template-columns: 5fr 4fr;
+  }
 }
 
 /* Keypads. Basic renders in both modes; the Scientific panel sits above it. */

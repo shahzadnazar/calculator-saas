@@ -257,6 +257,98 @@ test('mobile: 52px rows, no horizontal overflow', async ({ page }) => {
   expect(overflow).toBe(false);
 });
 
+/**
+ * The hero wraps the search in `text-center lg:text-left`, so on a phone every
+ * result inherited centre alignment: the title floated in the middle of its row
+ * and the blurb sat indented beneath it, lined up with nothing. The component
+ * declares its own alignment now, which is what these assert — measured against
+ * the row's own left padding rather than a hard-coded x.
+ */
+test.describe('mobile alignment inside a centred host', () => {
+  test.use({ viewport: { width: 390, height: 800 } });
+
+  const heroInput = (p: Page) => p.locator('#hero-search-input');
+  const heroOptions = (p: Page) => p.locator('#hero-search [role="option"]');
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await heroInput(page).click();
+    await heroInput(page).pressSequentially('calc', { delay: 30 });
+    await expect(heroOptions(page).first()).toBeVisible();
+  });
+
+  test('the host really is centred — otherwise this proves nothing', async ({ page }) => {
+    const hostAlign = await page.evaluate(() => {
+      const host = document.querySelector('#hero-search')!.parentElement!;
+      return getComputedStyle(host).textAlign;
+    });
+    expect(hostAlign).toBe('center');
+  });
+
+  test('title and blurb start at the same left edge, flush with the row', async ({ page }) => {
+    const row = heroOptions(page).first();
+    const edges = await row.evaluate((el) => {
+      const pad = parseFloat(getComputedStyle(el).paddingLeft);
+      const left = el.getBoundingClientRect().left + pad;
+      const of = (sel: string) => el.querySelector(sel)!.getBoundingClientRect().left;
+      return {
+        title: of('.calc-search__result-title') - left,
+        blurb: of('.calc-search__result-blurb') - left,
+      };
+    });
+    expect(Math.abs(edges.title)).toBeLessThanOrEqual(1);
+    expect(Math.abs(edges.blurb)).toBeLessThanOrEqual(1);
+  });
+
+  test('category and arrow sit on one line, centred against the row', async ({ page }) => {
+    const row = heroOptions(page).first();
+    const m = await row.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const cat = el.querySelector('.calc-search__result-cat')!.getBoundingClientRect();
+      const arrow = el.querySelector('.calc-search__result-arrow')!.getBoundingClientRect();
+      return {
+        catMid: cat.top + cat.height / 2 - (r.top + r.height / 2),
+        arrowMid: arrow.top + arrow.height / 2 - (r.top + r.height / 2),
+        gap: arrow.left - cat.right,
+        rightPad: r.right - arrow.right - parseFloat(getComputedStyle(el).paddingRight),
+      };
+    });
+    expect(Math.abs(m.catMid)).toBeLessThanOrEqual(2);
+    expect(Math.abs(m.arrowMid)).toBeLessThanOrEqual(2);
+    expect(m.gap).toBeGreaterThan(0);
+    expect(Math.abs(m.rightPad)).toBeLessThanOrEqual(1);
+  });
+
+  test('the longest title never shoves the category or the arrow off the row', async ({ page }) => {
+    // 320px is the narrowest viewport the site supports, and "Standard Deviation
+    // Calculator" is the longest title in the registry — the worst case there is.
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await heroInput(page).fill('standard deviation');
+      await expect(heroOptions(page).first()).toBeVisible();
+
+      const row = heroOptions(page).first();
+      const m = await row.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const box = (sel: string) => el.querySelector(sel)!.getBoundingClientRect();
+        const title = el.querySelector('.calc-search__result-title') as HTMLElement;
+        return {
+          titleOverCat: box('.calc-search__result-title').right - box('.calc-search__result-cat').left,
+          arrowOver: box('.calc-search__result-arrow').right - r.right,
+          titleOverflows: title.getBoundingClientRect().width < title.scrollWidth - 1,
+          ellipsis: getComputedStyle(title).textOverflow,
+        };
+      });
+
+      expect(m.titleOverCat, `title runs into the category at ${width}px`).toBeLessThanOrEqual(1);
+      expect(m.arrowOver, `arrow escapes the row at ${width}px`).toBeLessThanOrEqual(1);
+      // Whether it actually clips depends on the width; that it clips rather than
+      // spilling is the contract.
+      if (m.titleOverflows) expect(m.ellipsis).toBe('ellipsis');
+    }
+  });
+});
+
 /* ---- caching ---------------------------------------------------- */
 
 test('multiple instances fetch the index only once', async ({ page }) => {
