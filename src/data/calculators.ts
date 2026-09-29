@@ -719,19 +719,12 @@ export function categoryPath(category: Pick<Category, 'slug'>): string {
   return `/${category.slug}`;
 }
 
-/**
- * Related calculators for internal linking: prefer live siblings in the same
- * category, then fall back to other live calculators. Never returns `self`.
+/*
+ * Related calculators live in `src/lib/related.ts`, not here. Ranking them needs
+ * the task groups and topic clusters, and those layers are built on top of this
+ * registry — importing them back into it would invert the dependency. The
+ * registry stays the base layer that knows nothing about the IA above it.
  */
-export function getRelatedCalculators(self: Calculator, limit = 6): Calculator[] {
-  const sameCategory = getLiveCalculators().filter(
-    (c) => c.category === self.category && c.slug !== self.slug,
-  );
-  const others = getLiveCalculators().filter(
-    (c) => c.category !== self.category && c.slug !== self.slug,
-  );
-  return [...sameCategory, ...others].slice(0, limit);
-}
 
 /**
  * Recently added calculators, newest first, as "<category>/<slug>" registry refs.
