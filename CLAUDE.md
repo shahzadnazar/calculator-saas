@@ -50,6 +50,15 @@ indexable, then **rsyncs `dist/` to Hostinger over SSH** (secrets `HOSTINGER_HOS
 / `USER` / `PORT` / `PATH` / `SSH_KEY`). A red suite cannot reach the live site,
 because `deploy` never starts.
 
+**CI runs on pull requests, on pushes to `main`, and on `workflow_dispatch` — not
+on every branch push.** This is a private repository, so Actions minutes are
+metered, and `on: push:` with no filter spent the monthly allowance on
+intermediate commits: once it ran out the runner stopped starting jobs at all,
+which reads as a 4-second "failure" with no logs and no steps on a commit that
+changed nothing. Verify a branch locally (`npm run check && npm test && npm run
+build && npm run test:e2e`) and let the PR run the suite; use the manual
+**Run workflow** button if you need it on a branch with no PR open.
+
 The rsync carries no `--delete`, so a file dropped from the build stays on the
 server. That is how Hostinger's parked-domain `default.php` survived the first
 deploys; `.htaccess` pins `DirectoryIndex index.html` so it cannot serve `/`.

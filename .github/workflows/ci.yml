@@ -1,13 +1,31 @@
 name: CI
 
+# This workflow used to be `on: push:` with no filter, so EVERY commit on EVERY
+# branch ran the full ~20-minute suite. That is a private repository, where
+# Actions minutes are metered, and it exhausted the monthly allowance: from
+# 2026-09-29 the runner stopped starting jobs at all — 4-second "failures" with
+# no logs and no steps, on commits that changed nothing but documentation.
+#
+# The suite is unchanged and still runs in full at both points that matter: on a
+# pull request, before anything can merge, and on main, before anything deploys.
+# What is gone is running it again for every intermediate commit on a branch
+# nobody has proposed merging yet. A twelve-commit day used to cost four hours of
+# runner time and now costs the one PR run plus the one main run.
 on:
+  # Production. Full suite, then deploy.
   push:
+    branches: [main]
+  # The gate before that. Re-runs on every push to the PR's branch, so the
+  # signal you actually act on is unchanged.
+  pull_request:
+  # Any branch, on demand, when you want the full suite without opening a PR.
+  workflow_dispatch:
 
 # Workflow only needs read access to repository contents.
 permissions:
   contents: read
 
-# If several commits are pushed quickly to the same feature branch,
+# If several commits are pushed quickly to the same pull request,
 # cancel the older CI run and test only the newest commit.
 #
 # Never cancel a main/production workflow once it has started.
@@ -19,7 +37,7 @@ jobs:
   # ==========================================================================
   # BUILD AND TEST
   #
-  # Runs on every push to every branch.
+  # Runs on every pull request, on every push to main, and on demand.
   # ==========================================================================
   build-and-test:
     runs-on: ubuntu-24.04
@@ -63,8 +81,30 @@ jobs:
       - name: Assert the bundle is indexable
         run: npm run assert:indexable
 
+      # The browser is ~130 MB and identical between runs; only its apt
+      # dependencies have to be laid down each time. Keyed on the resolved
+      # Playwright version, so a version bump invalidates the cache by itself
+      # rather than serving a browser the test runner refuses to drive.
+      - name: Resolve the Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browser
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      # A cache hit restores the browser but not the system libraries it links
+      # against, which live outside the cached directory.
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: E2E smoke tests
         run: npm run test:e2e
