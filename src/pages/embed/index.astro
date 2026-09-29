@@ -95,7 +95,7 @@ const demoSrc = '/embed/finance/tip-calculator';
           title={`Tip Calculator by ${SITE.name}`}
           loading="lazy"
           style="width:100%;border:0;height:560px;display:block"
-          id="allcalc-demo"></iframe>
+          id="bestcalculate-demo"></iframe>
       </div>
     </section>
 
@@ -122,8 +122,8 @@ const demoSrc = '/embed/finance/tip-calculator';
 <script is:inline>
   // Resize the demo iframe to fit the embedded Tip Calculator.
   window.addEventListener('message', function (e) {
-    if (e.data && e.data.type === 'allcalc-resize' && e.data.slug === 'tip-calculator') {
-      var f = document.getElementById('allcalc-demo');
+    if (e.data && e.data.type === 'bestcalculate-resize' && e.data.slug === 'tip-calculator') {
+      var f = document.getElementById('bestcalculate-demo');
       if (f) f.style.height = e.data.height + 'px';
     }
   });

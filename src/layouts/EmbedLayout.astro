@@ -10,6 +10,7 @@
  */
 import '@styles/global.css';
 import { SITE, absoluteUrl } from '@config/site';
+import { EMBED_RESIZE_MESSAGE, EMBED_RESIZE_MESSAGE_LEGACY } from '@lib/embed';
 
 interface Props {
   /** Calculator title, e.g. "Mortgage Calculator". */
@@ -45,7 +46,7 @@ const langAttr = SITE.locale.split('_')[0];
       <span>Powered by <a href={SITE.url} target="_blank" rel="noopener">{SITE.name}</a></span>
     </footer>
 
-    <script is:inline define:vars={{ slug }}>
+    <script is:inline define:vars={{ slug, resizeType: EMBED_RESIZE_MESSAGE, legacyResizeType: EMBED_RESIZE_MESSAGE_LEGACY }}>
       // Report our height to the host page so the iframe can size to fit.
       (function () {
         var last = 0;
@@ -54,7 +55,11 @@ const langAttr = SITE.locale.split('_')[0];
           if (h === last) return;
           last = h;
           try {
-            parent.postMessage({ type: 'allcalc-resize', slug: slug, height: h }, '*');
+            parent.postMessage({ type: resizeType, slug: slug, height: h }, '*');
+            // Snippets copied before the rename listen for the old name and are
+            // frozen in someone else's HTML; dropping this would leave them
+            // stuck at their initial height forever.
+            parent.postMessage({ type: legacyResizeType, slug: slug, height: h }, '*');
           } catch (e) {}
         }
         if ('ResizeObserver' in window) {

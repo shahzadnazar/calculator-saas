@@ -11,6 +11,26 @@
  * computes its own table from the tested functions.
  */
 
+/**
+ * The licence the reference tables' figures are offered under.
+ *
+ * CC BY 4.0 rather than CC0 or a non-commercial variant, for one reason: BY
+ * requires attribution, and attribution is the link. CC0 would maximise reuse
+ * and ask for nothing back; NC would exclude most of the people who would
+ * actually use a table, since a blog or a publisher is a commercial site.
+ *
+ * SCOPE: this covers the compilation — the choice of rates, terms and rows, and
+ * their presentation — not the site's code, prose or branding. The arithmetic
+ * itself is fact, and a monthly payment at a given rate and term is not
+ * something anyone can own. The licence is therefore as much a statement of
+ * what we expect as a grant of what we hold: use these numbers, and say where
+ * they came from.
+ */
+export const REFERENCE_DATA_LICENSE = {
+  name: 'CC BY 4.0',
+  url: 'https://creativecommons.org/licenses/by/4.0/',
+} as const;
+
 export interface ReferenceAsset {
   /** URL segment under /reference/. */
   readonly slug: string;
@@ -25,6 +45,17 @@ export interface ReferenceAsset {
   readonly icon: string;
   /** Slug of the related calculator ("category/slug") for cross-linking. */
   readonly relatedCalculator: string;
+  /**
+   * ISO date the table's figures and method were last verified.
+   *
+   * It lives here rather than defaulting in the layout because a citable data
+   * asset has to state when it was produced — an undated table is a weaker
+   * citation and some editors reject it outright. It drives the visible line,
+   * the Article and Dataset `dateModified`, and the sitemap `lastmod`, so all
+   * four agree by construction. Bump it when the figures or the method change,
+   * not when the prose around them is edited.
+   */
+  readonly reviewed: string;
   readonly order: number;
 }
 
@@ -38,6 +69,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'landmark',
     relatedCalculator: 'finance/mortgage-calculator',
+    reviewed: '2026-07-18',
     order: 1,
   },
   {
@@ -49,6 +81,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'banknote',
     relatedCalculator: 'finance/loan-calculator',
+    reviewed: '2026-07-18',
     order: 2,
   },
   {
@@ -60,6 +93,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'trending-up',
     relatedCalculator: 'finance/compound-interest-calculator',
+    reviewed: '2026-07-18',
     order: 3,
   },
   {
@@ -71,6 +105,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'health',
     icon: 'scale',
     relatedCalculator: 'health/bmi-calculator',
+    reviewed: '2026-07-18',
     order: 4,
   },
   {
@@ -82,6 +117,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'piggy-bank',
     relatedCalculator: 'finance/investment-calculator',
+    reviewed: '2026-07-18',
     order: 5,
   },
   {
@@ -93,6 +129,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'briefcase',
     relatedCalculator: 'finance/salary-calculator',
+    reviewed: '2026-07-18',
     order: 6,
   },
   {
@@ -104,6 +141,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'trending-down',
     relatedCalculator: 'finance/inflation-calculator',
+    reviewed: '2026-07-18',
     order: 7,
   },
   {
@@ -115,6 +153,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'health',
     icon: 'chart-column',
     relatedCalculator: 'health/ideal-weight-calculator',
+    reviewed: '2026-07-18',
     order: 8,
   },
   {
@@ -126,6 +165,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'health',
     icon: 'heart-pulse',
     relatedCalculator: 'health/target-heart-rate-calculator',
+    reviewed: '2026-07-18',
     order: 9,
   },
   {
@@ -137,6 +177,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'everyday',
     icon: 'receipt',
     relatedCalculator: 'finance/tip-calculator',
+    reviewed: '2026-07-18',
     order: 10,
   },
 ] as const;

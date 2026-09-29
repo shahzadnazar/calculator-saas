@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync } from 'node:fs';
 import { buildLastmodMap, lastmodSerializer } from './lastmod.mjs';
 import { CALCULATORS } from '../src/data/calculators';
+import { REFERENCES } from '../src/data/reference';
 
 /**
  * `lastmod` is the only sitemap hint Google acts on, and Google's stated position
@@ -26,6 +27,12 @@ describe('sitemap lastmod map', () => {
     expect(live.length).toBeGreaterThan(0);
   });
 
+  it('covers every reference table, with the date the table itself publishes', () => {
+    for (const r of REFERENCES) {
+      expect(map.get(`/reference/${r.slug}`), r.slug).toBe(r.reviewed);
+    }
+  });
+
   it('covers every guide', () => {
     const missing = guideSlugs.filter((s) => !map.has(`/guides/${s}`));
     expect(missing).toEqual([]);
@@ -35,6 +42,7 @@ describe('sitemap lastmod map', () => {
     const expected = new Set([
       ...CALCULATORS.filter((c) => c.status === 'live').map((c) => `/${c.category}/${c.slug}`),
       ...guideSlugs.map((s) => `/guides/${s}`),
+      ...REFERENCES.map((r) => `/reference/${r.slug}`),
     ]);
     expect([...map.keys()].filter((k) => !expected.has(k))).toEqual([]);
   });

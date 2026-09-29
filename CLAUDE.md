@@ -203,7 +203,18 @@ has its own island rather than a configured `StatisticsCalculator`.
 dynamic import, a `<script>` loader, or ≠ 1 island import. Gated by
 `assert:embed-isolation` (failing gate, no byte budget) + `embed-components.test.ts`.
 The attribution `<a>` in an embed snippet is deliberately OUTSIDE the iframe — that is
-what makes it a real backlink.
+what makes it a real backlink — and its anchor text is the **brand**, never the calculator's
+name. `Free <a>Mortgage Calculator</a> by BestCalculate` was an exact-match keyword anchor,
+dofollow and byte-identical on every placement: the footprint Google's link-spam
+documentation describes for widgets, whose guidance is that keyword-anchored widget links
+should be nofollow. `embed.test.ts` pins this.
+
+The resize `postMessage` is sent under BOTH `bestcalculate-resize` and the legacy
+`allcalc-resize`, and must stay that way. A snippet is copied once and frozen in someone
+else's HTML — the listener half never updates, the sending half is ours — so dropping the
+old name would leave every already-pasted embed stuck at its initial height, on sites we
+cannot contact. The iframe `id` was safe to rename because each snippet only references its
+own.
 
 ## 8. Monetization — architected, integrated, entirely OFF
 
@@ -277,7 +288,21 @@ audience, so **affiliate and email come before AdSense**.
   without tools + legal) · `reference-first` · `embed`. Never choose `article-first`
   merely because a page has a lot of SEO text.
 - Reference tables are computed at build time from our own tested functions — provably
-  accurate "citable data" assets that earn links.
+  accurate "citable data" assets that earn links. A citation is the one link that asks
+  nothing of the person giving it: no iframe, no HTML access, no permission. Each table
+  therefore carries the four things an editor needs before quoting a figure — the date it
+  was verified (`reviewed`, in the registry, which also drives Article/Dataset
+  `dateModified` and the sitemap `lastmod`, so all four agree), a **Cite this table**
+  section with the sentence written out, `Dataset` schema alongside `Article`, and a CSV at
+  `/reference/<slug>.csv` built from the same `getReferenceTable()` the page renders.
+  The CSV is what makes the Dataset declaration true rather than decorative; it is excluded
+  from the sitemap and revalidates like HTML, since it is not fingerprinted.
+  The figures are published under **CC BY 4.0** (`REFERENCE_DATA_LICENSE`), named on the page
+  and in the Dataset schema. BY, not CC0 or NC, for one reason: **BY requires attribution,
+  and attribution is the link.** CC0 asks nothing back; NC would exclude most of the people
+  who would actually use a table, since a blog is a commercial site. It covers the
+  compilation and its presentation, not the code, prose or branding — the arithmetic is fact
+  and nobody owns it, so the licence states what we expect as much as it grants what we hold.
 - Guides are MDX in `src/content/guides/`, can embed live islands, and interlink
   bidirectionally with calculators. `pillar: true` surfaces on /guides and the home page.
 
