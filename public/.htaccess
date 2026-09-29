@@ -79,6 +79,18 @@ Options -MultiViews
   # /privacy-policy and 404s. Sent to the page that answers the same question.
   RewriteRule ^privacy-policy/?$ /privacy [R=301,L]
 
+  # /category/<name> is WordPress's DEFAULT category-archive base, so it is the old
+  # site's URL shape, not ours — we publish /finance, /health, /math, /everyday with
+  # no prefix, nothing on this site links to /category/ (0 of 215 internal links),
+  # and it is in neither the sitemap nor the source. Four of the old categories
+  # happen to name a category we still have, so those are worth carrying over.
+  #
+  # Anything else under /category/ is deliberately left to 404. Sweeping a pile of
+  # unrelated dead URLs onto /calculators would be a soft 404 in Google's eyes and
+  # a dead end in a visitor's; a 404 for a page that genuinely no longer exists is
+  # the honest answer.
+  RewriteRule ^category/(finance|health|math|everyday)/?$ /$1 [R=301,L]
+
   # Trailing slashes are stripped because the site declares
   # `trailingSlash: 'never'` — /finance/ and /finance must not both resolve, or
   # Google sees two URLs for one page.
