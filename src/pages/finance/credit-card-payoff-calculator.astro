@@ -10,6 +10,12 @@ const faqs = [
   { question: 'What happens if I only pay the minimum?', answer: 'Minimum payments are designed to keep you in debt as long as possible. On a high balance, paying only the minimum can take over a decade and cost more in interest than the original purchase. Every dollar above the minimum attacks the balance directly.' },
   { question: 'Why does my payment change part-way through the plan?', answer: 'Because a freed-up payment is immediately redirected. When a card needs only part of its usual payment in its final month, the remainder goes to the next card that same month — and once the card is gone, its entire payment does. That is why the schedule shows each card\'s payment stepping up over time.' },
   { question: 'Should I use a balance transfer?', answer: 'A 0% introductory-APR balance transfer can save a lot of interest if you clear the balance before the promotional period ends. Weigh the transfer fee (typically 3–5%) and be sure the payment you can afford will actually pay it off in time — the rate jumps once the intro period is over.' },
+  { question: 'Can you pay off a credit card with another credit card?', answer: 'Not directly — no issuer accepts another credit card as payment for a bill. The two indirect routes are a balance transfer, where the new issuer clears the old balance for a fee of roughly 3-5%, usually at 0% for an introductory period; and a cash advance, which is almost always a mistake because it carries a higher APR, adds a fee, and charges interest from day one with no grace period.' },
+  { question: 'When should I pay my credit card — the statement date or the due date?', answer: 'Both dates matter for different reasons. Paying the full statement balance by the due date is what avoids interest. Paying before the statement closing date is what lowers the balance reported to the credit bureaus, because issuers report the balance as it stands when the statement closes. Someone who pays in full every month can still show high utilisation if they always pay after closing.' },
+  { question: 'Does paying off a credit card hurt your credit score?', answer: 'Paying the balance down helps, because utilisation is one of the largest factors in a score and it responds within a billing cycle or two. What can work against you is closing the card afterwards: that removes its limit from your total available credit, raising utilisation on the cards you keep, and over time it shortens the average age of your accounts. A cleared card left open usually helps more than a closed one.' },
+  { question: 'Is it bad to pay off a credit card early, or should I carry a balance?', answer: 'Paying early is never penalised, and carrying a balance does not build credit. The card reports activity whether or not a balance is left on it, so paying the statement in full each month gives the same reporting without the interest. The idea that a balance helps your score is a myth that costs real money.' },
+  { question: 'Which credit card should I pay off first?', answer: 'The one with the highest interest rate, if you want to pay the least in total — that is the debt avalanche, and it is what this calculator plans. If closing a card quickly is what keeps you motivated, the snowball method targets the smallest balance first; it costs a little more interest but is easier for some people to stick with.' },
+  { question: 'Can you pay off a loan with a credit card?', answer: 'Rarely, and it is usually a poor trade. Most lenders do not accept credit cards, third-party payment services charge around 2-3% to route it, and a car or personal loan almost always carries a lower rate than a card. Moving the balance onto a card converts cheaper debt into more expensive debt.' },
   { question: 'How is credit card interest calculated?', answer: 'Card interest is quoted as an APR but usually charged daily on your balance. Divide the APR by 365 for the daily rate, and the issuer applies it to your average balance each day, so carrying a balance even a few days costs interest. Paying the statement in full each month avoids it entirely.' },
 ];
 ---
@@ -103,6 +109,66 @@ const faqs = [
       <li><strong>Pay biweekly</strong> — half-payments every two weeks make one extra monthly payment a year and cut the balance the interest is charged on.</li>
       <li><strong>Stop adding charges</strong> — a plan only works on a balance that has stopped growing.</li>
     </ul>
+
+    <h2>Can you pay one credit card with another?</h2>
+    <p>
+      Not directly. No issuer lets you settle one card's bill with another card, because a
+      credit card is not a funding source the way a bank account is. There are two ways to
+      move a balance from one card to another, and they are not equivalent.
+    </p>
+    <p>
+      A <strong>balance transfer</strong> is the legitimate route. The new issuer pays the old
+      card off and the balance moves across, usually at 0% for an introductory period, for a
+      fee of about 3–5% of the amount moved. It only saves money if you clear the balance
+      before the promotional rate ends, so work backwards from the payment you can actually
+      afford and check it finishes in time.
+    </p>
+    <p>
+      A <strong>cash advance</strong> — withdrawing cash on one card to pay another — is almost
+      always a mistake. Cash advances usually carry a higher APR than purchases, charge a fee
+      of around 3–5%, and skip the grace period entirely, so interest starts the day you take
+      the money. You would be swapping a debt for a more expensive one.
+    </p>
+    <p>
+      The same reasoning applies to <strong>paying a loan with a credit card</strong>. Most
+      lenders do not accept cards, third-party payment services charge 2–3% to do it, and a
+      car or personal loan almost always carries a lower rate than a card. Moving that balance
+      onto a card converts cheaper debt into more expensive debt.
+    </p>
+
+    <h2>When in the month to pay</h2>
+    <p>
+      Two different dates matter, and they do different jobs. Paying the full statement balance
+      by the <strong>due date</strong> is what avoids interest. Paying before the
+      <strong>statement closing date</strong> is what lowers the balance your issuer reports to
+      the credit bureaus.
+    </p>
+    <p>
+      Issuers report the balance as it stands when the statement closes, not the balance after
+      you pay. Someone who clears the card in full every month can still show high utilisation
+      if they pay after the statement has already closed. Making a payment a few days before
+      the closing date reports a lower figure, which is the number lenders see.
+    </p>
+
+    <h2>What paying them off does to your credit score</h2>
+    <p>
+      Paying credit card balances down helps. Utilisation — how much of your available credit
+      you are using — is one of the largest factors in a score, and it responds quickly, so a
+      lower balance usually shows up within a billing cycle or two.
+    </p>
+    <p>
+      The one thing that can work against you is <strong>closing the card afterwards</strong>.
+      Closing it removes that card's limit from your total available credit, which pushes
+      utilisation on everything else up, and over time it shortens the average age of your
+      accounts. Keeping a cleared card open, unused, generally does more for a score than
+      closing it does.
+    </p>
+    <p>
+      Carrying a balance does <em>not</em> build credit. That is a persistent myth and an
+      expensive one: the card reports activity whether or not you leave a balance on it, so
+      paying in full each month gives you the same reporting without the interest. Paying a
+      card off early is not penalised.
+    </p>
 
     <h2>Why paying it down beats saving</h2>
     <p>

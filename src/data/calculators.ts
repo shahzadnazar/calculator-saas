@@ -245,10 +245,15 @@ export const CALCULATORS: readonly Calculator[] = [
     phrases: [
       'pay off credit card',
       'how long to pay off credit card',
+      'how to pay off credit card debt',
       'credit card debt',
       'get out of debt',
       'pay off multiple credit cards',
+      'which credit card should i pay off first',
       'which card to pay first',
+      'pay off a credit card with another card',
+      'when to pay my credit card',
+      'does paying off a credit card hurt my credit',
     ],
   },
   {
