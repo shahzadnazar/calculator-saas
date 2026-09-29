@@ -16,10 +16,17 @@ import { join, relative } from 'node:path';
 const DIST = 'dist';
 const ORIGIN = 'https://bestcalculate.com';
 
-/** Length bounds Google actually renders: shorter is thin, longer is truncated. */
-const DESCRIPTION_MIN = 70;
+/**
+ * Length bounds Google actually renders: shorter is thin, longer is truncated.
+ *
+ * These were 70/160/70 and applied to the home page alone, which is how 22 pages
+ * drifted outside the band the content pass had just brought the 50 calculators
+ * into — a regression to a 75-character description would have passed CI in
+ * silence. Both bounds now apply to every public page.
+ */
+const DESCRIPTION_MIN = 120;
 const DESCRIPTION_MAX = 160;
-const TITLE_MAX = 70;
+const TITLE_MAX = 60;
 
 const problems = [];
 const fail = (what, detail) => problems.push(`${what}\n    ${detail}`);
@@ -30,6 +37,14 @@ const meta = (html, name) =>
   head(html).match(new RegExp(`<meta[^>]+name="${name}"[^>]+content="([^"]*)"`, 'i'))?.[1];
 const prop = (html, property) =>
   head(html).match(new RegExp(`<meta[^>]+property="${property}"[^>]+content="([^"]*)"`, 'i'))?.[1];
+
+// Lengths are counted on what Google renders, not on the source bytes: a single
+// `&` in "Health & Fitness" is five characters of HTML and one in the SERP.
+const text = (s) =>
+  (s ?? '').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
 
 /* -- 1. The bundle ships the server config every clean URL depends on ------- */
 
@@ -103,13 +118,11 @@ const description = meta(home, 'description');
 const canonical = head(home).match(/<link[^>]+rel="canonical"[^>]+href="([^"]*)"/i)?.[1];
 const robotsMeta = meta(home, 'robots') ?? 'index, follow';
 
+// Length is checked for every page in section 5; here it is only presence, since
+// the home page missing either one is the failure that started all of this.
 if (!title) fail('The home page has no <title>', 'Google has nothing to headline the result with.');
-else if (title.length > TITLE_MAX) fail('The home page title is too long', `${title.length} chars: ${title}`);
-
 if (!description) {
   fail('The home page has no meta description', 'Google falls back to scraped text, or to nothing at all.');
-} else if (description.length < DESCRIPTION_MIN || description.length > DESCRIPTION_MAX) {
-  fail('The home page description is outside the length Google renders', `${description.length} chars (want ${DESCRIPTION_MIN}-${DESCRIPTION_MAX}): ${description}`);
 }
 
 if (canonical !== `${ORIGIN}/`) {
@@ -143,7 +156,35 @@ if (noindexed.length) {
   fail(`${noindexed.length} public page(s) are noindex`, noindexed.map((p) => relative(DIST, p)).join(', '));
 }
 
-/* -- 5. Every sitemap URL is a file we actually built ----------------------- */
+/* -- 5. Every public page has a title and description Google will render ---- */
+
+// A description under the minimum gets replaced by scraped page text, which on a
+// calculator page is the form's own labels; one over the maximum is truncated
+// mid-sentence. A title over the maximum loses its tail in the result. None of
+// this is visible in the source — only in the built <head>.
+const tooLong = [];
+const tooShort = [];
+const missing = [];
+const longTitles = [];
+
+for (const p of pages.filter(PUBLIC)) {
+  const html = readFileSync(p, 'utf8');
+  const rel = `/${relative(DIST, p).replace(/\\/g, '/').replace(/\.html$/, '').replace(/\/?index$/, '')}`;
+  const t = text(head(html).match(/<title>(.*?)<\/title>/s)?.[1]?.trim());
+  const d = text(meta(html, 'description')) || undefined;
+
+  if (!t || !d) missing.push(`${rel} (${!t ? 'no title' : ''}${!t && !d ? ', ' : ''}${!d ? 'no description' : ''})`);
+  if (t && t.length > TITLE_MAX) longTitles.push(`${rel} — ${t.length} chars: ${t}`);
+  if (d && d.length < DESCRIPTION_MIN) tooShort.push(`${rel} — ${d.length} chars: ${d}`);
+  if (d && d.length > DESCRIPTION_MAX) tooLong.push(`${rel} — ${d.length} chars: ${d}`);
+}
+
+if (missing.length) fail(`${missing.length} public page(s) are missing a title or description`, missing.join('\n    '));
+if (longTitles.length) fail(`${longTitles.length} title(s) over ${TITLE_MAX} chars`, longTitles.join('\n    '));
+if (tooShort.length) fail(`${tooShort.length} description(s) under ${DESCRIPTION_MIN} chars`, tooShort.join('\n    '));
+if (tooLong.length) fail(`${tooLong.length} description(s) over ${DESCRIPTION_MAX} chars`, tooLong.join('\n    '));
+
+/* -- 6. Every sitemap URL is a file we actually built ----------------------- */
 
 const sitemaps = readdirSync(DIST).filter((f) => /^sitemap.*\.xml$/.test(f) && f !== 'sitemap-index.xml');
 const locs = sitemaps.flatMap((f) => [...read(f).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]));
@@ -156,6 +197,32 @@ const dead = locs.filter((url) => {
 });
 if (dead.length) fail(`${dead.length} sitemap URL(s) have no built page`, dead.slice(0, 10).join('\n    '));
 
+/* -- 7. The sitemap carries the one hint Google acts on --------------------- */
+
+// changefreq and priority are ignored; lastmod is not. Every calculator and
+// guide records a date, so every one of those URLs must carry it — and the date
+// must match what the page itself publishes as dateModified, or the two signals
+// contradict each other.
+const entries = sitemaps.flatMap((f) => [...read(f).matchAll(/<url>([\s\S]*?)<\/url>/g)].map((m) => m[1]));
+const dated = entries.filter((e) => /<lastmod>/.test(e));
+if (!dated.length) {
+  fail('No sitemap URL carries a <lastmod>', 'It is the only sitemap hint Google acts on; see scripts/lastmod.mjs.');
+}
+
+const mismatched = [];
+for (const entry of dated) {
+  const url = entry.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+  const lastmod = entry.match(/<lastmod>([^<]+)<\/lastmod>/)?.[1]?.slice(0, 10);
+  const path = url.replace(ORIGIN, '').replace(/\/$/, '');
+  const file = join(DIST, `${path}.html`);
+  if (!lastmod || !existsSync(file)) continue;
+  const published = readFileSync(file, 'utf8').match(/"dateModified"\s*:\s*"(\d{4}-\d{2}-\d{2})/)?.[1];
+  if (published && published !== lastmod) mismatched.push(`${path}: sitemap says ${lastmod}, the page says ${published}`);
+}
+if (mismatched.length) {
+  fail(`${mismatched.length} sitemap lastmod value(s) contradict the page`, mismatched.slice(0, 10).join('\n    '));
+}
+
 /* -- Report ---------------------------------------------------------------- */
 
 if (problems.length) {
@@ -166,6 +233,8 @@ if (problems.length) {
 
 console.log(
   `✓ Indexable: robots.txt allows crawling, .htaccess ships with the /home redirect, ` +
-    `the home page has a ${description.length}-char description and a canonical, ` +
-    `${pages.filter(PUBLIC).length} public pages carry no stray noindex, and all ${locs.length} sitemap URLs exist.`
+    `the home page has a ${description?.length ?? 0}-char description and a canonical, ` +
+    `all ${pages.filter(PUBLIC).length} public pages carry a title under ${TITLE_MAX} chars, ` +
+    `a ${DESCRIPTION_MIN}-${DESCRIPTION_MAX} char description and no stray noindex, ` +
+    `and all ${locs.length} sitemap URLs exist, ${dated.length} of them with a lastmod that matches the page.`
 );

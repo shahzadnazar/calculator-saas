@@ -65,7 +65,7 @@ export const CATEGORIES: readonly Category[] = [
     name: 'Financial Calculators',
     shortName: 'Finance',
     description:
-      'Plan loans, mortgages, savings, investments, taxes and retirement with fast, accurate financial calculators.',
+      'Plan loans, mortgages, savings, investments, taxes and retirement with fast, accurate financial calculators — free, with every formula shown.',
     icon: 'wallet',
     order: 1,
   },
@@ -74,7 +74,7 @@ export const CATEGORIES: readonly Category[] = [
     name: 'Health & Fitness Calculators',
     shortName: 'Health',
     description:
-      'Understand your body with BMI, BMR, calorie, body-fat and pregnancy calculators built on established formulas.',
+      'Understand your body with BMI, BMR, calorie, body-fat, protein and pregnancy calculators, each built on an established, published formula.',
     icon: 'heart-pulse',
     order: 2,
   },
@@ -83,7 +83,7 @@ export const CATEGORIES: readonly Category[] = [
     name: 'Math Calculators',
     shortName: 'Math',
     description:
-      'Solve everyday and advanced math — from a full scientific calculator to fractions, percentages and statistics.',
+      'Solve everyday and advanced math — a full scientific calculator plus fractions, percentages, statistics, geometry and a random number generator.',
     icon: 'ruler',
     order: 3,
   },
@@ -92,7 +92,7 @@ export const CATEGORIES: readonly Category[] = [
     name: 'Everyday Calculators & Tools',
     shortName: 'Everyday',
     description:
-      'Practical calculators and tools for dates, time, grades, conversions and more that you reach for in daily life.',
+      'Practical calculators for dates, time, grades, conversions, square footage and concrete — the everyday numbers you reach for and need right.',
     icon: 'wrench',
     order: 4,
   },
