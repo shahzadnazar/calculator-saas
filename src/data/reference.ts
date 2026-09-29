@@ -11,6 +11,26 @@
  * computes its own table from the tested functions.
  */
 
+/**
+ * The licence the reference tables' figures are offered under.
+ *
+ * CC BY 4.0 rather than CC0 or a non-commercial variant, for one reason: BY
+ * requires attribution, and attribution is the link. CC0 would maximise reuse
+ * and ask for nothing back; NC would exclude most of the people who would
+ * actually use a table, since a blog or a publisher is a commercial site.
+ *
+ * SCOPE: this covers the compilation — the choice of rates, terms and rows, and
+ * their presentation — not the site's code, prose or branding. The arithmetic
+ * itself is fact, and a monthly payment at a given rate and term is not
+ * something anyone can own. The licence is therefore as much a statement of
+ * what we expect as a grant of what we hold: use these numbers, and say where
+ * they came from.
+ */
+export const REFERENCE_DATA_LICENSE = {
+  name: 'CC BY 4.0',
+  url: 'https://creativecommons.org/licenses/by/4.0/',
+} as const;
+
 export interface ReferenceAsset {
   /** URL segment under /reference/. */
   readonly slug: string;

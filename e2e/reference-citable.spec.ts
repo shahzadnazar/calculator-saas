@@ -28,6 +28,14 @@ test('offers the citation already written, and copying it does not throw', async
   await expect(button).toBeEnabled();
 });
 
+test('names the licence, and links it so the terms are one click away', async ({ page }) => {
+  await page.goto(PAGE);
+  const licence = page.getByRole('link', { name: 'CC BY 4.0' });
+  await expect(licence).toBeVisible();
+  await expect(licence).toHaveAttribute('href', 'https://creativecommons.org/licenses/by/4.0/');
+  await expect(page.locator('section', { has: licence })).toContainText('say where they came from');
+});
+
 test('the CSV link resolves to a real file, not a 404 or the HTML page', async ({ page, request }) => {
   await page.goto(PAGE);
   const link = page.getByRole('link', { name: /download csv/i });

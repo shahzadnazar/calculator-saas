@@ -143,6 +143,8 @@ export function datasetSchema(opts: {
   csvPath: string;
   /** Column headers, as the measured variables. */
   variables?: readonly string[];
+  /** URL of the licence the figures are offered under. */
+  license?: string;
 }): Schema {
   return {
     '@context': 'https://schema.org',
@@ -151,6 +153,7 @@ export function datasetSchema(opts: {
     description: opts.description,
     url: absoluteUrl(opts.path),
     isAccessibleForFree: true,
+    ...(opts.license ? { license: opts.license } : {}),
     creator: { '@id': `${SITE.url}/#organization` },
     publisher: { '@id': `${SITE.url}/#organization` },
     dateModified: opts.dateModified,

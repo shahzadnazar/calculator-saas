@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
-import { REFERENCES, referencePath } from './reference';
+import { REFERENCES, referencePath, REFERENCE_DATA_LICENSE } from './reference';
 import { getReferenceTable } from '@lib/referenceTables';
 import { datasetSchema } from '@lib/schema';
 import { SITE } from '@config/site';
@@ -41,6 +41,7 @@ describe('reference assets as citable data', () => {
         dateModified: `${r.reviewed}T00:00:00Z`,
         csvPath: `${path}.csv`,
         variables: getReferenceTable(r.slug)!.headers,
+        license: REFERENCE_DATA_LICENSE.url,
       }) as Record<string, unknown>;
 
       expect(schema['@type']).toBe('Dataset');
@@ -49,7 +50,21 @@ describe('reference assets as citable data', () => {
       const download = (schema.distribution as Array<Record<string, string>>)[0];
       expect(download.encodingFormat).toBe('text/csv');
       expect(download.contentUrl).toBe(`${SITE.url}${path}.csv`);
+      expect(schema.license).toBe(REFERENCE_DATA_LICENSE.url);
     }
+  });
+
+  /**
+   * The licence has one job: require attribution, because attribution is the
+   * link. CC0 asks for nothing back and a non-commercial variant would exclude
+   * most of the people who would actually use a table — a blog is a commercial
+   * site. Either would quietly undo the reason these pages exist.
+   */
+  it('requires attribution and permits commercial reuse', () => {
+    expect(REFERENCE_DATA_LICENSE.url).toBe('https://creativecommons.org/licenses/by/4.0/');
+    expect(REFERENCE_DATA_LICENSE.url).not.toMatch(/\/(zero|publicdomain)\//);
+    expect(REFERENCE_DATA_LICENSE.url).not.toMatch(/-nc|-nd/);
+    expect(REFERENCE_DATA_LICENSE.name).toContain('BY');
   });
 });
 

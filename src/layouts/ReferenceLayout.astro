@@ -16,7 +16,7 @@ import Breadcrumbs from '@components/Breadcrumbs.astro';
 import Icon from '@components/Icon.astro';
 import DataTable from '@components/DataTable.astro';
 import EmbedBox from '@components/EmbedBox.astro';
-import { type ReferenceAsset, referencePath } from '@data/reference';
+import { type ReferenceAsset, referencePath, REFERENCE_DATA_LICENSE } from '@data/reference';
 import { getReferenceTable } from '@lib/referenceTables';
 import { breadcrumbSchema, articleSchema, datasetSchema } from '@lib/schema';
 import { SITE } from '@config/site';
@@ -69,6 +69,7 @@ const jsonLd = [
           dateModified: `${reviewed}T00:00:00Z`,
           csvPath,
           variables: table.headers,
+          license: REFERENCE_DATA_LICENSE.url,
         }),
       ]
     : []),
@@ -97,8 +98,11 @@ const jsonLd = [
     <section class="mt-8 max-w-3xl" aria-labelledby="cite-heading">
       <h2 id="cite-heading" class="text-2xl font-bold">Cite this table</h2>
       <p class="mt-3 text-sm" style="color: var(--muted)">
-        Free to quote with attribution. Every figure here is computed from this site's
-        unit-tested functions, and the method is set out above.
+        These figures are published under
+        <a href={REFERENCE_DATA_LICENSE.url} rel="license noopener" target="_blank" class="hover:underline" style="color: var(--color-brand-600)">{REFERENCE_DATA_LICENSE.name}</a>:
+        reuse them anywhere, including commercially, as long as you say where they came from.
+        Every value is computed from this site's unit-tested functions, and the method is set
+        out above.
       </p>
       <p class="card mt-3 p-4 text-sm" data-citation>{citation}</p>
       <button type="button" class="btn btn-secondary mt-3" data-copy-citation>Copy citation</button>

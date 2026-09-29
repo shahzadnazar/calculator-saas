@@ -297,6 +297,12 @@ audience, so **affiliate and email come before AdSense**.
   `/reference/<slug>.csv` built from the same `getReferenceTable()` the page renders.
   The CSV is what makes the Dataset declaration true rather than decorative; it is excluded
   from the sitemap and revalidates like HTML, since it is not fingerprinted.
+  The figures are published under **CC BY 4.0** (`REFERENCE_DATA_LICENSE`), named on the page
+  and in the Dataset schema. BY, not CC0 or NC, for one reason: **BY requires attribution,
+  and attribution is the link.** CC0 asks nothing back; NC would exclude most of the people
+  who would actually use a table, since a blog is a commercial site. It covers the
+  compilation and its presentation, not the code, prose or branding — the arithmetic is fact
+  and nobody owns it, so the licence states what we expect as much as it grants what we hold.
 - Guides are MDX in `src/content/guides/`, can embed live islands, and interlink
   bidirectionally with calculators. `pillar: true` surfaces on /guides and the home page.
 
