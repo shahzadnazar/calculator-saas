@@ -236,7 +236,14 @@ export const CALCULATORS: readonly Calculator[] = [
     description: 'Build a debt-avalanche payoff plan for several credit cards from one monthly budget — when each card clears, what it costs, and what to pay on each card every month.',
     keywords: ['credit card payoff calculator', 'debt payoff', 'debt avalanche calculator', 'multiple credit cards'],
     aliases: ['debt payoff calculator', 'debt avalanche calculator', 'credit cards payoff calculator'],
-    phrases: ['pay off credit card', 'credit card debt', 'get out of debt', 'pay off multiple credit cards', 'which card to pay first'],
+    phrases: [
+      'pay off credit card',
+      'how long to pay off credit card',
+      'credit card debt',
+      'get out of debt',
+      'pay off multiple credit cards',
+      'which card to pay first',
+    ],
   },
   {
     slug: 'home-equity-loan-calculator',
@@ -273,8 +280,14 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Fill in any two of VAT rate, net price, gross price and tax amount to get the other two.',
     keywords: ['vat calculator', 'add vat', 'remove vat', 'reverse vat calculator', 'vat inclusive price', 'net to gross'],
-    aliases: ['value added tax calculator', 'gst calculator'],
-    phrases: ['how much vat do i pay', 'price excluding vat', 'work out vat backwards'],
+    aliases: ['vat calculator uk', 'value added tax calculator', 'gst calculator'],
+    phrases: [
+      'how much vat do i pay',
+      'how much is vat',
+      'how to work out vat',
+      'price excluding vat',
+      'work out vat backwards',
+    ],
   },
   {
     slug: 'income-tax-calculator',
@@ -352,7 +365,9 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'health',
     status: 'live',
     description: 'Estimate daily protein needs based on body weight and activity.',
-    keywords: ['protein calculator', 'daily protein intake'],
+    keywords: ['protein calculator', 'protein intake calculator', 'daily protein intake'],
+    aliases: ['daily protein calculator', 'protein needs calculator'],
+    phrases: ['how much protein do i need', 'protein per day', 'protein for muscle gain'],
   },
   {
     slug: 'fat-intake-calculator',
@@ -447,6 +462,8 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description: 'Compute the population and sample standard deviation, variance and mean of a data set, step by step.',
     keywords: ['standard deviation calculator', 'variance calculator', 'population standard deviation', 'sample standard deviation'],
+    aliases: ['sd calculator', 'std dev calculator'],
+    phrases: ['how to calculate standard deviation', 'standard deviation step by step', 'mean and standard deviation'],
   },
   {
     slug: 'triangle-calculator',
@@ -529,9 +546,9 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'everyday',
     status: 'live',
     description: 'Compute grade point average from course grades and credit hours.',
-    keywords: ['gpa calculator', 'grade point average'],
-    aliases: ['grade point average calculator'],
-    phrases: ['calculate my gpa'],
+    keywords: ['gpa calculator', 'weighted gpa calculator', 'gpa calculator college', 'grade point average'],
+    aliases: ['grade point average calculator', 'semester gpa calculator', 'cumulative gpa calculator'],
+    phrases: ['calculate my gpa', 'what is my gpa', 'gpa for this semester'],
   },
   {
     slug: 'grade-calculator',
@@ -539,9 +556,14 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'everyday',
     status: 'live',
     description: 'Find the grade you need and your weighted course average.',
-    keywords: ['grade calculator', 'final grade'],
-    aliases: ['final grade calculator'],
-    phrases: ['what grade do i need', 'weighted grade average'],
+    keywords: ['grade calculator', 'final grade calculator', 'final grade'],
+    aliases: ['final grade calculator', 'test grade calculator', 'exam grade calculator'],
+    phrases: [
+      'what grade do i need',
+      'what grade do i need on my final',
+      'weighted grade average',
+      'grade i need to pass',
+    ],
   },
   {
     slug: 'concrete-calculator',
@@ -549,7 +571,9 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'everyday',
     status: 'live',
     description: 'Estimate concrete volume in cubic yards or metres for slabs and footings.',
-    keywords: ['concrete calculator', 'concrete volume'],
+    keywords: ['concrete calculator', 'concrete slab calculator', 'concrete volume', 'concrete calculator yards'],
+    aliases: ['cement calculator', 'cubic yards of concrete calculator', 'slab calculator'],
+    phrases: ['how much concrete do i need', 'concrete for a slab', 'cubic yards of concrete', 'bags of concrete'],
   },
   {
     slug: 'conversion-calculator',
@@ -579,6 +603,14 @@ export const CALCULATORS: readonly Calculator[] = [
     description:
       'Calculate the square footage of a room or area for flooring, paint or landscaping, with a cost estimate.',
     keywords: ['square footage calculator', 'sq ft calculator', 'room area', 'flooring calculator'],
+    aliases: ['square foot calculator', 'area of a room calculator', 'sqft calculator'],
+    phrases: [
+      'how to calculate square footage',
+      'how to measure square footage of a room',
+      'how to figure square footage',
+      'square footage of a room',
+      'how is square footage calculated',
+    ],
   },
 ] as const;
 

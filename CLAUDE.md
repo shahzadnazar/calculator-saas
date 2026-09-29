@@ -246,9 +246,29 @@ audience, so **affiliate and email come before AdSense**.
   28.8K referring domains). We **out-UX, out-speed and out-mobile** them (their
   documented weaknesses: ad clutter, dated desktop-first design, layout shift) while
   earning authority on long-tail and KD<50 terms.
-- Invest depth first in what we already own at KD<50: credit-card payoff (24),
-  square footage (31), concrete (34), protein (44), standard deviation (47), GPA (49),
-  income tax (50).
+- **Priority is volume ÷ difficulty, not difficulty alone.** Measured in Semrush
+  (US database, Sep 2026 — re-pull before trusting these, they move):
+
+  | Target | US vol/mo | KD | CPC | Note |
+  |---|---|---|---|---|
+  | concrete calculator | 301,000 | 49 | $0.93 | best volume-to-difficulty on the site |
+  | tip calculator | 1,500,000 | 49 | $0.06 | huge, but almost no ad value |
+  | gpa calculator | 673,000 | 50 | $1.55 | `gpa calculator college` $2.62 |
+  | final grade calculator | 165,000 | 49 | — | a better entry than `grade calculator` (KD 52) |
+  | income tax calculator | 90,500 | 50 | $1.46 | |
+  | square footage calculator | 74,000 | **18** | $0.05 | the easiest head term we own |
+  | standard deviation | 49,500 | 47 | $1.65 | `how to calculate…` 33,100 at KD 53 |
+  | protein calculator | 49,500 | 49 | $0.25 | `protein intake calculator` 22,200 KD 44 |
+  | credit card payoff | 22,200 | **28** | $1.79 | `how long to pay off credit card` is **KD 7** |
+
+  Highest CPC on the site is home-equity-loan at **$5.26**, but at KD 67; time ($3.58)
+  and hours ($3.25) are KD 83 and 72. The head terms are out of reach for now —
+  bmi, calorie and random-number-generator are all **KD 100**, mortgage 89, loan 88.
+
+- **VAT is a British keyword, not an American one.** 165,000/mo in the UK database
+  against 1,300 in the US — a 127× difference, and `vat calculator uk` alone is
+  22,200 at KD 39. Anything written for that page targets UK phrasing (`how much is
+  vat`, `how to work out vat`, `reverse vat`), not US sales-tax phrasing.
 - **Content style:** prose 65–72ch (`.prose` is 68ch); paragraphs 2–4 sentences /
   ~40–90 words; numbered steps for procedures, bullets for options, tables only for
   genuine comparison; no marketing filler; **no programmatic sentence truncation or
