@@ -606,9 +606,30 @@ export const CALCULATORS: readonly Calculator[] = [
     status: 'live',
     description:
       'Work out how much concrete you need for a slab, footing, column or step, in cubic yards, metres and bags, from measurements in feet, inches or metres.',
-    keywords: ['concrete calculator', 'concrete slab calculator', 'concrete volume', 'concrete calculator yards'],
-    aliases: ['cement calculator', 'cubic yards of concrete calculator', 'slab calculator'],
-    phrases: ['how much concrete do i need', 'concrete for a slab', 'cubic yards of concrete', 'bags of concrete'],
+    keywords: [
+      'concrete calculator',
+      'concrete slab calculator',
+      'concrete volume',
+      'concrete calculator yards',
+      'concrete slab thickness',
+    ],
+    aliases: [
+      'cement calculator',
+      'cubic yards of concrete calculator',
+      'slab calculator',
+      'fence post concrete calculator',
+    ],
+    phrases: [
+      'how much concrete do i need',
+      'how much concrete per fence post',
+      'concrete for fence posts',
+      'how thick should a concrete slab be',
+      'how many yards of concrete do i need',
+      'how much does concrete weigh',
+      'concrete for a slab',
+      'cubic yards of concrete',
+      'bags of concrete',
+    ],
   },
   {
     slug: 'conversion-calculator',
