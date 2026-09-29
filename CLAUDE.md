@@ -2,7 +2,8 @@
 
 Astro 5 static SEO-authority site: **50 live calculators, 0 planned** (finance 20 / health 11 /
 math 9 / everyday 10) + guides, reference tables, task hubs and topic clusters.
-(The README's "44 calculators" line is STALE — the registry is authoritative.)
+The registry is authoritative for that set — any count written in prose is a copy
+and goes stale the moment a calculator is added.
 Brand `BestCalculate`, domain `https://bestcalculate.com`.
 
 Read `docs/` before changing anything structural. `docs/TASK-COMPLETION-DOCTRINE.md`
@@ -38,13 +39,20 @@ npm run gen:embed-pages            # regenerate per-slug embed pages
 npm run assert:embed-pages-current # drift gate (CI)
 npm run assert:embed-isolation     # 0 unrelated scoped CSS per embed (CI, post-build)
 npm run assert:mon-off             # no monetization artifact on live pages (CI)
+npm run assert:indexable           # robots/canonical/description/legacy redirects (CI + deploy)
 npm run assert:no-dev              # /dev/* not in the bundle (run after stripping it)
 ```
 
 CI job `build-and-test`: check → embed-drift → unit → build → embed-isolation →
-mon-off → e2e. A `deploy` job then runs on `main` ONLY when that passes: it
-rebuilds, strips `dist/dev`, asserts the bundle is clean, and FTPs it to
-Hostinger. A red suite cannot reach the live site, because `deploy` never starts.
+mon-off → indexable → e2e. A `deploy` job then runs on a push to `main` ONLY when
+that passes: it rebuilds, strips `dist/dev`, asserts the bundle is clean and
+indexable, then **rsyncs `dist/` to Hostinger over SSH** (secrets `HOSTINGER_HOST`
+/ `USER` / `PORT` / `PATH` / `SSH_KEY`). A red suite cannot reach the live site,
+because `deploy` never starts.
+
+The rsync carries no `--delete`, so a file dropped from the build stays on the
+server. That is how Hostinger's parked-domain `default.php` survived the first
+deploys; `.htaccess` pins `DirectoryIndex index.html` so it cannot serve `/`.
 
 ## 3. Directory map
 
@@ -257,7 +265,9 @@ audience, so **affiliate and email come before AdSense**.
 
 Embedded behavior, never a destination — **there is no public standalone Search page**.
 `/dev/search` is an internal test route, noindex + sitemap-excluded, and stripped from
-the deploy bundle rather than deleted — four e2e specs harness the /dev routes.` One shared index + `rankCalculators` engine across homepage, header, directory
+the deploy bundle rather than deleted — four e2e specs harness the /dev routes.
+
+One shared index + `rankCalculators` engine across homepage, header, directory
 and category surfaces.
 
 `search-core.ts` is deliberately registry-free and DOM-free so the browser bundle stays
@@ -282,19 +292,47 @@ influence relevance; popularity is never derived from affiliate/ad/CPC value.
   visitor enters is sent to a server.
 - `/dev/*` must never reach production — the `deploy` job strips it, then asserts.
 
-## 12. Branch & recent work
+## 12. Branches, deployment & the domain's history
 
-Development branch: `claude/repo-branch-review-evdkzi` (currently identical to
-`origin/tabish`). The default/base branch used by past PRs is
-`claude/authority-website-strategy-knvhep`. No open issues; no PR review comments.
+`main` is the production branch: a push to it runs the full suite and then rsyncs
+`dist/` to Hostinger. Nothing else deploys. The repository's *default* branch is
+still `claude/authority-website-strategy-knvhep`, whose content is identical to
+`main` — so open work against `main`, not the default.
 
-Latest commit `737a936` "Project updated by Tabish on 18/08/2026" is a **visual +
-density pass**, not a logic change:
-- Rebranded the design tokens from blue/emerald to **Plum (brand) / Rose (accent) /
-  Apricot (warm highlight)** in `global.css`, with a warm-neutral page background.
-- Rebuilt `Header.astro` onto semantic `site-*` classes (still task-first, still works
-  with JS disabled, added an "All" entry and an active-state dot).
-- Tightened spacing fleet-wide toward the doctrine's medium-high density target —
-  `CalculatorLayout` (`py-8→py-4`, tool `mt-6→mt-3`, content `mt-12→mt-4`), Footer,
-  and every island's form padding (`p-5 sm:p-6 → p-4`).
-- Reworked the homepage and `calc.css`.
+Feature work lands on a `claude/*` branch and merges to `main` by PR. Branches are
+deleted on merge, so a remote-tracking ref that suddenly 404s on fetch usually
+means the work was merged, not lost — check `git merge-base --is-ancestor <sha>
+origin/main` before re-doing anything.
+
+### The domain came with a previous owner's search history
+
+`bestcalculate.com` was registered before this project existed, and the previous
+owner ran WordPress on it. Google still holds that site, which caused a run of
+symptoms that all looked like bugs in ours and were not:
+
+- The brand search returned `https://bestcalculate.com/home/` — "No information is
+  available for this page" — a path this site has never produced. Search Console
+  named the referring page as `/wp-sitemap-posts-page-1.xml`, WordPress's own
+  sitemap, which has never existed on our server.
+- "Crawled — currently not indexed" listed `/`, `/disclaimer/`, `/privacy-policy/`
+  and `/contact/`. Every crawl date predated the first deploy, and
+  `/privacy-policy` is not a URL we build at all (ours is `/privacy`).
+- `/home/` read "Indexed, though blocked by robots.txt" from whatever robots.txt
+  the domain served while parked. That block is the trap worth remembering: a
+  disallow stops the crawl, and a crawler that never fetches a URL never sees the
+  301 waiting for it, so the dead URL stays indexed forever. **Never disallow a
+  path that `.htaccess` redirects** — `assert:indexable` now fails the build on it.
+
+`public/.htaccess` 301s the inherited paths (`/home` and its whole subtree,
+`/privacy-policy` → `/privacy`, the stray front-page filenames) and pins
+`DirectoryIndex`. Search Console shows no manual action, so nothing was inherited
+beyond stale index entries.
+
+### Known open items
+
+- `rsync` has no `--delete`: removed files persist on the server. Needs an audit of
+  what else lives in `HOSTINGER_PATH` before adding it.
+- The Organization JSON-LD has no `sameAs`, so Google's AI Overview still conflates
+  the brand with an unrelated iOS app of the same name. Needs real profile URLs.
+- The rail search input is 36px tall at >=1152px, the one control below the
+  doctrine's 44px. Desktop-only, passes WCAG 2.5.8 AA, left as approved design.

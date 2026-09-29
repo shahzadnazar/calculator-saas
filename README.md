@@ -3,10 +3,11 @@
 Free, fast, accurate online calculators for finance, health, math and everyday
 life — built as a long-term SEO authority site.
 
-**Live tools:** 44 calculators across all four categories — finance (18), health
-(11), math (7) and everyday (8) — each with unit-tested logic, an SSR-default
+**Live tools:** 50 calculators across all four categories — finance (20), health
+(11), math (9) and everyday (10) — each with unit-tested logic, an SSR-default
 interactive island, and a dedicated guide. The full breadth is live; see
-`src/data/calculators.ts` for the registry.
+`src/data/calculators.ts` for the registry, which is the only source of truth for
+the set and its counts.
 
 ---
 
