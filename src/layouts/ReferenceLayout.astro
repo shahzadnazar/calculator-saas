@@ -18,17 +18,33 @@ import DataTable from '@components/DataTable.astro';
 import EmbedBox from '@components/EmbedBox.astro';
 import { type ReferenceAsset, referencePath } from '@data/reference';
 import { getReferenceTable } from '@lib/referenceTables';
-import { breadcrumbSchema, articleSchema } from '@lib/schema';
+import { breadcrumbSchema, articleSchema, datasetSchema } from '@lib/schema';
 import { SITE } from '@config/site';
 
 interface Props {
   reference: ReferenceAsset;
-  /** ISO date the data was last reviewed (drives Article dateModified). */
+  /**
+   * Override the registry's review date. Rarely needed — the date belongs to
+   * the table, not to the page that renders it, so it lives in the registry
+   * where the sitemap's lastmod can read it too.
+   */
   reviewed?: string;
 }
-const { reference, reviewed = '2026-07-18' } = Astro.props;
+const { reference, reviewed = reference.reviewed } = Astro.props;
 const path = referencePath(reference);
 const table = getReferenceTable(reference.slug);
+const csvPath = `${path}.csv`;
+
+// "18 July 2026" — spelled out, because this line exists to be read by an editor
+// deciding whether to cite the figure, not parsed.
+const reviewedDisplay = new Date(`${reviewed}T00:00:00Z`).toLocaleDateString('en-GB', {
+  day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+});
+
+// The sentence we would like someone to write, written for them. Handing over
+// the exact wording is the cheapest way to raise both the chance a citation
+// happens at all and the chance it carries the link.
+const citation = `${SITE.name}. "${reference.title}." ${SITE.url}${path} (reviewed ${reviewedDisplay}).`;
 
 const crumbs = [
   { name: 'Home', path: '/' },
@@ -44,6 +60,18 @@ const jsonLd = [
     authorName: `${SITE.name} Editorial`,
     datePublished: `${reviewed}T00:00:00Z`,
   }),
+  ...(table
+    ? [
+        datasetSchema({
+          name: reference.title,
+          description: reference.description,
+          path,
+          dateModified: `${reviewed}T00:00:00Z`,
+          csvPath,
+          variables: table.headers,
+        }),
+      ]
+    : []),
 ];
 ---
 
@@ -55,6 +83,9 @@ const jsonLd = [
       <span class="icon-chip h-14 w-14"><Icon name={reference.icon} size={28} /></span>
       <h1 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{reference.title}</h1>
       <p class="mt-3 text-lg" style="color: var(--muted)"><slot name="intro" /></p>
+      <p class="mt-3 text-sm" style="color: var(--muted)">
+        Figures reviewed <time datetime={reviewed}>{reviewedDisplay}</time>{table && <> · <a href={csvPath} class="hover:underline" style="color: var(--color-brand-600)" download>Download CSV</a></>}
+      </p>
     </header>
 
     <div class="prose mt-8"><slot name="howto" /></div>
@@ -62,6 +93,16 @@ const jsonLd = [
     {table && <div class="mt-4"><DataTable headers={table.headers} rows={table.rows} maxWidth={table.maxWidth} /></div>}
 
     <div class="prose mt-8"><slot name="notes" /></div>
+
+    <section class="mt-8 max-w-3xl" aria-labelledby="cite-heading">
+      <h2 id="cite-heading" class="text-2xl font-bold">Cite this table</h2>
+      <p class="mt-3 text-sm" style="color: var(--muted)">
+        Free to quote with attribution. Every figure here is computed from this site's
+        unit-tested functions, and the method is set out above.
+      </p>
+      <p class="card mt-3 p-4 text-sm" data-citation>{citation}</p>
+      <button type="button" class="btn btn-secondary mt-3" data-copy-citation>Copy citation</button>
+    </section>
 
     <EmbedBox
       title={reference.shortName}
@@ -72,3 +113,25 @@ const jsonLd = [
     />
   </div>
 </BaseLayout>
+
+<script>
+  // Same shape as EmbedBox's copy button: clipboard where it exists, selection
+  // where it does not, so the citation is always obtainable.
+  document.querySelectorAll<HTMLButtonElement>('[data-copy-citation]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = btn.closest('section')?.querySelector<HTMLElement>('[data-citation]');
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text.textContent?.trim() ?? '');
+        btn.textContent = 'Copied!';
+        setTimeout(() => (btn.textContent = 'Copy citation'), 1500);
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    });
+  });
+</script>

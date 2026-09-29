@@ -25,6 +25,17 @@ export interface ReferenceAsset {
   readonly icon: string;
   /** Slug of the related calculator ("category/slug") for cross-linking. */
   readonly relatedCalculator: string;
+  /**
+   * ISO date the table's figures and method were last verified.
+   *
+   * It lives here rather than defaulting in the layout because a citable data
+   * asset has to state when it was produced — an undated table is a weaker
+   * citation and some editors reject it outright. It drives the visible line,
+   * the Article and Dataset `dateModified`, and the sitemap `lastmod`, so all
+   * four agree by construction. Bump it when the figures or the method change,
+   * not when the prose around them is edited.
+   */
+  readonly reviewed: string;
   readonly order: number;
 }
 
@@ -38,6 +49,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'landmark',
     relatedCalculator: 'finance/mortgage-calculator',
+    reviewed: '2026-07-18',
     order: 1,
   },
   {
@@ -49,6 +61,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'banknote',
     relatedCalculator: 'finance/loan-calculator',
+    reviewed: '2026-07-18',
     order: 2,
   },
   {
@@ -60,6 +73,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'trending-up',
     relatedCalculator: 'finance/compound-interest-calculator',
+    reviewed: '2026-07-18',
     order: 3,
   },
   {
@@ -71,6 +85,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'health',
     icon: 'scale',
     relatedCalculator: 'health/bmi-calculator',
+    reviewed: '2026-07-18',
     order: 4,
   },
   {
@@ -82,6 +97,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'piggy-bank',
     relatedCalculator: 'finance/investment-calculator',
+    reviewed: '2026-07-18',
     order: 5,
   },
   {
@@ -93,6 +109,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'briefcase',
     relatedCalculator: 'finance/salary-calculator',
+    reviewed: '2026-07-18',
     order: 6,
   },
   {
@@ -104,6 +121,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'finance',
     icon: 'trending-down',
     relatedCalculator: 'finance/inflation-calculator',
+    reviewed: '2026-07-18',
     order: 7,
   },
   {
@@ -115,6 +133,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'health',
     icon: 'chart-column',
     relatedCalculator: 'health/ideal-weight-calculator',
+    reviewed: '2026-07-18',
     order: 8,
   },
   {
@@ -126,6 +145,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'health',
     icon: 'heart-pulse',
     relatedCalculator: 'health/target-heart-rate-calculator',
+    reviewed: '2026-07-18',
     order: 9,
   },
   {
@@ -137,6 +157,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'everyday',
     icon: 'receipt',
     relatedCalculator: 'finance/tip-calculator',
+    reviewed: '2026-07-18',
     order: 10,
   },
 ] as const;

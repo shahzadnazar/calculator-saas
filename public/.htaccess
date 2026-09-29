@@ -137,13 +137,16 @@ ErrorDocument 404 /404.html
   ExpiresByType font/woff2                "access plus 1 year"
   ExpiresByType text/css                  "access plus 1 year"
   ExpiresByType application/javascript    "access plus 1 year"
+  # The reference tables' CSVs are not fingerprinted and are regenerated on every
+  # build, so they revalidate like HTML rather than inheriting the 1-month default.
+  ExpiresByType text/csv                  "access plus 0 seconds"
 </IfModule>
 
 <IfModule mod_headers.c>
   <FilesMatch "\.(js|css|woff2|png|svg|jpg|jpeg|webp|avif)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
-  <FilesMatch "\.html$">
+  <FilesMatch "\.(html|csv)$">
     Header set Cache-Control "public, max-age=0, must-revalidate"
   </FilesMatch>
   # The search index is fingerprinted in its filename, so it caches like an asset.
@@ -159,7 +162,7 @@ ErrorDocument 404 /404.html
 # ---------------------------------------------------------------------------
 # LiteSpeed usually does this already; harmless where it does.
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml text/csv
   AddOutputFilterByType DEFLATE application/javascript application/json
   AddOutputFilterByType DEFLATE image/svg+xml
 </IfModule>

@@ -119,6 +119,53 @@ export function articleSchema(opts: {
 }
 
 /**
+ * Dataset schema for a computed reference table.
+ *
+ * The reference pages are the one thing on this site that is genuinely a
+ * dataset: every figure is produced at build time by the same unit-tested
+ * functions that drive the calculators, not transcribed from somewhere. That is
+ * also what makes them citable, and a citation is a link that needs nothing from
+ * the person giving it — no iframe, no HTML access, no permission.
+ *
+ * Emitted ALONGSIDE Article rather than instead of it: the page is both a data
+ * table and an explained one, and the Article carries the author and review
+ * signals. The `distribution` points at the CSV, which is the part that makes
+ * the declaration true rather than decorative — a Dataset nobody can download
+ * is a claim, not a dataset.
+ */
+export function datasetSchema(opts: {
+  name: string;
+  description: string;
+  path: string;
+  /** ISO date the figures were last verified. */
+  dateModified: string;
+  /** Root-relative path of the machine-readable copy. */
+  csvPath: string;
+  /** Column headers, as the measured variables. */
+  variables?: readonly string[];
+}): Schema {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Dataset',
+    name: opts.name,
+    description: opts.description,
+    url: absoluteUrl(opts.path),
+    isAccessibleForFree: true,
+    creator: { '@id': `${SITE.url}/#organization` },
+    publisher: { '@id': `${SITE.url}/#organization` },
+    dateModified: opts.dateModified,
+    ...(opts.variables?.length ? { variableMeasured: [...opts.variables] } : {}),
+    distribution: [
+      {
+        '@type': 'DataDownload',
+        encodingFormat: 'text/csv',
+        contentUrl: absoluteUrl(opts.csvPath),
+      },
+    ],
+  };
+}
+
+/**
  * CollectionPage schema for a topic hub — an ItemList of the member calculators.
  * Helps search engines understand the page as a curated collection.
  */

@@ -33,7 +33,10 @@ export default defineConfig({
         !page.includes('/404') &&
         !page.includes('/embed/') &&
         !page.includes('/dev/') &&
-        !page.includes('/search-index'),
+        !page.includes('/search-index') &&
+        // The reference tables' machine-readable copies. Linked from their page
+        // and declared in its Dataset schema; not pages in their own right.
+        !page.endsWith('.csv'),
       // Google ignores changefreq and priority and acts on lastmod, so the one
       // that matters is added per URL from the page's own reviewed/updated date
       // (see scripts/lastmod.mjs). The other two are kept because they cost

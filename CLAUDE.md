@@ -288,7 +288,15 @@ audience, so **affiliate and email come before AdSense**.
   without tools + legal) · `reference-first` · `embed`. Never choose `article-first`
   merely because a page has a lot of SEO text.
 - Reference tables are computed at build time from our own tested functions — provably
-  accurate "citable data" assets that earn links.
+  accurate "citable data" assets that earn links. A citation is the one link that asks
+  nothing of the person giving it: no iframe, no HTML access, no permission. Each table
+  therefore carries the four things an editor needs before quoting a figure — the date it
+  was verified (`reviewed`, in the registry, which also drives Article/Dataset
+  `dateModified` and the sitemap `lastmod`, so all four agree), a **Cite this table**
+  section with the sentence written out, `Dataset` schema alongside `Article`, and a CSV at
+  `/reference/<slug>.csv` built from the same `getReferenceTable()` the page renders.
+  The CSV is what makes the Dataset declaration true rather than decorative; it is excluded
+  from the sitemap and revalidates like HTML, since it is not fingerprinted.
 - Guides are MDX in `src/content/guides/`, can embed live islands, and interlink
   bidirectionally with calculators. `pillar: true` surfaces on /guides and the home page.
 
