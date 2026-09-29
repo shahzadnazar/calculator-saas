@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { CALCULATORS, getCalculator, type Calculator } from '@data/calculators';
+import { TASK_GROUPS } from '@data/tasks';
+import { CLUSTERS, getClustersForCalculator } from '@data/clusters';
 import { getRelatedCalculators, relatedness } from './related';
+
+const TASK_OF = new Map<string, string>(
+  TASK_GROUPS.flatMap((g) => g.members.map((m) => [m.ref, g.slug] as const)),
+);
 
 const live = CALCULATORS.filter((c) => c.status === 'live');
 const get = (ref: string) => {
@@ -78,6 +84,59 @@ describe('getRelatedCalculators', () => {
       const n = appearances.get(refOf(c)) ?? 0;
       expect(n, `${refOf(c)} is linked from ${n} of ${live.length} related lists`).toBeLessThanOrEqual(26);
       expect(n, `${refOf(c)} is linked from only ${n} related lists`).toBeGreaterThan(3);
+    }
+  });
+
+  it('only ever crosses a category boundary on a structural tie', () => {
+    for (const self of live) {
+      for (const other of getRelatedCalculators(self, 12)) {
+        if (other.category === self.category) continue;
+        const sameTask =
+          TASK_OF.get(refOf(self)) !== undefined && TASK_OF.get(refOf(self)) === TASK_OF.get(refOf(other));
+        const sharedCluster = getClustersForCalculator(self.category, self.slug).some((cl) =>
+          cl.members.some((m) => m.ref === refOf(other)),
+        );
+        expect(
+          sameTask || sharedCluster,
+          `${refOf(self)} -> ${refOf(other)} crosses categories with no task group or cluster in common`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('never inserts a calculator it scored at zero', () => {
+    for (const self of live) {
+      for (const other of getRelatedCalculators(self, 12)) {
+        expect(relatedness(self, other), `${refOf(self)} -> ${refOf(other)}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('leaves no live calculator without inbound contextual links', () => {
+    const inbound = new Map<string, number>();
+    for (const self of live) {
+      for (const other of getRelatedCalculators(self, 12)) {
+        inbound.set(refOf(other), (inbound.get(refOf(other)) ?? 0) + 1);
+      }
+    }
+    for (const c of live) {
+      expect(inbound.get(refOf(c)) ?? 0, `nothing links to ${refOf(c)}`).toBeGreaterThan(3);
+    }
+  });
+
+  it('gives every topic hub a reverse link from every one of its members', () => {
+    // CalculatorLayout renders the "Choosing between them?" line from
+    // getClustersForCalculator, so this reciprocity IS the reverse link. Before it was
+    // wired up the five hubs had two inbound links each.
+    for (const cluster of CLUSTERS) {
+      expect(cluster.members.length, cluster.slug).toBeGreaterThan(0);
+      for (const m of cluster.members) {
+        const [category, slug] = m.ref.split('/');
+        expect(
+          getClustersForCalculator(category, slug).map((c) => c.slug),
+          `${m.ref} is listed in ${cluster.slug} but does not link back to it`,
+        ).toContain(cluster.slug);
+      }
     }
   });
 

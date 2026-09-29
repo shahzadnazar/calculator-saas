@@ -726,34 +726,79 @@ export function categoryPath(category: Pick<Category, 'slug'>): string {
  * registry stays the base layer that knows nothing about the IA above it.
  */
 
-/**
- * Recently added calculators, newest first, as "<category>/<slug>" registry refs.
- *
- * A new calculator is invisible to anyone already deep in the site: the rail's related list is
- * registry order within a category, so the newest entry sits below the fold on its own
- * category's pages and nowhere at all on the others. This list is the one place that says
- * "surface these everywhere for a while".
- *
- * Keep it SHORT — two or three at most — and drop an entry once it is no longer news. It is
- * an editorial decision, not a ranking signal: nothing here affects search relevance, and it
- * is never derived from commercial value.
- */
-export const NEW_CALCULATOR_REFS: readonly string[] = ['finance/vat-calculator'];
+/** A launch record for the "recently added" boost. */
+export interface NewCalculatorLaunch {
+  /** "category/slug" reference into the registry. */
+  readonly ref: string;
+  /** The day it shipped, YYYY-MM-DD. Drives expiry — it is not display copy. */
+  readonly launchedAt: string;
+}
 
 /**
- * The recently-added calculators as registry entries, live only, never including `self`.
- * Returns an empty array when there is nothing new to show, so the caller renders nothing.
+ * How long a calculator counts as new. Long enough for Google to find the page and
+ * for it to start earning related links of its own; short enough that the boost is
+ * a launch, not a permanent placement.
  */
-export function getNewCalculators(self?: Pick<Calculator, 'category' | 'slug'>): Calculator[] {
-  return NEW_CALCULATOR_REFS.map((ref) => {
-    const [category, slug] = ref.split('/');
-    return getCalculator(category, slug);
-  }).filter(
-    (c): c is Calculator =>
-      Boolean(c) &&
-      c!.status === 'live' &&
-      !(self && c!.category === self.category && c!.slug === self.slug),
-  );
+export const NEW_CALCULATOR_WINDOW_DAYS = 30;
+
+/**
+ * Recently launched calculators, promoted to the top of the rail for a while.
+ *
+ * A new calculator is otherwise hard to reach from a page it is not topically related
+ * to, so this list is the one place that says "surface these everywhere for now".
+ *
+ * It used to be a plain list of refs with a comment asking whoever passed by to drop
+ * an entry "once it is no longer news". Nobody does that, and the cost is not zero:
+ * VAT sat here for a month and collected 53 inbound links — the most of any page on
+ * the site, more than Mortgage — for a keyword worth 1,300 US searches a month. A
+ * promotion that never ends is not a promotion, it is a thumb on the scale.
+ *
+ * So expiry is computed from `launchedAt` rather than remembered. An entry stays only
+ * while it is younger than NEW_CALCULATOR_WINDOW_DAYS; past that it is inert, and can
+ * be deleted whenever someone is next in the file. Keep the list SHORT — two or three
+ * at most. It is an editorial decision, never derived from commercial value, and it
+ * does not affect search relevance.
+ */
+export const NEW_CALCULATOR_LAUNCHES: readonly NewCalculatorLaunch[] = [
+  { ref: 'finance/vat-calculator', launchedAt: '2026-08-30' },
+];
+
+const DAY_MS = 86_400_000;
+
+/** Whole days between a launch date and `now`. Negative for a future launch. */
+export function daysSinceLaunch(launchedAt: string, now: Date): number {
+  const launched = Date.parse(`${launchedAt}T00:00:00Z`);
+  if (Number.isNaN(launched)) return Number.POSITIVE_INFINITY;
+  const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
+  return Math.floor((today - launched) / DAY_MS);
+}
+
+/**
+ * The calculators still inside the launch window, live only, never including `self`.
+ * Returns an empty array once nothing is new, so the caller renders nothing.
+ *
+ * `now` is injectable so the expiry is testable without waiting for the calendar. In a
+ * build it is the build time, which means a rebuild is what retires an entry — that is
+ * the intent: the site rebuilds on every deploy.
+ */
+export function getNewCalculators(
+  self?: Pick<Calculator, 'category' | 'slug'>,
+  now: Date = new Date(),
+): Calculator[] {
+  return NEW_CALCULATOR_LAUNCHES.filter((entry) => {
+    const age = daysSinceLaunch(entry.launchedAt, now);
+    return age >= 0 && age < NEW_CALCULATOR_WINDOW_DAYS;
+  })
+    .map((entry) => {
+      const [category, slug] = entry.ref.split('/');
+      return getCalculator(category, slug);
+    })
+    .filter(
+      (c): c is Calculator =>
+        Boolean(c) &&
+        c!.status === 'live' &&
+        !(self && c!.category === self.category && c!.slug === self.slug),
+    );
 }
 
 /** Total counts for use in copy ("X calculators and growing"). */
