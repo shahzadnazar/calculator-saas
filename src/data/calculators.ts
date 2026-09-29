@@ -640,12 +640,21 @@ export const CALCULATORS: readonly Calculator[] = [
     description:
       'Calculate the square footage of a room, wall or plot from its measurements, in feet, inches or metres, with a materials cost estimate for flooring or paint.',
     keywords: ['square footage calculator', 'sq ft calculator', 'room area', 'flooring calculator'],
-    aliases: ['square foot calculator', 'area of a room calculator', 'sqft calculator'],
+    aliases: [
+      'square foot calculator',
+      'wall square footage calculator',
+      'area of a room calculator',
+      'sqft calculator',
+    ],
     phrases: [
       'how to calculate square footage',
       'how to measure square footage of a room',
       'how to figure square footage',
       'square footage of a room',
+      'square footage of a wall',
+      'how to calculate square footage of a house',
+      'how to measure a room for flooring',
+      'square footage to square yards',
       'how is square footage calculated',
     ],
   },
