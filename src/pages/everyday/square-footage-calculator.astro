@@ -4,6 +4,9 @@ import SquareFootageCalculator from '@components/islands/SquareFootageCalculator
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'square-footage-calculator')!;
 const faqs = [
+  { question: 'How do I calculate the square footage of a wall for painting?', answer: 'Wall area is the room\'s perimeter multiplied by the ceiling height, not length times width. A 12 by 15 ft room has a perimeter of 54 ft, so with 9 ft ceilings that is 486 sq ft of wall. Subtract roughly 21 sq ft for each standard door and about 15 sq ft for each window. A US gallon of paint covers around 350-400 sq ft per coat.' },
+  { question: 'How many square feet are in a square yard?', answer: 'Nine. A square yard is a 3 ft by 3 ft square, so it is 9 square feet rather than 3 — divide square feet by 9 to get square yards. A 12 by 15 ft room is 180 sq ft, or 20 square yards. Carpet is commonly still priced by the square yard while tile and flooring are priced per square foot or square metre.' },
+  { question: 'How do I calculate the square footage of a house?', answer: 'Measure each finished room and add the totals. What counts is the harder part: a listing figure is finished, heated living space and normally excludes the garage, an unfinished basement or attic, and open porches. Appraisers usually measure a detached house from the outside of its exterior walls, so their figure comes out larger than one added up room by room from inside.' },
   { question: 'How do I calculate square footage?', answer: 'Multiply the length by the width of the area in feet. A room 12 ft by 15 ft is 12 × 15 = 180 square feet. Each measurement has its own unit here, so a wall measured in inches and another in feet both work — every dimension is converted to feet before the area is worked out.' },
   { question: 'How do I measure the square footage of a room?', answer: 'Measure the longest length and the widest width with a tape measure or laser measure, rounding to the nearest few inches, then use the Rectangle calculator. Measure at floor level and ignore small alcoves for a quick figure, or add them separately for precision.' },
   { question: 'How do I calculate the square footage of an L-shaped or irregular room?', answer: 'Split the space into rectangles, calculate each one, and add the results. An L-shaped room is two rectangles; a room with a bay is one rectangle plus the bay. For a round, triangular, sloped or wedge-shaped area, use the matching shape below rather than approximating it as a rectangle.' },
@@ -13,7 +16,7 @@ const faqs = [
   { question: 'How many square feet are in a square yard or an acre?', answer: 'One square yard equals 9 square feet — carpet is often priced per square yard — and one acre equals 43,560 square feet. One square metre is about 10.7639 square feet. Every result below is shown in all of these units.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Calculate the square footage of any area — rectangle, border, circle, ring, triangle, trapezoid, sector or parallelogram — with per-measurement units and an optional cost estimate." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-08-29' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Calculate the square footage of any area — rectangle, border, circle, ring, triangle, trapezoid, sector or parallelogram — with per-measurement units and an optional cost estimate." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-09-29' }}>
   <SquareFootageCalculator />
   <Fragment slot="content">
     <h2>How to use these calculators</h2>
@@ -82,7 +85,55 @@ const faqs = [
     </ul>
     <p>An L-shaped living room is just two rectangles — say a 12 × 15 main area (180 sq ft) plus a 6 × 8 alcove (48 sq ft) for 228 sq ft in total. A room with a rounded bay is a rectangle plus a sector.</p>
 
+    <h2>Wall square footage, for painting</h2>
+    <p>
+      Painting is a different measurement from flooring. A floor is length × width; a wall is
+      the room's <strong>perimeter × the ceiling height</strong>. For a rectangular room the
+      perimeter is 2 × (length + width), so a 12 × 15 room with 9 ft ceilings has
+      2 × (12 + 15) = 54 ft of wall, and 54 × 9 = <strong>486 sq ft</strong> of wall surface.
+    </p>
+    <p>
+      Then subtract what you are not painting. A standard interior door is about 3 × 7 ft, so
+      21 sq ft; an average window is around 15 sq ft. Two doors and two windows take that 486
+      down to roughly <strong>414 sq ft</strong>. Use the rectangle calculator above for each
+      wall if the room is not a simple box, and add the results.
+    </p>
+    <p>
+      A US gallon of paint covers roughly 350–400 sq ft per coat, so 414 sq ft needs a little
+      over one gallon per coat — two gallons for two coats, which is what most colour changes
+      need. Ceilings are measured as floor area, not wall area.
+    </p>
+
+    <h2>Square yards, and why carpet is sold that way</h2>
+    <p>
+      A square yard is a 3 ft × 3 ft square, so it is <strong>9 square feet</strong>, not
+      three. That catches people out: to convert square feet to square yards you divide by 9,
+      and a 12 × 15 room at 180 sq ft is 20 square yards.
+    </p>
+    <p>
+      Carpet has been sold by the square yard since it came off looms in fixed widths, and many
+      suppliers still quote that way while flooring and tile are quoted per square foot or per
+      square metre. Comparing two quotes means putting them in the same unit first — enter the
+      price in whichever unit your supplier uses and the calculator above handles the
+      conversion.
+    </p>
+
+    <h2>The square footage of a whole house</h2>
+    <p>
+      Measure each finished room separately and add the totals. The awkward part is not the
+      arithmetic but deciding what counts: the figure on a listing is
+      <strong>finished, heated living space</strong>, which normally excludes the garage,
+      an unfinished basement, an unfinished attic and open porches.
+    </p>
+    <p>
+      Standards differ by market, and an appraiser measuring for a valuation usually measures a
+      detached house from the <em>outside</em> of its exterior walls, which comes out larger
+      than adding up the rooms from the inside. Areas with low ceilings are often excluded or
+      counted at half. So a figure you calculate for flooring will not match the one on a
+      listing, and that is expected — they are answering different questions.
+    </p>
+
     <h2>Estimating materials and cost</h2>
-    <p>For flooring, tile or paint, take your total square footage and add about 5–10% for waste, offcuts and mistakes, then enter a price for a cost estimate. Price in whatever unit your supplier quotes — carpet by the square yard, tile by the square metre, land by the acre — and the conversion is handled for you. For a slab you're pouring rather than a floor you're covering, the <a href="/everyday/concrete-calculator">concrete calculator</a> works in cubic yards and bags.</p>
+    <p>For flooring, tile or paint, take your total square footage and add about 5–10% for waste, offcuts and mistakes — nearer 15% for a diagonal or herringbone layout, which produces more cut-offs, and nearer 5% for a plain rectangular room laid straight. Buy the waste allowance with the rest: dye lots and production runs change, and a later top-up box rarely matches. Then enter a price for a cost estimate. Price in whatever unit your supplier quotes — carpet by the square yard, tile by the square metre, land by the acre — and the conversion is handled for you. For a slab you're pouring rather than a floor you're covering, the <a href="/everyday/concrete-calculator">concrete calculator</a> works in cubic yards and bags.</p>
   </Fragment>
 </CalculatorLayout>

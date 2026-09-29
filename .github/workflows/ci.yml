@@ -56,6 +56,13 @@ jobs:
       - name: Assert monetization stays off
         run: npm run assert:mon-off
 
+      # The domain was registered before we owned it, and Google still held the
+      # previous owner's WordPress site: /home/ indexed with no description,
+      # blocked by a robots.txt that stopped the crawler ever seeing the 301
+      # waiting for it. Every cause was visible in dist/ and nothing was looking.
+      - name: Assert the bundle is indexable
+        run: npm run assert:indexable
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
@@ -112,10 +119,14 @@ jobs:
       - name: Assert no /dev output is about to ship
         run: npm run assert:no-dev
 
-      - name: Assert .htaccess is in the bundle
-        run: |
-          test -f dist/.htaccess || \
-          (echo "::error::dist/.htaccess missing - clean URLs would 404" && exit 1)
+      # Re-run on the exact bundle about to be uploaded, not just the one CI
+      # built. This supersedes the bare `test -f dist/.htaccess` that used to sit
+      # here: it still fails when the file is missing, and also when the file is
+      # present but has lost the /home redirect or the DirectoryIndex pin, when
+      # robots.txt blocks a path .htaccess redirects, or when the home page has
+      # lost its canonical or description.
+      - name: Assert the bundle is indexable
+        run: npm run assert:indexable
 
       # ----------------------------------------------------------------------
       # SSH CONFIGURATION

@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
+import { lastmodSerializer } from './scripts/lastmod.mjs';
 
 // Canonical site URL. Kept in sync with src/config/site.ts (SITE.url).
 // Declared here as a literal because astro.config is loaded before app code
@@ -33,8 +34,13 @@ export default defineConfig({
         !page.includes('/embed/') &&
         !page.includes('/dev/') &&
         !page.includes('/search-index'),
+      // Google ignores changefreq and priority and acts on lastmod, so the one
+      // that matters is added per URL from the page's own reviewed/updated date
+      // (see scripts/lastmod.mjs). The other two are kept because they cost
+      // nothing and other crawlers still read them.
       changefreq: 'weekly',
       priority: 0.7,
+      serialize: lastmodSerializer(SITE_URL),
     }),
   ],
   vite: {

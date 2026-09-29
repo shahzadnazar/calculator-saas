@@ -4,6 +4,9 @@ import ConcreteCalculator from '@components/islands/ConcreteCalculator.astro';
 import { getCalculator } from '@data/calculators';
 const calc = getCalculator('everyday', 'concrete-calculator')!;
 const faqs = [
+  { question: 'How much concrete do I need for a fence post?', answer: 'The concrete goes around the post, so it is the hole\'s volume minus the post\'s. A 4 by 4 post in a 10-inch hole two feet deep needs about 0.92 cubic feet — two 80 lb bags or three 60 lb bags per post. Dig about three times the post width across, and a third of the post\'s above-ground height deep or below the frost line, whichever is deeper.' },
+  { question: 'How thick should a concrete slab be?', answer: 'Four inches suits patios, walkways, shed bases and residential floors. Five to six inches is normal where a car or light truck will park. Six inches and up, reinforced, is for heavy vehicles and workshop floors. Thickness drives volume directly — going from 4 to 6 inches is 50% more concrete, taking a 10 by 10 pad from 1.23 to 1.85 cubic yards. Check local codes for anything structural.' },
+  { question: 'How much does concrete weigh?', answer: 'Normal-weight concrete is about 150 lb per cubic foot, so a cubic yard weighs roughly 4,050 lb — about two tons. That matters for moving it: one cubic yard is around twenty wheelbarrow loads, so it is worth knowing in advance whether the truck can reach the pour directly.' },
   { question: 'How much concrete do I need?', answer: 'Pick the calculator that matches your pour — a slab, a round footing, a circular slab or tube, a curb and gutter run, or stairs — and enter its measurements. Each one returns the volume in cubic feet, cubic yards and cubic metres, the weight, and how many 60-lb and 80-lb bags that is.' },
   { question: 'How do I estimate concrete in cubic yards?', answer: 'Convert every measurement to feet first (a 4-inch slab is 4 ÷ 12 = 0.33 ft), multiply length × width × thickness for cubic feet, then divide by 27 for cubic yards. A 10 × 10 ft pad at 4 inches is 10 × 10 × 0.33 ÷ 27 ≈ 1.24 cubic yards.' },
   { question: 'How many bags of concrete are in a cubic yard?', answer: 'At the pre-mix density of 133 lbs per cubic foot, a cubic yard weighs about 3,591 lbs — roughly 45 × 80-lb bags or 60 × 60-lb bags. Because that is a lot of mixing, anything beyond about a cubic yard is usually cheaper and easier as ready-mix delivery.' },
@@ -13,7 +16,7 @@ const faqs = [
   { question: 'What density does the estimate assume?', answer: 'Pre-mixed concrete at 2,130 kg/m³, or 133 lbs per cubic foot, which is the usual figure for a standard mix. Different types of concrete vary quite a bit — lightweight mixes are well below this and heavyweight aggregates well above — so treat the weight and bag counts as a close estimate rather than an exact figure.' },
 ];
 ---
-<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Estimate concrete for a slab, footing, column, circular slab, curb and gutter run or stairs — in cubic feet, yards and metres, with the weight and the number of pre-mix bags." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-07-25' }}>
+<CalculatorLayout calculator={calc} presentation="task-first" rail intro="Estimate concrete for a slab, footing, column, circular slab, curb and gutter run or stairs — in cubic feet, yards and metres, with the weight and the number of pre-mix bags." faqs={faqs} reviewMetadata={{ reviewedDate: '2026-09-29' }}>
   <ConcreteCalculator />
   <Fragment slot="content">
     <h2>How to use this calculator</h2>
@@ -93,6 +96,92 @@ const faqs = [
       <strong>5–10%</strong> covers it on a typical slab; add more for a rough or sloping site.
       The calculator reports exactly what the shape holds, so add that margin to the figure it
       gives you rather than expecting it to be built in.
+    </p>
+
+    <h2>Concrete for fence posts</h2>
+    <p>
+      A post hole is the one job where you are not filling the whole hole. The concrete goes
+      <em>around</em> the post, so the amount you need is the hole's volume minus the post's.
+      Dig the hole about three times the width of the post, and a third of the post's
+      above-ground height deep — or below your local frost line, whichever is deeper.
+    </p>
+    <p>
+      For a 4 × 4 post in a 10-inch hole two feet deep: the hole holds 1.09 cu ft, the post
+      takes up 0.17 of that (a 4 × 4 actually measures 3½ × 3½ inches), so you need about
+      <strong>0.92 cu ft</strong> of concrete — two 80 lb bags, or three 60 lb bags, per post.
+      Multiply by the number of posts and round up; a fence line is the wrong place to be one
+      bag short.
+    </p>
+    <p>
+      Use the <strong>column</strong> pour above for a round hole and enter the hole's
+      diameter, then subtract the post. Many fence installers skip the arithmetic and use
+      dry-set posts, tipping the bag in dry and adding water, which suits a fence but not
+      anything structural.
+    </p>
+
+    <h2>How thick should the slab be?</h2>
+    <p>
+      Thickness drives the whole estimate, because volume is directly proportional to it.
+      Going from 4 inches to 6 inches on the same footprint is <strong>50% more concrete</strong>
+      — a 10 × 10 pad goes from 1.23 to 1.85 cubic yards.
+    </p>
+    <ul>
+      <li><strong>4 inches</strong> — patios, walkways, shed and garden bases, residential floors. The default for foot traffic.</li>
+      <li><strong>5–6 inches</strong> — driveways and anywhere a car or light truck will park or turn.</li>
+      <li><strong>6 inches and up, reinforced</strong> — heavy vehicles, workshop floors, anything carrying concentrated loads.</li>
+    </ul>
+    <p>
+      Under the slab, most residential pours sit on <strong>4–6 inches of compacted gravel</strong>,
+      which drains water away and gives the slab an even bearing surface. Measure your slab
+      thickness from the top of that base, not from the bottom of the excavation, or you will
+      over-order. Local building codes set the minimum for anything structural — check before
+      you pour.
+    </p>
+
+    <h2>Common slab sizes</h2>
+    <p>At 4 inches thick, for a quick sanity check against the calculator:</p>
+    <table>
+      <thead>
+        <tr><th>Slab</th><th>Cubic feet</th><th>Cubic yards</th><th>80 lb bags</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>10 × 10 ft</td><td>33.3</td><td>1.23</td><td>~56</td></tr>
+        <tr><td>12 × 12 ft</td><td>48.0</td><td>1.78</td><td>~80</td></tr>
+        <tr><td>20 × 20 ft</td><td>133.3</td><td>4.94</td><td>~223</td></tr>
+        <tr><td>24 × 24 ft (two-car garage)</td><td>192.0</td><td>7.11</td><td>~320</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The bag counts show why ready-mix wins above about a cubic yard. Mixing 223 bags by hand
+      for a 20 × 20 pad is days of work, and a slab poured in batches over days will not cure
+      as one piece.
+    </p>
+
+    <h2>Working out what it will cost</h2>
+    <p>
+      Concrete pricing is regional and moves with fuel and cement costs, so take a current
+      quote rather than a published figure. What does not change is the shape of the bill, and
+      it catches people out:
+    </p>
+    <ol>
+      <li><strong>The concrete itself</strong>, priced per cubic yard or cubic metre — take your estimate plus the 5–10% margin.</li>
+      <li><strong>Delivery</strong>, usually a flat charge, sometimes by distance from the plant.</li>
+      <li><strong>A short-load fee</strong> for anything well under a full truck. This is the one that surprises people: a small pour can cost nearly as much to deliver as a large one.</li>
+      <li><strong>Waiting time</strong> beyond the included unloading window, charged by the minute or quarter-hour, so have the site and enough hands ready before the truck arrives.</li>
+    </ol>
+    <p>
+      That structure is why the cost per square foot of a small pour is so much higher than a
+      large one, and why combining two small pours into one delivery is usually worth the
+      scheduling effort.
+    </p>
+
+    <h2>How much concrete weighs</h2>
+    <p>
+      Normal-weight concrete runs about <strong>150 lb per cubic foot</strong>, which is
+      <strong>4,050 lb — roughly two tons — per cubic yard</strong>. The calculator reports the
+      weight alongside the volume because it decides how you move it: a single cubic yard is
+      two tons that a wheelbarrow will take perhaps twenty trips to shift, and it is worth
+      knowing before the truck arrives whether it can reach the pour directly.
     </p>
 
     <h2>How long concrete takes to set and cure</h2>
