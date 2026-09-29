@@ -18,12 +18,20 @@
 # is predictable. Off first, so the rewrite below is the only thing deciding.
 Options -MultiViews
 
-# `/finance` is BOTH a file (finance.html) and a directory (finance/...).
-# Apache resolves the directory first and 301s `/finance` to `/finance/`, which
-# has no index file — a redirect straight into a 404. This affects /finance
-# /health /math /everyday /tasks /topics /guides /reference /embed. DirectorySlash
-# belongs to mod_dir, so it is set here rather than inside the rewrite block.
+# Both of these belong to mod_dir, which is why they sit here rather than inside
+# the rewrite block below.
 <IfModule mod_dir.c>
+  # The front page is index.html and nothing else. Stated explicitly because a
+  # leftover index.php from whatever previously occupied this hosting account
+  # would otherwise win — Apache's default DirectoryIndex lists index.php ahead
+  # of index.html, so one orphaned file left behind in public_html can serve `/`
+  # forever and our home page is never seen, by a visitor or by Google.
+  DirectoryIndex index.html
+
+  # `/finance` is BOTH a file (finance.html) and a directory (finance/...).
+  # Apache resolves the directory first and 301s `/finance` to `/finance/`, which
+  # has no index file — a redirect straight into a 404. This affects /finance
+  # /health /math /everyday /tasks /topics /guides /reference /embed.
   DirectorySlash Off
 </IfModule>
 
@@ -38,15 +46,38 @@ Options -MultiViews
   RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
   RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
 
-  # Legacy URLs from whatever previously lived on this domain. Google indexed
-  # /home/ — a path this site has never produced — so the only result for
-  # "bestcalculate.com" was a 404 with "No information is available for this
-  # page", and a Chrome new-tab tile pointing at it 404'd on every cold open.
-  # A 301 both fixes the visit and tells Google to fold that URL into the root.
-  RewriteRule ^home/?$ / [R=301,L]
+  # Legacy URLs, inherited with the domain rather than created by this site.
+  #
+  # bestcalculate.com was registered before we owned it, and the previous owner
+  # ran WordPress on it. Google still holds that site: searching the brand
+  # returned `https://bestcalculate.com/home/` with "No information is available
+  # for this page", and Search Console names the referring page as
+  # `/wp-sitemap-posts-page-1.xml` — WordPress's own sitemap, which has never
+  # existed on our server. Its last crawl of /home/ read "blocked by robots.txt",
+  # from whatever robots.txt the domain served while it was parked; ours allows
+  # everything, so the block is gone and the crawler can now see this redirect.
+  # Nothing we publish links to /home (0 of 215 internal links).
+  #
+  # The whole subtree, not just the exact path: a WordPress site with /home/
+  # almost always had /home/about and friends, and each is another dead URL.
+  # A 301 to the root fixes the visit and tells Google to fold the old URL into
+  # the home page, which is what eventually replaces that empty result.
+  RewriteRule ^home(/.*)?$ / [R=301,L]
 
-  # /index.html is the same page as /, so only one of them should be reachable.
-  RewriteRule ^index\.html$ / [R=301,L]
+  # Same story for the usual front-page filenames. index.html is genuinely ours
+  # and is simply the duplicate of /; the rest are not ours at all. default.php
+  # is not hypothetical — Hostinger's parked-domain placeholder is still sitting
+  # in public_html, dated before the first deploy. DirectoryIndex above stops it
+  # serving `/`; this stops anyone reaching it by name.
+  RewriteRule ^(index\.html|index\.php|default\.html?|default\.php|home\.html?)$ / [R=301,L]
+
+  # The rest of the old site's page set, which Search Console still lists:
+  # /home/ /disclaimer/ /privacy-policy/ /contact/ — the standard WordPress
+  # spread. Three of those four happen to match a page we publish, so the
+  # trailing-slash rule below already lands them on ours. /privacy-policy is the
+  # one that does not: we publish /privacy, so without this it strips to
+  # /privacy-policy and 404s. Sent to the page that answers the same question.
+  RewriteRule ^privacy-policy/?$ /privacy [R=301,L]
 
   # Trailing slashes are stripped because the site declares
   # `trailingSlash: 'never'` — /finance/ and /finance must not both resolve, or

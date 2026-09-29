@@ -24,7 +24,8 @@
     "gen:cpi": "node scripts/gen-cpi.mjs",
     "assert:cpi-current": "node scripts/gen-cpi.mjs --check",
     "assert:embed-pages-current": "node scripts/gen-embed-pages.mjs --check",
-    "assert:embed-isolation": "node scripts/assert-embed-isolation.mjs"
+    "assert:embed-isolation": "node scripts/assert-embed-isolation.mjs",
+    "assert:indexable": "node scripts/assert-indexable.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.3.14",
