@@ -203,7 +203,18 @@ has its own island rather than a configured `StatisticsCalculator`.
 dynamic import, a `<script>` loader, or ≠ 1 island import. Gated by
 `assert:embed-isolation` (failing gate, no byte budget) + `embed-components.test.ts`.
 The attribution `<a>` in an embed snippet is deliberately OUTSIDE the iframe — that is
-what makes it a real backlink.
+what makes it a real backlink — and its anchor text is the **brand**, never the calculator's
+name. `Free <a>Mortgage Calculator</a> by BestCalculate` was an exact-match keyword anchor,
+dofollow and byte-identical on every placement: the footprint Google's link-spam
+documentation describes for widgets, whose guidance is that keyword-anchored widget links
+should be nofollow. `embed.test.ts` pins this.
+
+The resize `postMessage` is sent under BOTH `bestcalculate-resize` and the legacy
+`allcalc-resize`, and must stay that way. A snippet is copied once and frozen in someone
+else's HTML — the listener half never updates, the sending half is ours — so dropping the
+old name would leave every already-pasted embed stuck at its initial height, on sites we
+cannot contact. The iframe `id` was safe to rename because each snippet only references its
+own.
 
 ## 8. Monetization — architected, integrated, entirely OFF
 
