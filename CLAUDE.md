@@ -41,6 +41,10 @@ npm run assert:embed-isolation     # 0 unrelated scoped CSS per embed (CI, post-
 npm run assert:mon-off             # no monetization artifact on live pages (CI)
 npm run assert:indexable           # robots/canonical/description/legacy redirects (CI + deploy)
 npm run assert:no-dev              # /dev/* not in the bundle (run after stripping it)
+npm run seo:smoke                  # post-deploy checks against the LIVE site (--base for staging)
+npm run indexnow -- --since <url>  # submit only what changed since that sitemap
+npm run indexnow:all               # one-time initial submission of every URL
+npm run indexnow:key-file          # write dist/<INDEXNOW_KEY>.txt (deploy job does this)
 ```
 
 CI job `build-and-test`: check → embed-drift → unit → build → embed-isolation →
@@ -49,6 +53,19 @@ that passes: it rebuilds, strips `dist/dev`, asserts the bundle is clean and
 indexable, then **rsyncs `dist/` to Hostinger over SSH** (secrets `HOSTINGER_HOST`
 / `USER` / `PORT` / `PATH` / `SSH_KEY`). A red suite cannot reach the live site,
 because `deploy` never starts.
+
+The `deploy` job also carries the off-page steps, in an order that matters: it
+writes `dist/<INDEXNOW_KEY>.txt` and captures the **currently live** sitemap
+BEFORE the rsync, then after it runs `seo:smoke` against the live site and only
+then pings IndexNow. The baseline has to be captured first because rsync
+overwrites the live sitemap, and diffing the two is what makes the ping *only*
+the URLs that changed — resubmitting all 112 every deploy is what gets a host
+throttled. The smoke test runs before the ping so a broken deployment is never
+advertised to Bing. Both IndexNow steps are `continue-on-error` and skip
+entirely when `INDEXNOW_KEY` is unset: the site is already up, and a rejected
+ping is not a reason to mark a good release red. **`INDEXNOW_KEY` is declared at
+JOB level** — a step's own `env:` is not in scope for that step's own `if:`, so
+a per-step declaration would make every guard read empty and silently skip.
 
 The rsync carries no `--delete`, so a file dropped from the build stays on the
 server. That is how Hostinger's parked-domain `default.php` survived the first
@@ -199,6 +216,18 @@ Special cases: scientific → `ScientificCalculatorEmbed`; password-generator �
 `PasswordGeneratorCalculator`. No embed carries `props` any more — standard-deviation now
 has its own island rather than a configured `StatisticsCalculator`.
 
+`EmbedLayout`'s `description` prop is **required**, and `EmbedPageShell` fills it from the
+registry — so all 50 generated pages gained a meta description without being regenerated.
+`noindex` suppresses the *result*, not the crawl: a crawler still fetches these URLs and
+records what it found, and 61 pages with no description is what a Bing site scan reports.
+
+**The sitemap excludes embed ROUTES, not the `/embed/` prefix.** Every chrome-less embed is
+two segments deep (`/embed/<category>/<slug>`, `/embed/reference/<slug>`) and must never be
+listed. One segment deep are the two HUBS — `/embed` and `/embed/gallery` — which are
+ordinary indexable pages with their own copy and a self-canonical. A blunt
+`includes('/embed/')` was silently dropping the gallery: 3,358 words, and the only
+indexable page on the site missing from the sitemap.
+
 **Forbidden in a generated embed page:** a component map, `import.meta.glob`, a runtime
 dynamic import, a `<script>` loader, or ≠ 1 island import. Gated by
 `assert:embed-isolation` (failing gate, no byte budget) + `embed-components.test.ts`.
@@ -249,6 +278,13 @@ audience, so **affiliate and email come before AdSense**.
 ## 9. SEO & content
 
 - Topical-silo URLs; per-page canonical/OG/Twitter/robots via `BaseHead`.
+- **Every** sitemap URL carries a `lastmod`, and none of them is the build date — a date
+  that moves on every deploy makes a crawler distrust the signal site-wide. Four declared
+  sources (calculator `reviewedDate`, guide frontmatter, reference `reviewed`, ContentLayout's
+  `updated`), plus one derived rule: a hub has no content of its own, so it takes the newest
+  date among the pages it lists (`/finance` from its calculators, `/tasks/<slug>` from its
+  members, `/` from everything). `scripts/lastmod.test.ts` holds both halves — full coverage,
+  and that every emitted value is a date some page actually declares.
 - JSON-LD: Organization + WebSite (search action) site-wide; WebApplication +
   BreadcrumbList + FAQPage per calculator; Article on guides. Builders in `lib/schema.ts`.
 - **Content depth is the #1 on-page lever** — competitors rank for 5K–27K keywords per

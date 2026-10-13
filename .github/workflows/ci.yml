@@ -95,6 +95,13 @@ jobs:
       group: hostinger-production
       cancel-in-progress: false
 
+    # Job-level, because a step's own `env:` is not in scope for that step's
+    # `if:` — declaring it per step would make every IndexNow guard read as
+    # empty and silently skip. Absent secret => empty string => steps skip,
+    # which is the intended behaviour for a fork or a repo without the key.
+    env:
+      INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -127,6 +134,30 @@ jobs:
       # lost its canonical or description.
       - name: Assert the bundle is indexable
         run: npm run assert:indexable
+
+      # ----------------------------------------------------------------------
+      # INDEXNOW — PREPARE (must happen BEFORE the upload)
+      # ----------------------------------------------------------------------
+      # The ownership-proof file is written into the bundle here rather than
+      # committed to `public/`, because the key is a secret: a key in a public
+      # repository is a key anyone can submit URLs with.
+      - name: Write the IndexNow key file into the bundle
+        if: ${{ env.INDEXNOW_KEY != '' }}
+        run: npm run indexnow:key-file
+
+      # Capture the sitemap that is CURRENTLY live, before rsync overwrites it.
+      # Diffing it against the one just built is what makes the submission after
+      # the deploy only the URLs that actually changed — re-submitting all 112
+      # on every deploy is what gets a host throttled and ignored.
+      - name: Capture the live sitemap as an IndexNow baseline
+        if: ${{ env.INDEXNOW_KEY != '' }}
+        continue-on-error: true
+        run: |
+          curl -fsS --max-time 30 \
+            https://bestcalculate.com/sitemap-0.xml \
+            -o /tmp/live-sitemap.xml \
+          && echo "Baseline captured." \
+          || echo "No live sitemap reachable — the submission step will be skipped."
 
       # ----------------------------------------------------------------------
       # SSH CONFIGURATION
@@ -182,3 +213,28 @@ jobs:
             -e "ssh -i ~/.ssh/id_ed25519 -o PasswordAuthentication=no -p $SSH_PORT" \
             dist/ \
             "$SSH_USER@$SSH_HOST:$HOSTINGER_PATH"
+
+      # ----------------------------------------------------------------------
+      # POST-DEPLOYMENT VERIFICATION
+      # ----------------------------------------------------------------------
+      # Every other gate in this workflow inspects dist/. This one fetches what
+      # a crawler fetches, so it catches the failures that happen between the
+      # bundle and the browser: a rewrite that redirects a sitemap URL, a
+      # missing .htaccess, a key file that 404s. It runs BEFORE IndexNow, so a
+      # broken deployment is never advertised to Bing.
+      - name: SEO smoke test against the live site
+        run: npm run seo:smoke
+
+      # Only the URLs that are new, changed or removed since the sitemap that
+      # was live before this deploy. Skipped entirely when the secret is absent,
+      # and never fails the deployment: the site is already up, and a rejected
+      # ping is not a reason to mark a good release red.
+      - name: Tell IndexNow what changed
+        if: ${{ env.INDEXNOW_KEY != '' }}
+        continue-on-error: true
+        run: |
+          if [ -s /tmp/live-sitemap.xml ]; then
+            npm run indexnow -- --since /tmp/live-sitemap.xml
+          else
+            echo "No baseline was captured; skipping. Run 'npm run indexnow:all' manually for a first submission."
+          fi

@@ -7,16 +7,17 @@
  * DOM): that is what makes it a real backlink — a link inside the iframe would
  * not count.
  *
- * The anchor text is the BRAND, not the calculator's name. It used to read
- * `Free <a>Mortgage Calculator</a> by BestCalculate` — an exact-match keyword
- * anchor, dofollow, byte-identical on every placement. That is the pattern
- * Google's link-spam documentation names when it describes widgets, and its
- * guidance is that keyword-anchored widget links should be nofollow. Ten of
- * those are invisible; two hundred all reading the same three words are a
- * footprint. Moving the link onto the brand keeps everything the host cares
- * about — same tool, same destination, same credit — and drops the footprint,
- * which is also simply what a real attribution looks like when a human writes
- * one.
+ * The anchor text is `<Calculator name> by <brand>` — the whole phrase is the
+ * link, and it always carries the brand.
+ *
+ * It first read `Free <a>Mortgage Calculator</a> by BestCalculate`: a bare
+ * exact-match keyword anchor, dofollow and byte-identical on every placement,
+ * which is the widget footprint Google's link-spam documentation describes.
+ * Naming the brand inside the anchor is what separates an attribution from that
+ * footprint — a link that says who it credits is what a real attribution looks
+ * like, and it cannot collapse into N identical copies of a head term. The
+ * destination is always the parent calculator, never the /embed/ URL that
+ * copied it, because a link to a noindex page credits nothing.
  */
 import { SITE, absoluteUrl } from '@config/site';
 
@@ -59,6 +60,6 @@ export function buildEmbedSnippet(target: EmbedTarget): string {
   return [
     `<iframe src="${embedUrl}" title="${target.title} by ${SITE.name}" loading="lazy" style="width:100%;border:0;height:640px" id="${id}"></iframe>`,
     `<script>window.addEventListener("message",function(e){if(e.data&&e.data.type==="${EMBED_RESIZE_MESSAGE}"&&e.data.slug==="${target.slug}"){var f=document.getElementById("${id}");if(f)f.style.height=e.data.height+"px";}});</script>`,
-    `<p style="font:13px/1.5 sans-serif">${target.title} by <a href="${canonicalUrl}">${SITE.name}</a></p>`,
+    `<p style="font:13px/1.5 sans-serif"><a href="${canonicalUrl}">${target.title} by ${SITE.name}</a></p>`,
   ].join('\n');
 }

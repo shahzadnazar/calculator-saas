@@ -25,18 +25,17 @@ describe('the embed snippet as a link', () => {
    * pages, so its anchor is a decision, not a detail. It used to read
    * `Free <a>Mortgage Calculator</a> by BestCalculate` — exact-match keyword,
    * dofollow, byte-identical on every placement, which is the footprint Google's
-   * link-spam documentation describes for widgets.
+   * link-spam documentation describes for widgets. Naming the brand INSIDE the
+   * anchor is what stops it being that: an attribution that says who it credits.
    */
-  it('puts the link on the brand, never on the calculator name', () => {
+  it('reads "<Calculator name> by <brand>", with the whole phrase linked', () => {
     expect(anchor, 'the snippet has no anchor at all').not.toBeNull();
-    expect(anchor![1]).toBe(SITE.name);
-    expect(anchor![1]).not.toContain(target.title);
+    expect(anchor![1]).toBe(`${target.title} by ${SITE.name}`);
   });
 
-  it('still names the tool in the visible credit, outside the link', () => {
-    const credit = snippet.match(/<p[^>]*>(.*?)<\/p>/s)![1];
-    expect(credit).toContain(target.title);
-    expect(credit.indexOf(target.title)).toBeLessThan(credit.indexOf('<a'));
+  it('always carries the brand in the anchor, never the tool name alone', () => {
+    expect(anchor![1]).toContain(SITE.name);
+    expect(anchor![1]).not.toBe(target.title);
   });
 
   it('carries exactly one link, and points it at the canonical page', () => {

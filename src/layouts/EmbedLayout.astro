@@ -7,6 +7,14 @@
  * - `noindex` + a canonical to the real page, so embed URLs never compete with
  *   the canonical calculator pages for rankings.
  * - Posts its height to the parent window so the host iframe auto-resizes.
+ *
+ * `description` is REQUIRED rather than optional. These pages shipped without a
+ * meta description for every one of the 61 embed routes, which is what Bing's
+ * site scan reports. `noindex` suppresses the result, not the crawl: a crawler
+ * still fetches the page, still records what it found, and a page with no
+ * description reads as thin. The parent's own description is the honest value —
+ * it describes the same tool — and making the prop required means a new embed
+ * route cannot be added without one.
  */
 import '@styles/global.css';
 import { SITE, absoluteUrl } from '@config/site';
@@ -15,12 +23,14 @@ import { EMBED_RESIZE_MESSAGE, EMBED_RESIZE_MESSAGE_LEGACY } from '@lib/embed';
 interface Props {
   /** Calculator title, e.g. "Mortgage Calculator". */
   title: string;
+  /** The parent page's own description — never empty. */
+  description: string;
   /** Root-relative path of the canonical calculator page. */
   canonicalPath: string;
   /** Calculator slug — namespaces the resize message to this embed. */
   slug: string;
 }
-const { title, canonicalPath, slug } = Astro.props;
+const { title, description, canonicalPath, slug } = Astro.props;
 const canonicalUrl = absoluteUrl(canonicalPath);
 const langAttr = SITE.locale.split('_')[0];
 ---
@@ -31,6 +41,7 @@ const langAttr = SITE.locale.split('_')[0];
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} — {SITE.name}</title>
+    <meta name="description" content={description} />
     <meta name="robots" content="noindex, follow" />
     <link rel="canonical" href={canonicalUrl} />
     <meta name="color-scheme" content="light dark" />

@@ -26,12 +26,20 @@ export default defineConfig({
   integrations: [
     mdx(),
     sitemap({
-      // Exclude 404, the chrome-less iframe embed pages (/embed/<cat>/<slug>,
-      // which are noindex), the dev routes, and the JSON search index (a data
-      // asset, not a page). The indexable /embed landing page is kept.
+      // Exclude 404, the chrome-less iframe embed pages, the dev routes, and the
+      // JSON search index (a data asset, not a page).
+      //
+      // The embed exclusion matches the ROUTES, not the path prefix. Every
+      // chrome-less embed lives two segments deep — /embed/<category>/<slug>
+      // and /embed/reference/<slug> — and is noindex with a canonical pointing
+      // at its parent, so it must never appear here. One segment deep are the
+      // two embed HUBS: /embed and /embed/gallery. Both are ordinary indexable
+      // pages with their own copy, their own description and a self-canonical,
+      // and `includes('/embed/')` was silently dropping the gallery — 3,358
+      // words, the only indexable page on the site missing from the sitemap.
       filter: (page) =>
         !page.includes('/404') &&
-        !page.includes('/embed/') &&
+        !/\/embed\/[^/]+\/[^/]+/.test(page) &&
         !page.includes('/dev/') &&
         !page.includes('/search-index') &&
         // The reference tables' machine-readable copies. Linked from their page

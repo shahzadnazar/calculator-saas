@@ -25,7 +25,11 @@
     "assert:cpi-current": "node scripts/gen-cpi.mjs --check",
     "assert:embed-pages-current": "node scripts/gen-embed-pages.mjs --check",
     "assert:embed-isolation": "node scripts/assert-embed-isolation.mjs",
-    "assert:indexable": "node scripts/assert-indexable.mjs"
+    "assert:indexable": "node scripts/assert-indexable.mjs",
+    "indexnow": "node scripts/indexnow.mjs",
+    "indexnow:all": "node scripts/indexnow.mjs --all",
+    "indexnow:key-file": "node scripts/indexnow.mjs --write-key-file dist",
+    "seo:smoke": "node scripts/seo-smoke.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.3.14",
