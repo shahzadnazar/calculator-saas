@@ -347,7 +347,7 @@ const ONE_TIME_ROWS: number[] = Array.from({ length: ONE_TIME_SLOTS }, (_, i) =>
           </summary>
 
           <div class="mc-table-wrap">
-            <table class="mc-table">
+            <table class="mc-table calc-schedule-table">
               <caption class="sr-only">Yearly amortization schedule showing principal paid, interest paid and remaining balance at the end of each year.</caption>
               <thead>
                 <tr>
@@ -622,14 +622,7 @@ const ONE_TIME_ROWS: number[] = Array.from({ length: ONE_TIME_SLOTS }, (_, i) =>
   }
   .mc-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
   .mc-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--subtle);
     padding: 0.55rem 0.75rem;
-    font-weight: 600;
-    text-align: left;
-    color: var(--fg);
     white-space: nowrap;
   }
   .mc-table th.mc-num, .mc-table td.mc-num {

@@ -163,7 +163,7 @@ const COMPOUND_LABELS: Record<string, string> = {
           </fieldset>
 
           <div class="inv-table-wrap">
-            <table class="inv-table">
+            <table class="inv-table calc-schedule-table">
               <caption class="sr-only">Accumulation schedule showing each period's deposit, the interest it earned and the balance afterwards.</caption>
               <thead>
                 <tr>
@@ -346,14 +346,7 @@ const COMPOUND_LABELS: Record<string, string> = {
   .inv-table-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
   .inv-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.82rem; }
   .inv-table thead th {
-    position: sticky;
-    top: 0;
-    background: var(--surface);
-    text-align: left;
-    font-weight: 700;
-    color: var(--heading);
     padding: 0.45rem 0.5rem;
-    border-bottom: 1px solid var(--line);
   }
   .inv-table th.inv-th-period { width: 3.5rem; }
   /* Rows are built with the DOM API, so these must be global — a scoped selector

@@ -417,6 +417,44 @@
     max-width: 100%;
   }
 
+  /* ------------------------------------------------------------------------
+     Scrollable schedule tables — ONE sticky header treatment
+     ------------------------------------------------------------------------
+     Ten calculators print a long schedule inside a fixed-height scroller with a
+     `position: sticky` header row. Each island carried its own copy of that
+     header's CSS, and seven of the copies painted the background with
+     `var(--surface)` — a custom property this project has never defined. An
+     undefined property with no fallback makes the whole declaration invalid at
+     computed-value time, so those headers resolved to `transparent` and the
+     rows scrolled straight through the column names.
+
+     Two properties keep a sticky header legible and BOTH have to be here. The
+     background is the obvious one. The `z-index` is not: table cells paint in
+     document order, so a sticky `th` left at `z-index: auto` is painted before
+     every tbody cell and ends up underneath them even when it does have a
+     background of its own.
+
+     Only the treatment is shared. Padding, font-size, column widths and
+     `white-space` stay with the island — that is the part which legitimately
+     differs between the schedule families.
+
+     Astro's scoped styles are unlayered, so anything an island still declares
+     for its own `thead th` wins over this block per property. That is the
+     intended escape hatch, not a bug; it is also why the islands had to have
+     these five properties removed rather than merely overridden.
+     ------------------------------------------------------------------------ */
+
+  .calc-schedule-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--subtle);
+    color: var(--fg);
+    font-weight: 600;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+  }
+
 
   /* ------------------------------------------------------------------------
      Tool shell — calculator and optional side rail

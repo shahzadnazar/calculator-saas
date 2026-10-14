@@ -203,7 +203,7 @@ const ONE_TIME_ROWS = Array.from({ length: ONE_TIME_SLOTS }, (_, i) => i + 1);
           </fieldset>
 
           <div class="am-table-wrap">
-            <table class="am-table">
+            <table class="am-table calc-schedule-table">
               <caption class="sr-only">Amortization schedule showing each period's interest and principal and the balance remaining afterwards.</caption>
               <thead>
                 <tr>
@@ -406,14 +406,7 @@ const ONE_TIME_ROWS = Array.from({ length: ONE_TIME_SLOTS }, (_, i) => i + 1);
   .am-table-wrap { margin-top: 0.6rem; max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
   .am-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   .am-table thead th {
-    position: sticky;
-    top: 0;
-    background: var(--surface);
-    text-align: left;
-    font-weight: 700;
-    color: var(--heading);
     padding: 0.45rem 0.6rem;
-    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
   /* Rows are built with the DOM API, so these must be global — a scoped selector

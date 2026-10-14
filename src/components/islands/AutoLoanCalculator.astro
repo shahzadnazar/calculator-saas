@@ -220,7 +220,7 @@ import { STATE_SALES_TAX, STATE_TAX_REVIEWED } from '@data/state-sales-tax';
             </figure>
 
             <div class="al-table-wrap">
-              <table class="al-table">
+              <table class="al-table calc-schedule-table">
                 <caption class="sr-only">Amortization schedule showing the interest and principal of each payment and the balance remaining afterwards.</caption>
                 <thead>
                   <tr>
@@ -452,14 +452,7 @@ import { STATE_SALES_TAX, STATE_TAX_REVIEWED } from '@data/state-sales-tax';
   }
   .al-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   .al-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--subtle);
     padding: 0.5rem 0.7rem;
-    font-weight: 600;
-    text-align: left;
-    color: var(--fg);
     white-space: nowrap;
   }
   /* `:global` — the rows are created by the binding at runtime and carry no scope attribute. */
