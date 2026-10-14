@@ -122,7 +122,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
           </ResultInterpretation>
 
           <ResultBreakdown title="The ideal weight based on popular formulas">
-            <table class="iw-formulas">
+            <table class="iw-formulas calc-table">
               <thead>
                 <tr><th scope="col">Formula</th><th scope="col" class="iw-num">Ideal Weight</th></tr>
               </thead>
@@ -301,13 +301,6 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     padding: 0.35rem 0;
     border-bottom: 1px solid var(--line);
     text-align: left;
-  }
-  .iw-formulas thead th {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    font-weight: 700;
   }
   .iw-formulas tbody th {
     font-weight: 600;

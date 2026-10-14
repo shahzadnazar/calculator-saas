@@ -73,7 +73,7 @@ describe('CSS custom properties', () => {
     expect(defined.size).toBeGreaterThan(50);
   });
 
-  it('defines the tokens the shared schedule-table header is built from', () => {
+  it('defines the tokens the shared calculator-table header is built from', () => {
     for (const token of ['--subtle', '--fg', '--line', '--card', '--heading']) {
       expect(defined.has(token)).toBe(true);
     }

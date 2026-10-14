@@ -104,7 +104,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
           assumes you add no new balance to the cards.
         </p>
         <div class="cc-plan__scroll">
-          <table class="cc-plan__table">
+          <table class="cc-plan__table calc-table">
             <caption class="sr-only">Payoff plan for each credit card, highest interest rate first</caption>
             <thead>
               <tr>
@@ -314,11 +314,6 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     vertical-align: top;
   }
   .cc-plan__table thead :global(th) {
-    font-size: 0.72rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
     white-space: nowrap;
   }
   .cc-plan__table tbody :global(th) { font-weight: 700; color: var(--heading); white-space: nowrap; }

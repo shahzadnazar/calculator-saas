@@ -148,7 +148,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
         </dl>
 
         <p class="pc-sub">Equivalent finish times at this pace</p>
-        <table class="pc-equiv">
+        <table class="pc-equiv calc-table">
           <thead>
             <tr><th scope="col">Distance</th><th scope="col" class="pc-num">Time</th></tr>
           </thead>
@@ -382,13 +382,6 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
     text-align: left;
-  }
-  .pc-equiv thead th {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    font-weight: 700;
   }
   .pc-equiv tbody th {
     font-weight: 500;
