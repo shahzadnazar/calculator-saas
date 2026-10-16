@@ -40,7 +40,11 @@ const FINAL_FIELDS = [
           <table class="grade-input-table">
             <thead>
               <tr>
-                <th scope="col">Assignment/Exam <span class="grade-optional">(optional)</span></th>
+                <!-- `<wbr />` only: the slash in "Assignment/Exam" is not a break opportunity
+                     Chrome will take on its own, so without it the heading broke mid-word
+                     ("ASSIGNMENT/EX" / "AM") in the ~100px first column on a phone. It adds
+                     nothing to the text content, so the column is still read as one phrase. -->
+                <th scope="col">Assignment/<wbr />Exam <span class="grade-optional">(optional)</span></th>
                 <th scope="col">Grade</th>
                 <th scope="col">Weight</th>
                 <th scope="col"><span class="sr-only">Remove</span></th>
@@ -95,7 +99,7 @@ const FINAL_FIELDS = [
           <span class="sr-only" data-result-value-a11y></span>
 
           <div class="grade-scroll">
-            <table class="grade-report">
+            <table class="grade-report calc-table">
               <caption class="sr-only">Grades by assignment</caption>
               <thead>
                 <tr>
@@ -234,7 +238,16 @@ const FINAL_FIELDS = [
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--muted);
-    white-space: nowrap;
+    /* No `white-space: nowrap` here. This table is `table-layout: fixed` with its
+       three narrow columns sized in rem, which leaves the first column about
+       100px on a 360px phone — narrower than its own heading. Held on one line
+       that heading overflowed its cell and printed on top of the next one, so
+       "ASSIGNMENT/EXAM (optional)" ran straight through "GRADE". Wrapping is what the
+       `overflow-wrap: anywhere` further down was already there to allow; nowrap
+       was the leftover from when this table still sized itself, and it silently
+       cancelled it. Bottom alignment keeps the one-line headings sitting on the
+       same edge as the last line of a heading that wrapped. */
+    vertical-align: bottom;
   }
   .grade-optional { font-weight: 500; text-transform: none; letter-spacing: 0; }
 
@@ -251,6 +264,24 @@ const FINAL_FIELDS = [
   .grade-input-table th:nth-child(2) { width: 4.75rem; }
   .grade-input-table th:nth-child(3) { width: 5.5rem; }
   .grade-input-table th:nth-child(4) { width: 3rem; }
+  /* The three trailing columns are fixed in rem, so the name column is the only one
+     that can absorb a narrow viewport — and it collapsed to 47px at 320px, far
+     narrower than "ASSIGNMENT/", so the heading had to break mid-word. Give the
+     fixed columns back some width on a phone; the remove button is exactly 2.75rem,
+     so that column can go no further without clipping it. The second step is for
+     the 320px class of phone, where the heading needs most of what is left.
+     (Percentages are not an option here: a `table-layout: fixed` column ignores a
+     width whose value is a `min()`/`clamp()` containing one, and falls back to
+     dividing the table evenly.) */
+  @media (max-width: 420px) {
+    .grade-input-table th:nth-child(2) { width: 4.25rem; }
+    .grade-input-table th:nth-child(3) { width: 4.75rem; }
+    .grade-input-table th:nth-child(4) { width: 2.75rem; }
+  }
+  @media (max-width: 345px) {
+    .grade-input-table th:nth-child(2) { width: 3.45rem; }
+    .grade-input-table th:nth-child(3) { width: 3.9rem; }
+  }
   .grade-calc :global(.grade-row__name) { width: 100%; }
   .grade-calc :global(.grade-row__score) { width: 100%; font-variant-numeric: tabular-nums; }
   .grade-calc :global(.grade-row__weight) { width: 100%; font-variant-numeric: tabular-nums; }
@@ -388,13 +419,6 @@ const FINAL_FIELDS = [
   .grade-report { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
   .grade-report thead th {
     padding: 0.35rem 0.55rem;
-    text-align: left;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--muted);
-    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
   .grade-report tfoot th,

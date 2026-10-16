@@ -94,7 +94,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
         level usually reported.
       </p>
       <div class="sd-scroll">
-        <table class="sd-table">
+        <table class="sd-table calc-table">
           <thead>
             <tr><th scope="col">Confidence Level</th><th scope="col">Margin of Error</th><th scope="col">Error Bar</th></tr>
           </thead>
@@ -104,7 +104,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
 
       <h3 class="sd-heading">Frequency Table</h3>
       <div class="sd-scroll">
-        <table class="sd-table sd-table--narrow">
+        <table class="sd-table calc-table sd-table--narrow">
           <thead>
             <tr><th scope="col">Value</th><th scope="col">Frequency</th></tr>
           </thead>
@@ -286,11 +286,6 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     vertical-align: middle;
   }
   .sd-table thead th {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--muted);
     white-space: nowrap;
   }
   .sd :global(.sd-table tbody th) {

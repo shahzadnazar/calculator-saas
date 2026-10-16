@@ -245,7 +245,7 @@ const ZIGZAG = zigzagSchedules(0).map((s) => ({ key: s.key, title: s.title }));
             people find easier to stick to. Both weeks below come to the same total.
           </p>
           {ZIGZAG.map((schedule) => (
-            <table class="cal-zigzag" data-zigzag={schedule.key}>
+            <table class="cal-zigzag calc-table" data-zigzag={schedule.key}>
               <caption class="cal-zigzag__caption">{schedule.title}</caption>
               <thead>
                 <tr><th scope="col">Day</th><th scope="col" class="cal-num">Calories</th></tr>
@@ -566,13 +566,6 @@ const ZIGZAG = zigzagSchedules(0).map((s) => ({ key: s.key, title: s.title }));
     padding: 0.3rem 0;
     border-bottom: 1px solid var(--line);
     text-align: left;
-  }
-  .cal-zigzag thead th {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    font-weight: 700;
   }
   .cal-zigzag tbody th {
     font-weight: 500;

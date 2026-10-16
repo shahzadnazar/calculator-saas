@@ -134,7 +134,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
             </fieldset>
 
             <div class="pay-table-wrap">
-              <table class="pay-table">
+              <table class="pay-table calc-table calc-schedule-table">
                 <caption class="sr-only">Amortization schedule showing each period's interest and principal and the balance remaining afterwards.</caption>
                 <thead>
                   <tr>
@@ -290,14 +290,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
   .pay-table-wrap { margin-top: 0.6rem; max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
   .pay-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   .pay-table thead th {
-    position: sticky;
-    top: 0;
-    background: var(--surface);
-    text-align: left;
-    font-weight: 700;
-    color: var(--heading);
     padding: 0.45rem 0.6rem;
-    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
   /* Rows are built with the DOM API, so these must be global — a scoped selector

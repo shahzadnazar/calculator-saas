@@ -67,7 +67,7 @@ export const TASK_GROUPS: readonly TaskGroup[] = [
     question: 'What will borrowing really cost me?',
     icon: 'landmark',
     description:
-      'Work out the true cost of a mortgage, car loan, personal loan or credit-card balance — the monthly payment, the total interest, and how fast you can be debt-free.',
+      'Work out the true cost of a mortgage, car loan, personal loan or credit-card balance — the monthly payment, the total interest, and how fast you clear it.',
     intro:
       "Whatever you're borrowing for, the maths underneath is the same: an amount, a rate and a term give a monthly payment and a total interest cost. Pick the situation that matches yours — the tools share one amortization engine, so they all read the same way.",
     members: [
@@ -134,7 +134,7 @@ export const TASK_GROUPS: readonly TaskGroup[] = [
     question: 'Where do my body, diet and training stand?',
     icon: 'heart-pulse',
     description:
-      'Turn a few measurements into the numbers that guide health decisions — BMI, body fat, ideal weight, calories, protein, fat, heart-rate zones, running pace and pregnancy milestones.',
+      'Turn a few measurements into the numbers that guide health decisions — BMI, body fat, ideal weight, calories, protein, heart-rate zones and running pace.',
     intro:
       'A few measurements become the numbers that guide health and nutrition decisions: how your weight compares, how much energy you burn, what to eat, how hard to train — each from an established, published formula. None is a diagnosis; they are starting points, not substitutes for a professional.',
     members: [
@@ -187,7 +187,7 @@ export const TASK_GROUPS: readonly TaskGroup[] = [
     question: 'How much space or material do I need?',
     icon: 'ruler',
     description:
-      'From a home project to a homework problem — square footage, area, volume, triangles and concrete, plus a unit converter for length, weight, volume and temperature.',
+      'From a home project to a homework problem — square footage, area, volume, triangles and concrete, plus a converter for length, weight and temperature.',
     intro:
       'Measuring a room, estimating materials, or solving a shape: these tools find area, volume, square footage and triangle values from the standard formulas, and convert between units so the numbers line up before you buy or build.',
     members: [
@@ -209,7 +209,7 @@ export const TASK_GROUPS: readonly TaskGroup[] = [
     question: 'Can you crunch this number for me?',
     icon: 'graduation-cap',
     description:
-      'Everyday and advanced math plus a few handy utilities — a scientific calculator, percentages, fractions, statistics, GPA and grades, a random number generator and a password maker.',
+      'Everyday and advanced math plus a few handy utilities — a scientific calculator, percentages, fractions, statistics, GPA and grades, and a password maker.',
     intro:
       'The number-crunchers you reach for at school, at a desk or in a pinch: a full scientific calculator, percentages and fractions, descriptive statistics, GPA and grade planning, and a couple of everyday utilities.',
     members: [

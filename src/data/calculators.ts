@@ -65,7 +65,7 @@ export const CATEGORIES: readonly Category[] = [
     name: 'Financial Calculators',
     shortName: 'Finance',
     description:
-      'Plan loans, mortgages, savings, investments, taxes and retirement with fast, accurate financial calculators.',
+      'Plan loans, mortgages, savings, investments, taxes and retirement with fast, accurate financial calculators — free, with every formula shown.',
     icon: 'wallet',
     order: 1,
   },
@@ -74,7 +74,7 @@ export const CATEGORIES: readonly Category[] = [
     name: 'Health & Fitness Calculators',
     shortName: 'Health',
     description:
-      'Understand your body with BMI, BMR, calorie, body-fat and pregnancy calculators built on established formulas.',
+      'Understand your body with BMI, BMR, calorie, body-fat, protein and pregnancy calculators, each built on an established, published formula.',
     icon: 'heart-pulse',
     order: 2,
   },
@@ -83,7 +83,7 @@ export const CATEGORIES: readonly Category[] = [
     name: 'Math Calculators',
     shortName: 'Math',
     description:
-      'Solve everyday and advanced math — from a full scientific calculator to fractions, percentages and statistics.',
+      'Solve everyday and advanced math — a full scientific calculator plus fractions, percentages, statistics, geometry and a random number generator.',
     icon: 'ruler',
     order: 3,
   },
@@ -92,7 +92,7 @@ export const CATEGORIES: readonly Category[] = [
     name: 'Everyday Calculators & Tools',
     shortName: 'Everyday',
     description:
-      'Practical calculators and tools for dates, time, grades, conversions and more that you reach for in daily life.',
+      'Practical calculators for dates, time, grades, conversions, square footage and concrete — the everyday numbers you reach for and need right.',
     icon: 'wrench',
     order: 4,
   },
@@ -121,7 +121,7 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'finance',
     status: 'live',
     description:
-      'Calculate the monthly payment, total interest and payoff timeline for any fixed-rate loan.',
+      'Calculate the monthly payment, total interest and payoff date on any fixed-rate loan, with a full amortization schedule and the saving from paying extra.',
     keywords: ['loan calculator', 'monthly payment calculator', 'loan interest'],
   },
   {
@@ -130,7 +130,7 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'finance',
     status: 'live',
     description:
-      'Work out car payments including down payment, trade-in, sales tax and fees.',
+      'Work out your car payment from the price, down payment, trade-in, sales tax and fees, with the total interest and a full schedule for the whole term.',
     keywords: ['auto loan calculator', 'car payment calculator', 'car loan'],
     aliases: ['car loan calculator', 'car payment calculator', 'vehicle loan calculator'],
     phrases: ['car payment', 'car loan payment', 'finance a car', 'monthly car payment'],
@@ -141,7 +141,7 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'finance',
     status: 'live',
     description:
-      'See how each payment splits between principal and interest across the life of a loan.',
+      "See how every payment splits between principal and interest over a loan's life, with the full schedule, the total interest and the effect of paying extra.",
     keywords: ['amortization calculator', 'amortization schedule', 'loan payoff'],
   },
   {
@@ -161,7 +161,7 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'finance',
     status: 'live',
     description:
-      'Calculate simple interest and the end balance, or solve back for the principal, term or rate — with the working shown.',
+      'Calculate simple interest and the end balance, or solve back for the principal, rate or term, using I = P x r x t with every step of the working shown.',
     keywords: ['simple interest calculator', 'interest formula', 'I = Prt', 'solve for principal', 'solve for rate'],
     aliases: ['simple interest formula calculator'],
     phrases: ['calculate simple interest', 'interest on a loan', 'what rate do I need'],
@@ -180,7 +180,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Interest Rate Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Find the effective interest rate on a loan or investment.',
+    description:
+      'Find the interest rate you are actually paying on a loan, worked back from the amount borrowed, the monthly payment and the term of the loan.',
     keywords: ['interest rate calculator', 'effective rate'],
   },
   {
@@ -199,7 +200,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Retirement Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Estimate whether your savings and contributions will fund your retirement goals.',
+    description:
+      'Project whether your savings and contributions will fund the retirement you want, the income they would provide, and the shortfall if there is one.',
     keywords: ['retirement calculator', 'retirement savings', '401k'],
     aliases: ['401k calculator', 'retirement savings calculator'],
     phrases: ['can i retire', 'retirement planning', 'save for retirement'],
@@ -209,7 +211,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Savings Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Project how regular deposits and interest can grow your savings, or calculate the monthly deposit needed to reach a savings goal.',
+    description:
+      'Project how regular deposits and interest can grow your savings, or calculate the monthly deposit needed to reach a savings goal.',
     keywords: ['savings calculator', 'savings goal'],
   },
   {
@@ -217,7 +220,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Inflation Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Convert an amount between any two months since 1913 with published U.S. CPI data, or project it at a flat rate.',
+    description:
+      'Convert an amount between any two months since 1913 using published U.S. CPI data, or project its future value at a flat rate, to see what money is worth.',
     keywords: ['inflation calculator', 'purchasing power', 'cpi calculator', 'consumer price index', 'value of a dollar'],
   },
   {
@@ -225,7 +229,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Payment Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Calculate the monthly payment or payoff term for a fixed loan.',
+    description:
+      'Calculate the monthly payment on a fixed-rate loan, or how long a balance takes to clear at a payment you choose, with the total interest either way.',
     keywords: ['payment calculator', 'loan payment'],
   },
   {
@@ -233,17 +238,30 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Credit Card Payoff Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Build a debt-avalanche payoff plan for several credit cards from one monthly budget — when each card clears, what it costs, and what to pay on each card every month.',
+    description:
+      'Build a debt-avalanche plan across several credit cards from one monthly budget: what to pay on each card, when each one clears, and the total interest.',
     keywords: ['credit card payoff calculator', 'debt payoff', 'debt avalanche calculator', 'multiple credit cards'],
     aliases: ['debt payoff calculator', 'debt avalanche calculator', 'credit cards payoff calculator'],
-    phrases: ['pay off credit card', 'credit card debt', 'get out of debt', 'pay off multiple credit cards', 'which card to pay first'],
+    phrases: [
+      'pay off credit card',
+      'how long to pay off credit card',
+      'how to pay off credit card debt',
+      'credit card debt',
+      'get out of debt',
+      'pay off multiple credit cards',
+      'which credit card should i pay off first',
+      'which card to pay first',
+      'pay off a credit card with another card',
+      'when to pay my credit card',
+      'does paying off a credit card hurt my credit',
+    ],
   },
   {
     slug: 'home-equity-loan-calculator',
     title: 'Home Equity Loan Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Estimate borrowing power and payments against your home equity.',
+    description: "See how much you can borrow against your home's equity and what it would cost each month, from your property value and remaining mortgage balance.",
     keywords: ['home equity loan calculator', 'HELOC'],
     aliases: ['heloc calculator'],
     phrases: ['borrow against my home', 'home equity'],
@@ -253,7 +271,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Salary Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Convert pay between eight frequencies, before and after holidays and vacation days.',
+    description:
+      'Convert your pay between hourly, daily, weekly, monthly and annual, before and after holidays and unpaid leave, to compare offers on the same basis.',
     keywords: ['salary calculator', 'hourly to salary', 'pay frequency', 'annual salary', 'hourly rate'],
     aliases: ['pay calculator', 'wage calculator'],
     phrases: ['hourly to salary', 'salary to hourly', 'annual salary', 'yearly income'],
@@ -263,7 +282,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Sales Tax Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Fill in any two of before-tax price, tax rate and after-tax price to get the third.',
+    description:
+      'Fill in any two of before-tax price, tax rate and after-tax price and the third is worked out — add sales tax to a price, or strip it back out of a total.',
     keywords: ['sales tax calculator', 'reverse sales tax', 'price before tax', 'tax rate from receipt', 'after tax price'],
   },
   {
@@ -271,17 +291,25 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'VAT Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Fill in any two of VAT rate, net price, gross price and tax amount to get the other two.',
+    description:
+      'Add VAT to a net price or work it out backwards from a gross total. Fill in any two of rate, net, gross and VAT amount and the other two are calculated.',
     keywords: ['vat calculator', 'add vat', 'remove vat', 'reverse vat calculator', 'vat inclusive price', 'net to gross'],
-    aliases: ['value added tax calculator', 'gst calculator'],
-    phrases: ['how much vat do i pay', 'price excluding vat', 'work out vat backwards'],
+    aliases: ['vat calculator uk', 'value added tax calculator', 'gst calculator'],
+    phrases: [
+      'how much vat do i pay',
+      'how much is vat',
+      'how to work out vat',
+      'price excluding vat',
+      'work out vat backwards',
+    ],
   },
   {
     slug: 'income-tax-calculator',
     title: 'Income Tax Calculator',
     category: 'finance',
     status: 'live',
-    description: 'Estimate the refund or amount owed on a 2025 or 2026 federal return, line by line.',
+    description:
+      'Estimate your 2025 or 2026 federal refund or amount owed, line by line, from income, filing status, deductions and credits, with your effective tax rate.',
     keywords: ['income tax calculator', 'federal tax estimate', 'tax refund calculator', 'tax brackets', 'tax return estimator'],
     aliases: ['tax calculator'],
     phrases: ['how much tax will i pay', 'income tax owed'],
@@ -293,7 +321,7 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'finance',
     status: 'live',
     description:
-      'Calculate the tip, total bill, and amount per person when splitting a bill.',
+      'Calculate the tip and the total, then split the bill between any number of people. Pick a percentage or round to a figure and see what each person pays.',
     keywords: ['tip calculator', 'gratuity calculator', 'split the bill', 'tip table', 'shared bill tip'],
     aliases: ['gratuity calculator'],
     phrases: ['tip split', 'split the bill', 'how much to tip', 'restaurant tip'],
@@ -316,7 +344,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'BMR Calculator',
     category: 'health',
     status: 'live',
-    description: 'Estimate your Basal Metabolic Rate — the calories you burn at rest.',
+    description:
+      'Estimate your Basal Metabolic Rate, the calories your body burns at complete rest, with the Mifflin-St Jeor equation and your needs at each activity level.',
     keywords: ['bmr calculator', 'basal metabolic rate', 'calories at rest'],
   },
   {
@@ -324,7 +353,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Calorie Calculator',
     category: 'health',
     status: 'live',
-    description: 'Find your daily calorie needs for maintaining, losing or gaining weight.',
+    description:
+      'Find your daily calorie needs for maintaining, losing or gaining weight, from your age, height, weight and activity level, with a macro breakdown.',
     keywords: ['calorie calculator', 'daily calories', 'tdee'],
     aliases: ['tdee calculator', 'maintenance calorie calculator'],
     phrases: ['how many calories', 'daily calorie needs', 'calories to lose weight'],
@@ -334,7 +364,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Body Fat Calculator',
     category: 'health',
     status: 'live',
-    description: 'Estimate body fat from tape measurements with the U.S. Navy method, plus mass, category and a BMI estimate.',
+    description:
+      'Estimate your body fat percentage from tape measurements using the U.S. Navy method, with your fat and lean mass, the category you fall in and a BMI estimate.',
     keywords: ['body fat calculator', 'navy method body fat', 'body fat percentage', 'lean body mass', 'body fat category'],
   },
   {
@@ -342,7 +373,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Ideal Weight Calculator',
     category: 'health',
     status: 'live',
-    description: 'Find a healthy target weight range for your height using established formulas.',
+    description:
+      'Find a healthy target weight range for your height using the Devine, Hamwi, Robinson and Miller formulas, alongside the healthy BMI range for comparison.',
     keywords: ['ideal weight calculator', 'healthy weight range'],
     phrases: ['what should i weigh', 'healthy weight range', 'ideal body weight'],
   },
@@ -351,15 +383,19 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Protein Calculator',
     category: 'health',
     status: 'live',
-    description: 'Estimate daily protein needs based on body weight and activity.',
-    keywords: ['protein calculator', 'daily protein intake'],
+    description:
+      'Estimate your daily protein intake in grams from body weight, activity level and goal, with the range for building muscle, losing fat or maintaining.',
+    keywords: ['protein calculator', 'protein intake calculator', 'daily protein intake'],
+    aliases: ['daily protein calculator', 'protein needs calculator'],
+    phrases: ['how much protein do i need', 'protein per day', 'protein for muscle gain'],
   },
   {
     slug: 'fat-intake-calculator',
     title: 'Fat Intake Calculator',
     category: 'health',
     status: 'live',
-    description: 'Estimate recommended daily fat intake within your calorie target.',
+    description:
+      'Estimate how much fat to eat each day within your calorie target, split into saturated and unsaturated grams, using established dietary guidelines.',
     keywords: ['fat intake calculator', 'daily fat grams'],
   },
   {
@@ -367,7 +403,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Target Heart Rate Calculator',
     category: 'health',
     status: 'live',
-    description: 'Find your training heart-rate zones from age and resting heart rate.',
+    description:
+      'Find your five training heart-rate zones from your age and resting heart rate using the Karvonen method, with the beats per minute for each zone.',
     keywords: ['target heart rate calculator', 'heart rate zones'],
   },
   {
@@ -375,7 +412,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Pace Calculator',
     category: 'health',
     status: 'live',
-    description: 'Calculate running pace and speed from distance and elapsed time, with equivalent finish times for common race distances.',
+    description:
+      'Calculate running pace and speed from distance and elapsed time, with equivalent finish times for common race distances.',
     keywords: ['pace calculator', 'running pace'],
     aliases: ['running pace calculator'],
     phrases: ['running pace', 'race pace', 'minutes per mile'],
@@ -385,7 +423,7 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Due Date Calculator',
     category: 'health',
     status: 'live',
-    description: 'Estimate a pregnancy due date from the last menstrual period.',
+    description: "Estimate your due date from your last menstrual period, conception date or cycle length, with each trimester's dates and how many weeks along you are.",
     keywords: ['due date calculator', 'pregnancy due date'],
     aliases: ['pregnancy due date calculator'],
     phrases: ['when is my baby due', 'baby due date'],
@@ -395,7 +433,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Pregnancy Calculator',
     category: 'health',
     status: 'live',
-    description: 'Track pregnancy weeks and key milestones.',
+    description:
+      'Track your pregnancy week by week from your due date or last period, with the trimester you are in, key milestones, and how far along you are today.',
     keywords: ['pregnancy calculator', 'pregnancy weeks'],
   },
 
@@ -416,7 +455,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Percentage Calculator',
     category: 'math',
     status: 'live',
-    description: 'Calculate percentages, percentage change and percent-of quickly.',
+    description:
+      'Work out a percentage of a number, what percent one number is of another, and percentage increase or decrease — three calculators, each showing its steps.',
     keywords: ['percentage calculator', 'percent change', 'percent of'],
     aliases: ['percent calculator'],
     phrases: ['percent of a number', 'percentage change', 'what percent', 'percent increase'],
@@ -426,7 +466,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Fraction Calculator',
     category: 'math',
     status: 'live',
-    description: 'Add, subtract, multiply and divide fractions with steps.',
+    description:
+      'Add, subtract, multiply and divide fractions, with the answer simplified, as a mixed number and as a decimal, and every step of the working shown.',
     keywords: ['fraction calculator', 'add fractions'],
   },
   {
@@ -445,15 +486,19 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Standard Deviation Calculator',
     category: 'math',
     status: 'live',
-    description: 'Compute the population and sample standard deviation, variance and mean of a data set, step by step.',
+    description:
+      'Calculate the population and sample standard deviation, variance, mean and range of any data set, with each step of the working shown alongside the result.',
     keywords: ['standard deviation calculator', 'variance calculator', 'population standard deviation', 'sample standard deviation'],
+    aliases: ['sd calculator', 'std dev calculator'],
+    phrases: ['how to calculate standard deviation', 'standard deviation step by step', 'mean and standard deviation'],
   },
   {
     slug: 'triangle-calculator',
     title: 'Triangle Calculator',
     category: 'math',
     status: 'live',
-    description: "Calculate a triangle's area, perimeter, angles and classification from three side lengths.",
+    description:
+      'Solve a triangle from three known sides: its area, perimeter, all three angles, and whether it is right, acute or obtuse, with the working shown.',
     keywords: ['triangle calculator', 'triangle solver'],
   },
   {
@@ -461,7 +506,7 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Random Number Generator',
     category: 'math',
     status: 'live',
-    description: 'Generate random numbers within a range, with options for uniqueness.',
+    description: "Generate random numbers in any range, with or without repeats, singly or as a list. Drawn from the browser's cryptographic source, never a seeded formula.",
     keywords: ['random number generator', 'rng'],
     aliases: ['rng', 'random number picker'],
     phrases: ['pick a random number', 'roll a dice'],
@@ -473,7 +518,7 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'math',
     status: 'live',
     description:
-      'Calculate the area of a rectangle, square, triangle, circle, trapezoid, parallelogram or ellipse.',
+      'Calculate the area of a rectangle, square, triangle, circle, trapezoid, parallelogram, ellipse or sector, in any units, with the formula shown for each.',
     keywords: ['area calculator', 'area of a shape', 'area of circle', 'area of triangle'],
   },
   {
@@ -482,7 +527,7 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'math',
     status: 'live',
     description:
-      'Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid or capsule.',
+      'Calculate the volume of a cube, box, sphere, cylinder, cone, pyramid, capsule or tank in any units, with the formula and the working shown for each shape.',
     keywords: ['volume calculator', 'volume of a cylinder', 'volume of a sphere', 'volume of a cone'],
   },
 
@@ -492,7 +537,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Age Calculator',
     category: 'everyday',
     status: 'live',
-    description: 'Calculate exact age in years, months and days from a birth date.',
+    description:
+      'Calculate your exact age in years, months and days from your date of birth, plus total weeks, days and hours lived, and the time to your next birthday.',
     keywords: ['age calculator', 'how old am i'],
     aliases: ['birthday calculator'],
     phrases: ['how old am i', 'calculate my age', 'age from date of birth'],
@@ -502,7 +548,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Date Calculator',
     category: 'everyday',
     status: 'live',
-    description: 'Add or subtract days from a date, or find the days between two dates.',
+    description:
+      'Add or subtract days, weeks, months or years from any date, or count the days between two dates, with business days and public holidays handled.',
     keywords: ['date calculator', 'days between dates'],
   },
   {
@@ -510,7 +557,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Time Calculator',
     category: 'everyday',
     status: 'live',
-    description: 'Add, subtract and convert units of time.',
+    description:
+      'Add or subtract hours, minutes and seconds, or convert between time units, with the answer in both hh:mm:ss and decimal hours for timesheets.',
     keywords: ['time calculator', 'add time'],
   },
   {
@@ -518,7 +566,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Hours Calculator',
     category: 'everyday',
     status: 'live',
-    description: 'Calculate hours worked between two times, minus breaks.',
+    description:
+      'Work out hours worked between two times, minus unpaid breaks, in decimal hours and hh:mm. Add several shifts for a daily or weekly timesheet total.',
     keywords: ['hours calculator', 'work hours'],
     aliases: ['work hours calculator', 'timesheet calculator'],
     phrases: ['hours worked', 'hours between two times'],
@@ -528,35 +577,67 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'GPA Calculator',
     category: 'everyday',
     status: 'live',
-    description: 'Compute grade point average from course grades and credit hours.',
-    keywords: ['gpa calculator', 'grade point average'],
-    aliases: ['grade point average calculator'],
-    phrases: ['calculate my gpa'],
+    description:
+      'Calculate your weighted GPA from course grades and credit hours, for a single semester or cumulatively, on the standard 4.0 scale with honours weighting.',
+    keywords: ['gpa calculator', 'weighted gpa calculator', 'gpa calculator college', 'grade point average'],
+    aliases: ['grade point average calculator', 'semester gpa calculator', 'cumulative gpa calculator'],
+    phrases: ['calculate my gpa', 'what is my gpa', 'gpa for this semester'],
   },
   {
     slug: 'grade-calculator',
     title: 'Grade Calculator',
     category: 'everyday',
     status: 'live',
-    description: 'Find the grade you need and your weighted course average.',
-    keywords: ['grade calculator', 'final grade'],
-    aliases: ['final grade calculator'],
-    phrases: ['what grade do i need', 'weighted grade average'],
+    description:
+      'Work out your weighted course average, or the final grade you need to reach a target. Enter each score and its weight to see exactly where you stand.',
+    keywords: ['grade calculator', 'final grade calculator', 'final grade'],
+    aliases: ['final grade calculator', 'test grade calculator', 'exam grade calculator'],
+    phrases: [
+      'what grade do i need',
+      'what grade do i need on my final',
+      'weighted grade average',
+      'grade i need to pass',
+    ],
   },
   {
     slug: 'concrete-calculator',
     title: 'Concrete Calculator',
     category: 'everyday',
     status: 'live',
-    description: 'Estimate concrete volume in cubic yards or metres for slabs and footings.',
-    keywords: ['concrete calculator', 'concrete volume'],
+    description:
+      'Work out how much concrete you need for a slab, footing, column or step, in cubic yards, metres and bags, from measurements in feet, inches or metres.',
+    keywords: [
+      'concrete calculator',
+      'concrete slab calculator',
+      'concrete volume',
+      'concrete calculator yards',
+      'concrete slab thickness',
+    ],
+    aliases: [
+      'cement calculator',
+      'cubic yards of concrete calculator',
+      'slab calculator',
+      'fence post concrete calculator',
+    ],
+    phrases: [
+      'how much concrete do i need',
+      'how much concrete per fence post',
+      'concrete for fence posts',
+      'how thick should a concrete slab be',
+      'how many yards of concrete do i need',
+      'how much does concrete weigh',
+      'concrete for a slab',
+      'cubic yards of concrete',
+      'bags of concrete',
+    ],
   },
   {
     slug: 'conversion-calculator',
     title: 'Unit Conversion Calculator',
     category: 'everyday',
     status: 'live',
-    description: 'Convert length, weight, volume, temperature and more.',
+    description:
+      'Convert length, weight, volume, temperature, area and speed between metric and imperial units. Enter a value once and every equivalent updates with it.',
     keywords: ['conversion calculator', 'unit converter'],
     aliases: ['unit converter', 'measurement converter'],
     phrases: ['kg to pounds', 'kilograms to pounds', 'cm to inches', 'celsius to fahrenheit', 'miles to km', 'lbs to kg'],
@@ -566,7 +647,8 @@ export const CALCULATORS: readonly Calculator[] = [
     title: 'Password Generator',
     category: 'everyday',
     status: 'live',
-    description: 'Create strong, random passwords with configurable length and characters.',
+    description:
+      'Create strong random passwords with the length and character sets you choose. Generated in your browser with Web Crypto and never sent or stored anywhere.',
     keywords: ['password generator', 'strong password'],
     aliases: ['random password generator'],
     phrases: ['create a strong password', 'generate a password'],
@@ -577,8 +659,25 @@ export const CALCULATORS: readonly Calculator[] = [
     category: 'everyday',
     status: 'live',
     description:
-      'Calculate the square footage of a room or area for flooring, paint or landscaping, with a cost estimate.',
+      'Calculate the square footage of a room, wall or plot from its measurements, in feet, inches or metres, with a materials cost estimate for flooring or paint.',
     keywords: ['square footage calculator', 'sq ft calculator', 'room area', 'flooring calculator'],
+    aliases: [
+      'square foot calculator',
+      'wall square footage calculator',
+      'area of a room calculator',
+      'sqft calculator',
+    ],
+    phrases: [
+      'how to calculate square footage',
+      'how to measure square footage of a room',
+      'how to figure square footage',
+      'square footage of a room',
+      'square footage of a wall',
+      'how to calculate square footage of a house',
+      'how to measure a room for flooring',
+      'square footage to square yards',
+      'how is square footage calculated',
+    ],
   },
 ] as const;
 
@@ -620,48 +719,86 @@ export function categoryPath(category: Pick<Category, 'slug'>): string {
   return `/${category.slug}`;
 }
 
-/**
- * Related calculators for internal linking: prefer live siblings in the same
- * category, then fall back to other live calculators. Never returns `self`.
+/*
+ * Related calculators live in `src/lib/related.ts`, not here. Ranking them needs
+ * the task groups and topic clusters, and those layers are built on top of this
+ * registry — importing them back into it would invert the dependency. The
+ * registry stays the base layer that knows nothing about the IA above it.
  */
-export function getRelatedCalculators(self: Calculator, limit = 6): Calculator[] {
-  const sameCategory = getLiveCalculators().filter(
-    (c) => c.category === self.category && c.slug !== self.slug,
-  );
-  const others = getLiveCalculators().filter(
-    (c) => c.category !== self.category && c.slug !== self.slug,
-  );
-  return [...sameCategory, ...others].slice(0, limit);
+
+/** A launch record for the "recently added" boost. */
+export interface NewCalculatorLaunch {
+  /** "category/slug" reference into the registry. */
+  readonly ref: string;
+  /** The day it shipped, YYYY-MM-DD. Drives expiry — it is not display copy. */
+  readonly launchedAt: string;
 }
 
 /**
- * Recently added calculators, newest first, as "<category>/<slug>" registry refs.
- *
- * A new calculator is invisible to anyone already deep in the site: the rail's related list is
- * registry order within a category, so the newest entry sits below the fold on its own
- * category's pages and nowhere at all on the others. This list is the one place that says
- * "surface these everywhere for a while".
- *
- * Keep it SHORT — two or three at most — and drop an entry once it is no longer news. It is
- * an editorial decision, not a ranking signal: nothing here affects search relevance, and it
- * is never derived from commercial value.
+ * How long a calculator counts as new. Long enough for Google to find the page and
+ * for it to start earning related links of its own; short enough that the boost is
+ * a launch, not a permanent placement.
  */
-export const NEW_CALCULATOR_REFS: readonly string[] = ['finance/vat-calculator'];
+export const NEW_CALCULATOR_WINDOW_DAYS = 30;
 
 /**
- * The recently-added calculators as registry entries, live only, never including `self`.
- * Returns an empty array when there is nothing new to show, so the caller renders nothing.
+ * Recently launched calculators, promoted to the top of the rail for a while.
+ *
+ * A new calculator is otherwise hard to reach from a page it is not topically related
+ * to, so this list is the one place that says "surface these everywhere for now".
+ *
+ * It used to be a plain list of refs with a comment asking whoever passed by to drop
+ * an entry "once it is no longer news". Nobody does that, and the cost is not zero:
+ * VAT sat here for a month and collected 53 inbound links — the most of any page on
+ * the site, more than Mortgage — for a keyword worth 1,300 US searches a month. A
+ * promotion that never ends is not a promotion, it is a thumb on the scale.
+ *
+ * So expiry is computed from `launchedAt` rather than remembered. An entry stays only
+ * while it is younger than NEW_CALCULATOR_WINDOW_DAYS; past that it is inert, and can
+ * be deleted whenever someone is next in the file. Keep the list SHORT — two or three
+ * at most. It is an editorial decision, never derived from commercial value, and it
+ * does not affect search relevance.
  */
-export function getNewCalculators(self?: Pick<Calculator, 'category' | 'slug'>): Calculator[] {
-  return NEW_CALCULATOR_REFS.map((ref) => {
-    const [category, slug] = ref.split('/');
-    return getCalculator(category, slug);
-  }).filter(
-    (c): c is Calculator =>
-      Boolean(c) &&
-      c!.status === 'live' &&
-      !(self && c!.category === self.category && c!.slug === self.slug),
-  );
+export const NEW_CALCULATOR_LAUNCHES: readonly NewCalculatorLaunch[] = [
+  { ref: 'finance/vat-calculator', launchedAt: '2026-08-30' },
+];
+
+const DAY_MS = 86_400_000;
+
+/** Whole days between a launch date and `now`. Negative for a future launch. */
+export function daysSinceLaunch(launchedAt: string, now: Date): number {
+  const launched = Date.parse(`${launchedAt}T00:00:00Z`);
+  if (Number.isNaN(launched)) return Number.POSITIVE_INFINITY;
+  const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
+  return Math.floor((today - launched) / DAY_MS);
+}
+
+/**
+ * The calculators still inside the launch window, live only, never including `self`.
+ * Returns an empty array once nothing is new, so the caller renders nothing.
+ *
+ * `now` is injectable so the expiry is testable without waiting for the calendar. In a
+ * build it is the build time, which means a rebuild is what retires an entry — that is
+ * the intent: the site rebuilds on every deploy.
+ */
+export function getNewCalculators(
+  self?: Pick<Calculator, 'category' | 'slug'>,
+  now: Date = new Date(),
+): Calculator[] {
+  return NEW_CALCULATOR_LAUNCHES.filter((entry) => {
+    const age = daysSinceLaunch(entry.launchedAt, now);
+    return age >= 0 && age < NEW_CALCULATOR_WINDOW_DAYS;
+  })
+    .map((entry) => {
+      const [category, slug] = entry.ref.split('/');
+      return getCalculator(category, slug);
+    })
+    .filter(
+      (c): c is Calculator =>
+        Boolean(c) &&
+        c!.status === 'live' &&
+        !(self && c!.category === self.category && c!.slug === self.slug),
+    );
 }
 
 /** Total counts for use in copy ("X calculators and growing"). */

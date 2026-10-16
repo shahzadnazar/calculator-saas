@@ -217,7 +217,7 @@ const COMPOUND_LABELS: Record<string, string> = {
             </figure>
 
             <div class="sv-table-wrap">
-              <table class="sv-table">
+              <table class="sv-table calc-table calc-schedule-table">
                 <caption class="sr-only">Accumulation schedule showing each period's deposit, the interest it earned and the balance it ended on.</caption>
                 <thead>
                   <tr>
@@ -406,14 +406,7 @@ const COMPOUND_LABELS: Record<string, string> = {
   .sv-table-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
   .sv-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   .sv-table thead th {
-    position: sticky;
-    top: 0;
-    background: var(--surface);
-    text-align: left;
-    font-weight: 700;
-    color: var(--heading);
     padding: 0.45rem 0.6rem;
-    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
   /* Rows are built with the DOM API, so these must be global — a scoped selector

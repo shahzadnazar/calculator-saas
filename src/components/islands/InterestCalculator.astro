@@ -195,7 +195,7 @@ import { COMPOUND_FREQUENCIES } from '@lib/calculators/interest';
             </figure>
 
             <div class="int-table-wrap">
-              <table class="int-table">
+              <table class="int-table calc-table calc-schedule-table">
                 <caption class="sr-only">Accumulation schedule showing each period's deposit, the interest it earned and the balance it ended on.</caption>
                 <thead>
                   <tr>
@@ -401,14 +401,7 @@ import { COMPOUND_FREQUENCIES } from '@lib/calculators/interest';
   .int-table-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
   .int-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   .int-table thead th {
-    position: sticky;
-    top: 0;
-    background: var(--surface);
-    text-align: left;
-    font-weight: 700;
-    color: var(--heading);
     padding: 0.45rem 0.6rem;
-    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
   .int-table :global(.int-cell) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }

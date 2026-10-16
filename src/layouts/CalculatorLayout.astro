@@ -36,12 +36,13 @@ import CalculatorRail from '@components/CalculatorRail.astro';
 import {
   type Calculator,
   getCategory,
-  getRelatedCalculators,
   calculatorPath,
   categoryPath,
 } from '@data/calculators';
+import { getRelatedCalculators } from '@lib/related';
 import { getTaskGroupForCalculator, taskPath } from '@data/tasks';
 import { getReferencesForCalculator, referencePath } from '@data/reference';
+import { getClustersForCalculator, clusterPath } from '@data/clusters';
 import { calculatorSchema, breadcrumbSchema, faqSchema } from '@lib/schema';
 import { MONETIZATION_CONFIG } from '@config/monetization';
 import { planCalculatorMonetization, type CalculatorMonetizationOptions } from '@lib/monetization/layout';
@@ -116,6 +117,12 @@ const related = getRelatedCalculators(calculator);
 // The task group is the calculator's PRIMARY home in the task-first IA.
 const taskGroup = getTaskGroupForCalculator(calculator.category, calculator.slug);
 const references = getReferencesForCalculator(calculator.category, calculator.slug);
+// The topic hubs this calculator belongs to. getClustersForCalculator was written
+// for "the reverse 'Part of' links on calculator pages" and then never wired up,
+// so the pillar-cluster model only ever ran one way: each hub linked down to its
+// members and nothing linked back. The five hubs had two inbound links each — one
+// from /topics, one from a task hub — which is not a pillar, it is an orphan.
+const clusters = getClustersForCalculator(calculator.category, calculator.slug);
 
 // Guides that reference this calculator — bidirectional internal linking.
 const calcRef = `${calculator.category}/${calculator.slug}`;
@@ -381,6 +388,20 @@ sync();
               </li>
             ))}
           </ul>
+          {clusters.length > 0 && (
+            <p class="mt-5 text-sm" style="color: var(--muted)">
+              Choosing between them?{' '}
+              {clusters.map((cluster, i) => (
+                <>
+                  {i > 0 && ' and '}
+                  <a href={clusterPath(cluster)} class="font-semibold hover:underline" style="color: var(--color-brand-600)">
+                    {cluster.title}
+                  </a>
+                </>
+              ))}{' '}
+              {clusters.length > 1 ? 'explain' : 'explains'} when to reach for each one.
+            </p>
+          )}
         </section>
       )
     }{monetizationPlan.relatedTools && <MonetizationRegion placement="related-tools" pageSlug={calculator.slug} category={calculator.category} class="mt-8" />}

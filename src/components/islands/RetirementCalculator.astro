@@ -217,7 +217,7 @@ import { RETIREMENT_MODES, MODE_SHORT, MODE_LABELS, DEFAULTS } from '@lib/calcul
 
         <p class="ret-section-title">Monthly income after retirement</p>
         <div class="ret-table-wrap">
-          <table class="ret-table">
+          <table class="ret-table calc-table">
             <caption class="sr-only">Monthly retirement income each plan supports, in the dollars of the day and in today's money.</caption>
             <thead><tr><th scope="col">Plan</th><th scope="col" class="ret-num">Actual amount</th><th scope="col" class="ret-num">Today's money</th></tr></thead>
             <tbody>
@@ -394,7 +394,7 @@ import { RETIREMENT_MODES, MODE_SHORT, MODE_LABELS, DEFAULTS } from '@lib/calcul
 
   .ret-table-wrap { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 0.6rem; }
   .ret-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  .ret-table thead th { background: var(--subtle); padding: 0.45rem 0.7rem; font-weight: 600; text-align: left; color: var(--fg); white-space: nowrap; }
+  .ret-table thead th { padding: 0.45rem 0.7rem; white-space: nowrap; }
   .ret-table th.ret-num, .ret-table td.ret-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* Let the label run on and the wrapper scroll, rather than squeezing it to one
      word per line — a header broken across five lines is unreadable. */

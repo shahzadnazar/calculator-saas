@@ -2,7 +2,8 @@
 
 Astro 5 static SEO-authority site: **50 live calculators, 0 planned** (finance 20 / health 11 /
 math 9 / everyday 10) + guides, reference tables, task hubs and topic clusters.
-(The README's "44 calculators" line is STALE — the registry is authoritative.)
+The registry is authoritative for that set — any count written in prose is a copy
+and goes stale the moment a calculator is added.
 Brand `BestCalculate`, domain `https://bestcalculate.com`.
 
 Read `docs/` before changing anything structural. `docs/TASK-COMPLETION-DOCTRINE.md`
@@ -38,13 +39,37 @@ npm run gen:embed-pages            # regenerate per-slug embed pages
 npm run assert:embed-pages-current # drift gate (CI)
 npm run assert:embed-isolation     # 0 unrelated scoped CSS per embed (CI, post-build)
 npm run assert:mon-off             # no monetization artifact on live pages (CI)
+npm run assert:indexable           # robots/canonical/description/legacy redirects (CI + deploy)
 npm run assert:no-dev              # /dev/* not in the bundle (run after stripping it)
+npm run seo:smoke                  # post-deploy checks against the LIVE site (--base for staging)
+npm run indexnow -- --since <url>  # submit only what changed since that sitemap
+npm run indexnow:all               # one-time initial submission of every URL
+npm run indexnow:key-file          # write dist/<INDEXNOW_KEY>.txt (deploy job does this)
 ```
 
 CI job `build-and-test`: check → embed-drift → unit → build → embed-isolation →
-mon-off → e2e. A `deploy` job then runs on `main` ONLY when that passes: it
-rebuilds, strips `dist/dev`, asserts the bundle is clean, and FTPs it to
-Hostinger. A red suite cannot reach the live site, because `deploy` never starts.
+mon-off → indexable → e2e. A `deploy` job then runs on a push to `main` ONLY when
+that passes: it rebuilds, strips `dist/dev`, asserts the bundle is clean and
+indexable, then **rsyncs `dist/` to Hostinger over SSH** (secrets `HOSTINGER_HOST`
+/ `USER` / `PORT` / `PATH` / `SSH_KEY`). A red suite cannot reach the live site,
+because `deploy` never starts.
+
+The `deploy` job also carries the off-page steps, in an order that matters: it
+writes `dist/<INDEXNOW_KEY>.txt` and captures the **currently live** sitemap
+BEFORE the rsync, then after it runs `seo:smoke` against the live site and only
+then pings IndexNow. The baseline has to be captured first because rsync
+overwrites the live sitemap, and diffing the two is what makes the ping *only*
+the URLs that changed — resubmitting all 112 every deploy is what gets a host
+throttled. The smoke test runs before the ping so a broken deployment is never
+advertised to Bing. Both IndexNow steps are `continue-on-error` and skip
+entirely when `INDEXNOW_KEY` is unset: the site is already up, and a rejected
+ping is not a reason to mark a good release red. **`INDEXNOW_KEY` is declared at
+JOB level** — a step's own `env:` is not in scope for that step's own `if:`, so
+a per-step declaration would make every guard read empty and silently skip.
+
+The rsync carries no `--delete`, so a file dropped from the build stays on the
+server. That is how Hostinger's parked-domain `default.php` survived the first
+deploys; `.htaccess` pins `DirectoryIndex index.html` so it cannot serve `/`.
 
 ## 3. Directory map
 
@@ -191,11 +216,34 @@ Special cases: scientific → `ScientificCalculatorEmbed`; password-generator �
 `PasswordGeneratorCalculator`. No embed carries `props` any more — standard-deviation now
 has its own island rather than a configured `StatisticsCalculator`.
 
+`EmbedLayout`'s `description` prop is **required**, and `EmbedPageShell` fills it from the
+registry — so all 50 generated pages gained a meta description without being regenerated.
+`noindex` suppresses the *result*, not the crawl: a crawler still fetches these URLs and
+records what it found, and 61 pages with no description is what a Bing site scan reports.
+
+**The sitemap excludes embed ROUTES, not the `/embed/` prefix.** Every chrome-less embed is
+two segments deep (`/embed/<category>/<slug>`, `/embed/reference/<slug>`) and must never be
+listed. One segment deep are the two HUBS — `/embed` and `/embed/gallery` — which are
+ordinary indexable pages with their own copy and a self-canonical. A blunt
+`includes('/embed/')` was silently dropping the gallery: 3,358 words, and the only
+indexable page on the site missing from the sitemap.
+
 **Forbidden in a generated embed page:** a component map, `import.meta.glob`, a runtime
 dynamic import, a `<script>` loader, or ≠ 1 island import. Gated by
 `assert:embed-isolation` (failing gate, no byte budget) + `embed-components.test.ts`.
 The attribution `<a>` in an embed snippet is deliberately OUTSIDE the iframe — that is
-what makes it a real backlink.
+what makes it a real backlink — and its anchor text is the **brand**, never the calculator's
+name. `Free <a>Mortgage Calculator</a> by BestCalculate` was an exact-match keyword anchor,
+dofollow and byte-identical on every placement: the footprint Google's link-spam
+documentation describes for widgets, whose guidance is that keyword-anchored widget links
+should be nofollow. `embed.test.ts` pins this.
+
+The resize `postMessage` is sent under BOTH `bestcalculate-resize` and the legacy
+`allcalc-resize`, and must stay that way. A snippet is copied once and frozen in someone
+else's HTML — the listener half never updates, the sending half is ours — so dropping the
+old name would leave every already-pasted embed stuck at its initial height, on sites we
+cannot contact. The iframe `id` was safe to rename because each snippet only references its
+own.
 
 ## 8. Monetization — architected, integrated, entirely OFF
 
@@ -230,6 +278,13 @@ audience, so **affiliate and email come before AdSense**.
 ## 9. SEO & content
 
 - Topical-silo URLs; per-page canonical/OG/Twitter/robots via `BaseHead`.
+- **Every** sitemap URL carries a `lastmod`, and none of them is the build date — a date
+  that moves on every deploy makes a crawler distrust the signal site-wide. Four declared
+  sources (calculator `reviewedDate`, guide frontmatter, reference `reviewed`, ContentLayout's
+  `updated`), plus one derived rule: a hub has no content of its own, so it takes the newest
+  date among the pages it lists (`/finance` from its calculators, `/tasks/<slug>` from its
+  members, `/` from everything). `scripts/lastmod.test.ts` holds both halves — full coverage,
+  and that every emitted value is a date some page actually declares.
 - JSON-LD: Organization + WebSite (search action) site-wide; WebApplication +
   BreadcrumbList + FAQPage per calculator; Article on guides. Builders in `lib/schema.ts`.
 - **Content depth is the #1 on-page lever** — competitors rank for 5K–27K keywords per
@@ -238,9 +293,29 @@ audience, so **affiliate and email come before AdSense**.
   28.8K referring domains). We **out-UX, out-speed and out-mobile** them (their
   documented weaknesses: ad clutter, dated desktop-first design, layout shift) while
   earning authority on long-tail and KD<50 terms.
-- Invest depth first in what we already own at KD<50: credit-card payoff (24),
-  square footage (31), concrete (34), protein (44), standard deviation (47), GPA (49),
-  income tax (50).
+- **Priority is volume ÷ difficulty, not difficulty alone.** Measured in Semrush
+  (US database, Sep 2026 — re-pull before trusting these, they move):
+
+  | Target | US vol/mo | KD | CPC | Note |
+  |---|---|---|---|---|
+  | concrete calculator | 301,000 | 49 | $0.93 | best volume-to-difficulty on the site |
+  | tip calculator | 1,500,000 | 49 | $0.06 | huge, but almost no ad value |
+  | gpa calculator | 673,000 | 50 | $1.55 | `gpa calculator college` $2.62 |
+  | final grade calculator | 165,000 | 49 | — | a better entry than `grade calculator` (KD 52) |
+  | income tax calculator | 90,500 | 50 | $1.46 | |
+  | square footage calculator | 74,000 | **18** | $0.05 | the easiest head term we own |
+  | standard deviation | 49,500 | 47 | $1.65 | `how to calculate…` 33,100 at KD 53 |
+  | protein calculator | 49,500 | 49 | $0.25 | `protein intake calculator` 22,200 KD 44 |
+  | credit card payoff | 22,200 | **28** | $1.79 | `how long to pay off credit card` is **KD 7** |
+
+  Highest CPC on the site is home-equity-loan at **$5.26**, but at KD 67; time ($3.58)
+  and hours ($3.25) are KD 83 and 72. The head terms are out of reach for now —
+  bmi, calorie and random-number-generator are all **KD 100**, mortgage 89, loan 88.
+
+- **VAT is a British keyword, not an American one.** 165,000/mo in the UK database
+  against 1,300 in the US — a 127× difference, and `vat calculator uk` alone is
+  22,200 at KD 39. Anything written for that page targets UK phrasing (`how much is
+  vat`, `how to work out vat`, `reverse vat`), not US sales-tax phrasing.
 - **Content style:** prose 65–72ch (`.prose` is 68ch); paragraphs 2–4 sentences /
   ~40–90 words; numbered steps for procedures, bullets for options, tables only for
   genuine comparison; no marketing filler; **no programmatic sentence truncation or
@@ -249,7 +324,21 @@ audience, so **affiliate and email come before AdSense**.
   without tools + legal) · `reference-first` · `embed`. Never choose `article-first`
   merely because a page has a lot of SEO text.
 - Reference tables are computed at build time from our own tested functions — provably
-  accurate "citable data" assets that earn links.
+  accurate "citable data" assets that earn links. A citation is the one link that asks
+  nothing of the person giving it: no iframe, no HTML access, no permission. Each table
+  therefore carries the four things an editor needs before quoting a figure — the date it
+  was verified (`reviewed`, in the registry, which also drives Article/Dataset
+  `dateModified` and the sitemap `lastmod`, so all four agree), a **Cite this table**
+  section with the sentence written out, `Dataset` schema alongside `Article`, and a CSV at
+  `/reference/<slug>.csv` built from the same `getReferenceTable()` the page renders.
+  The CSV is what makes the Dataset declaration true rather than decorative; it is excluded
+  from the sitemap and revalidates like HTML, since it is not fingerprinted.
+  The figures are published under **CC BY 4.0** (`REFERENCE_DATA_LICENSE`), named on the page
+  and in the Dataset schema. BY, not CC0 or NC, for one reason: **BY requires attribution,
+  and attribution is the link.** CC0 asks nothing back; NC would exclude most of the people
+  who would actually use a table, since a blog is a commercial site. It covers the
+  compilation and its presentation, not the code, prose or branding — the arithmetic is fact
+  and nobody owns it, so the licence states what we expect as much as it grants what we hold.
 - Guides are MDX in `src/content/guides/`, can embed live islands, and interlink
   bidirectionally with calculators. `pillar: true` surfaces on /guides and the home page.
 
@@ -257,7 +346,9 @@ audience, so **affiliate and email come before AdSense**.
 
 Embedded behavior, never a destination — **there is no public standalone Search page**.
 `/dev/search` is an internal test route, noindex + sitemap-excluded, and stripped from
-the deploy bundle rather than deleted — four e2e specs harness the /dev routes.` One shared index + `rankCalculators` engine across homepage, header, directory
+the deploy bundle rather than deleted — four e2e specs harness the /dev routes.
+
+One shared index + `rankCalculators` engine across homepage, header, directory
 and category surfaces.
 
 `search-core.ts` is deliberately registry-free and DOM-free so the browser bundle stays
@@ -282,19 +373,47 @@ influence relevance; popularity is never derived from affiliate/ad/CPC value.
   visitor enters is sent to a server.
 - `/dev/*` must never reach production — the `deploy` job strips it, then asserts.
 
-## 12. Branch & recent work
+## 12. Branches, deployment & the domain's history
 
-Development branch: `claude/repo-branch-review-evdkzi` (currently identical to
-`origin/tabish`). The default/base branch used by past PRs is
-`claude/authority-website-strategy-knvhep`. No open issues; no PR review comments.
+`main` is the production branch: a push to it runs the full suite and then rsyncs
+`dist/` to Hostinger. Nothing else deploys. The repository's *default* branch is
+still `claude/authority-website-strategy-knvhep`, whose content is identical to
+`main` — so open work against `main`, not the default.
 
-Latest commit `737a936` "Project updated by Tabish on 18/08/2026" is a **visual +
-density pass**, not a logic change:
-- Rebranded the design tokens from blue/emerald to **Plum (brand) / Rose (accent) /
-  Apricot (warm highlight)** in `global.css`, with a warm-neutral page background.
-- Rebuilt `Header.astro` onto semantic `site-*` classes (still task-first, still works
-  with JS disabled, added an "All" entry and an active-state dot).
-- Tightened spacing fleet-wide toward the doctrine's medium-high density target —
-  `CalculatorLayout` (`py-8→py-4`, tool `mt-6→mt-3`, content `mt-12→mt-4`), Footer,
-  and every island's form padding (`p-5 sm:p-6 → p-4`).
-- Reworked the homepage and `calc.css`.
+Feature work lands on a `claude/*` branch and merges to `main` by PR. Branches are
+deleted on merge, so a remote-tracking ref that suddenly 404s on fetch usually
+means the work was merged, not lost — check `git merge-base --is-ancestor <sha>
+origin/main` before re-doing anything.
+
+### The domain came with a previous owner's search history
+
+`bestcalculate.com` was registered before this project existed, and the previous
+owner ran WordPress on it. Google still holds that site, which caused a run of
+symptoms that all looked like bugs in ours and were not:
+
+- The brand search returned `https://bestcalculate.com/home/` — "No information is
+  available for this page" — a path this site has never produced. Search Console
+  named the referring page as `/wp-sitemap-posts-page-1.xml`, WordPress's own
+  sitemap, which has never existed on our server.
+- "Crawled — currently not indexed" listed `/`, `/disclaimer/`, `/privacy-policy/`
+  and `/contact/`. Every crawl date predated the first deploy, and
+  `/privacy-policy` is not a URL we build at all (ours is `/privacy`).
+- `/home/` read "Indexed, though blocked by robots.txt" from whatever robots.txt
+  the domain served while parked. That block is the trap worth remembering: a
+  disallow stops the crawl, and a crawler that never fetches a URL never sees the
+  301 waiting for it, so the dead URL stays indexed forever. **Never disallow a
+  path that `.htaccess` redirects** — `assert:indexable` now fails the build on it.
+
+`public/.htaccess` 301s the inherited paths (`/home` and its whole subtree,
+`/privacy-policy` → `/privacy`, the stray front-page filenames) and pins
+`DirectoryIndex`. Search Console shows no manual action, so nothing was inherited
+beyond stale index entries.
+
+### Known open items
+
+- `rsync` has no `--delete`: removed files persist on the server. Needs an audit of
+  what else lives in `HOSTINGER_PATH` before adding it.
+- The Organization JSON-LD has no `sameAs`, so Google's AI Overview still conflates
+  the brand with an unrelated iOS app of the same name. Needs real profile URLs.
+- The rail search input is 36px tall at >=1152px, the one control below the
+  doctrine's 44px. Desktop-only, passes WCAG 2.5.8 AA, left as approved design.

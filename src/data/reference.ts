@@ -11,6 +11,26 @@
  * computes its own table from the tested functions.
  */
 
+/**
+ * The licence the reference tables' figures are offered under.
+ *
+ * CC BY 4.0 rather than CC0 or a non-commercial variant, for one reason: BY
+ * requires attribution, and attribution is the link. CC0 would maximise reuse
+ * and ask for nothing back; NC would exclude most of the people who would
+ * actually use a table, since a blog or a publisher is a commercial site.
+ *
+ * SCOPE: this covers the compilation — the choice of rates, terms and rows, and
+ * their presentation — not the site's code, prose or branding. The arithmetic
+ * itself is fact, and a monthly payment at a given rate and term is not
+ * something anyone can own. The licence is therefore as much a statement of
+ * what we expect as a grant of what we hold: use these numbers, and say where
+ * they came from.
+ */
+export const REFERENCE_DATA_LICENSE = {
+  name: 'CC BY 4.0',
+  url: 'https://creativecommons.org/licenses/by/4.0/',
+} as const;
+
 export interface ReferenceAsset {
   /** URL segment under /reference/. */
   readonly slug: string;
@@ -25,41 +45,55 @@ export interface ReferenceAsset {
   readonly icon: string;
   /** Slug of the related calculator ("category/slug") for cross-linking. */
   readonly relatedCalculator: string;
+  /**
+   * ISO date the table's figures and method were last verified.
+   *
+   * It lives here rather than defaulting in the layout because a citable data
+   * asset has to state when it was produced — an undated table is a weaker
+   * citation and some editors reject it outright. It drives the visible line,
+   * the Article and Dataset `dateModified`, and the sitemap `lastmod`, so all
+   * four agree by construction. Bump it when the figures or the method change,
+   * not when the prose around them is edited.
+   */
+  readonly reviewed: string;
   readonly order: number;
 }
 
 export const REFERENCES: readonly ReferenceAsset[] = [
   {
     slug: 'mortgage-payment-table',
-    title: 'Mortgage Payment Table: Monthly Cost per $100,000 Borrowed',
+    title: 'Mortgage Payment Table per $100,000 Borrowed',
     shortName: 'Mortgage payment table',
     description:
       'Monthly principal-and-interest payment per $100,000 of mortgage, for every interest rate from 3% to 8% across 10, 15, 20 and 30-year terms.',
     category: 'finance',
     icon: 'landmark',
     relatedCalculator: 'finance/mortgage-calculator',
+    reviewed: '2026-07-18',
     order: 1,
   },
   {
     slug: 'loan-payment-table',
-    title: 'Loan Payment Table: Monthly Cost per $1,000 Borrowed',
+    title: 'Loan Payment Table per $1,000 Borrowed',
     shortName: 'Loan payment table',
     description:
       'Monthly payment per $1,000 borrowed for auto and personal loans, across interest rates from 4% to 15% and terms from 12 to 72 months.',
     category: 'finance',
     icon: 'banknote',
     relatedCalculator: 'finance/loan-calculator',
+    reviewed: '2026-07-18',
     order: 2,
   },
   {
     slug: 'savings-growth-table',
-    title: 'Compound Interest Growth Table: What $10,000 Becomes',
+    title: 'Compound Interest Growth Table: $10,000',
     shortName: 'Savings growth table',
     description:
       'How $10,000 grows with compound interest across annual returns of 2% to 10% over 5 to 40 years — a reference for the power of compounding.',
     category: 'finance',
     icon: 'trending-up',
     relatedCalculator: 'finance/compound-interest-calculator',
+    reviewed: '2026-07-18',
     order: 3,
   },
   {
@@ -71,17 +105,19 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'health',
     icon: 'scale',
     relatedCalculator: 'health/bmi-calculator',
+    reviewed: '2026-07-18',
     order: 4,
   },
   {
     slug: 'monthly-investment-table',
-    title: 'Monthly Investment Growth Table: What Investing $X a Month Becomes',
+    title: 'Monthly Investment Growth Table: $100–$2,000',
     shortName: 'Monthly investment table',
     description:
-      'How a recurring monthly investment grows at a 7% annual return over 10 to 40 years — from $100 to $2,000 a month.',
+      'How a recurring monthly investment grows at a 7% annual return over 10 to 40 years, from $100 to $2,000 a month, with contributions and interest split out.',
     category: 'finance',
     icon: 'piggy-bank',
     relatedCalculator: 'finance/investment-calculator',
+    reviewed: '2026-07-18',
     order: 5,
   },
   {
@@ -89,21 +125,23 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     title: 'Salary to Hourly Conversion Table',
     shortName: 'Salary conversion table',
     description:
-      'Common annual salaries converted to hourly, weekly, biweekly and monthly pay, based on a 40-hour, 52-week year.',
+      'Common annual salaries converted to hourly, weekly, biweekly and monthly pay, based on a 40-hour working week and a full 52 weeks of the year.',
     category: 'finance',
     icon: 'briefcase',
     relatedCalculator: 'finance/salary-calculator',
+    reviewed: '2026-07-18',
     order: 6,
   },
   {
     slug: 'inflation-purchasing-power-table',
-    title: 'Inflation Table: The Shrinking Buying Power of $100',
+    title: 'Inflation Table: The Buying Power of $100',
     shortName: 'Inflation table',
     description:
-      'What $100 held as cash will be worth in today’s money after 5 to 50 years at annual inflation rates of 2% to 5%.',
+      'What $100 held as cash will be worth in today’s money after 5 to 50 years, at annual inflation rates from 2% to 5%. Computed, not guessed at.',
     category: 'finance',
     icon: 'trending-down',
     relatedCalculator: 'finance/inflation-calculator',
+    reviewed: '2026-07-18',
     order: 7,
   },
   {
@@ -115,6 +153,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'health',
     icon: 'chart-column',
     relatedCalculator: 'health/ideal-weight-calculator',
+    reviewed: '2026-07-18',
     order: 8,
   },
   {
@@ -122,10 +161,11 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     title: 'Target Heart Rate Chart by Age',
     shortName: 'Target heart rate chart',
     description:
-      'Maximum heart rate and the light, moderate and hard training zones (in bpm) for every age from 20 to 70.',
+      'Maximum heart rate and the light, moderate and hard training zones, in beats per minute, for every age from 20 to 70. Printable and citable.',
     category: 'health',
     icon: 'heart-pulse',
     relatedCalculator: 'health/target-heart-rate-calculator',
+    reviewed: '2026-07-18',
     order: 9,
   },
   {
@@ -137,6 +177,7 @@ export const REFERENCES: readonly ReferenceAsset[] = [
     category: 'everyday',
     icon: 'receipt',
     relatedCalculator: 'finance/tip-calculator',
+    reviewed: '2026-07-18',
     order: 10,
   },
 ] as const;

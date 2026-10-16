@@ -145,7 +145,7 @@ const MODES = [
           </fieldset>
 
           <div class="loan-table-wrap">
-            <table class="loan-table">
+            <table class="loan-table calc-table calc-schedule-table">
               <caption class="sr-only">Loan schedule showing the beginning balance, the interest for the period and the ending balance.</caption>
               <thead>
                 <tr>
@@ -428,14 +428,7 @@ const MODES = [
     font-size: 0.875rem;
   }
   .loan-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--subtle);
     padding: 0.55rem 0.75rem;
-    font-weight: 600;
-    text-align: left;
-    color: var(--fg);
     white-space: nowrap;
   }
   /* `:global` because the schedule's cells are created by the binding at runtime

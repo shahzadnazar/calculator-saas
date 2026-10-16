@@ -209,7 +209,11 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     padding-right: 0.4rem;
     text-align: center;
     font-variant-numeric: tabular-nums;
-    background: var(--bg);
+    /* No background override here. This said `var(--bg)`, a custom property the
+       project has never defined, which does not fall back to the `.field` rule
+       underneath — it makes the declaration invalid at computed-value time, so
+       the property resets and these inputs alone rendered transparent while
+       every other field on the site carried `--card`. */
   }
   .tri-suffix {
     flex: none;

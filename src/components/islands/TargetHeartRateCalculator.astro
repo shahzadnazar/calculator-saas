@@ -130,7 +130,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
       </ResultInterpretation>
 
       <ResultBreakdown title="Zones by exercise intensity">
-        <table class="thr-zones">
+        <table class="thr-zones calc-table">
           <thead>
             <tr>
               <th scope="col">Exercise Intensity</th>
@@ -337,13 +337,6 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
     padding: 0.35rem 0;
     border-bottom: 1px solid var(--line);
     text-align: left;
-  }
-  .thr-zones thead th {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    font-weight: 700;
   }
   .thr-zones tbody th {
     font-weight: 500;

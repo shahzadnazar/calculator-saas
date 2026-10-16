@@ -151,7 +151,7 @@ import { RATE_UNIT_LABELS, SOLVE_MODES, TERM_UNIT_LABELS } from '@lib/calculator
         <div class="si-schedule" data-si-schedule hidden>
           <p class="si-figure__title">Schedule</p>
           <div class="si-table-wrap">
-            <table class="si-table">
+            <table class="si-table calc-table calc-schedule-table">
               <caption class="sr-only">Interest earned and the balance at the end of each year.</caption>
               <thead>
                 <tr>
@@ -332,14 +332,7 @@ import { RATE_UNIT_LABELS, SOLVE_MODES, TERM_UNIT_LABELS } from '@lib/calculator
   .si-table-wrap { max-height: 20rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
   .si-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.82rem; }
   .si-table thead th {
-    position: sticky;
-    top: 0;
-    background: var(--surface);
-    text-align: left;
-    font-weight: 700;
-    color: var(--heading);
     padding: 0.45rem 0.5rem;
-    border-bottom: 1px solid var(--line);
   }
   .si-table th.si-th-period { width: 4rem; }
   /* Rows are built with the DOM API, so these must be global. */

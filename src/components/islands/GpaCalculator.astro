@@ -83,7 +83,7 @@ const PLAN_FIELDS = [
           <span class="sr-only" data-result-value-a11y></span>
 
           <div class="gpa-scroll">
-            <table class="gpa-report">
+            <table class="gpa-report calc-table">
               <caption class="sr-only">Grade points by course</caption>
               <thead>
                 <tr>
@@ -225,7 +225,16 @@ const PLAN_FIELDS = [
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--muted);
-    white-space: nowrap;
+    /* No `white-space: nowrap` here. This table is `table-layout: fixed` with its
+       three narrow columns sized in rem, which leaves the first column about
+       100px on a 360px phone — narrower than its own heading. Held on one line
+       that heading overflowed its cell and printed on top of the next one, so
+       "COURSE (optional)" ran straight through "CREDITS". Wrapping is what the
+       `overflow-wrap: anywhere` further down was already there to allow; nowrap
+       was the leftover from when this table still sized itself, and it silently
+       cancelled it. Bottom alignment keeps the one-line headings sitting on the
+       same edge as the last line of a heading that wrapped. */
+    vertical-align: bottom;
   }
   .gpa-optional { font-weight: 500; text-transform: none; letter-spacing: 0; }
 
@@ -242,6 +251,19 @@ const PLAN_FIELDS = [
   .gpa-input-table th:nth-child(2),
   .gpa-input-table th:nth-child(3) { width: 5.75rem; }
   .gpa-input-table th:nth-child(4) { width: 3rem; }
+  /* The three trailing columns are fixed in rem, so the name column is the only one
+     that can absorb a narrow viewport — and it collapsed to 27px at 320px, narrow
+     enough that its own heading had to break mid-word. Give the fixed columns back
+     some width on a phone: a credits box and a grade select stay perfectly usable a
+     little narrower, and the remove button is exactly 2.75rem so that column can go
+     no further without clipping it. (Percentages are not an option here: a
+     `table-layout: fixed` column ignores a width whose value is a `min()`/`clamp()`
+     containing one, and falls back to dividing the table evenly.) */
+  @media (max-width: 420px) {
+    .gpa-input-table th:nth-child(2),
+    .gpa-input-table th:nth-child(3) { width: 4.5rem; }
+    .gpa-input-table th:nth-child(4) { width: 2.75rem; }
+  }
   .gpa-calc :global(.gpa-row__name) { width: 100%; }
   .gpa-calc :global(.gpa-row__credits) { width: 100%; font-variant-numeric: tabular-nums; }
   .gpa-calc :global(.gpa-row__grade) { width: 100%; }
@@ -342,13 +364,6 @@ const PLAN_FIELDS = [
   .gpa-report { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
   .gpa-report thead th {
     padding: 0.35rem 0.55rem;
-    text-align: left;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--muted);
-    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
   .gpa-report tfoot th,

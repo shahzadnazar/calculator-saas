@@ -21,7 +21,8 @@
 import CalculatorSearch from '@components/search/CalculatorSearch.astro';
 import MonetizationRegion from '@components/monetization/MonetizationRegion.astro';
 import { SEARCH_INDEX_URL } from '@lib/search';
-import { getRelatedCalculators, getNewCalculators, calculatorPath, type Calculator } from '@data/calculators';
+import { getNewCalculators, calculatorPath, type Calculator } from '@data/calculators';
+import { getRelatedCalculators } from '@lib/related';
 import { getReferencesForCalculator, referencePath } from '@data/reference';
 import { SITE } from '@config/site';
 
@@ -32,12 +33,18 @@ interface Props {
 }
 const { calculator, limit = 12 } = Astro.props;
 
-const related = getRelatedCalculators(calculator, limit);
-// Newest first, at the top of the related list — a new calculator is otherwise unreachable
-// from a page in another category, because the list is registry order within a category.
-// Rendered exactly like every other entry, with no badge: the position is the promotion, and
-// a label would date the moment it stopped being news. Excludes the page you are already on.
+// Newest first, at the top of the related list — a new calculator is otherwise hard to reach
+// from a page it is not topically related to. Rendered exactly like every other entry, with
+// no badge: the position is the promotion, and a label would date the moment it stopped being
+// news. Excludes the page you are already on.
 const fresh = getNewCalculators(calculator);
+// ...and is then excluded from the ranked list below, or a new calculator that IS related to
+// this page appears twice — which is what happened to VAT on every finance page the moment
+// the list started ranking by relatedness instead of registry position.
+const promoted = new Set(fresh.map((c) => `${c.category}/${c.slug}`));
+const related = getRelatedCalculators(calculator, limit + promoted.size).filter(
+  (c) => !promoted.has(`${c.category}/${c.slug}`),
+);
 
 /**
  * How much taller the fold-critical block is because of the new entries.

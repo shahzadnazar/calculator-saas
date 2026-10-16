@@ -160,7 +160,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
             </fieldset>
 
             <div class="he-table-wrap">
-              <table class="he-table">
+              <table class="he-table calc-table calc-schedule-table">
                 <caption class="sr-only">Amortization schedule showing each period's interest and principal and the balance remaining afterwards.</caption>
                 <thead>
                   <tr>
@@ -412,14 +412,7 @@ import ExampleNotice from '@components/result/ExampleNotice.astro';
   .he-table-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.5rem; }
   .he-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   .he-table thead th {
-    position: sticky;
-    top: 0;
-    background: var(--surface);
-    text-align: left;
-    font-weight: 700;
-    color: var(--heading);
     padding: 0.45rem 0.6rem;
-    border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
   /* Rows are built with the DOM API, so these must be global — a scoped selector

@@ -170,7 +170,7 @@ const METHOD_NOTES: Record<string, string> = {
         </div>
 
         <!-- Supporting: the whole pregnancy as a dated schedule, with the visitor's own row -->
-        <table class="pg-schedule">
+        <table class="pg-schedule calc-table">
           <caption class="pg-schedule__caption">Your pregnancy schedule</caption>
           <thead>
             <tr><th scope="col">Milestone</th><th scope="col">Date</th><th scope="col" class="pg-numeric">Gestational age</th></tr>
@@ -351,13 +351,6 @@ const METHOD_NOTES: Record<string, string> = {
   .pg-schedule th:last-child,
   .pg-schedule td:last-child {
     padding-right: 0;
-  }
-  .pg-schedule thead th {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    font-weight: 700;
   }
   .pg-schedule tbody th {
     font-weight: 500;

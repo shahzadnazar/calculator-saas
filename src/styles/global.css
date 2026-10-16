@@ -417,6 +417,60 @@
     max-width: 100%;
   }
 
+  /* ------------------------------------------------------------------------
+     Calculator tables — ONE header treatment
+     ------------------------------------------------------------------------
+     Thirty-odd tables print inside the calculators, and every one of them used
+     to carry its own copy of its header's CSS. Three looks had grown out of
+     that: a banded header (mortgage, loan, auto-loan, retirement), a small
+     uppercase muted micro-label (most of the health tables, the GPA and grade
+     reports, standard deviation), and a plain small bold one (salary, tip). The
+     copies had also drifted outright — seven of them painted the background with
+     `var(--surface)`, a custom property this project has never defined. An
+     undefined property with no fallback makes the whole declaration invalid at
+     computed-value time, so those headers resolved to `transparent`, and in the
+     scrolling ones the rows ran straight through the column names on a phone.
+
+     `.calc-table` is now the single definition of what a calculator table header
+     looks like: the band, the colour, the weight, the alignment, the rule under
+     it. A header is told apart from its rows by that band and not by being
+     smaller than the data it labels, so the per-table font-size shrink is gone
+     with the rest of the copies — the header simply takes its table's size.
+
+     `.calc-schedule-table` adds the two properties a header needs when it has to
+     stay put over a scrolling body, and is applied alongside `.calc-table`. The
+     `z-index` is the half that is easy to miss: table cells paint in document
+     order, so a sticky `th` left at `z-index: auto` is painted BEFORE every tbody
+     cell and ends up underneath them even when it does have a background.
+
+     Padding, font-size and `white-space` stay with the island — that is the part
+     which legitimately differs between families. Astro's scoped styles are
+     unlayered, so anything an island still declares for its own `thead th` wins
+     over this block per property; that is the intended escape hatch, and also
+     why the islands had to have these properties removed rather than merely
+     overridden.
+
+     Two tables deliberately opt out. The GPA and grade INPUT tables head columns
+     of form fields rather than data, so a filled band there would announce a
+     table that is not one and detach the labels from the inputs beneath them;
+     they keep the micro-label. Compound interest's `.ci-rate` is a bar chart
+     that happens to be marked up as a table, and its first row labels bars.
+     ------------------------------------------------------------------------ */
+
+  .calc-table thead th {
+    background: var(--subtle);
+    color: var(--fg);
+    font-weight: 600;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .calc-schedule-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
 
   /* ------------------------------------------------------------------------
      Tool shell — calculator and optional side rail

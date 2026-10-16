@@ -34,6 +34,17 @@ const featured = popularRefs
   })
   .filter((c): c is NonNullable<typeof c> => Boolean(c));
 
+/**
+ * The home page's SERP description, deliberately NOT `SITE.description`.
+ *
+ * `SITE.description` is the one-line positioning statement, and the hero renders
+ * it verbatim under the H1 — it has to read well as page copy. A search result is
+ * a different job: it competes against four other calculator sites in a list, and
+ * the thing that wins the click is specifics. So this names the count and the
+ * calculators people actually search for, and the hero keeps its own line.
+ */
+const HOME_DESCRIPTION = `${STATS.live} free online calculators: mortgage and loan payments, BMI and calories, percentages, VAT and income tax, dates and conversions. Instant results, no sign-up.`;
+
 // Hero quick-links — the curated popular set (the same list the search empty-state uses).
 const popular = getPopularCalculatorIds()
   .map((ref) => {
@@ -60,8 +71,8 @@ const valueProps = [
 ---
 
 <BaseLayout
-  title={`${SITE.name} — Free Online Calculators for Finance, Health & Math`}
-  description={SITE.description}
+  title={`${SITE.name} — Free Calculators for Finance, Health & Math`}
+  description={HOME_DESCRIPTION}
   path="/"
 >
   <!-- Hero — product-forward (SaaS): a live Basic/Scientific calculator sits beside the headline,
